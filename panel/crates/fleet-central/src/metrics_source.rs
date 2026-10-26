@@ -68,6 +68,7 @@ impl Hash for FlightKey {
 }
 
 type SharedValue = futures_util::future::Shared<BoxFuture<'static, Value>>;
+type LinkState = Option<(bool, Vec<String>)>;
 
 struct Inner {
     database: Database,
@@ -139,7 +140,7 @@ impl FleetMetricsSource {
 
     /// `(online, capabilities)` of the current v2 link. Any damaged/missing row is unsupported,
     /// as Python's broad `_link_state` failure guard specified.
-    fn state(&self, node_id: &str) -> Option<(bool, Vec<String>)> {
+    fn state(&self, node_id: &str) -> LinkState {
         let row = self.inner.database.with_connection(|db| {
             db.query_row("SELECT status,identity_json FROM node_links WHERE node_id=?", [node_id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -155,6 +156,14 @@ impl FleetMetricsSource {
             .map(|items| items.iter().filter_map(Value::as_str).map(str::to_string).collect())
             .unwrap_or_default();
         Some((status == "online", capabilities))
+    }
+
+    async fn metadata(&self, node_id: &str) -> (String, LinkState) {
+        let this = self.clone();
+        let node = node_id.to_owned();
+        tokio::task::spawn_blocking(move || (this.name(&node), this.state(&node)))
+            .await
+            .unwrap_or_else(|_| (node_id.to_owned(), None))
     }
 
     fn nodes_blocking(&self) -> Vec<MetricsNode> {
@@ -238,8 +247,8 @@ impl FleetMetricsSource {
     }
 
     async fn refresh(&self, node_id: &str) -> Value {
-        let name = self.name(node_id);
-        let entry = match self.state(node_id) {
+        let (name, state) = self.metadata(node_id).await;
+        let entry = match state {
             None => placeholder(node_id, &name, "unsupported"),
             Some((_, capabilities)) if !capabilities.iter().any(|item| item == CAPABILITY) => {
                 placeholder(node_id, &name, "unsupported")
@@ -251,36 +260,41 @@ impl FleetMetricsSource {
         entry
     }
 
-    async fn flight(&self, key: FlightKey, work: impl Future<Output = Value> + Send + 'static) -> Value {
-        let existing = { lock(&self.inner.inflight).get(&key).cloned() };
-        if let Some(existing) = existing {
-            return existing.await;
+    fn finish_flight(flights: &Mutex<HashMap<FlightKey, SharedValue>>, key: &FlightKey, shared: &SharedValue) {
+        let mut flights = lock(flights);
+        if flights.get(key).is_some_and(|current| current.ptr_eq(shared)) {
+            flights.remove(key);
         }
-        let shared = work.boxed().shared();
-        let existing = {
+    }
+
+    async fn flight(&self, key: FlightKey, work: impl Future<Output = Value> + Send + 'static) -> Value {
+        let (shared, start) = {
             let mut flights = lock(&self.inner.inflight);
-            match flights.get(&key).cloned() {
-                Some(existing) => Some(existing),
+            match flights.get(&key) {
+                Some(existing) => (existing.clone(), false),
                 None => {
+                    let shared = work.boxed().shared();
                     flights.insert(key.clone(), shared.clone());
-                    None
+                    (shared, true)
                 }
             }
         };
-        if let Some(existing) = existing {
-            return existing.await;
-        }
-        // A driver independent of every caller keeps the request alive when live_many's budget
-        // expires. It also removes exactly this completed flight from the map.
-        let flights = self.inner.inflight.clone();
-        tokio::spawn({
+        if start {
+            // A caller's budget/cancellation must not stop the cache refresh. Keep an unpolled
+            // handle for pointer identity: a polled-to-completion Shared loses its identity.
+            let flights = self.inner.inflight.clone();
+            let key = key.clone();
             let shared = shared.clone();
-            async move {
-                shared.await;
-                lock(&flights).remove(&key);
-            }
-        });
-        shared.await
+            tokio::spawn(async move {
+                shared.clone().await;
+                Self::finish_flight(&flights, &key, &shared);
+            });
+        }
+        let answer = shared.clone().await;
+        // Remove before returning as well: the driver may not have been scheduled yet. Otherwise
+        // an immediately expired cache can reuse the completed request as if it were in flight.
+        Self::finish_flight(&self.inner.inflight, &key, &shared);
+        answer
     }
 
     async fn live_inner(&self, node_id: &str) -> Value {
@@ -296,9 +310,8 @@ impl FleetMetricsSource {
     }
 
     async fn history_inner(&self, node_id: &str, series: &[String], range: &str, points: i64) -> Value {
-        let name = self.name(node_id);
+        let (name, capable) = self.metadata(node_id).await;
         let mut base = json!({"node_id": node_id, "name": name, "range": range, "series": {}});
-        let capable = self.state(node_id);
         match &capable {
             None => {
                 base["status"] = json!("unsupported");
@@ -352,10 +365,10 @@ impl FleetMetricsSource {
     }
 
     async fn summary_inner(&self, node_id: &str, range: &str) -> Value {
-        let name = self.name(node_id);
+        let (name, state) = self.metadata(node_id).await;
         let mut base = json!({"node_id": node_id, "name": name, "host": null, "protocols": {},
                               "hours_of_day": {}, "alerts": []});
-        match self.state(node_id) {
+        match state {
             None => {
                 base["status"] = json!("unsupported");
                 return base;

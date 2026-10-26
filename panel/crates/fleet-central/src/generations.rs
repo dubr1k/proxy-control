@@ -37,8 +37,7 @@ pub struct DesiredGeneration {
     pub acknowledged_at: Option<i64>,
 }
 
-/// The routing dependency of generation compilation. WP10 implements this with its routing
-/// service; this crate deliberately does not depend on that not-yet-merged package.
+/// Desired egress is read in the same transaction as grants, before a generation is numbered.
 pub trait DesiredRouting: Send + Sync {
     /// `RoutingService.desired_for_node`: typed egress documents by protocol.
     fn desired_for_node(&self, db: &Conn, node_id: &str) -> CentralResult<IndexMap<Protocol, EgressDocument>>;
@@ -208,6 +207,9 @@ impl DesiredStore {
 
     /// Whether the node's own last report says its relay carries this account.
     pub fn relay_confirmed(&self, node_id: &str, email: &str) -> CentralResult<bool> {
+        if node_id == panel_clients::LOCAL_NODE_ID {
+            return Ok(true);
+        }
         self.database.with_connection(|db| {
             Ok(Self::observed_relay(db, node_id)?.is_some_and(|relay| {
                 relay
@@ -433,19 +435,13 @@ pub fn compile(
 #[derive(Clone)]
 pub struct PublishService {
     master_guid: String,
-    desired: DesiredStore,
     clock: SharedClock,
     routing: Option<Arc<dyn DesiredRouting>>,
 }
 
 impl PublishService {
-    pub fn new(
-        master_guid: impl Into<String>,
-        desired: DesiredStore,
-        clock: SharedClock,
-        routing: Option<Arc<dyn DesiredRouting>>,
-    ) -> Self {
-        Self { master_guid: master_guid.into(), desired, clock, routing }
+    pub fn new(master_guid: impl Into<String>, clock: SharedClock, routing: Option<Arc<dyn DesiredRouting>>) -> Self {
+        Self { master_guid: master_guid.into(), clock, routing }
     }
 
     pub fn publish(&self, db: &Conn, node_id: &str) -> CentralResult<Option<i64>> {
@@ -590,8 +586,7 @@ mod tests {
             vec![RelayAccount { email: "relay:source:warp".into(), credential_ref: "relay:source:1".into() }]
         );
 
-        let desired = DesiredStore::new(temp.database.clone());
-        let publish = PublishService::new("master", desired, Arc::new(FakeClock::new(10.0)), None);
+        let publish = PublishService::new("master", Arc::new(FakeClock::new(10.0)), None);
         assert_eq!(publish.publish_at(&db, "n", "system", 10).unwrap(), Some(1));
         assert_eq!(publish.publish_at(&db, "n", "system", 11).unwrap(), None);
         let latest = DesiredStore::latest(&db, "n").unwrap().unwrap();

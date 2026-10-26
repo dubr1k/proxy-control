@@ -13,9 +13,7 @@ use panel_core::migrations::apply_migrations;
 use panel_core::rusqlite::params;
 use panel_fleet::central::{NodeClientFactory, NodeLink};
 use panel_fleet_central::links::{NodeLinkService, KEY_PURPOSE};
-use panel_fleet_central::metrics_source::{
-    FleetMetricsSource, CALL_TIMEOUT, CONCURRENCY, HISTORY_TIMEOUT, STALE, TTL,
-};
+use panel_fleet_central::metrics_source::{FleetMetricsSource, CALL_TIMEOUT, CONCURRENCY, HISTORY_TIMEOUT, STALE, TTL};
 use panel_metrics::FleetMeters;
 use panel_model::fleet::{ObservedGeneration, PushRequest, PushResponse};
 use panel_model::metrics::{MetricsNode, NodeMetricsSource};
@@ -168,11 +166,7 @@ impl FakeClient {
         }
         Ok(match kind {
             AnswerKind::Live => state.live_body.clone(),
-            AnswerKind::History => state
-                .history_body
-                .clone()
-                .or(history_default)
-                .expect("history default"),
+            AnswerKind::History => state.history_body.clone().or(history_default).expect("history default"),
             AnswerKind::Summary => state.summary_body.clone(),
         })
     }
@@ -206,10 +200,7 @@ impl NodeClient for FakeClient {
         _points: i64,
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Map<String, Value>, NodeError>> {
-        let series = series
-            .iter()
-            .map(|name| (name.clone(), json!([[1, 2.0, 3.0]])))
-            .collect::<Map<_, _>>();
+        let series = series.iter().map(|name| (name.clone(), json!([[1, 2.0, 3.0]]))).collect::<Map<_, _>>();
         let default = object(json!({
             "node_id": "local",
             "range": range,
@@ -227,10 +218,7 @@ impl NodeClient for FakeClient {
         Box::pin(async move { self.answer(AnswerKind::Summary, timeout, None).await })
     }
 
-    fn push<'a>(
-        &'a self,
-        _request: &'a PushRequest,
-    ) -> BoxFuture<'a, Result<(u16, PushResponse), NodeError>> {
+    fn push<'a>(&'a self, _request: &'a PushRequest) -> BoxFuture<'a, Result<(u16, PushResponse), NodeError>> {
         Box::pin(async { Err(unused_method()) })
     }
 
@@ -263,10 +251,7 @@ impl NodeClient for FakeClient {
         Box::pin(async { Err(unused_method()) })
     }
 
-    fn exit_test<'a>(
-        &'a self,
-        _spec: &'a Map<String, Value>,
-    ) -> BoxFuture<'a, Result<Map<String, Value>, NodeError>> {
+    fn exit_test<'a>(&'a self, _spec: &'a Map<String, Value>) -> BoxFuture<'a, Result<Map<String, Value>, NodeError>> {
         Box::pin(async { Err(unused_method()) })
     }
 
@@ -362,20 +347,13 @@ impl Harness {
         apply_migrations(&database).expect("migrate test database");
         let clock = Arc::new(FakeClock::default());
         let shared_clock: SharedClock = clock.clone();
-        let nodes = nodes
-            .into_iter()
-            .map(|(node_id, node)| (node_id.into(), Arc::new(node)))
-            .collect::<HashMap<_, _>>();
+        let nodes =
+            nodes.into_iter().map(|(node_id, node)| (node_id.into(), Arc::new(node))).collect::<HashMap<_, _>>();
         let counters = Arc::new(Counters::default());
         let factory = Arc::new(FakeFactory { nodes: nodes.clone(), counters: counters.clone() });
         let secrets = SecretStore::with_clock(Some(Keyring::generate()), shared_clock.clone());
-        let links = Arc::new(NodeLinkService::new(
-            database.clone(),
-            secrets.clone(),
-            "central",
-            factory,
-            shared_clock.clone(),
-        ));
+        let links =
+            Arc::new(NodeLinkService::new(database.clone(), secrets.clone(), "central", factory, shared_clock.clone()));
 
         database
             .transaction(|db| {
@@ -453,11 +431,7 @@ async fn live(harness: &Harness, node_id: &str) -> Value {
 
 async fn history(harness: &Harness, node_id: &str, series: &[&str], range: &str, points: i64) -> Value {
     let series = series.iter().map(|name| (*name).to_string()).collect::<Vec<_>>();
-    harness
-        .source
-        .history(node_id, &series, range, points)
-        .await
-        .expect("fleet source always answers")
+    harness.source.history(node_id, &series, range, points).await.expect("fleet source always answers")
 }
 
 async fn summary(harness: &Harness, node_id: &str, range: &str) -> Value {
@@ -476,12 +450,7 @@ async fn live_many(harness: &Harness, node_ids: &[&str], budget: Duration) -> Ve
 
 #[tokio::test]
 async fn missing_capability_or_link_is_unsupported_without_calling_a_client() {
-    let harness = Harness::with(
-        vec![("berlin", FakeNode::new())],
-        true,
-        &["generation.v1"],
-        SourceOptions::default(),
-    );
+    let harness = Harness::with(vec![("berlin", FakeNode::new())], true, &["generation.v1"], SourceOptions::default());
 
     let got = live(&harness, "berlin").await;
     assert_eq!(got["status"], "unsupported");
@@ -496,12 +465,7 @@ async fn missing_capability_or_link_is_unsupported_without_calling_a_client() {
 
 #[tokio::test]
 async fn offline_link_is_unavailable_without_calling_a_client() {
-    let harness = Harness::with(
-        vec![("berlin", FakeNode::new())],
-        false,
-        &["metrics.v1"],
-        SourceOptions::default(),
-    );
+    let harness = Harness::with(vec![("berlin", FakeNode::new())], false, &["metrics.v1"], SourceOptions::default());
 
     assert_eq!(live(&harness, "berlin").await["status"], "unavailable");
     assert_eq!(history(&harness, "berlin", &["host.cpu"], "1h", 240).await["status"], "unavailable");
@@ -599,10 +563,7 @@ async fn live_fan_out_caps_node_calls_at_eight() {
 async fn live_many_budget_leaves_slow_call_running_to_fill_cache() {
     let options = SourceOptions { call_timeout: Duration::from_secs(1), ..SourceOptions::default() };
     let harness = Harness::with(
-        vec![
-            ("fast", FakeNode::new()),
-            ("slow", FakeNode::new().delayed(Duration::from_millis(500))),
-        ],
+        vec![("fast", FakeNode::new()), ("slow", FakeNode::new().delayed(Duration::from_millis(500)))],
         true,
         &["metrics.v1"],
         options,
@@ -612,7 +573,9 @@ async fn live_many_budget_leaves_slow_call_running_to_fill_cache() {
     let got = live_many(&harness, &["fast", "slow"], Duration::from_millis(50)).await;
     assert!(started.elapsed() < Duration::from_millis(300), "slow node exceeded caller budget");
     assert_eq!(
-        got.iter().map(|entry| (entry["node_id"].as_str().unwrap(), entry["status"].as_str().unwrap())).collect::<Vec<_>>(),
+        got.iter()
+            .map(|entry| (entry["node_id"].as_str().unwrap(), entry["status"].as_str().unwrap()))
+            .collect::<Vec<_>>(),
         vec![("fast", "ok"), ("slow", "unavailable")]
     );
 
@@ -686,16 +649,16 @@ async fn live_call_slower_than_its_timeout_is_cut_off() {
 async fn history_and_summary_are_tagged_and_map_node_errors() {
     let harness = Harness::new(vec![("berlin", FakeNode::new())]);
 
-    let history = history(&harness, "berlin", &["host.cpu"], "6h", 120).await;
-    assert_eq!(history["node_id"], "berlin");
-    assert_eq!(history["status"], "ok");
-    assert_eq!(history["range"], "6h");
-    assert_eq!(history["series"], json!({"host.cpu": [[1, 2.0, 3.0]]}));
-    let summary = summary(&harness, "berlin", "1h").await;
-    assert_eq!(summary["node_id"], "berlin");
-    assert_eq!(summary["name"], "Berlin");
-    assert_eq!(summary["status"], "ok");
-    assert_eq!(summary["host"], json!({"cpu": {"avg": 5.0}}));
+    let history_answer = history(&harness, "berlin", &["host.cpu"], "6h", 120).await;
+    assert_eq!(history_answer["node_id"], "berlin");
+    assert_eq!(history_answer["status"], "ok");
+    assert_eq!(history_answer["range"], "6h");
+    assert_eq!(history_answer["series"], json!({"host.cpu": [[1, 2.0, 3.0]]}));
+    let summary_answer = summary(&harness, "berlin", "1h").await;
+    assert_eq!(summary_answer["node_id"], "berlin");
+    assert_eq!(summary_answer["name"], "Berlin");
+    assert_eq!(summary_answer["status"], "ok");
+    assert_eq!(summary_answer["host"], json!({"cpu": {"avg": 5.0}}));
     assert_eq!(harness.node("berlin").timeouts(), vec![Duration::from_secs(10), Duration::from_secs(10)]);
 
     harness.node("berlin").set_failure(NodeError::Unreachable("offline".into()));

@@ -44,35 +44,21 @@ pub const NOT_CAPTURED: &str = "credential not captured yet";
 pub const RELAY_PURPOSE: &str = "relay-account";
 const RESYNC_CODES: [&str; 2] = ["stale_generation", "digest_conflict"];
 
-/// WP10's observation side, kept out of this crate while the routing package is merged.
-///
-/// `absorb_egress` must implement the routing store's idempotent applied/failed/draft and
-/// pass-through rules, including schema-2 companion lanes. `observe_relay` must implement
-/// `RelayRegistry.observe`: preserve the desired enabled flag on an existing row and ignore
-/// failed/unsupported reports. Both run inside the pusher's absorption transaction.
+/// Routing readback is absorbed in the same transaction as grants and generation acknowledgement.
 pub trait ObservationSink: Send + Sync {
     fn absorb_egress(
         &self,
-        _db: &Conn,
-        _node_id: &str,
-        _latest: &GenerationDocument,
-        _observed: &ObservedGeneration,
-        _now: i64,
-    ) -> CentralResult<()> {
-        Ok(())
-    }
+        db: &Conn,
+        node_id: &str,
+        latest: &GenerationDocument,
+        observed: &ObservedGeneration,
+        now: i64,
+    ) -> CentralResult<()>;
 
-    fn observe_relay(&self, _db: &Conn, _node_id: &str, _relay: &ObservedRelay, _now: i64) -> CentralResult<()> {
-        Ok(())
-    }
+    fn observe_relay(&self, db: &Conn, node_id: &str, relay: &ObservedRelay, now: i64) -> CentralResult<()>;
 }
 
-/// Explicit no-op for a central compiled without routing/relay observation.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoopObservationSink;
-impl ObservationSink for NoopObservationSink {}
-
-/// Delivery-loop settings. Routing is optional so this crate has no WP10 dependency.
+/// Delivery-loop settings; standalone users can omit routing readback.
 #[derive(Clone)]
 pub struct PusherOptions {
     pub interval: Duration,
@@ -394,7 +380,7 @@ impl FleetPusher {
             database.transaction(|db| {
                 let transition =
                     links.record_heartbeat(db, &id, true, Some(&identity), Some(&status), Some(latency), None)?;
-                Self::emit(db, &*events, transition.as_deref(), &id)?;
+                Self::emit(db, &events, transition.as_deref(), &id)?;
                 let link = links.link(db, &id)?;
                 let latest = DesiredStore::latest(db, &id)?;
                 let observed = DesiredStore::observed(db, &id)?;
@@ -410,16 +396,16 @@ impl FleetPusher {
             }
             Err(error) => return Err(error),
         };
-        if truthy(link.get("enabled")) && link.get("auto_import").map_or(true, |value| truthy(Some(value))) {
-            if self.adopt(&*client, node_id).await? {
-                let database = self.database.clone();
-                let id = node_id.to_string();
-                (latest, observed) = Self::run_blocking(move || {
-                    database
-                        .with_connection(|db| Ok((DesiredStore::latest(db, &id)?, DesiredStore::observed(db, &id)?)))
-                })
-                .await?;
-            }
+        if truthy(link.get("enabled"))
+            && link.get("auto_import").is_none_or(|value| truthy(Some(value)))
+            && self.adopt(&*client, node_id).await?
+        {
+            let database = self.database.clone();
+            let id = node_id.to_string();
+            (latest, observed) = Self::run_blocking(move || {
+                database.with_connection(|db| Ok((DesiredStore::latest(db, &id)?, DesiredStore::observed(db, &id)?)))
+            })
+            .await?;
         }
         let Some(latest) = latest else { return Ok(()) };
         if !truthy(link.get("enabled")) {
@@ -542,7 +528,7 @@ impl FleetPusher {
         Self::run_blocking(move || {
             database.transaction(|db| {
                 let transition = links.record_heartbeat(db, &id, false, None, None, None, Some(&description))?;
-                Self::emit(db, &*events, transition.as_deref(), &id)
+                Self::emit(db, &events, transition.as_deref(), &id)
             })
         })
         .await
@@ -583,25 +569,19 @@ impl FleetPusher {
                     }
                     let reference = parse_secret_ref(&resource.credential_ref)?;
                     let grant_id = resource.reference.strip_prefix("grant:").unwrap_or(&resource.reference);
-                    match secrets.reveal(db, &reference, CREDENTIAL_PURPOSE, Some(grant_id), Some(&id)) {
-                        Ok(value) => {
-                            let value = String::from_utf8(value)
-                                .map_err(|_| CentralError::Invalid("grant credential is not UTF-8".into()))?;
-                            plaintext.insert(resource.credential_ref.clone(), value);
-                        }
-                        Err(_) => {}
+                    if let Ok(value) = secrets.reveal(db, &reference, CREDENTIAL_PURPOSE, Some(grant_id), Some(&id)) {
+                        let value = String::from_utf8(value)
+                            .map_err(|_| CentralError::Invalid("grant credential is not UTF-8".into()))?;
+                        plaintext.insert(resource.credential_ref.clone(), value);
                     }
                 }
                 if let Some(relay) = &document.relay {
                     for account in &relay.accounts {
                         let reference = parse_secret_ref(&account.credential_ref)?;
-                        match secrets.reveal(db, &reference, RELAY_PURPOSE, None, Some(&id)) {
-                            Ok(value) => {
-                                let value = String::from_utf8(value)
-                                    .map_err(|_| CentralError::Invalid("relay credential is not UTF-8".into()))?;
-                                plaintext.insert(account.credential_ref.clone(), value);
-                            }
-                            Err(_) => {}
+                        if let Ok(value) = secrets.reveal(db, &reference, RELAY_PURPOSE, None, Some(&id)) {
+                            let value = String::from_utf8(value)
+                                .map_err(|_| CentralError::Invalid("relay credential is not UTF-8".into()))?;
+                            plaintext.insert(account.credential_ref.clone(), value);
                         }
                     }
                 }

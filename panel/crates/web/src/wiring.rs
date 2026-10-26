@@ -127,10 +127,15 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     let managed: Arc<dyn panel_routing::service::CentralManagement> = Arc::new(move |db: &panel_core::db::Conn| {
         managed_store.master_guid(db).map_err(|error| -> panel_model::seams::SeamError { Box::new(error) })
     });
-    let confirmed: Arc<dyn panel_model::seams::RelayConfirmation> = Arc::new(panel_routing::lanes::local_only);
-    // WP12b replaces these absent central seams in the same composition root.
-    let publisher: Option<Arc<dyn panel_model::seams::GenerationPublisher>> = None;
-    let node_client: Option<Arc<dyn panel_model::seams::NodeClientProvider>> = None;
+    let confirmed: Arc<dyn panel_model::seams::RelayConfirmation> = Arc::new(
+        services.get::<panel_fleet_central::generations::DesiredStore>().cloned().expect("desired store is wired"),
+    );
+    let publisher: Option<Arc<dyn panel_model::seams::GenerationPublisher>> = Some(
+        services.get::<Arc<panel_fleet_central::generations::PublishService>>().cloned().expect("publisher is wired"),
+    );
+    let node_client: Option<Arc<dyn panel_model::seams::NodeClientProvider>> = Some(
+        services.get::<Arc<panel_fleet_central::links::NodeLinkService>>().cloned().expect("node links are wired"),
+    );
     let relays = panel_routing::lanes::RelayRegistry::new(core.secrets.clone());
     let routing = panel_routing::service::RoutingService::new(
         core.database.clone(),
@@ -163,8 +168,7 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     services.insert(node);
     // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13, `app.py:252`):
     // the collector reads the host agent and the five protocol managers; the local node's name
-    // comes from the node store. The fleet source (WP12b) is plugged in with
-    // `Metrics::set_source`; until then linked nodes answer `unsupported`.
+    // comes from the node store; linked-node reads share the fleet source's cache and concurrency.
     let managers = &core.managers;
     let local_name: LocalName = Arc::new(move || nodes.local().ok().map(|view| view.display_name));
     let meters = ManagerMeters {

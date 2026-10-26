@@ -23,8 +23,8 @@ panel-fleet = { path = "../fleet" }
 panel-metrics = { path = "../metrics" }
 panel-model = { path = "../model" }
 panel-nodes = { path = "../nodes" }
+panel-routing = { path = "../routing" }
 panel-secrets = { path = "../secrets" }
-percent-encoding = "2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-native-certs = "0.8"

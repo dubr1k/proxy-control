@@ -11,5 +11,12 @@ pub mod importing;
 pub mod links;
 pub mod metrics_source;
 pub mod pusher;
+pub mod routing;
 
 pub use error::{CentralError, CentralResult};
+
+async fn blocking<T: Send + 'static>(work: impl FnOnce() -> CentralResult<T> + Send + 'static) -> CentralResult<T> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| CentralError::Internal(format!("fleet database task failed: {error}")))?
+}

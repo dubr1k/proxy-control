@@ -58,10 +58,10 @@ pub fn validate_panel_url(url: &str, allow_private: bool) -> CentralResult<Strin
     let path_end = tail.find(['?', '#']).unwrap_or(tail.len());
     let path = &tail[..path_end];
 
-    let host = parsed.host_str().expect("checked above");
-    let private = match host.parse::<IpAddr>() {
-        Ok(address) => !is_global(address),
-        Err(_) => host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local"),
+    let private = match parsed.host().expect("checked above") {
+        url::Host::Ipv4(address) => !is_global(address.into()),
+        url::Host::Ipv6(address) => !is_global(address.into()),
+        url::Host::Domain(host) => host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local"),
     };
     if private && !allow_private {
         return Err(CentralError::Invalid(PRIVATE_ADDRESS.into()));
@@ -229,7 +229,10 @@ fn pinned_tls_config(expected_sha256: Option<String>) -> CentralResult<ClientCon
 }
 
 fn verified_tls_config() -> CentralResult<ClientConfig> {
-    let roots = SYSTEM_ROOTS.clone().map_err(CentralError::Internal)?;
+    verified_tls_with_roots(SYSTEM_ROOTS.clone().map_err(CentralError::Internal)?)
+}
+
+fn verified_tls_with_roots(roots: Arc<RootCertStore>) -> CentralResult<ClientConfig> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let mut config = tls_builder(provider)?.with_root_certificates(roots).with_no_client_auth();
     config.alpn_protocols = vec![b"http/1.1".to_vec()];
@@ -288,6 +291,17 @@ impl NodeHttpClient {
             return Err(CentralError::Invalid("pin mode needs pinned_sha256".into()));
         }
         let base_url = validate_panel_url(base_url, allow_private)?;
+        // Hyper bypasses its DNS resolver for numeric hosts, so enforce the connection policy
+        // here too (including multicast, which Python's URL-only validation permits).
+        let parsed = url::Url::parse(&base_url).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
+        let literal = match parsed.host().expect("validated URL has a host") {
+            url::Host::Ipv4(address) => Some(IpAddr::V4(address)),
+            url::Host::Ipv6(address) => Some(IpAddr::V6(address)),
+            url::Host::Domain(_) => None,
+        };
+        if !allow_private && literal.is_some_and(|address| !public_address(address)) {
+            return Err(NodeError::Unreachable("ConnectError".into()).into());
+        }
         #[cfg(all(unix, feature = "test-hooks"))]
         let mut base_url = base_url;
         #[cfg(all(unix, feature = "test-hooks"))]
@@ -582,11 +596,15 @@ impl NodeClientFactory for NodeHttpFactory {
 pub fn fingerprint(url: &str, timeout: Duration, allow_private: bool) -> CentralResult<String> {
     let url = validate_panel_url(url, allow_private)?;
     let parsed = url::Url::parse(&url).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
-    let host = parsed.host_str().expect("validated URL has a host");
+    let host = match parsed.host().expect("validated URL has a host") {
+        url::Host::Domain(host) => host.to_owned(),
+        url::Host::Ipv4(address) => address.to_string(),
+        url::Host::Ipv6(address) => address.to_string(),
+    };
     let port = parsed.port().unwrap_or(443);
-    let server_name = ServerName::try_from(host.to_owned()).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
+    let server_name = ServerName::try_from(host.clone()).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
     let deadline = Instant::now() + timeout;
-    let addresses = fingerprint_addresses(host, port, allow_private, deadline)?;
+    let addresses = fingerprint_addresses(&host, port, allow_private, deadline)?;
     let config = Arc::new(pinned_tls_config(None)?);
 
     let mut last_error = "ConnectError";
@@ -642,12 +660,17 @@ fn probe_certificate(
     config: Arc<ClientConfig>,
     timeout: Duration,
 ) -> Result<String, &'static str> {
+    let deadline = Instant::now() + timeout;
     let stream = TcpStream::connect_timeout(&address, timeout).map_err(io_kind)?;
     stream.set_read_timeout(Some(timeout)).map_err(io_kind)?;
     stream.set_write_timeout(Some(timeout)).map_err(io_kind)?;
     let connection = ClientConnection::new(config, server_name).map_err(|_| "SSLError")?;
     let mut tls = StreamOwned::new(connection, stream);
     while tls.conn.is_handshaking() {
+        let remaining =
+            deadline.checked_duration_since(Instant::now()).filter(|left| !left.is_zero()).ok_or("TimeoutError")?;
+        tls.sock.set_read_timeout(Some(remaining)).map_err(io_kind)?;
+        tls.sock.set_write_timeout(Some(remaining)).map_err(io_kind)?;
         tls.conn.complete_io(&mut tls.sock).map_err(io_kind)?;
     }
     let certificate = tls.conn.peer_certificates().and_then(|certificates| certificates.first()).ok_or("SSLError")?;
@@ -696,6 +719,8 @@ mod tests {
             assert!(validate_panel_url(bad, false).is_err(), "accepted {bad}");
         }
         assert_eq!(validate_panel_url("https://10.0.0.1:8443", true).unwrap(), "https://10.0.0.1:8443");
+        assert_eq!(validate_panel_url("https://[::1]:8443/", true).unwrap(), "https://[::1]:8443");
+        assert!(NodeHttpClient::new("https://224.0.0.1", "k", "verify", None, false).is_err());
         assert!(NodeHttpClient::new("https://node.example", "k", "pin", None, false).is_err());
         assert!(NodeHttpClient::new("https://node.example", "k", "skip", None, false).is_err());
     }
@@ -745,6 +770,7 @@ mod tests {
     struct TlsServer {
         url: String,
         pin: String,
+        certificate: CertificateDer<'static>,
         requests: Arc<Mutex<Vec<RecordedRequest>>>,
         thread: JoinHandle<()>,
     }
@@ -806,7 +832,7 @@ mod tests {
                     }
                 }
             });
-            Self { url, pin, requests, thread }
+            Self { url, pin, certificate: cert.der().clone(), requests, thread }
         }
 
         fn client(&self, key: &str) -> NodeHttpClient {
@@ -904,6 +930,50 @@ mod tests {
         assert_eq!(requests.len(), 1, "the mismatched peer received an HTTP request");
         assert_eq!(requests[0].request_line, "GET /api/fleet/v2/identity HTTP/1.1");
         assert!(requests[0].headers.to_ascii_lowercase().contains("authorization: bearer pc_k"));
+    }
+
+    #[tokio::test]
+    async fn verify_refuses_untrusted_leaf_before_sending_http() {
+        let server = TlsServer::start(1, Vec::new());
+        let client = NodeHttpClient::new(&server.url, "untrusted-secret", "verify", None, true).unwrap();
+        assert!(matches!(client.identity().await, Err(NodeError::Unreachable(_))));
+        assert!(server.requests().is_empty());
+        server.finish();
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_trusted_leaf_but_rejects_the_wrong_hostname() {
+        let server = TlsServer::start(2, vec![Reply::json(200, json!({"guid": "verified"}))]);
+        let mut roots = RootCertStore::empty();
+        roots.add(server.certificate.clone()).unwrap();
+        let config = verified_tls_with_roots(Arc::new(roots)).unwrap();
+        let mut client = server.client("verified-key");
+        client.http = reqwest::Client::builder()
+            .no_proxy()
+            .http1_only()
+            .dns_resolver(AddressResolver { allow_private: true })
+            .tls_backend_preconfigured(config)
+            .build()
+            .unwrap();
+        assert_eq!(client.identity().await.unwrap()["guid"], "verified");
+        client.base_url = server.url.replace("127.0.0.1", "localhost");
+        assert!(matches!(client.identity().await, Err(NodeError::Unreachable(_))));
+        assert_eq!(server.requests().len(), 1, "wrong hostname received an HTTP bearer");
+        server.finish();
+    }
+
+    #[tokio::test]
+    async fn private_dns_is_rejected_before_tcp_in_both_tls_modes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("https://localhost.:{}", listener.local_addr().unwrap().port());
+        for mode in ["verify", "pin"] {
+            let client = NodeHttpClient::new(&url, "private-secret", mode, Some(&"0".repeat(64)), false).unwrap();
+            assert!(matches!(client.identity().await, Err(NodeError::Unreachable(_))));
+            assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+        }
+        assert!(fingerprint(&url, Duration::from_secs(5), false).is_err());
+        assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
     }
 
     #[tokio::test]

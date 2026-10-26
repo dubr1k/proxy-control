@@ -17,6 +17,7 @@ use panel_fleet_central::importing::{FleetImporter, ImportItem};
 use panel_fleet_central::links::{LinkUpdate, NodeLinkService};
 use panel_fleet_central::metrics_source::FleetMetricsSource;
 use panel_fleet_central::pusher::{FleetPusher, PusherOptions};
+use panel_fleet_central::routing::FleetRouting;
 use panel_fleet_central::CentralError;
 use panel_model::clients::USERNAME_PATTERN;
 use panel_model::seams::NodeError;
@@ -24,7 +25,7 @@ use panel_model::validate::{boolean, list, literal, nullable, Cx, Extra, Fields,
 use panel_model::Protocol;
 use panel_nodes::read_model::view_to_value;
 use panel_nodes::NodeLifecycleService;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use crate::auth::Principal;
 use crate::http::request::{Call, Issues};
@@ -327,7 +328,8 @@ pub fn wire(core: &Arc<Core>, services: &mut Services) -> Result<(), String> {
         .with_provisioning(clients.provisioning.clone()),
     );
     let desired = DesiredStore::new(core.database.clone());
-    let publisher = Arc::new(PublishService::new(core.panel_guid.clone(), desired.clone(), core.clock.clone(), None));
+    let routing = Arc::new(FleetRouting);
+    let publisher = Arc::new(PublishService::new(core.panel_guid.clone(), core.clock.clone(), Some(routing.clone())));
     clients.clients.add_hook(Arc::new(PublishForClient::new(publisher.clone())));
     let importer = FleetImporter::new(
         core.database.clone(),
@@ -338,6 +340,8 @@ pub fn wire(core: &Arc<Core>, services: &mut Services) -> Result<(), String> {
     );
     let options = PusherOptions {
         interval: Duration::from_secs(core.settings.fleet_heartbeat_seconds.max(1) as u64),
+        desired_routing: Some(routing.clone()),
+        observations: Some(routing),
         ..PusherOptions::default()
     };
     let pusher = Arc::new(
@@ -423,11 +427,14 @@ fn node_failure(error: NodeError) -> Failure {
     match error {
         NodeError::Unreachable(kind) => refusal(502, "node_unreachable", format!("the node is unreachable: {kind}")),
         NodeError::AuthFailed => refusal(409, "node_auth_failed", "the node refused the API key".into()),
-        NodeError::Rejected { status, code, detail } => refusal(
-            502,
-            code.as_deref().filter(|code| !code.is_empty()).unwrap_or("node_rejected"),
-            format!("the node answered {status}: {}", NodeError::Rejected { status, code, detail }),
-        ),
+        error @ NodeError::Rejected { .. } => {
+            let NodeError::Rejected { status, code, .. } = &error else { unreachable!() };
+            refusal(
+                502,
+                code.as_deref().filter(|code| !code.is_empty()).unwrap_or("node_rejected"),
+                format!("the node answered {status}: {error}"),
+            )
+        }
         NodeError::InvalidAnswer(error) => Failure::internal(error),
     }
 }
@@ -448,18 +455,41 @@ fn translate(error: CentralError) -> Failure {
     }
 }
 
-fn view(domain: &CentralDomain, node_id: &str) -> Result<Value, Failure> {
-    domain.nodes.get(node_id).map(|view| view_to_value(&view)).map_err(|error| match error {
-        panel_nodes::NodesError::NotFound(_) => Failure::detail(404, "node not found"),
-        other => Failure::internal(other),
-    })
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CentralError> + Send + 'static,
+) -> Result<T, CentralError> {
+    tokio::task::spawn_blocking(work).await.map_err(|error| CentralError::Internal(error.to_string()))?
 }
 
-fn linked(domain: &CentralDomain, node_id: &str) -> Result<(), Failure> {
+async fn view(domain: &CentralDomain, node_id: &str) -> Result<Value, Failure> {
+    let nodes = domain.nodes.clone();
+    let node_id = node_id.to_owned();
+    tokio::task::spawn_blocking(move || nodes.get(&node_id))
+        .await
+        .map_err(Failure::internal)?
+        .map(|view| view_to_value(&view))
+        .map_err(|error| match error {
+            panel_nodes::NodesError::NotFound(_) => Failure::detail(404, "node not found"),
+            other => Failure::internal(other),
+        })
+}
+
+async fn linked(domain: &CentralDomain, node_id: &str) -> Result<(), Failure> {
     if node_id == "local" {
         return Err(Failure::detail(422, NOT_A_LINKED_PANEL));
     }
-    domain.links.database().with_connection(|db| domain.links.link(db, node_id)).map(|_| ()).map_err(translate)
+    let links = domain.links.clone();
+    let node_id = node_id.to_owned();
+    blocking(move || links.database().with_connection(|db| links.link(db, &node_id)))
+        .await
+        .map(|_| ())
+        .map_err(translate)
+}
+
+async fn client_for(domain: &CentralDomain, node_id: &str) -> Result<Arc<dyn panel_model::seams::NodeClient>, Failure> {
+    let links = domain.links.clone();
+    let node_id = node_id.to_owned();
+    blocking(move || links.client_for(&node_id)).await.map_err(translate)
 }
 
 async fn node_fingerprint(State(app): State<AppState>, call: Call) -> Handled {
@@ -539,19 +569,25 @@ async fn node_link_update(State(app): State<AppState>, call: Call) -> Handled {
         pinned_sha256: body.pinned_sha256,
         auto_import: body.auto_import,
     };
-    domain.links.update(&node_id, update, &audit_context(&user, &call)).map_err(|error| match error {
+    let links = domain.links.clone();
+    let id = node_id.clone();
+    let context = audit_context(&user, &call);
+    blocking(move || links.update(&id, update, &context)).await.map_err(|error| match error {
         CentralError::Secret(secret) => refusal(409, "secret_store_disabled", secret.to_string()),
         other => translate(other),
     })?;
-    Ok(response::json(200, &view(&domain, &node_id)?))
+    Ok(response::json(200, &view(&domain, &node_id).await?))
 }
 
 async fn set_enabled(app: &AppState, call: &Call, enabled: bool) -> Result<Value, Failure> {
     let user = app.roles(call, OWNER).await?;
     let domain = domain(app);
     let node_id = call.param("node_id").to_string();
-    domain.links.set_enabled(&node_id, enabled, &audit_context(&user, call)).map_err(translate)?;
-    view(&domain, &node_id)
+    let links = domain.links.clone();
+    let id = node_id.clone();
+    let context = audit_context(&user, call);
+    blocking(move || links.set_enabled(&id, enabled, &context)).await.map_err(translate)?;
+    view(&domain, &node_id).await
 }
 
 async fn node_pause(State(app): State<AppState>, call: Call) -> Handled {
@@ -566,9 +602,9 @@ async fn node_probe(State(app): State<AppState>, call: Call) -> Handled {
     app.roles(&call, OWNER).await?;
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
+    linked(&domain, &node_id).await?;
     domain.pusher.sync_node(&node_id).await.map_err(translate)?;
-    Ok(response::json(200, &view(&domain, &node_id)?))
+    Ok(response::json(200, &view(&domain, &node_id).await?))
 }
 
 fn force_query(call: &Call) -> Result<bool, Failure> {
@@ -605,11 +641,18 @@ async fn node_inventory(State(app): State<AppState>, call: Call) -> Handled {
     app.read_roles(&call, READER).await?;
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
-    let client = domain.links.client_for(&node_id).map_err(translate)?;
+    linked(&domain, &node_id).await?;
+    let client = client_for(&domain, &node_id).await?;
     let inventory = client.inventory().await.map_err(node_failure)?;
     let mut table = inventory.get("protocols").and_then(Value::as_object).cloned().unwrap_or_default();
-    domain.importer.annotate_inventory(&node_id, &mut table).map_err(translate)?;
+    let importer = domain.importer.clone();
+    let id = node_id.clone();
+    table = blocking(move || {
+        importer.annotate_inventory(&id, &mut table)?;
+        Ok(table)
+    })
+    .await
+    .map_err(translate)?;
     Ok(response::json(200, &json!({"protocols": table})))
 }
 
@@ -622,7 +665,7 @@ async fn node_import(State(app): State<AppState>, call: Call) -> Handled {
     let body = body.expect("validated body");
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
+    linked(&domain, &node_id).await?;
     let decisions = body
         .resources
         .into_iter()
@@ -644,8 +687,8 @@ async fn node_version_check(State(app): State<AppState>, call: Call) -> Handled 
     let user = app.roles(&call, OWNER).await?;
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
-    let client = domain.links.client_for(&node_id).map_err(translate)?;
+    linked(&domain, &node_id).await?;
+    let client = client_for(&domain, &node_id).await?;
     let result = client.check_versions().await.map_err(node_failure)?;
     app.audit(
         &user,
@@ -685,8 +728,8 @@ async fn node_version_update(State(app): State<AppState>, call: Call) -> Handled
     let body = body.expect("validated body");
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
-    let client = domain.links.client_for(&node_id).map_err(translate)?;
+    linked(&domain, &node_id).await?;
+    let client = client_for(&domain, &node_id).await?;
     let result = client
         .update_version(&component, &body.version, body.expected_current.as_deref())
         .await
@@ -706,15 +749,15 @@ async fn node_generations(State(app): State<AppState>, call: Call) -> Handled {
     app.read_roles(&call, READER).await?;
     let domain = domain(&app);
     let node_id = call.param("node_id").to_string();
-    linked(&domain, &node_id)?;
-    let (desired, observed) = domain
-        .links
-        .database()
-        .with_connection(|db| {
+    linked(&domain, &node_id).await?;
+    let (desired, observed) = blocking(move || {
+        domain.links.database().with_connection(|db| {
             domain.links.link(db, &node_id)?;
             Ok((DesiredStore::latest(db, &node_id)?, DesiredStore::observed(db, &node_id)?))
         })
-        .map_err(translate)?;
+    })
+    .await
+    .map_err(translate)?;
     let desired = desired.map(|latest| {
         json!({"generation": latest.generation, "digest": latest.digest,
                "content_digest": latest.content_digest, "pushed_at": latest.pushed_at,

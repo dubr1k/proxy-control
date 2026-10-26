@@ -252,7 +252,7 @@ impl NodeLinkService {
         auto_import: bool,
     ) -> CentralResult<String> {
         let probe = self.test(url, api_key, tls_verify, pinned_sha256, allow_private).await?;
-        let identity = probe["identity"].as_object().expect("test inserts an object");
+        let identity = probe["identity"].as_object().expect("test inserts an object").clone();
         if identity.get("api_version").and_then(Value::as_i64) != Some(2)
             || identity.get("guid").and_then(Value::as_str).is_none_or(str::is_empty)
         {
@@ -269,16 +269,22 @@ impl NodeLinkService {
             return Err(CentralError::LinkConflict("a panel cannot manage itself".into()));
         }
         let now = self.clock.now();
-        self.database.transaction(|db| {
+        let this = self.clone();
+        let display_name = display_name.to_owned();
+        let api_key = api_key.to_owned();
+        let tls_verify = tls_verify.to_owned();
+        let pinned_sha256 = pinned_sha256.map(str::to_owned);
+        let context = context.clone();
+        crate::blocking(move || this.database.transaction(|db| {
             let exists: Option<i64> = db
                 .query_row("SELECT 1 FROM fleet_nodes WHERE node_id=?", [&node_id], |row| row.get(0))
                 .optional()?;
             if exists.is_some() {
                 return Err(CentralError::LinkConflict("this panel is already linked".into()));
             }
-            registry::insert(db, &node_id, display_name, "remote", "panel", now).map_err(nodes_error)?;
+            registry::insert(db, &node_id, &display_name, "remote", "panel", now).map_err(nodes_error)?;
             db.execute("UPDATE fleet_nodes SET auth_state='linked' WHERE node_id=?", [&node_id])?;
-            let secret_id = self.store_key(db, &node_id, api_key)?;
+            let secret_id = this.store_key(db, &node_id, &api_key)?;
             let panel_version = identity.get("panel_version").and_then(Value::as_str);
             let status = probe["status"].as_object().expect("test inserts an object");
             db.execute(
@@ -294,7 +300,7 @@ impl NodeLinkService {
                     i64::from(allow_private),
                     probe["latency_ms"].as_i64().expect("test inserts latency"),
                     panel_version,
-                    object_json(identity),
+                    object_json(&identity),
                     object_json(status),
                     now,
                     now,
@@ -310,9 +316,9 @@ impl NodeLinkService {
             .as_object()
             .unwrap()
             .clone();
-            Self::audit(db, context, "node.link", &node_id, Some(detail), now)?;
+            Self::audit(db, &context, "node.link", &node_id, Some(detail), now)?;
             Ok(node_id.clone())
-        })
+        })).await
     }
 
     fn audit(
@@ -440,14 +446,20 @@ impl NodeLinkService {
     /// Best-effort remote unlink, then local credential revocation and removal. Imported grants
     /// are released; forced deletion abandons provisioned grants and says so in its audit detail.
     pub async fn delete(&self, node_id: &str, context: &AuditContext, force: bool) -> CentralResult<()> {
-        let (link, key) = self.database.with_connection(|db| {
-            let link = Self::raw_link(db, node_id)?;
-            if !force {
-                Self::refuse_provisioned(db, node_id)?;
-            }
-            let key = self.reveal_key(db, &link)?;
-            Ok::<_, CentralError>((link, key))
-        })?;
+        let this = self.clone();
+        let id = node_id.to_owned();
+        let (link, key) = crate::blocking(move || {
+            this.database.with_connection(|db| {
+                let node_id = id.as_str();
+                let link = Self::raw_link(db, node_id)?;
+                if !force {
+                    Self::refuse_provisioned(db, node_id)?;
+                }
+                let key = this.reveal_key(db, &link)?;
+                Ok::<_, CentralError>((link, key))
+            })
+        })
+        .await?;
         let client = self.client(&link, &key)?;
         let (released, node_error) = match client.unlink().await {
             Ok(_) => (true, None),
@@ -456,57 +468,68 @@ impl NodeLinkService {
             }
             Err(error) => return Err(CentralError::Node(error)),
         };
-        self.database.transaction(|db| {
-            let abandoned = if force {
-                registry::provisioned_grants(db, node_id).map_err(nodes_error)?
-            } else {
-                Self::refuse_provisioned(db, node_id)?;
-                0
-            };
-            let imported = Self::grant_ids(
-                db,
-                "SELECT id FROM access_grants WHERE node_id=? AND origin='imported' AND desired_state<>'deleted'",
-                node_id,
-            )?;
-            let let_go = if force {
-                Self::grant_ids(db, "SELECT id FROM access_grants WHERE node_id=?", node_id)?
-            } else {
-                imported.clone()
-            };
-            for grant_id in let_go {
-                let versions = {
-                    let mut statement =
-                        db.prepare("SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'")?;
-                    let rows = statement.query_map([format!("grant:{grant_id}")], |row| row.get::<_, i64>(0))?;
-                    rows.collect::<rusqlite::Result<Vec<_>>>()?
+        let this = self.clone();
+        let node_id = node_id.to_owned();
+        let context = context.clone();
+        crate::blocking(move || {
+            this.database.transaction(|db| {
+                let node_id = node_id.as_str();
+                let abandoned = if force {
+                    registry::provisioned_grants(db, node_id).map_err(nodes_error)?
+                } else {
+                    Self::refuse_provisioned(db, node_id)?;
+                    0
                 };
-                for version in versions {
-                    self.secrets.transition(db, &SecretRef::new(format!("grant:{grant_id}"), version), "revoked")?;
-                }
-                if force {
-                    if let Some(provisioning) = &self.provisioning {
-                        provisioning.withdraw_remote(db, &grant_id, "node unlinked (forced)")?;
+                let imported = Self::grant_ids(
+                    db,
+                    "SELECT id FROM access_grants WHERE node_id=? AND origin='imported' AND desired_state<>'deleted'",
+                    node_id,
+                )?;
+                let let_go = if force {
+                    Self::grant_ids(db, "SELECT id FROM access_grants WHERE node_id=?", node_id)?
+                } else {
+                    imported.clone()
+                };
+                for grant_id in let_go {
+                    let versions = {
+                        let mut statement =
+                            db.prepare("SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'")?;
+                        let rows = statement.query_map([format!("grant:{grant_id}")], |row| row.get::<_, i64>(0))?;
+                        rows.collect::<rusqlite::Result<Vec<_>>>()?
+                    };
+                    for version in versions {
+                        this.secrets.transition(
+                            db,
+                            &SecretRef::new(format!("grant:{grant_id}"), version),
+                            "revoked",
+                        )?;
+                    }
+                    if force {
+                        if let Some(provisioning) = &this.provisioning {
+                            provisioning.withdraw_remote(db, &grant_id, "node unlinked (forced)")?;
+                        }
                     }
                 }
-            }
-            db.execute("DELETE FROM access_grants WHERE node_id=?", [node_id])?;
-            db.execute(
-                "DELETE FROM secret_versions WHERE secret_id=? AND purpose=?",
-                params![text(&link, "api_key_secret_id")?, KEY_PURPOSE],
-            )?;
-            db.execute("DELETE FROM fleet_nodes WHERE node_id=?", [node_id])?;
-            let mut detail = Map::new();
-            detail.insert("node_released".into(), released.into());
-            detail.insert("released_imported".into(), (imported.len() as i64).into());
-            if let Some(error) = node_error {
-                detail.insert("node_error".into(), error.into());
-            }
-            if force {
-                detail.insert("forced".into(), true.into());
-                detail.insert("abandoned_provisioned".into(), abandoned.into());
-            }
-            Self::audit(db, context, "node.unlink", node_id, Some(detail), self.clock.now())
+                db.execute("DELETE FROM access_grants WHERE node_id=?", [node_id])?;
+                db.execute(
+                    "DELETE FROM secret_versions WHERE secret_id=? AND purpose=?",
+                    params![text(&link, "api_key_secret_id")?, KEY_PURPOSE],
+                )?;
+                db.execute("DELETE FROM fleet_nodes WHERE node_id=?", [node_id])?;
+                let mut detail = Map::new();
+                detail.insert("node_released".into(), released.into());
+                detail.insert("released_imported".into(), (imported.len() as i64).into());
+                if let Some(error) = node_error {
+                    detail.insert("node_error".into(), error.into());
+                }
+                if force {
+                    detail.insert("forced".into(), true.into());
+                    detail.insert("abandoned_provisioned".into(), abandoned.into());
+                }
+                Self::audit(db, &context, "node.unlink", node_id, Some(detail), this.clock.now())
+            })
         })
+        .await
     }
 
     fn grant_ids(db: &Conn, sql: &str, node_id: &str) -> CentralResult<Vec<String>> {
