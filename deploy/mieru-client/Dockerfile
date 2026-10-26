@@ -11,6 +11,9 @@ COPY src ./src
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+# The Debian base carries GCC's unused Python debugger printers. The acceptance
+# image ships no Python runtime or scripts, even though they are never executed.
+RUN rm -rf /usr/share/gcc/python
 
 COPY mieru /usr/local/bin/mieru
 COPY --from=build /src/target/release/mieru-probe /usr/local/bin/mieru-probe

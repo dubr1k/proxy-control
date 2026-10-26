@@ -40,6 +40,8 @@ struct Rig {
     runner: Arc<RecordingRunner>,
     context: AdapterContext,
     fail: Arc<Mutex<Option<String>>>,
+    lane_status: Arc<Mutex<Option<String>>>,
+    bootstrap: Arc<Mutex<Option<Value>>>,
     clean_fail: Arc<Mutex<bool>>,
     acceptance: Arc<Mutex<Value>>,
     cleanup_names: Arc<Mutex<Vec<String>>>,
@@ -51,6 +53,10 @@ impl Rig {
         let root = dir.path().to_path_buf();
         let fail = Arc::new(Mutex::new(None::<String>));
         let flags = fail.clone();
+        let lane_status = Arc::new(Mutex::new(None::<String>));
+        let reported_lane_status = lane_status.clone();
+        let bootstrap = Arc::new(Mutex::new(None::<Value>));
+        let captured_bootstrap = bootstrap.clone();
         let path = root.join("run/mita");
         fs::create_dir_all(&path).unwrap();
         let socket = UnixListener::bind(path.join("mita.sock")).unwrap();
@@ -111,6 +117,11 @@ impl Rig {
                 return Some(Reply::ok("http.handlers.forward_proxy\n"));
             }
             if argv.last().is_some_and(|s| s == "status") {
+                if joined.contains("MITA_UDS_PATH=/run/mita/lane-") {
+                    if let Some(status) = reported_lane_status.lock().unwrap().as_ref() {
+                        return Some(Reply::ok(status));
+                    }
+                }
                 return Some(Reply::ok("mita server status is \"RUNNING\""));
             }
             if joined.contains("prepare-naive-state prepare") {
@@ -121,6 +132,8 @@ impl Rig {
                 fs::create_dir_all(root.join("var/lib/mieru-manager")).unwrap();
             }
             if argv.starts_with(&strings(&["sudo", "-u", "mita", "env"])) && argv.iter().any(|s| s == "apply") {
+                let input = root.join(argv.last().unwrap().trim_start_matches('/'));
+                *captured_bootstrap.lock().unwrap() = Some(serde_json::from_slice(&fs::read(input).unwrap()).unwrap());
                 fs::write(root.join("var/lib/mita/server_config.json"), b"{\"users\":[{\"name\":\"owner\"}]}\n")
                     .unwrap();
             }
@@ -132,6 +145,8 @@ impl Rig {
             runner,
             context,
             fail,
+            lane_status,
+            bootstrap,
             clean_fail: Arc::new(Mutex::new(false)),
             acceptance: Arc::new(Mutex::new(Value::Null)),
             cleanup_names: Arc::new(Mutex::new(Vec::new())),
@@ -425,6 +440,35 @@ fn naive_apply_keeps_the_planned_warp_port_and_provider() {
     let caddy = fs::read_to_string(rig.host("/var/lib/naive-manager/Caddyfile")).unwrap();
     assert!(env.contains("NAIVE_EGRESS_WARP=socks5://127.0.0.1:41234"));
     assert!(caddy.contains("upstream socks5://127.0.0.1:41234"));
+}
+#[test]
+fn legacy_three_xui_warp_port_reaches_both_native_proxy_configs() {
+    let rig = Rig::new();
+    let source = fs::read_to_string(tree().join("examples/installer/full-three-xui.toml")).unwrap();
+    let legacy = source.replacen("mode = \"existing\"", "mode = \"existing\"\nwarp = true\nwarp_port = 41234", 1);
+    let input = rig.dir.path().join("legacy-three-xui.toml");
+    fs::write(&input, legacy).unwrap();
+    let configuration = installer_core::config::load_config(&input).unwrap();
+    assert!(configuration.egress.is_none());
+    assert_eq!(configuration.effective_egress().warp_port, 41234);
+    let naive = rig.naive();
+    let naive_action = naive.plan(&configuration, &AuditFacts::default()).unwrap().remove(0);
+    apply(&naive, &naive_action);
+    let env = fs::read_to_string(rig.host("/opt/mtproxy-shared443/.env.naive")).unwrap();
+    let caddy = fs::read_to_string(rig.host("/var/lib/naive-manager/Caddyfile")).unwrap();
+    assert!(env.contains("NAIVE_EGRESS_WARP=socks5://127.0.0.1:41234\n"));
+    assert!(caddy.contains("upstream socks5://127.0.0.1:41234"));
+    let mieru = rig.mieru();
+    let mut mieru_action = mieru.plan(&configuration, &AuditFacts::default()).unwrap().remove(0);
+    set(&mut mieru_action, "package-digest", &sha256_hex(b"server-package"));
+    set(&mut mieru_action, "executable-digest", &sha256_hex(b"pinned-mita\n"));
+    apply(&mieru, &mieru_action);
+    let env = fs::read_to_string(rig.host("/opt/mtproxy-shared443/.env.mieru")).unwrap();
+    assert!(env.contains("MIERU_EGRESS_WARP=socks5://127.0.0.1:41234\n"));
+    let bootstrap = rig.bootstrap.lock().unwrap();
+    let config = bootstrap.as_ref().expect("actual transient mita bootstrap was applied");
+    assert_eq!(config["egress"]["proxies"][0]["port"], 41234);
+    assert_eq!(config["egress"]["rules"][0]["action"], "PROXY");
 }
 #[test]
 fn naive_apply_orders_artifact_identities_bootstrap_and_overlay() {
@@ -1081,6 +1125,82 @@ fn lane_slots_require_router_do_not_collide_and_start_each_daemon() {
     assert!(adapter.selection(&action).is_err());
     set(&mut action, "lane-slots", "9");
     assert!(adapter.selection(&action).is_err());
+}
+#[test]
+fn mieru_lane_plan_tracks_router_and_rejects_listener_collision() {
+    let rig = Rig::new();
+    let mut configuration = config();
+    configuration.egress = Some(installer_core::model::EgressConfig { router: true, ..Default::default() });
+    configuration.mieru.as_mut().unwrap().lane_slots = 2;
+    let action = rig.mieru().plan(&configuration, &AuditFacts::default()).unwrap().remove(0);
+    assert!(action.mutations.contains(&"lane-slots=2".into()));
+    assert!(action.mutations.contains(&"router-provider=socks5://127.0.0.1:45102".into()));
+    assert!(rig.mieru().selection(&action).is_ok());
+    configuration.mieru.as_mut().unwrap().tcp_ports.push(46101);
+    assert!(rig.mieru().plan(&configuration, &AuditFacts::default()).unwrap_err().message().contains("collide"));
+}
+
+#[test]
+fn mieru_lane_verify_accepts_idle_and_running_rejects_silent_and_repair_restarts() {
+    let rig = Rig::new();
+    let mut action = rig.action("mieru");
+    set(&mut action, "lane-slots", "2");
+    set(&mut action, "router-provider", "socks5://127.0.0.1:45102");
+    rig.put(
+        &format!("{PROJECT}/secrets/xray-router-ingress-mieru"),
+        format!("mieru-cafe0001:{}\n", "k".repeat(43)).as_bytes(),
+        0o600,
+    );
+    let adapter = rig.mieru();
+    let data = apply(&adapter, &action);
+    assert_eq!(
+        fs::read(rig.host("/etc/systemd/system/mita@.service")).unwrap(),
+        fs::read(tree().join("deploy/mita@.service")).unwrap()
+    );
+    *rig.lane_status.lock().unwrap() = Some("mita server status is \"IDLE\"\n".into());
+    let evidence = adapter.verify(&action).unwrap();
+    assert_eq!(evidence.details["lane_slots"], json!([{"index":1,"port":46101},{"index":2,"port":46102}]));
+    *rig.lane_status.lock().unwrap() = Some("mita server status is \"RUNNING\"\n".into());
+    assert!(adapter.verify(&action).is_ok());
+    *rig.lane_status.lock().unwrap() = Some(String::new());
+    assert!(adapter.verify(&action).unwrap_err().message().contains("lane slot 1 did not answer"));
+    *rig.lane_status.lock().unwrap() = Some("mita server status is \"IDLE\"\n".into());
+    adapter.repair(&action, data).unwrap();
+    for index in 1..=2 {
+        let command = strings(&["systemctl", "enable", "--now", &format!("mita@{index}")]);
+        assert_eq!(rig.runner.argvs().iter().filter(|call| **call == command).count(), 2);
+    }
+}
+
+#[test]
+fn mieru_lane_rollback_preserves_state_until_explicit_purge() {
+    for purge in [false, true] {
+        let rig = Rig::new();
+        let mut action = rig.action("mieru");
+        set(&mut action, "lane-slots", "2");
+        set(&mut action, "router-provider", "socks5://127.0.0.1:45102");
+        rig.put(
+            &format!("{PROJECT}/secrets/xray-router-ingress-mieru"),
+            format!("mieru-cafe0001:{}\n", "k".repeat(43)).as_bytes(),
+            0o600,
+        );
+        let adapter = rig.mieru();
+        let data = apply(&adapter, &action);
+        for index in 1..=2 {
+            rig.put(&format!("/var/lib/mita/lanes/{index}/state"), b"retained generation", 0o600);
+        }
+        let evidence = adapter.rollback(&action, data, purge, RollbackTarget::Uninstalled).unwrap();
+        assert_eq!(evidence.details["persistent_data_preserved"], !purge);
+        for index in 1..=2 {
+            assert_eq!(rig.host(&format!("/var/lib/mita/lanes/{index}/state")).exists(), !purge);
+            assert!(rig
+                .runner
+                .argvs()
+                .iter()
+                .any(|call| { call == &strings(&["systemctl", "disable", "--now", &format!("mita@{index}")]) }));
+        }
+        assert_eq!(rig.host("/etc/mieru-manager/token").exists(), !purge);
+    }
 }
 #[test]
 fn service_rewritten_state_is_mutable_but_other_ownership_is_not() {

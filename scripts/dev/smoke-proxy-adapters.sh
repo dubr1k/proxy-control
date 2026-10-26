@@ -9,7 +9,7 @@ if [[ ${1:-} == --inside ]]; then
     mkdir -p "$native/host-bin"
     touch "$native/docker.sock"
     mount --bind /run/docker.sock "$native/docker.sock"
-    export PC_PROXY_SMOKE_DOCKER_HOST="unix:$native/docker.sock"
+    export PC_PROXY_SMOKE_DOCKER_HOST="unix://$native/docker.sock"
     mount --bind /usr/bin "$native/host-bin"
     for path in /etc /var/lib /var/log /var/tmp /var/www /opt /run /usr/local/bin /usr/local/libexec /usr/share/doc; do
         [[ -d $path && ! -L $path ]] || { printf 'Missing safe lab mountpoint: %s\n' "$path" >&2; exit 1; }
@@ -95,8 +95,19 @@ nsenter --net="/proc/$network_pid/ns/net" unshare --mount --propagation private 
     bash "$0" --inside "$root" "$native" "$testbin" "$installer"
 if [[ ${PC_PROXY_SMOKE_PROTOCOL:-} != naive ]]; then
     docker run --rm --network none --entrypoint /bin/sh "$PC_PROXY_SMOKE_IMAGE" -ec \
-        '! command -v python; ! command -v python3; test -z "$(find /usr /opt -iname "*python*" -print -quit)";
-         test "$(sha256sum /usr/local/bin/mieru | cut -d " " -f 1)" = 3529fc7190e073d89da1ea9bbf08aa481edca59866c466725b8231325b0b6577;
-         test -x /usr/local/bin/mieru-probe;
+        'if command -v python >/dev/null || command -v python3 >/dev/null; then
+             printf "Native image unexpectedly has a Python interpreter\n" >&2; exit 1
+         fi
+         found=$(find /usr /opt -iname "*python*" -print -quit)
+         if [ -n "$found" ]; then
+             printf "Native image unexpectedly contains Python artifact: %s\n" "$found" >&2; exit 1
+         fi
+         digest=$(sha256sum /usr/local/bin/mieru | cut -d " " -f 1)
+         if [ "$digest" != 3529fc7190e073d89da1ea9bbf08aa481edca59866c466725b8231325b0b6577 ]; then
+             printf "Native image official client digest mismatch\n" >&2; exit 1
+         fi
+         if [ ! -x /usr/local/bin/mieru-probe ]; then
+             printf "Native image Rust probe missing\n" >&2; exit 1
+         fi
          printf "NATIVE_MIERU_IMAGE_NO_PYTHON_PINNED_CLIENT_OK\n"'
 fi

@@ -561,6 +561,9 @@ impl MieruAdapter {
                 if [IDLE, RUNNING].contains(&output.trim()) {
                     break;
                 }
+                if !start && output.trim().is_empty() {
+                    return Err(self.host.error(format!("lane slot {index} did not answer on its socket")));
+                }
                 if !sleep_poll(deadline) {
                     return Err(self.host.error(format!("lane slot {index} did not answer on its socket")));
                 }

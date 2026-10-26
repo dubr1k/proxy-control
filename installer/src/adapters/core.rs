@@ -454,9 +454,10 @@ impl CoreCheckpoint {
             return Err(core("Core checkpoint ownership escapes the selected project"));
         }
         for path in self.ownership.keys() {
-            let runtime_file = path.strip_prefix(PROJECT).and_then(|rest| rest.strip_prefix('/')).is_some_and(
-                |relative| PRESERVED_CREDENTIALS.contains(&relative) || relative == BOOTSTRAP_MARKER,
-            );
+            let runtime_file = path
+                .strip_prefix(PROJECT)
+                .and_then(|rest| rest.strip_prefix('/'))
+                .is_some_and(|relative| PRESERVED_CREDENTIALS.contains(&relative) || relative == BOOTSTRAP_MARKER);
             if !self.planned_ownership.contains_key(path) && path != PROBE && !runtime_file {
                 return Err(core("Core checkpoint ownership does not match the planned generation"));
             }

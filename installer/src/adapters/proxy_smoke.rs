@@ -405,7 +405,9 @@ fn real_proxy_engine_install_repair_and_rollback() {
     let runner = Arc::new(RecordingRunner::with_responder(move |call| {
         let a = &call.argv;
         if a.first().is_some_and(|s| s == "docker") {
-            if a.get(1).is_some_and(|s| s == "build") {
+            if a.get(1).is_some_and(|s| s == "build")
+                && a.iter().any(|argument| argument.as_str() == super::mieru::CLIENT_IMAGE)
+            {
                 let image = std::env::var("PC_PROXY_SMOKE_IMAGE").expect("owned image tag");
                 let context = a.last().expect("private build context");
                 // The daemon cannot see this mount namespace's /var/tmp. Stream its
@@ -417,10 +419,10 @@ fn real_proxy_engine_install_repair_and_rollback() {
                     .stdin(Stdio::from(archive.stdout.take().unwrap()))
                     .output()
                     .unwrap();
-                assert!(archive.wait().unwrap().success(), "private Docker build context archive failed");
                 if !output.status.success() {
                     eprintln!("native image build: {}", String::from_utf8_lossy(&output.stderr));
                 }
+                assert!(archive.wait().unwrap().success(), "private Docker build context archive failed");
                 return Some(Reply::exit(
                     output.status.code().unwrap_or(-1),
                     &String::from_utf8_lossy(&output.stdout),
