@@ -17,8 +17,8 @@ use crate::journal::{CheckpointData, RollbackTarget};
 use crate::model::{HostMode, InstallerConfig};
 use crate::planner::{Action, AuditFacts, Evidence};
 
-pub const DEFAULT_PACKAGES: [&str; 8] =
-    ["ca-certificates", "certbot", "curl", "docker-compose-v2", "docker.io", "nginx-full", "openssl", "python3"];
+pub const DEFAULT_PACKAGES: [&str; 7] =
+    ["ca-certificates", "certbot", "curl", "docker-compose-v2", "docker.io", "nginx-full", "openssl"];
 const QUERY_FORMAT: &str = "${Package}\t${db:Status-Abbrev}\t${Version}\\n";
 const OWNER: &str = "proxy-control:packages";
 
@@ -45,7 +45,14 @@ impl PackagesAdapter {
     }
 
     fn assert_selected(&self, packages: &[String]) -> Result<(), Error> {
-        if packages != self.packages {
+        // Existing pre-4.0 plans keep their exact package ownership, including Python.
+        // Only fresh plans use the native seven-package set; never discard an old journal's
+        // pre-existing or installer-owned package record during resume/repair/uninstall.
+        let legacy = self.packages.iter().map(String::as_str).eq(DEFAULT_PACKAGES)
+            && packages.len() == DEFAULT_PACKAGES.len() + 1
+            && packages.starts_with(&self.packages)
+            && packages.last().is_some_and(|package| package == "python3");
+        if packages != self.packages && !legacy {
             return Err(package_error("package action does not match this adapter"));
         }
         Ok(())
@@ -539,6 +546,37 @@ mod tests {
             .iter()
             .all(|call| call.kind == CallKind::Bounded && call.timeout == Duration::from_secs(900)));
         assert!(!runner.argvs().iter().any(|argv| argv.starts_with(&["apt-get".into(), "update".into()])));
+    }
+
+    #[test]
+    fn fresh_native_install_does_not_install_or_own_a_python_interpreter() {
+        let dir = TempDir::new("native-packages");
+        let (runner, installed) = apt_runner(BTreeMap::new());
+        let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner };
+        let adapter = PackagesAdapter::new(&context);
+        let action = adapter.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+        let checkpoint = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        assert!(!installed.lock().unwrap().contains_key("python3"));
+        assert!(checkpoint["installer_added"].get("python3").is_none());
+        assert!(adapter.verify(&action).unwrap().success);
+    }
+
+    #[test]
+    fn legacy_package_plan_keeps_preexisting_python_during_repair_and_rollback() {
+        let dir = TempDir::new("legacy-packages");
+        let original = BTreeMap::from([("python3".into(), "3.12".into())]);
+        let (runner, installed) = apt_runner(original.clone());
+        let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner };
+        let adapter = PackagesAdapter::new(&context);
+        let mut action = adapter.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+        action.mutations.push("package=python3".into());
+        let checkpoint = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        assert_eq!(checkpoint["preexisting"]["python3"], "3.12");
+        assert!(checkpoint["installer_added"].get("python3").is_none());
+        let repaired = adapter.repair(&action, checkpoint).unwrap();
+        assert!(adapter.verify(&action).unwrap().success);
+        adapter.rollback(&action, repaired, false, RollbackTarget::Uninstalled).unwrap();
+        assert_eq!(*installed.lock().unwrap(), original);
     }
 
     #[test]
