@@ -28,7 +28,8 @@
 //! - `awg_ports`: `resolve_awg_ports(&config, root, listeners, identity)`, `machine_id`,
 //!   `derive_port`, `bound_ports`, `installed_ports`, `pick_ports`.
 //! - `planner`: `Fact`, `AuditFacts::{from_groups, stable_dict}`, `Action::{new, from_value,
-//!   to_value}`, `Evidence::new`, `ReleaseIdentity::{new, from_tree, from_value, to_value}`,
+//!   to_value, validate, checked}`, `Evidence::{new, ok, failed, with_details, to_map, from_map}`,
+//!   `ReleaseIdentity::{new, from_tree, from_value, to_value}`,
 //!   `InstallPlan::{new, from_value, from_json, canonical_value, to_canonical_json, digest,
 //!   intent_digest, assert_fresh}`, trait `PlanAdapter`, `build_plan`, `adapters_for`,
 //!   `adapter_requires`, `ADAPTER_NAMES`, `PROFILE_ORDER`, `compose_file_list`,
@@ -38,13 +39,14 @@
 //! - `credentials`: `OperatorCredentials`, `credentials_path`, `write_credentials`,
 //!   `read_credentials`, `staged_path`, `stage_credentials`, `stage_operator_credentials`,
 //!   `staged_credentials`, `discard_staged_credentials`, `CredentialError`.
-//! - `cli`: `installer_parser`, `python_parser`, `parse(argv, width) -> Result<Args, Exit>`,
+//! - `cli`: `installer_parser` (the Python surface + `--version` + `verify-release`),
+//!   `python_parser`, `parse(argv, width) -> Result<Args, Exit>`, `VERSION`, `version_text`,
 //!   `Command`, `blocked_line`, `bounded_text`, `check_accepted_digest`, `confirmation_matches`,
 //!   `validate_plan`, `render_plan_json`, `render_plan_text`, `plan_summary_lines`,
 //!   `StatusView::{from_state, render}`, `render_report_written`, `installed_version`,
 //!   `check_archive_digest`, `release_identity`, `CliError`.
 //! - `argparse`: `Parser` (+ `add_option`, `add_flag`, `add_positional`, `add_subparsers`,
-//!   `parse_args`, `format_usage`, `format_help`), `Exit`, `terminal_width`, `wrap`.
+//!   `add_version`, `parse_args`, `format_usage`, `format_help`), `Exit`, `terminal_width`, `wrap`.
 //! - `verify_release`: `Request`, `run(&request) -> (status, stdout, stderr)`.
 
 pub mod argparse;

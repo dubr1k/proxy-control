@@ -20,8 +20,9 @@ pub const PANEL_ARCHIVE_PREFIX: &str = "proxy-control";
 /// entry absent from an archive is left as it is.
 ///
 /// Superset of what 3.3.0 agents sync (every entry of `v3.3.0:version_agent/service.py`
-/// `PANEL_SYNC` is here), plus `pc_common` (the Rust managers build against it) and `pc_host`
-/// (the host crates' shared library). The two host binaries live inside `installer/` and
+/// `PANEL_SYNC` is here), plus `pc_common` (the Rust managers build against it), `pc_host`
+/// (the host crates' shared library) and `installer_core` (a path dependency of the installer
+/// crate; its sources ride along like `pc_host`). The two host binaries live inside `installer/` and
 /// `version_agent/`, which every agent generation already syncs.
 pub const PANEL_SYNC: &[&str] = &[
     "panel",
@@ -35,6 +36,7 @@ pub const PANEL_SYNC: &[&str] = &[
     "trusttunnel_manager",
     "pc_common",
     "pc_host",
+    "installer_core",
     "mcp_server",
     "release",
     "docs",

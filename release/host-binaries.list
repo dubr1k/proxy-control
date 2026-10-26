@@ -10,5 +10,6 @@
 # Every crate is standalone with a committed Cargo.lock and builds with `--locked`.
 lib pc_common
 lib pc_host
+lib installer_core
 bin installer proxy-control-installer
 bin version_agent proxy-control-version-agent
