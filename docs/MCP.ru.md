@@ -31,19 +31,24 @@ Claude Code / Desktop ──https://<mcp-домен>/mcp (Bearer mcp-token)─�
 
 Установщик ставит сервер, когда в мастере задан **домен MCP** (одиннадцатый домен, после домена
 подписки; `domains.mcp` в конфигурации, [INSTALLER_REFERENCE](INSTALLER_REFERENCE.ru.md)).
-Он выпускает ключ панели (`python -m panel.cli api-key-create --name mcp --scope admin`),
-кладёт секреты `secrets/mcp-panel-key` и `secrets/mcp-token` (0600), пишет `.env.mcp`
+Он выпускает ключ панели (`/usr/local/bin/panel cli api-key-create --name mcp --scope admin`),
+кладёт секреты `secrets/mcp-panel-key` и `secrets/mcp-token` (root:10007, 0440), пишет `.env.mcp` (0600)
 (`MCP_DOMAIN`, `MCP_PANEL_HOST`), добавляет vhost на SNI-роутере и поднимает overlay
 `compose.mcp.yaml`. Токен и адрес `https://<домен>/mcp` попадают в root-only handoff установки.
 
 Вручную (панель уже стоит, домен указывает на хост):
 
 ```bash
-cd /opt/proxy-control            # каталог проекта
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > secrets/mcp-token
-docker compose exec -T panel python -m panel.cli api-key-create --name mcp --scope admin \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["plaintext"])' > secrets/mcp-panel-key
-chmod 0600 secrets/mcp-token secrets/mcp-panel-key
+cd /opt/mtproxy-shared443
+umask 077
+openssl rand -hex 32 > secrets/mcp-token
+docker compose exec -T panel /usr/local/bin/panel cli api-key-create --name mcp --scope admin
+# Вставьте полученный plaintext в скрытый ввод, не в команду истории shell.
+read -r -s -p 'Ключ панели MCP: ' MCP_PANEL_KEY; printf '\n'
+printf '%s\n' "$MCP_PANEL_KEY" > secrets/mcp-panel-key
+unset MCP_PANEL_KEY
+chown root:10007 secrets/mcp-token secrets/mcp-panel-key
+chmod 0440 secrets/mcp-token secrets/mcp-panel-key
 printf 'MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=panel.example.com\n' > .env.mcp
 docker compose --env-file .env --env-file .env.mcp -f compose.yaml -f compose.mcp.yaml up -d --build --wait mcp
 ```

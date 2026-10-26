@@ -32,19 +32,24 @@ Claude Code / Desktop ──https://<mcp-domain>/mcp (Bearer mcp-token)──> n
 The installer sets the server up when the wizard is given an **MCP domain** (the eleventh
 domain, after the subscription one; `domains.mcp` in the configuration,
 [INSTALLER_REFERENCE](INSTALLER_REFERENCE.en.md)). It issues the panel key
-(`python -m panel.cli api-key-create --name mcp --scope admin`), writes the secrets
-`secrets/mcp-panel-key` and `secrets/mcp-token` (0600) and `.env.mcp` (`MCP_DOMAIN`,
+(`/usr/local/bin/panel cli api-key-create --name mcp --scope admin`), writes the secrets
+`secrets/mcp-panel-key` and `secrets/mcp-token` (root:10007, 0440) and `.env.mcp` (0600; `MCP_DOMAIN`,
 `MCP_PANEL_HOST`), adds the vhost on the SNI router and brings up the `compose.mcp.yaml`
 overlay. The token and the address `https://<domain>/mcp` land in the root-only install handoff.
 
 By hand (the panel is installed, the domain points at the host):
 
 ```bash
-cd /opt/proxy-control            # the project directory
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > secrets/mcp-token
-docker compose exec -T panel python -m panel.cli api-key-create --name mcp --scope admin \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["plaintext"])' > secrets/mcp-panel-key
-chmod 0600 secrets/mcp-token secrets/mcp-panel-key
+cd /opt/mtproxy-shared443
+umask 077
+openssl rand -hex 32 > secrets/mcp-token
+docker compose exec -T panel /usr/local/bin/panel cli api-key-create --name mcp --scope admin
+# Copy the returned plaintext into this hidden prompt; do not put it in shell history.
+read -r -s -p 'MCP panel key: ' MCP_PANEL_KEY; printf '\n'
+printf '%s\n' "$MCP_PANEL_KEY" > secrets/mcp-panel-key
+unset MCP_PANEL_KEY
+chown root:10007 secrets/mcp-token secrets/mcp-panel-key
+chmod 0440 secrets/mcp-token secrets/mcp-panel-key
 printf 'MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=panel.example.com\n' > .env.mcp
 docker compose --env-file .env --env-file .env.mcp -f compose.yaml -f compose.mcp.yaml up -d --build --wait mcp
 ```

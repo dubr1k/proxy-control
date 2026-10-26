@@ -207,11 +207,16 @@ fn interrupted_host_files(resumed: &TransactionState) -> BTreeMap<String, Vec<u8
         ("/etc/tmpfiles.d/mita.conf", "deploy/mita.tmpfiles.conf"),
         ("/usr/local/libexec/prepare-mieru-state", "scripts/prepare-mieru-state.sh"),
         ("/usr/local/libexec/prepare-mieru-token", "scripts/prepare_mieru_token.py"),
-        ("/etc/systemd/system/version-agent.service", "deploy/version-agent.service"),
         ("/etc/tmpfiles.d/proxy-control-version-agent.conf", "deploy/proxy-control-version-agent.tmpfiles.conf"),
     ] {
         files.insert(host_path.to_string(), bytes(repo().join(source)));
     }
+    // The interrupted checkpoint predates the Rust ExecStart cutover: never rebuild its
+    // historical unit bytes from today's deploy template.
+    files.insert(
+        "/etc/systemd/system/version-agent.service".into(),
+        bytes(golden().join("journals/interrupted/version-agent.service")),
+    );
     for name in
         ["__init__", "artifacts", "catalog", "host", "hostmetrics", "metrics_ports", "server", "service", "upstream"]
     {
