@@ -66,6 +66,10 @@ TrustTunnel step does and is safe to repeat:
 ```bash
 sudo scripts/enable-trusttunnel.sh --host gate.example.org
 ```
+The unpacked release must include `installer/bin/linux-amd64/proxy-control-installer`.
+The script reads the reviewed endpoint pin through its `release-pin` helper, which validates
+the complete release manifest; no host Python interpreter is required.
+
 
 The certificate for the name must be issued beforehand (a certbot lineage of the same name), and your Nginx
 `stream` must send that name to `127.0.0.1:4453` (the line `gate.example.org 127.0.0.1:4453;` in the

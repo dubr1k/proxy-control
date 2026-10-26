@@ -169,6 +169,7 @@ pub mod store;
 pub mod three_xui_api;
 mod three_xui_ordered;
 pub mod three_xui_templates;
+pub mod vpn_helpers;
 
 pub use installer_core::{model, planner};
 
