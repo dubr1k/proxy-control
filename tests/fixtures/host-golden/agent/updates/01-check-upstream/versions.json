@@ -1,0 +1,116 @@
+{
+  "checked_at": 1767225600,
+  "components": {
+    "mita": {
+      "available": [
+        {
+          "archive": {
+            "format": "tar.gz",
+            "member": "mita"
+          },
+          "kind": "binary",
+          "newer": true,
+          "published_at": "2026-01-01T00:00:00Z",
+          "sha256": "177ff860d3b4b9e8ddbbeabbffc1a3fa99859e29654d0d6ed610c479dc8405c5",
+          "source": "upstream",
+          "tag": "v3.39.0",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+          "version": "3.39.0"
+        }
+      ],
+      "current": "3.38.1",
+      "status": "ready",
+      "upstream": {
+        "checked_at": 1767225600,
+        "installable": true,
+        "last_error": null,
+        "latest": "3.39.0",
+        "reason": null
+      }
+    },
+    "naive": {
+      "available": [
+        {
+          "kind": "binary",
+          "newer": true,
+          "sha256": "e8cb892526c7dc4929bf860552c8c84cef18c62ea0d1b50b39a4cdeacfa7b195",
+          "source": "catalog",
+          "url": "https://artifacts.example.com/caddy-2.11.8",
+          "version": "2.11.8"
+        }
+      ],
+      "current": "2.11.7",
+      "status": "ready",
+      "upstream": {
+        "checked_at": 1767225600,
+        "installable": false,
+        "last_error": "upstream answered 403 for /repos/caddyserver/caddy/releases",
+        "latest": null,
+        "reason": null
+      }
+    },
+    "panel": {
+      "available": [],
+      "current": null,
+      "status": "ready",
+      "upstream": {
+        "checked_at": 1767225600,
+        "installable": false,
+        "last_error": null,
+        "latest": null,
+        "reason": "no_releases"
+      }
+    },
+    "telemt": {
+      "available": [
+        {
+          "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "image",
+          "newer": true,
+          "source": "catalog",
+          "version": "3.5.15"
+        }
+      ],
+      "current": "sha256:7c843f370ec5",
+      "status": "ready",
+      "upstream": {
+        "checked_at": 1767225600,
+        "installable": false,
+        "last_error": null,
+        "latest": null,
+        "reason": "no_releases"
+      }
+    },
+    "xray": {
+      "available": [
+        {
+          "archive": {
+            "format": "zip",
+            "members": {
+              "geoip.dat": "geoip.dat",
+              "geosite.dat": "geosite.dat",
+              "xray": "xray"
+            }
+          },
+          "kind": "binary",
+          "newer": true,
+          "sha256": "7e6a7cc24b251fa0d8a3dfc1a019fed8652fe7ba4791ed72af6188ce0b874c17",
+          "source": "catalog",
+          "url": "https://github.com/XTLS/Xray-core/releases/download/v26.11.1/Xray-linux-64.zip",
+          "version": "26.11.1"
+        }
+      ],
+      "current": "26.10.17",
+      "status": "ready",
+      "upstream": {
+        "checked_at": 1767225600,
+        "installable": true,
+        "last_error": null,
+        "latest": "26.11.1",
+        "reason": null
+      }
+    }
+  },
+  "enabled": true,
+  "upstream_enabled": true
+}

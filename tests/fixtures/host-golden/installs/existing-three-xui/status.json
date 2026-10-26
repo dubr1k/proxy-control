@@ -1,0 +1,38 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "three_xui.routes",
+      "adapter": "three_xui",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "phase": "verified",
+      "success": true
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "aad73673d8db6c3a3ac0df9fcc14352b68ffba7eb43e52f252b2ff5b51f5fc7a",
+  "schema": 1,
+  "status": "active"
+}

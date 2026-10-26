@@ -1,0 +1,4 @@
+[Unit]
+Description=x-ui
+[Service]
+ExecStart=/usr/local/x-ui/x-ui

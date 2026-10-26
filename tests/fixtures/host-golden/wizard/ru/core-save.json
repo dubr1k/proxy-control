@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "wizard",
+    "--config-output",
+    "<work>/proxy-control.toml",
+    "--lang",
+    "ru"
+  ],
+  "config_output": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\n\n[egress]\nwarp = false\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+  "environment": {
+    "LANG": "ru_RU.UTF-8",
+    "LC_ALL": ""
+  },
+  "exit": 0,
+  "stderr": "",
+  "stdin": "\ncore\n\nPanel.Example.com.\nrelay.example.com\n\n\nn\nn\nadmin@example.com\nowner\n\n\nsave\n",
+  "stdout": "Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.\n  fresh   — чистый сервер: установщик сам поставит Nginx и займёт TCP 80 и 443\n  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими\n  fresh сохраняет IP клиентов панели; для coexist нужен операторский PROXY bridge (см. INSTALLER_REFERENCE)\nРежим сервера (fresh/coexist) [fresh]:   core       — панель и MTProxy (Telegram)\n  core-naive — то же и NaiveProxy\n  core-mieru — то же и Mieru\n  full       — панель, MTProxy, NaiveProxy и Mieru\n  AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже\nПрофиль Proxy Control (core/core-naive/core-mieru/full) [full]:   none        — без 3x-ui\n  existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality\n  managed-new — установщик поставит свой 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)\nРежим 3x-ui (none/existing/managed-new) [none]: Домен панели: Fake-TLS домен MTProxy: Домен подписки клиентов (пусто — подписки выключены): Домен MCP-сервера — только на центральной панели (пусто — MCP выключен): AmneziaWG — обфусцированный WireGuard 1.5 / 2.0 / 3.1. Клиенты подключаются по UDP прямо к этому серверу,\nпоэтому новый домен не нужен: подойдёт домен панели, если он указывает на этот сервер и не проксируется.\nУстановить AmneziaWG [y/N]: TrustTunnel — VPN AdGuard поверх HTTP/2 и TLS, только TCP. Делит TCP/443 с остальными сервисами\nпо SNI, поэтому порт и правило UDP не добавляются. Нужен отдельный домен с A-записью на этот сервер,\nтолько DNS: не ставьте перед ним прокси CDN.\nУстановить TrustTunnel [y/N]: Email для ACME: Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner): Пароль для входа в панель под owner (пусто — создать автоматически): Открыть порты установщика в UFW (только на свежем сервере) [Y/n]: \nПроверка конфигурации\nполе | значение\nEmail для ACME | admin@example.com\nFake-TLS домен MTProxy | relay.example.com\nДомен панели | panel.example.com\nВыход Mieru | direct\nВыход NaiveProxy | direct\nXray-router | нет\nWARP для NaiveProxy и Mieru | нет\nОткрыть порты в UFW | да\nРежим сервера | fresh\nПервый пользователь MTProxy и Mieru | owner\nПрофиль | core\nРежим 3x-ui | none\nКлючи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.\nДействие (apply/back/edit/save/quit) [apply]: Конфигурация сохранена: <work>/proxy-control.toml\n"
+}

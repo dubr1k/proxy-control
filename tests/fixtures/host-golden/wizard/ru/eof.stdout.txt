@@ -1,0 +1,13 @@
+Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.
+  fresh   — чистый сервер: установщик сам поставит Nginx и займёт TCP 80 и 443
+  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими
+  fresh сохраняет IP клиентов панели; для coexist нужен операторский PROXY bridge (см. INSTALLER_REFERENCE)
+Режим сервера (fresh/coexist) [fresh]:   core       — панель и MTProxy (Telegram)
+  core-naive — то же и NaiveProxy
+  core-mieru — то же и Mieru
+  full       — панель, MTProxy, NaiveProxy и Mieru
+  AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже
+Профиль Proxy Control (core/core-naive/core-mieru/full) [full]:   none        — без 3x-ui
+  existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality
+  managed-new — установщик поставит свой 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+Режим 3x-ui (none/existing/managed-new) [none]: Изменения не внесены.

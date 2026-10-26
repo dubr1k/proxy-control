@@ -1,0 +1,38 @@
+{
+  "conflict": {
+    "error": "TopologyError: domain already routed: panel.example.com",
+    "input": "map $ssl_preread_server_name $sni_backend {\n    panel.example.com 127.0.0.1:10443;\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\n"
+  },
+  "default-first": {
+    "idempotent": true,
+    "input": "map $ssl_preread_server_name $sni_backend {\n  default 127.0.0.1:10443;\n  a.example.net 127.0.0.1:1;\n}\n",
+    "output": "map $ssl_preread_server_name $sni_backend {\n  # BEGIN PROXY-CONTROL ROUTES nginx.routes\n  panel.example.com 127.0.0.1:8443;\n  relay.example.com 127.0.0.1:8445;\n  # END PROXY-CONTROL ROUTES nginx.routes\n  default 127.0.0.1:10443;\n  a.example.net 127.0.0.1:1;\n}\n",
+    "removed": "map $ssl_preread_server_name $sni_backend {\n  default 127.0.0.1:10443;\n  a.example.net 127.0.0.1:1;\n}\n"
+  },
+  "inline-default": {
+    "idempotent": true,
+    "input": "map $ssl_preread_server_name $sni_backend { a.example.net 127.0.0.1:1; default 127.0.0.1:2; }\n",
+    "output": "    # BEGIN PROXY-CONTROL ROUTES nginx.routes\n    panel.example.com 127.0.0.1:8443;\n    relay.example.com 127.0.0.1:8445;\n    # END PROXY-CONTROL ROUTES nginx.routes\nmap $ssl_preread_server_name $sni_backend { a.example.net 127.0.0.1:1; default 127.0.0.1:2; }\n",
+    "removed": "map $ssl_preread_server_name $sni_backend { a.example.net 127.0.0.1:1; default 127.0.0.1:2; }\n"
+  },
+  "no-default": {
+    "error": "TopologyError: selected SNI map must contain exactly one default route",
+    "input": "map $ssl_preread_server_name $sni_backend {\n    a.example.net 127.0.0.1:1;\n}\n"
+  },
+  "spaces": {
+    "idempotent": true,
+    "input": "map $ssl_preread_server_name $sni_backend {\n    legacy.example.net 127.0.0.1:10443;\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\n",
+    "output": "map $ssl_preread_server_name $sni_backend {\n    legacy.example.net 127.0.0.1:10443;\n    # BEGIN PROXY-CONTROL ROUTES nginx.routes\n    panel.example.com 127.0.0.1:8443;\n    relay.example.com 127.0.0.1:8445;\n    # END PROXY-CONTROL ROUTES nginx.routes\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\n",
+    "removed": "map $ssl_preread_server_name $sni_backend {\n    legacy.example.net 127.0.0.1:10443;\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\n"
+  },
+  "tabs": {
+    "idempotent": true,
+    "input": "map $ssl_preread_server_name $sni_backend {\n\tlegacy.example.net 127.0.0.1:10443;\n\tdefault 127.0.0.1:10443;\n}\nserver {\n\tlisten 443;\n\tlisten [::]:443;\n\tssl_preread on;\n\tproxy_pass $sni_backend;\n}\n",
+    "output": "map $ssl_preread_server_name $sni_backend {\n\tlegacy.example.net 127.0.0.1:10443;\n\t# BEGIN PROXY-CONTROL ROUTES nginx.routes\n\tpanel.example.com 127.0.0.1:8443;\n\trelay.example.com 127.0.0.1:8445;\n\t# END PROXY-CONTROL ROUTES nginx.routes\n\tdefault 127.0.0.1:10443;\n}\nserver {\n\tlisten 443;\n\tlisten [::]:443;\n\tssl_preread on;\n\tproxy_pass $sni_backend;\n}\n",
+    "removed": "map $ssl_preread_server_name $sni_backend {\n\tlegacy.example.net 127.0.0.1:10443;\n\tdefault 127.0.0.1:10443;\n}\nserver {\n\tlisten 443;\n\tlisten [::]:443;\n\tssl_preread on;\n\tproxy_pass $sni_backend;\n}\n"
+  },
+  "two-maps": {
+    "error": "TopologyError: selected route file does not contain exactly one effective map",
+    "input": "map $ssl_preread_server_name $sni_backend {\n    legacy.example.net 127.0.0.1:10443;\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\nmap $ssl_preread_server_name $sni_backend {\n    default 127.0.0.1:1;\n}\n"
+  }
+}

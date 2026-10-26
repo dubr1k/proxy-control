@@ -1,0 +1,56 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "adapter": "packages",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "firewall.ufw",
+      "adapter": "firewall",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.trusttunnel",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "trusttunnel.runtime",
+      "adapter": "trusttunnel",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "phase": "verified",
+      "success": true
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "525950ac57445e336f74fd17449468c0ce1c9daefc1b51e2ddd21294bf910720",
+  "schema": 1,
+  "status": "active"
+}

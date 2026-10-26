@@ -1,0 +1,1989 @@
+[
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\n",
+    "message": "invalid TOML: Illegal character '\\n' (at line 2, column 19)",
+    "name": "toml-syntax-unterminated-string",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema =\n",
+    "message": "invalid TOML: Invalid value (at line 1, column 9)",
+    "name": "toml-syntax-missing-value",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nschema = 1\n",
+    "message": "invalid TOML: Cannot overwrite a value (at line 2, column 11)",
+    "name": "toml-duplicate-key",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[domains]\npanel = \"x.example.com\"\n",
+    "message": "invalid TOML: Cannot declare ('domains',) twice (at line 23, column 9)",
+    "name": "toml-table-redefined",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nacme_email = \"a\\e@example.com\"\n",
+    "message": "invalid TOML: Unescaped '\\' in a string (at line 2, column 18)",
+    "name": "toml-1.1-escape-e",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nacme_email = \"a\\x41@example.com\"\n",
+    "message": "invalid TOML: Unescaped '\\' in a string (at line 2, column 18)",
+    "name": "toml-1.1-escape-x",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nx = { a = 1,\n b = 2 }\n",
+    "message": "invalid TOML: Invalid initial character for a key part (at line 2, column 13)",
+    "name": "toml-1.1-inline-table-newline",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "﻿schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid TOML: Invalid statement (at line 1, column 1)",
+    "name": "toml-bom",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [99999999999999999999]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports contains invalid port: 99999999999999999999",
+    "name": "toml-integer-overflow-port",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\ndomains.panel = \"panel.example.com\"\ndomains.mtproxy = \"relay.example.com\"\nthree_xui.mode = \"none\"\nfirewall.manage_ufw = true\nschema_extra = 1\n",
+    "message": "unknown key: schema_extra",
+    "name": "toml-dotted-keys-at-root",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\nzeta = 1\nalpha = 2\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: zeta",
+    "name": "root-unknown-key",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "missing key: acme_email",
+    "name": "root-missing-keys",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "zzz = 1\nschema = 1\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: zzz",
+    "name": "root-unknown-and-missing",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "[[domains]]\npanel = 1\n",
+    "message": "missing key: acme_email",
+    "name": "root-not-a-table-array",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = true\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "schema must be an integer",
+    "name": "schema-bool",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1.0\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "schema must be an integer",
+    "name": "schema-float",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = \"1\"\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "schema must be an integer",
+    "name": "schema-string",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 2\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsupported schema: 2",
+    "name": "schema-unsupported",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"Fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid host_mode: Fresh",
+    "name": "host-mode-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = 1\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "host_mode must be a string",
+    "name": "host-mode-not-string",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"everything\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid profile: everything",
+    "name": "profile-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-0",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"a b@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-1",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-2",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \" admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-3",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-4",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\\n\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid ACME email",
+    "name": "acme-email-invalid-5",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = 7\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "acme_email must be a string",
+    "name": "acme-email-invalid-6",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"ad\\u007fmin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "acme-email-with-del-accepted",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsafe initial user",
+    "name": "initial-user-unsafe-0",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"own er\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsafe initial user",
+    "name": "initial-user-unsafe-1",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsafe initial user",
+    "name": "initial-user-unsafe-2",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"ownér\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsafe initial user",
+    "name": "initial-user-unsafe-3",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\\n\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unsafe initial user",
+    "name": "initial-user-unsafe-4",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\ndomains = 1\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "domains must be a table",
+    "name": "domains-not-a-table",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "domains.naive is required for profile full",
+    "name": "domains-naive-required-first",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "domains.mieru is required for profile full",
+    "name": "domains-mieru-required",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\nxui = \"x.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: domains.xui",
+    "name": "domains-unknown-key",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "missing key: domains.mtproxy",
+    "name": "domains-missing-mtproxy",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"PANEL.Example.COM.\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domain-value-0",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \" panel.example.com \"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domain-value-1",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com..\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domain-value-2",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-3",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"a.b\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-4",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"-panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-5",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.c0m",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.c0m\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domain-value-6",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.c0m\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.exa_mple.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-7",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "xn--80ak6aa92e.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"xn--80ak6aa92e.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domain-value-8",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"xn--80ak6aa92e.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"пример.рф\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-9",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: domains.panel",
+    "name": "domain-value-10",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = 42\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "domains.panel must be a string",
+    "name": "domain-value-11",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"panel.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "duplicate TCP SNI domain: panel.example.com",
+    "name": "domains-duplicate-sni",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"Panel.Example.com.\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "duplicate TCP SNI domain: panel.example.com",
+    "name": "domains-duplicate-sni-after-normalising",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "panel.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"panel.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "domains-mieru-may-equal-panel",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"panel.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: mieru",
+    "name": "mieru-outside-profile",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru section is required for profile full",
+    "name": "mieru-section-required",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\nmieru = 3\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru must be a table",
+    "name": "mieru-not-a-table",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = []\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru requires at least one TCP or UDP port",
+    "name": "mieru-no-ports",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = 46001\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports must be an array",
+    "name": "mieru-ports-not-array",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [1023]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports contains invalid port: 1023",
+    "name": "mieru-port-low",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [65536]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports contains invalid port: 65536",
+    "name": "mieru-port-high",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [true]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports must be an integer",
+    "name": "mieru-port-bool",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001, 46001]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports must not contain duplicates",
+    "name": "mieru-port-duplicate",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [8787]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports: 8787 is taken by the panel application",
+    "name": "mieru-port-taken-by-panel",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [4443]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports: 4443 is taken by NaiveProxy's private listener",
+    "name": "mieru-port-taken-by-naive",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [443]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.tcp_ports contains invalid port: 443",
+    "name": "mieru-port-443",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46003,
+          46001
+        ],
+        "udp_ports": [
+          46002
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46003, 46001]\nudp_ports = [46002]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "mieru-ports-keep-order",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46003, 46001]\nudp_ports = [46002]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\nlane_slots = 9\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.lane_slots must be between 0 and 8",
+    "name": "mieru-lane-slots-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\nlane_slots = 2\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "mieru.lane_slots requires egress.router = true",
+    "name": "mieru-lane-slots-without-router",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46102]\nudp_ports = []\nlane_slots = 3\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrouter = true\n",
+    "message": "mieru.tcp_ports collide with the lane slot ports",
+    "name": "mieru-lane-slots-collide",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\nslots = 1\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: mieru.slots",
+    "name": "mieru-unknown-key",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nwarp = false\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "missing key: three_xui.mode",
+    "name": "three-xui-mode-missing",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid three_xui.mode: managed",
+    "name": "three-xui-mode-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\npanel_domain = \"x.example.com\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "unknown key: three_xui.panel_domain",
+    "name": "three-xui-none-domain",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\nwarp_port = 80\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "three_xui.warp_port must be between 1024 and 65535",
+    "name": "three-xui-warp-port-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\nwarp = \"yes\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "three_xui.warp must be a boolean",
+    "name": "three-xui-warp-not-bool",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp_domains = []\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "missing key: three_xui.warp",
+    "name": "three-xui-managed-missing-warp",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = true\nwarp_domains = \"geosite:x\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "three_xui.warp_domains must be an array",
+    "name": "three-xui-warp-domains-not-array",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = true\nwarp_domains = [\"geosite:Bad\"]\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid WARP geosite selector",
+    "name": "three-xui-warp-geosite-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = true\nwarp_domains = [\"domain:x\"]\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "invalid domain: three_xui.warp_domains",
+    "name": "three-xui-warp-domain-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = false\nwarp_domains = [\"example.org\"]\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "three_xui.warp_domains requires warp = true",
+    "name": "three-xui-warp-domains-require-warp",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": "hy2.example.com",
+        "mode": "managed-new",
+        "panel_domain": "xui.example.com",
+        "subscription_domain": null,
+        "vless_tcp_domain": "vless.example.com",
+        "vless_xhttp_domain": "xhttp.example.com",
+        "warp": true,
+        "warp_domains": [
+          "a.example.org",
+          "domain:b.example.org",
+          "geosite:openai"
+        ],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = true\nwarp_domains = [\"geosite:openai\", \"domain:b.example.org\", \"a.example.org\", \"geosite:openai\"]\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "three-xui-warp-domains-sorted",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = true\nwarp_domains = [\"a.example.org\", \"domain:b.example.org\", \"geosite:openai\"]\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": false
+      },
+      "host_mode": "coexist",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": "hy2.example.com",
+        "mode": "managed-new",
+        "panel_domain": "xui.example.com",
+        "subscription_domain": null,
+        "vless_tcp_domain": "vless.example.com",
+        "vless_xhttp_domain": "xhttp.example.com",
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = false\nwarp_domains = []\n\n[firewall]\nmanage_ufw = false\n",
+    "name": "three-xui-managed-on-coexist",
+    "rendered": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp = false\nwarp_domains = []\n\n[firewall]\nmanage_ufw = false\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": false
+      },
+      "host_mode": "coexist",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": "panel.example.com",
+        "mode": "existing",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"existing\"\nhysteria_domain = \"panel.example.com\"\n\n[firewall]\nmanage_ufw = false\n",
+    "name": "three-xui-sni-duplicate-hysteria-allowed",
+    "rendered": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"existing\"\nhysteria_domain = \"panel.example.com\"\n\n[firewall]\nmanage_ufw = false\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"existing\"\npanel_domain = \"panel.example.com\"\n\n[firewall]\nmanage_ufw = false\n",
+    "message": "duplicate TCP SNI domain: panel.example.com",
+    "name": "three-xui-sni-duplicate-panel",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nproxy = true\n",
+    "message": "unknown key: egress.proxy",
+    "name": "egress-unknown-key",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrouter = true\n",
+    "message": "egress.router requires NaiveProxy, Mieru or TrustTunnel (in the profile or [trusttunnel])",
+    "name": "egress-router-without-service",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrelay_port = 45443\n",
+    "message": "egress.relay_port requires router = true",
+    "name": "egress-relay-without-router",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrouter = true\nrelay_port = 70000\n",
+    "message": "egress.relay_port must be between 1024 and 65535",
+    "name": "egress-relay-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrouter = true\nrelay_port = 45101\n",
+    "message": "egress.relay_port collides with a listener the host already runs",
+    "name": "egress-relay-collides",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": {
+        "mieru": "direct",
+        "naive": "direct",
+        "relay_port": 0,
+        "router": true,
+        "warp": false,
+        "warp_port": 40000
+      },
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 4,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nrouter = true\nrelay_port = 0\n",
+    "name": "egress-relay-zero-with-router",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\nlane_slots = 4\n\n[egress]\nwarp = false\nrouter = true\nrelay_port = 0\nnaive = \"direct\"\nmieru = \"direct\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nwarp = true\nwarp_port = 1000\n",
+    "message": "egress.warp_port must be between 1024 and 65535",
+    "name": "egress-warp-port-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\nwarp = false\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nwarp = true\n",
+    "message": "three_xui.warp disagrees with egress.warp",
+    "name": "egress-warp-disagrees",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\nwarp_port = 40002\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nwarp = true\nwarp_port = 40001\n",
+    "message": "three_xui.warp_port disagrees with egress.warp_port",
+    "name": "egress-warp-port-disagrees",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nnaive = \"direct\"\n",
+    "message": "egress.naive is not part of profile core",
+    "name": "egress-naive-outside-profile",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nnaive = \"warp\"\n",
+    "message": "egress.naive requires warp = true",
+    "name": "egress-naive-needs-warp",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nmieru = \"router\"\n",
+    "message": "egress.mieru requires router = true",
+    "name": "egress-mieru-needs-router",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nnaive = \"socks\"\n",
+    "message": "invalid egress.naive: socks",
+    "name": "egress-naive-invalid",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": {
+        "mieru": "warp",
+        "naive": "router",
+        "relay_port": 45443,
+        "router": true,
+        "warp": true,
+        "warp_port": 40000
+      },
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 4,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": true,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nwarp = true\nrouter = true\nnaive = \"router\"\nmieru = \"warp\"\n",
+    "name": "egress-full-router",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\nlane_slots = 4\n\n[egress]\nwarp = true\nrouter = true\nrelay_port = 45443\nnaive = \"router\"\nmieru = \"warp\"\n\n[three_xui]\nmode = \"none\"\nwarp = true\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"managed-new\"\npanel_domain = \"xui.example.com\"\nvless_tcp_domain = \"vless.example.com\"\nvless_xhttp_domain = \"xhttp.example.com\"\nhysteria_domain = \"hy2.example.com\"\nwarp_domains = [\"example.org\"]\n\n[firewall]\nmanage_ufw = true\n\n[egress]\nwarp = false\n",
+    "message": "three_xui.warp_domains requires egress.warp = true",
+    "name": "egress-warp-domains-need-egress-warp",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\n",
+    "message": "missing key: firewall.manage_ufw",
+    "name": "firewall-missing-manage-ufw",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = \"true\"\n",
+    "message": "firewall.manage_ufw must be a boolean",
+    "name": "firewall-not-bool",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "UFW can be managed only in fresh mode",
+    "name": "firewall-coexist-managed",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:10443\"\n",
+    "message": "ingress.proxy_protocol_bridge requires coexist mode",
+    "name": "ingress-on-fresh",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\nproxy_protocol_bridge = \"0.0.0.0:10443\"\n",
+    "message": "ingress.proxy_protocol_bridge must be a loopback TCP endpoint",
+    "name": "ingress-bridge-not-loopback",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:443\"\n",
+    "message": "ingress.proxy_protocol_bridge must be a loopback TCP endpoint",
+    "name": "ingress-bridge-low-port",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\npanel_tls_port = 9443\n",
+    "message": "missing key: ingress.proxy_protocol_bridge",
+    "name": "ingress-bridge-missing",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:10443\"\npanel_tls_port = 10443\n",
+    "message": "ingress.panel_tls_port must be a distinct unprivileged TCP port",
+    "name": "ingress-panel-port-equals-bridge",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": false
+      },
+      "host_mode": "coexist",
+      "ingress": {
+        "panel_tls_port": 9443,
+        "proxy_protocol_bridge": "127.0.0.1:10443",
+        "skip_renewal_dry_run": true
+      },
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:10443\"\npanel_tls_port = 9443\nskip_renewal_dry_run = true\n",
+    "name": "ingress-valid",
+    "rendered": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:10443\"\npanel_tls_port = 9443\nskip_renewal_dry_run = true\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"coexist\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [9443]\nudp_ports = []\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = false\n\n[ingress]\nproxy_protocol_bridge = \"127.0.0.1:10443\"\npanel_tls_port = 9443\n",
+    "message": "mieru.tcp_ports: 9443 is taken by the panel's private TLS listener (ingress.panel_tls_port)",
+    "name": "ingress-panel-port-taken-by-mieru",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = false\nmtu = 1300\n",
+    "message": "amneziawg settings are given while amneziawg.enabled is false",
+    "name": "awg-disabled-with-settings",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = false\n",
+    "name": "awg-disabled-alone",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nversions = []\n",
+    "message": "amneziawg.versions must be a non-empty array",
+    "name": "awg-versions-empty",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nversions = [\"2.1\"]\n",
+    "message": "unknown amneziawg version: 2.1",
+    "name": "awg-versions-unknown",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nversions = [\"2.0\", \"2.0\"]\n",
+    "message": "amneziawg.versions must not contain duplicates",
+    "name": "awg-versions-duplicate",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": {
+        "dns": [
+          "1.1.1.1",
+          "1.0.0.1"
+        ],
+        "host": "panel.example.com",
+        "mtu": 1280,
+        "ports": [
+          20015,
+          20031
+        ],
+        "versions": [
+          "1.5",
+          "3.1"
+        ]
+      },
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nversions = [\"3.1\", \"1.5\"]\nports = { \"3.1\" = 20031, \"1.5\" = 20015 }\n",
+    "name": "awg-versions-canonical-order",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[amneziawg]\nenabled = true\nversions = [\"1.5\", \"3.1\"]\nhost = \"panel.example.com\"\nports = { \"1.5\" = 20015, \"3.1\" = 20031 }\nmtu = 1280\ndns = [\"1.1.1.1\", \"1.0.0.1\"]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \"192.168.001.1\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "message": "amneziawg.host must be a DNS name or an IPv4 address",
+    "name": "awg-host-0",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": {
+        "dns": [
+          "1.1.1.1",
+          "1.0.0.1"
+        ],
+        "host": "203.0.113.7",
+        "mtu": 1280,
+        "ports": [
+          20015,
+          20020,
+          20031
+        ],
+        "versions": [
+          "1.5",
+          "2.0",
+          "3.1"
+        ]
+      },
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \" 203.0.113.7 \"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "name": "awg-host-1",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[amneziawg]\nenabled = true\nversions = [\"1.5\", \"2.0\", \"3.1\"]\nhost = \"203.0.113.7\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\nmtu = 1280\ndns = [\"1.1.1.1\", \"1.0.0.1\"]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": {
+        "dns": [
+          "1.1.1.1",
+          "1.0.0.1"
+        ],
+        "host": "host.example.com",
+        "mtu": 1280,
+        "ports": [
+          20015,
+          20020,
+          20031
+        ],
+        "versions": [
+          "1.5",
+          "2.0",
+          "3.1"
+        ]
+      },
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \"Host.Example.COM.\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "name": "awg-host-2",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[amneziawg]\nenabled = true\nversions = [\"1.5\", \"2.0\", \"3.1\"]\nhost = \"host.example.com\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\nmtu = 1280\ndns = [\"1.1.1.1\", \"1.0.0.1\"]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \"2001:db8::1\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "message": "amneziawg.host must be a DNS name or an IPv4 address",
+    "name": "awg-host-3",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \"256.1.1.1\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "message": "amneziawg.host must be a DNS name or an IPv4 address",
+    "name": "awg-host-4",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nhost = \"host\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "message": "amneziawg.host must be a DNS name or an IPv4 address",
+    "name": "awg-host-5",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nports = [1]\n",
+    "message": "amneziawg.ports must be a table",
+    "name": "awg-ports-not-table",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nports = { \"9.9\" = 20000 }\n",
+    "message": "unknown amneziawg version in amneziawg.ports: 9.9",
+    "name": "awg-ports-unknown-version",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nversions = [\"1.5\"]\nports = { \"2.0\" = 20000 }\n",
+    "message": "amneziawg.ports names version 2.0, which is not enabled",
+    "name": "awg-ports-not-enabled",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nports = { \"1.5\" = 80 }\n",
+    "message": "amneziawg.ports.1.5 must be between 1024 and 65535",
+    "name": "awg-ports-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nports = { \"1.5\" = 20000, \"2.0\" = 20000 }\n",
+    "message": "amneziawg.ports must be distinct",
+    "name": "awg-ports-distinct",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nports = { \"1.5\" = 46001 }\n",
+    "message": "amneziawg.ports.1.5: 46001 is taken by a Mieru UDP port",
+    "name": "awg-ports-taken-by-mieru-udp",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\nmtu = 1500\n",
+    "message": "amneziawg.mtu must be between 1280 and 1420",
+    "name": "awg-mtu-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = []\n",
+    "message": "amneziawg.dns must list one to four addresses",
+    "name": "awg-dns-empty",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = [\"1.1.1.1\", \"1.0.0.1\", \"8.8.8.8\", \"8.8.4.4\", \"9.9.9.9\"]\n",
+    "message": "amneziawg.dns must list one to four addresses",
+    "name": "awg-dns-five",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = [\"one.one.one.one\"]\n",
+    "message": "amneziawg.dns contains an invalid address",
+    "name": "awg-dns-invalid",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = [\"01.1.1.1\"]\n",
+    "message": "amneziawg.dns contains an invalid address",
+    "name": "awg-dns-leading-zero",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = [\"2001:db8::1\", \"2001:DB8:0::1\"]\n",
+    "message": "amneziawg.dns must not contain duplicates",
+    "name": "awg-dns-normalised-duplicate",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": {
+        "dns": [
+          "fe80::1%eth0"
+        ],
+        "host": "panel.example.com",
+        "mtu": 1280,
+        "ports": [
+          20015,
+          20020,
+          20031
+        ],
+        "versions": [
+          "1.5",
+          "2.0",
+          "3.1"
+        ]
+      },
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[amneziawg]\nenabled = true\ndns = [\"fe80::1%eth0\"]\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\n",
+    "name": "awg-dns-scope-id",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[amneziawg]\nenabled = true\nversions = [\"1.5\", \"2.0\", \"3.1\"]\nhost = \"panel.example.com\"\nports = { \"1.5\" = 20015, \"2.0\" = 20020, \"3.1\" = 20031 }\nmtu = 1280\ndns = [\"fe80::1%eth0\"]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = false\nlisten_port = 5000\n",
+    "message": "trusttunnel settings are given while trusttunnel.enabled is false",
+    "name": "tt-disabled-with-settings",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "message": "domains.trusttunnel is set but [trusttunnel] is not enabled",
+    "name": "tt-domain-without-section",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\n",
+    "message": "domains.trusttunnel is required when trusttunnel.enabled is true",
+    "name": "tt-section-without-domain",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\nlisten_port = 99\n",
+    "message": "trusttunnel.listen_port must be between 1024 and 65535",
+    "name": "tt-listen-range",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\nlisten_port = 1987\n",
+    "message": "trusttunnel.listen_port collides with TrustTunnel's metrics listener",
+    "name": "tt-listen-metrics",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\nlisten_port = 4443\n",
+    "message": "trusttunnel.listen_port: 4443 is taken by NaiveProxy's private listener",
+    "name": "tt-listen-taken-by-naive",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\ntrusttunnel = \"mieru.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\n",
+    "message": "domains.trusttunnel duplicates domains.mieru: mieru.example.com",
+    "name": "tt-duplicates-panel",
+    "result": "error"
+  },
+  {
+    "exception": "ConfigError",
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\nport = 1\n",
+    "message": "unknown key: trusttunnel.port",
+    "name": "tt-unknown-key",
+    "result": "error"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": null,
+        "mtproxy": "relay.example.com",
+        "naive": null,
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": "gate.example.org"
+      },
+      "egress": {
+        "mieru": "direct",
+        "naive": "direct",
+        "relay_port": 45443,
+        "router": true,
+        "warp": false,
+        "warp_port": 40000
+      },
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": null,
+      "profile": "core",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": {
+        "hostname": "gate.example.org",
+        "listen_port": 4453
+      }
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n\n[trusttunnel]\nenabled = true\n\n[egress]\nrouter = true\n",
+    "name": "tt-router-allowed-on-core",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"core\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\ntrusttunnel = \"gate.example.org\"\n\n[egress]\nwarp = false\nrouter = true\nrelay_port = 45443\n\n[trusttunnel]\nenabled = true\nlisten_port = 4453\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  },
+  {
+    "canonical": {
+      "acme_email": "admin@example.com",
+      "amneziawg": null,
+      "domains": {
+        "mcp": null,
+        "mieru": "mieru.example.com",
+        "mtproxy": "relay.example.com",
+        "naive": "edge.example.com",
+        "panel": "panel.example.com",
+        "subscription": null,
+        "trusttunnel": null
+      },
+      "egress": null,
+      "firewall": {
+        "manage_ufw": true
+      },
+      "host_mode": "fresh",
+      "ingress": null,
+      "initial_user": "owner",
+      "mieru": {
+        "lane_slots": 0,
+        "tcp_ports": [
+          46001
+        ],
+        "udp_ports": [
+          46001
+        ]
+      },
+      "profile": "full",
+      "schema": 1,
+      "three_xui": {
+        "hysteria_domain": null,
+        "mode": "none",
+        "panel_domain": null,
+        "subscription_domain": null,
+        "vless_tcp_domain": null,
+        "vless_xhttp_domain": null,
+        "warp": false,
+        "warp_domains": [],
+        "warp_port": 40000
+      },
+      "trusttunnel": null
+    },
+    "input": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "name": "valid-base",
+    "rendered": "schema = 1\nhost_mode = \"fresh\"\nprofile = \"full\"\nacme_email = \"admin@example.com\"\ninitial_user = \"owner\"\n\n[domains]\npanel = \"panel.example.com\"\nmtproxy = \"relay.example.com\"\nnaive = \"edge.example.com\"\nmieru = \"mieru.example.com\"\n\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46001]\n\n[three_xui]\nmode = \"none\"\n\n[firewall]\nmanage_ufw = true\n",
+    "result": "ok"
+  }
+]

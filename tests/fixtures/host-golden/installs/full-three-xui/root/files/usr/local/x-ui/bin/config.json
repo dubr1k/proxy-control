@@ -1,0 +1,58 @@
+{
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "port": 8449,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverNames": [
+            "vless.example.com"
+          ]
+        }
+      },
+      "tag": "inbound-127.0.0.1:8449"
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": 8450,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "reality",
+        "realitySettings": {
+          "serverNames": [
+            "xhttp.example.com"
+          ]
+        }
+      },
+      "tag": "inbound-127.0.0.1:8450"
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ],
+  "routing": {
+    "rules": []
+  }
+}

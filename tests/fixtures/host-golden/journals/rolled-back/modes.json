@@ -1,0 +1,9 @@
+{
+  ".": "0700",
+  "backups": "0700",
+  "credentials": "0700",
+  "ownership.json": "0600",
+  "plan.json": "0600",
+  "report.json": "0600",
+  "state.json": "0600"
+}

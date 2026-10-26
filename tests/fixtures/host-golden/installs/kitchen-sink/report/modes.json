@@ -1,0 +1,5 @@
+{
+  "credentials": "0700",
+  "credentials/handoff.json": "0600",
+  "report.json": "0644"
+}

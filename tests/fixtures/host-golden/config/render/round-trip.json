@@ -1,0 +1,26 @@
+{
+  "core-amneziawg.toml": {
+    "round_trip_equal": true
+  },
+  "core-mieru.toml": {
+    "round_trip_equal": true
+  },
+  "core-naive.toml": {
+    "round_trip_equal": true
+  },
+  "core-trusttunnel.toml": {
+    "round_trip_equal": true
+  },
+  "core.toml": {
+    "round_trip_equal": true
+  },
+  "existing-three-xui.toml": {
+    "round_trip_equal": true
+  },
+  "full-three-xui.toml": {
+    "round_trip_equal": true
+  },
+  "managed-three-xui.toml": {
+    "round_trip_equal": true
+  }
+}

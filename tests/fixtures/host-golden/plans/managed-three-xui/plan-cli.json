@@ -1,0 +1,835 @@
+{
+  "actions": [
+    {
+      "adapter": "packages",
+      "credentials_required": false,
+      "id": "packages.host",
+      "inverse": [
+        "remove only exact packages installed by this action; purge them only on uninstall --purge-data"
+      ],
+      "mutations": [
+        "package=ca-certificates",
+        "package=certbot",
+        "package=curl",
+        "package=docker-compose-v2",
+        "package=docker.io",
+        "package=nginx-full",
+        "package=openssl",
+        "package=python3"
+      ],
+      "owner": "proxy-control:packages",
+      "preconditions": [
+        "supported package manager and package status are observed"
+      ],
+      "verification": [
+        "every exact requested package is installed"
+      ]
+    },
+    {
+      "adapter": "nginx",
+      "credentials_required": false,
+      "id": "nginx.routes",
+      "inverse": [
+        "restore content, owner, group, mode, and symlink identity"
+      ],
+      "mutations": [
+        "mode=fresh",
+        "client_ip=proxy",
+        "panel_tls_backend=127.0.0.1:8443",
+        "stream_context=create",
+        "target=/etc/nginx/stream.d/proxy-control.conf",
+        "variable=$proxy_control_backend",
+        "path_kind=missing",
+        "resolved_path=/etc/nginx/stream.d/proxy-control.conf",
+        "symlink_target=-",
+        "route=relay.example.com 127.0.0.1:8445",
+        "route=panel.example.com 127.0.0.1:8443",
+        "route=edge.example.com 127.0.0.1:4443",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450",
+        "route=xui-sub.example.com 127.0.0.1:2096",
+        "route=xui.example.com 127.0.0.1:8451"
+      ],
+      "owner": "proxy-control:nginx",
+      "preconditions": [
+        "effective Nginx topology is observed and unambiguous",
+        "Nginx has no stream context: one including the router is added first"
+      ],
+      "verification": [
+        "the router path is included by the stream context",
+        "Nginx configuration test passes before reload"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.naive",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=naive",
+        "certificate=edge.example.com",
+        "email=admin@example.com",
+        "name=edge.example.com",
+        "webroot=/var/www/edge.example.com"
+      ],
+      "owner": "proxy-control:certificate:naive",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.proxy-control",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=proxy-control",
+        "certificate=relay.example.com",
+        "email=admin@example.com",
+        "name=panel.example.com",
+        "name=relay.example.com",
+        "webroot=/var/www/panel.example.com",
+        "webroot=/var/www/relay.example.com"
+      ],
+      "owner": "proxy-control:certificate:proxy-control",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.three-xui-hysteria",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=three-xui-hysteria",
+        "certificate=hy2.example.com",
+        "email=admin@example.com",
+        "name=hy2.example.com",
+        "webroot=/var/www/hy2.example.com"
+      ],
+      "owner": "proxy-control:certificate:three-xui-hysteria",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.three-xui-panel",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=three-xui-panel",
+        "certificate=xui.example.com",
+        "email=admin@example.com",
+        "name=xui.example.com",
+        "webroot=/var/www/xui.example.com"
+      ],
+      "owner": "proxy-control:certificate:three-xui-panel",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.three-xui-subscription",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=three-xui-subscription",
+        "certificate=xui-sub.example.com",
+        "email=admin@example.com",
+        "name=xui-sub.example.com",
+        "webroot=/var/www/xui-sub.example.com"
+      ],
+      "owner": "proxy-control:certificate:three-xui-subscription",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "core",
+      "credentials_required": true,
+      "id": "core.runtime",
+      "inverse": [
+        "stop only the mtproxy Compose project",
+        "preserve credentials and named volumes unless data purge is explicit",
+        "remove only Core-owned artifacts and the owned probe"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "proxy-domain=relay.example.com",
+        "panel-domain=panel.example.com",
+        "subscription-domain=",
+        "mcp-domain=",
+        "users=owner",
+        "proxy-backend-port=8445",
+        "panel-app-port=8787",
+        "panel-tls-port=8443",
+        "probe=/usr/local/libexec/mtproxy-respq-probe",
+        "probe-image=mtproxy-respq-probe:1.0.0",
+        "prebuilt-tdlib=0.1008066.0",
+        "adjacent-sni=none"
+      ],
+      "owner": "proxy-control:core",
+      "preconditions": [
+        "Nginx routes and certificates are verified",
+        "the existing mtproxy project boundary is absent or explicitly owned"
+      ],
+      "verification": [
+        "Compose model and all service health checks pass",
+        "panel health and an HTTPS authenticated session pass",
+        "Telemt management API remains private to Compose",
+        "every temporary MTProto credential returns validated resPQ",
+        "adjacent SNI routes and bounded sensitive-data scan pass"
+      ]
+    },
+    {
+      "adapter": "naive",
+      "credentials_required": true,
+      "id": "naive.runtime",
+      "inverse": [
+        "stop only the Caddy unit and the naive-manager service",
+        "preserve manager state and credentials unless purge is explicit",
+        "restore binary, unit, helper, hook, and identity ownership"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "naive-domain=edge.example.com",
+        "panel-domain=panel.example.com",
+        "data-dir=/var/lib/naive-manager",
+        "log-dir=/var/log/naive-proxy",
+        "caddy-binary=/usr/local/bin/caddy",
+        "caddy-build=v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+        "unit=/etc/systemd/system/caddy-naive.service",
+        "private-port=4443",
+        "caddy-uid=10003",
+        "accounting-gid=10004",
+        "manager-uid=10002",
+        "manager-gid=101",
+        "adjacent-sni=none",
+        "egress=direct",
+        "warp-port=40000",
+        "warp-provider=",
+        "router-provider="
+      ],
+      "owner": "proxy-control:naive",
+      "preconditions": [
+        "the Core runtime and the Naive certificate are verified",
+        "fixed Naive identities are free or already owned",
+        "the shared 443 route reaches the private Caddy listener"
+      ],
+      "verification": [
+        "loopback Admin API and private Caddy listener are private",
+        "public cover HTTPS answers without credentials",
+        "one authenticated CONNECT carries a known payload and closes",
+        "closed-tunnel accounting observes at least the sent payload",
+        "manager, panel, adjacent SNI, and log boundary pass"
+      ]
+    },
+    {
+      "adapter": "mieru",
+      "credentials_required": true,
+      "id": "mieru.runtime",
+      "inverse": [
+        "stop only the mita unit, the lane slot units and the mieru-manager service",
+        "preserve manager state, token, and mita config unless purge",
+        "remove only the owned binary, units, tmpfiles, and helpers"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "mieru-host=mieru.example.com",
+        "panel-domain=panel.example.com",
+        "mita-version=3.38.1",
+        "architecture=amd64",
+        "package-url=https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb",
+        "package-digest=2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+        "executable-digest=991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207",
+        "binary=/usr/bin/mita",
+        "unit=/etc/systemd/system/mita.service",
+        "socket=/run/mita/mita.sock",
+        "manager-uid=10005",
+        "manager-gid=10005",
+        "bootstrap-user=owner",
+        "transports=TCP:46001;UDP:46001",
+        "egress=direct",
+        "warp-port=40000",
+        "warp-provider=",
+        "router-provider=",
+        "lane-slots=0"
+      ],
+      "owner": "proxy-control:mieru",
+      "preconditions": [
+        "the Core runtime is verified",
+        "the selected Mieru listeners are free",
+        "fixed manager identity 10005 is free or already owned"
+      ],
+      "verification": [
+        "package and executable digests match the pinned release",
+        "mita reports the exact status \"RUNNING\"",
+        "the management UDS keeps its owner and 0770 mode",
+        "the official client reaches the Internet over every transport",
+        "manager and panel health pass and adjacent listeners are intact"
+      ]
+    },
+    {
+      "adapter": "three_xui",
+      "credentials_required": false,
+      "id": "three_xui.routes",
+      "inverse": [
+        "remove only the owned 3x-ui route block"
+      ],
+      "mutations": [
+        "mode=managed-new",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450",
+        "route=xui-sub.example.com 127.0.0.1:2096",
+        "route=xui.example.com 127.0.0.1:8451"
+      ],
+      "owner": "nginx.routes.three_xui",
+      "preconditions": [
+        "the shared 443 router is owned and verified",
+        "every routed 3x-ui inbound answers on loopback"
+      ],
+      "verification": [
+        "each owned SNI route reaches its loopback 3x-ui backend"
+      ]
+    },
+    {
+      "adapter": "three_xui",
+      "credentials_required": true,
+      "id": "three_xui.runtime",
+      "inverse": [
+        "stop the staged unit and remove only the staged generation"
+      ],
+      "mutations": [
+        "version=3.10.2",
+        "architecture=amd64",
+        "release-url=https://github.com/MHSanaei/3x-ui/releases/download/v3.10.2/x-ui-linux-amd64.tar.gz",
+        "release-digest=bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+        "root=/usr/local/x-ui",
+        "unit=/etc/systemd/system/x-ui.service",
+        "database=/etc/x-ui/x-ui.db",
+        "panel-domain=xui.example.com",
+        "hysteria-domain=hy2.example.com",
+        "vless-tcp-domain=vless.example.com",
+        "vless-xhttp-domain=xhttp.example.com",
+        "vless-tcp-backend=8449",
+        "vless-xhttp-backend=8450",
+        "panel-backend=8451",
+        "warp=false",
+        "warp-port=40000",
+        "warp-domains=",
+        "subscription-domain=xui-sub.example.com"
+      ],
+      "owner": "proxy-control:three-xui",
+      "preconditions": [
+        "no x-ui database, binary tree, unit, user, or listener exists",
+        "the pinned release digest matches before and after extraction"
+      ],
+      "verification": [
+        "the staged binary reports the pinned version",
+        "the panel answers only on loopback under its private path",
+        "every promised inbound exists and its port is open"
+      ]
+    },
+    {
+      "adapter": "version_agent",
+      "credentials_required": false,
+      "id": "version_agent.runtime",
+      "inverse": [
+        "disable the unit and remove only the owned unit, tmpfiles, env, code and marker",
+        "preserve the catalog and the agent state unless purge is explicit"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "agent-dir=/opt/proxy-control",
+        "socket=/run/proxy-control/version-agent.sock",
+        "socket-gid=10001",
+        "compose-files=compose.yaml:compose.naive.yaml:compose.mieru.yaml",
+        "router=off",
+        "naive=on",
+        "mieru=on",
+        "upstream=on"
+      ],
+      "owner": "proxy-control:version-agent",
+      "preconditions": [
+        "the Core runtime is verified",
+        "no foreign version-agent unit, env or code directory exists without the ownership marker"
+      ],
+      "verification": [
+        "the version-agent unit is active and enabled",
+        "/v1/health answers ok over the group-10001 socket",
+        "/v1/versions lists the profile's components at the versions the installer recorded",
+        "the env names the profile's Compose overlays and the router flag"
+      ]
+    }
+  ],
+  "adapter_dependencies": {
+    "certificates": [
+      "nginx",
+      "packages"
+    ],
+    "core": [
+      "certificates"
+    ],
+    "mieru": [
+      "core"
+    ],
+    "naive": [
+      "core"
+    ],
+    "nginx": [
+      "packages"
+    ],
+    "packages": [],
+    "three_xui": [
+      "certificates"
+    ],
+    "version_agent": [
+      "core"
+    ]
+  },
+  "adapter_order": [
+    "packages",
+    "nginx",
+    "certificates",
+    "core",
+    "naive",
+    "mieru",
+    "three_xui",
+    "version_agent"
+  ],
+  "audit_facts": {
+    "listeners": {
+      "owners": {
+        "22": [
+          "sshd"
+        ]
+      },
+      "ports": [
+        22
+      ],
+      "ssh_socket_tcp": [
+        22
+      ],
+      "tcp": [
+        22
+      ],
+      "udp": []
+    },
+    "ownership": {
+      "compose": {
+        "available": true,
+        "observation": "observed"
+      },
+      "docker": {
+        "available": true,
+        "observation": "observed",
+        "version": "26.1.3"
+      },
+      "identities": {
+        "gid": {},
+        "uid": {}
+      },
+      "installer": {
+        "present": false
+      },
+      "systemd": {
+        "available": true,
+        "observation": "observed",
+        "services": [
+          "docker.service",
+          "nginx.service",
+          "ssh.service",
+          "ufw.service"
+        ]
+      },
+      "three_xui": {
+        "mode": "managed-new",
+        "present": false
+      },
+      "ufw": {
+        "active": false,
+        "available": true,
+        "ipv6_enabled": true,
+        "mode": "read_only",
+        "observation": "observed"
+      }
+    },
+    "platform": {
+      "addresses": [
+        {
+          "address": "127.0.0.1",
+          "family": "inet",
+          "interface": "lo"
+        },
+        {
+          "address": "2001:db8::10",
+          "family": "inet6",
+          "interface": "eth0"
+        },
+        {
+          "address": "203.0.113.10",
+          "family": "inet",
+          "interface": "eth0"
+        },
+        {
+          "address": "::1",
+          "family": "inet6",
+          "interface": "lo"
+        }
+      ],
+      "architecture": "amd64",
+      "disks": [
+        {
+          "filesystem": "/dev/vda1",
+          "mount": "/",
+          "total_kib": 81000000
+        }
+      ],
+      "memory": {
+        "total_bytes": 4105519104
+      },
+      "os": "linux"
+    },
+    "prerequisites": {
+      "hard_stops": [],
+      "operator_prerequisites": [
+        {
+          "code": "cloud_firewall.reachability",
+          "message": "Verify required inbound ports in the external cloud firewall",
+          "status": "operator_required"
+        }
+      ]
+    },
+    "topology": {
+      "certificates": {
+        "edge.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "hy2.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "mieru.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "panel.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "relay.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "vless.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xhttp.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xui-sub.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xui.example.com": {
+          "covers_domain": false,
+          "present": false
+        }
+      },
+      "dns": {
+        "edge.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "edge.example.com"
+        },
+        "hy2.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "hy2.example.com"
+        },
+        "mieru.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "mieru.example.com"
+        },
+        "panel.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "panel.example.com"
+        },
+        "relay.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "relay.example.com"
+        },
+        "vless.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "vless.example.com"
+        },
+        "xhttp.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xhttp.example.com"
+        },
+        "xui-sub.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xui-sub.example.com"
+        },
+        "xui.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xui.example.com"
+        }
+      },
+      "nginx": {
+        "available": true,
+        "duplicate_sni_domains": [],
+        "http_domains": [],
+        "observation": "observed",
+        "route_target": null,
+        "sni_map_count": 0,
+        "sni_map_files": {},
+        "sni_routes": {},
+        "stream_enabled": false,
+        "topology_error": "no effective stream listener on port 443"
+      },
+      "three_xui": {
+        "inbounds": [],
+        "installed": false
+      }
+    }
+  },
+  "config": {
+    "acme_email": "admin@example.com",
+    "amneziawg": null,
+    "domains": {
+      "mcp": null,
+      "mieru": "mieru.example.com",
+      "mtproxy": "relay.example.com",
+      "naive": "edge.example.com",
+      "panel": "panel.example.com",
+      "subscription": null,
+      "trusttunnel": null
+    },
+    "egress": null,
+    "firewall": {
+      "manage_ufw": false
+    },
+    "host_mode": "fresh",
+    "ingress": null,
+    "initial_user": "owner",
+    "mieru": {
+      "lane_slots": 0,
+      "tcp_ports": [
+        46001
+      ],
+      "udp_ports": [
+        46001
+      ]
+    },
+    "profile": "full",
+    "schema": 1,
+    "three_xui": {
+      "hysteria_domain": "hy2.example.com",
+      "mode": "managed-new",
+      "panel_domain": "xui.example.com",
+      "subscription_domain": "xui-sub.example.com",
+      "vless_tcp_domain": "vless.example.com",
+      "vless_xhttp_domain": "xhttp.example.com",
+      "warp": false,
+      "warp_domains": [],
+      "warp_port": 40000
+    },
+    "trusttunnel": null
+  },
+  "digest": "c567e6234a10f0879b20b007d1c903d48f7737b791a8d1a0b393ab010ddea81f",
+  "release": {
+    "artifacts": {
+      "mieru:amd64": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+      "mita:amd64": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+      "three_xui:amd64": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+      "trusttunnel:amd64": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+      "xray:amd64": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
+    },
+    "commit": "0000000000000000000000000000000000000000",
+    "components": {
+      "mieru": "3.38.1",
+      "mita": "3.38.1",
+      "three_xui": "3.10.2",
+      "trusttunnel": "1.1.0",
+      "xray": "26.10.17"
+    },
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "tag": "v3.3.0"
+  },
+  "schema": 1
+}

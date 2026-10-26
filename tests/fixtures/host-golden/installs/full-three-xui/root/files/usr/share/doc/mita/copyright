@@ -1,0 +1,9 @@
+Upstream-Name: mieru / mita
+Source: https://github.com/enfein/mieru
+License: GPL-3.0-or-later
+
+The mita executable installed next to this notice is unmodified upstream
+software distributed under the GNU General Public License version 3 or
+later. Its complete source and licence text are published at the address
+above. Proxy Control installs only the executable and this notice; the
+package itself is never installed.

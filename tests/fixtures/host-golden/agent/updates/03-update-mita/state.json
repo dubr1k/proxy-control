@@ -1,0 +1,100 @@
+{
+  "components": {
+    "mita": {
+      "archive": {
+        "format": "tar.gz",
+        "member": "mita"
+      },
+      "image": null,
+      "kind": "binary",
+      "runtime_version": null,
+      "sha256": "5c74159e9969add02c91081ce0270ccd52b02fb908f657df6c807058f1250c90",
+      "source": "upstream",
+      "updated_at": 1767225600,
+      "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+      "version": "3.39.0"
+    },
+    "naive": {
+      "kind": "build",
+      "runtime_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "sha256": "3f2224279f1e4425f19cf53681eed582506715d5491a62bd611e792ef112bc19",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "2.11.7"
+    },
+    "telemt": {
+      "archive": null,
+      "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "image",
+      "runtime_version": null,
+      "sha256": null,
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "url": null,
+      "version": "3.5.15"
+    },
+    "xray": {
+      "kind": "binary",
+      "members": {
+        "geoip.dat": "11ed793e8aebec0accf6e11cc7d1a3bc4d8305949154b97d93315ab77664ee67",
+        "geosite.dat": "8aacb4eb32a80e86f50c1493c74787098c83d496321d61a45eefed8d84590fa8",
+        "xray": "a2ac2de8bcfdc9295ab3ce1156f4812f53937e91cadd71ff5e49fb4e16ba0cf2"
+      },
+      "sha256": "0961cee3a173e11ba0568c679480d5b4fd3863236ad296ba7aeaaf0da0f6b51b",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "26.10.17"
+    }
+  },
+  "schema": 2,
+  "upstream": {
+    "checked_at": 1767225600,
+    "components": {
+      "mita": {
+        "candidates": [
+          {
+            "archive": {
+              "format": "tar.gz",
+              "member": "mita"
+            },
+            "kind": "binary",
+            "published_at": "2026-01-01T00:00:00Z",
+            "sha256": "177ff860d3b4b9e8ddbbeabbffc1a3fa99859e29654d0d6ed610c479dc8405c5",
+            "source": "upstream",
+            "tag": "v3.39.0",
+            "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+            "version": "3.39.0"
+          }
+        ],
+        "installable": true,
+        "latest": "3.39.0",
+        "reason": null
+      },
+      "naive": {
+        "candidates": [],
+        "installable": false,
+        "last_error": "upstream answered 403 for /repos/caddyserver/caddy/releases",
+        "latest": null,
+        "reason": null
+      },
+      "panel": {
+        "candidates": [],
+        "installable": false,
+        "latest": null,
+        "reason": "no_releases"
+      },
+      "telemt": {
+        "candidates": [],
+        "installable": false,
+        "latest": null,
+        "reason": "no_releases"
+      },
+      "xray": {
+        "candidates": [],
+        "installable": true,
+        "latest": "26.11.1",
+        "reason": null
+      }
+    }
+  }
+}

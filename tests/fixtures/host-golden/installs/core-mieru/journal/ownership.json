@@ -1,0 +1,493 @@
+{
+  "files": {
+    "/etc/mieru-manager/token": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "e5fa82895807ac359f0b75a69e7a133c92d1eaf8e8e0dd7536be652aaf72c385"
+    },
+    "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf": {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "9789b1e2ddf74d532a87c7f2c92d604f774b0bb2c100f063db1147750797ab86"
+    },
+    "/etc/nginx/conf.d/proxy-control-panel.conf": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "6ad582af8347b04d8812d505dc4fec55cfa4e58fa223ab6506693398d5430dce"
+    },
+    "/etc/nginx/stream.d/proxy-control.conf": {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "11c840e8b1717e2df7de62fe101dbafb949b0192176ee211ab085e20d695b99b"
+    },
+    "/etc/proxy-control/mieru-acceptance-owner": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": true,
+      "preserve": false,
+      "sha256": "eba7abad9a0b3042fe8ba703d17183b16b609de0b05c7e4a682a1f6eb2b27585"
+    },
+    "/etc/proxy-control/mieru-owned": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "ade4a5d5beff3cca49f650900a3fdaa82235b07e95a8058fd732d7a176c11c81"
+    },
+    "/etc/proxy-control/version-agent-owned": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "b0af4351470faaa7c2446e8bb0af48999c100b895214855b88e0c3d7914d6410"
+    },
+    "/etc/proxy-control/version-agent.env": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": true,
+      "preserve": false,
+      "sha256": "e15e8da350cd6f1c5390caf0753f613d09cf9cda53e645afbfd9e3cf609c1b8c"
+    },
+    "/etc/systemd/system/mita.service": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "9eec865c0f33d9a8f844746228fde2534606efb82432d4df44c58f60e2d824ab"
+    },
+    "/etc/systemd/system/mita@.service": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "2ce26dc6dcd60a1aa71e69d5968655827d2a7a625966a6bbc4fd1ec6d2a85472"
+    },
+    "/etc/systemd/system/version-agent.service": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "04d5448ff213652e981ce7fdce53c310a2fea673933babd026359c94cf6ef08b"
+    },
+    "/etc/tmpfiles.d/mita.conf": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "58f3963a3b7240085b7b23aef7043c4c807a19644b220b83518f49376b35301d"
+    },
+    "/etc/tmpfiles.d/proxy-control-version-agent.conf": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "bb06672d82218a149086e2af726f85b2065c9051c971090c1100ea4aae8ad791"
+    },
+    "/opt/mtproxy-shared443/.core-acceptance-owner": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "a609a495846d199892a7b693a9ade30f21de5bbc568dd9e26ff5cbf309916979"
+    },
+    "/opt/mtproxy-shared443/.env": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "cf10c2991d7f99abc298828a3fe6bf9e875e55c5d2f2cfaf7da011f6546115e4"
+    },
+    "/opt/mtproxy-shared443/.env.mieru": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "682f0e528d45f80a72e8c93c2e8be7461da11512bca91a3b5b1f659f645aaaff"
+    },
+    "/opt/mtproxy-shared443/.mtproxy-owned": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "7d85798c0a81dbab09711c9d2b8d86f7763204827196a78a00427c73d8fdfb71"
+    },
+    "/opt/mtproxy-shared443/.panel-bootstrapped": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "bbdf27b7799fc2e8954e52e6564423b02999a68770b5940b17e6ee61d487513e"
+    },
+    "/opt/mtproxy-shared443/VERSION": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "5eee6c0c5c6901f5e523f0a434bca4106e1ff7136deb451f982b0bb1a7b13716"
+    },
+    "/opt/mtproxy-shared443/awg_manager/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "bdb3b910117a4955cd67afa0dd5d4ba57ecd51480657f59554b662f8dbb32e83"
+    },
+    "/opt/mtproxy-shared443/compose.amneziawg.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "834210ac9e15d070b2249d4b0b6511013bc7de2c1470cae10de0163ea9300682"
+    },
+    "/opt/mtproxy-shared443/compose.mcp.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "d6108bb8086555293a7a77a4fac4e67bec4e1ce463e6720d06ca7dda32b476fc"
+    },
+    "/opt/mtproxy-shared443/compose.mieru.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "38477922094867314964c0a69f0cf0b73da33079bbc42003f29a37c12b6ad1bd"
+    },
+    "/opt/mtproxy-shared443/compose.naive.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "09e021bee268e33126201e89138e31249a2de853c504fe8aa90fa184d10b9035"
+    },
+    "/opt/mtproxy-shared443/compose.trusttunnel.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "3ed2e4c14fadee470ae7f1edea646058d8c816b76039652bd7038e62764a9384"
+    },
+    "/opt/mtproxy-shared443/compose.xray-router.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "52ce0ec4d9f0cdc128cf8e362339be64c352218cd941f458b319ba4fdb98228c"
+    },
+    "/opt/mtproxy-shared443/compose.yaml": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "71af9e806d291da127e4e8e92322ae7d3dd8e0b1a5dc1d827294e23a72a41343"
+    },
+    "/opt/mtproxy-shared443/docker/Caddyfile": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "eff02f6e83cb29aeb39a4fdec807a4504cf26f90fb84f118b6f9456d93308988"
+    },
+    "/opt/mtproxy-shared443/docker/Dockerfile.caddy-naive": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "f53ca5feb9a83acada242e0a4ecafd762d5d116473c80551ecfce9eb65b45612"
+    },
+    "/opt/mtproxy-shared443/docker/links.py": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "c51fadb0a1486e83ebe114403b7081a3d51a34f37def5ad817305d9aa51bf4fc"
+    },
+    "/opt/mtproxy-shared443/docker/telemt-entrypoint.sh": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "aafea833f771a44ab93c8536546949a8184bc6fc1d04f6588e4babf599e18646"
+    },
+    "/opt/mtproxy-shared443/installer/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "2c01811e4e1cb711dac8026e35a9a319a0cb63921ca9b51cba43815b645a9336"
+    },
+    "/opt/mtproxy-shared443/mcp_server/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "937368c7177587aef698bad6e3ac32d2ac4c5a8d4fc50b6ba8e66df16ed53404"
+    },
+    "/opt/mtproxy-shared443/mieru_manager/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "816993512013a08f3570a01b65cca7f0b0bb7138bee0b9bbfe00c06e3461df15"
+    },
+    "/opt/mtproxy-shared443/naive_manager/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "3bd231b0fd37165a1ce4952aa8623c539db36692900a13074ce60add4b1b27a2"
+    },
+    "/opt/mtproxy-shared443/panel/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "a5e5d278c2bf8b149a081a6d785754caee4a78795bce08989c596970de4f62f2"
+    },
+    "/opt/mtproxy-shared443/pc_common/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "09e8b687e9882789987c9e86eed666130ce574be333d194367dedb9b445baa71"
+    },
+    "/opt/mtproxy-shared443/scripts/proxyctl.py": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "d3e3ff0dddec2296051c81bf989a40bed251825c5eb7cbf13e26d7eb20a652de"
+    },
+    "/opt/mtproxy-shared443/secrets/panel-bootstrap-password": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "59728439f1039f5ed8d0b1692f40ce8159813debddc8f377e117a64878f2418e"
+    },
+    "/opt/mtproxy-shared443/secrets/panel-master-key": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "5f6243f23eea18c7797895fd8aeb175d8c9b7c2a93cd5a713d54c91787c78837"
+    },
+    "/opt/mtproxy-shared443/secrets/telemt-api-token": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "e706f51b8ab1d99111a64dbff47da2cd28659ddb37d9ea0e9462b520eff89bd1"
+    },
+    "/opt/mtproxy-shared443/secrets/users.conf": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": true,
+      "sha256": "6f7c14fa02cc5fbb49cdd41969e83725fe63d4ed5cc115259beb0828a07d66ed"
+    },
+    "/opt/mtproxy-shared443/trusttunnel_manager/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "0cc2feb012de8f3eb275053fff4779a7be24ad9b36e90b32fe95ea9e5191e0f1"
+    },
+    "/opt/mtproxy-shared443/uninstall.sh": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "7f6b4c6e0b756ba8c7b17a9b59e873b5fdb2c79486d73b063490bbbdcf5d8886"
+    },
+    "/opt/mtproxy-shared443/xray_router_manager/GOLDEN-STAND-IN": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "07430f0db9b515aca5c9abdddad54776a9277a91867b90e81c96662b9991a8db"
+    },
+    "/opt/proxy-control/version_agent/__init__.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "b687e3f1a9c1f73842ade086814994a0567a268f12d6bc2ffa335cd5cd78ec35"
+    },
+    "/opt/proxy-control/version_agent/artifacts.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "e04c5aa66e0b7e1a25a420246cf51d5bdb7942d102bd44142d91eb565e7e946b"
+    },
+    "/opt/proxy-control/version_agent/catalog.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "20de3a6f2dae7b3e191e7f472b3f0c2eaca751d8d5c400bed8ec4ac1913d5092"
+    },
+    "/opt/proxy-control/version_agent/host.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "d95c0d71be8ffa32422c016f624cb082f84af248c3ba5581ead21069b72004d8"
+    },
+    "/opt/proxy-control/version_agent/hostmetrics.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "bcff92618ec0d3c6976d840397f9752b9b87f4a94c7e95cbc9e70e99afa3943c"
+    },
+    "/opt/proxy-control/version_agent/metrics_ports.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "2b5d5552d0589f3def53cb35ee1c2edd52fda2f94e50631dbc3fcde5f8ff5a9b"
+    },
+    "/opt/proxy-control/version_agent/server.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "43dcfce1b123b7af02a4eb51d3bd4ba97631580291a4905cb3388d63c0b88254"
+    },
+    "/opt/proxy-control/version_agent/service.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "48cbfe1f161ea83ef14555aeafa73870df8972bdf155ceb49c1c71f383cccc29"
+    },
+    "/opt/proxy-control/version_agent/upstream.py": {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "331c2ee4b90b80d1f1283eb77b9a58a684e9cbd0602cbe8e59d9db2428c582c1"
+    },
+    "/usr/bin/mita": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061"
+    },
+    "/usr/local/libexec/mtproxy-respq-probe": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "700bf29d8e60a806bfc4c4f80f09c11aa84e6ce5732354a03674cb6fd10efe7f"
+    },
+    "/usr/local/libexec/prepare-mieru-state": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "411c305ee191cef5f10e348da0b1bc35063a24c165177d90710261fea3187f03"
+    },
+    "/usr/local/libexec/prepare-mieru-token": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "86bf7e23b67d5eb4071e27c13c8956b5ffef917a7f33cc7a20c2845198c70c59"
+    },
+    "/usr/share/doc/mita/copyright": {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "54f5959110332e1e7034f2afc2683be90f96fd69b794d25da70a2494bfebe1af"
+    },
+    "/var/www/panel.example.com/index.html": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "f34798ed348f0cb080b86799f50479e0592f6f132767530e0aa97946f79873d9"
+    },
+    "/var/www/relay.example.com/index.html": {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "kind": "file",
+      "mutable": false,
+      "preserve": false,
+      "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966"
+    }
+  },
+  "schema": 1
+}

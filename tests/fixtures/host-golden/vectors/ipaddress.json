@@ -1,0 +1,608 @@
+[
+  {
+    "IPv4Address": {
+      "ok": "1.1.1.1"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '1.1.1.1'"
+    },
+    "input": "1.1.1.1",
+    "ip_address": {
+      "ok": "1.1.1.1"
+    },
+    "ip_address_before_percent": {
+      "ok": "1.1.1.1"
+    },
+    "version": {
+      "ok": 4
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Leading zeros are not permitted in '01' in '01.1.1.1'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '01.1.1.1'"
+    },
+    "input": "01.1.1.1",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'01.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'01.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'01.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '1.1.1'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '1.1.1'"
+    },
+    "input": "1.1.1",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1.1.1' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '1.1.1.1.'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '1.1.1.1.'"
+    },
+    "input": "1.1.1.1.",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1.1.1.1.' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1.1.1.1.' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1.1.1.1.' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Octet 256 (> 255) not permitted in '256.0.0.1'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '256.0.0.1'"
+    },
+    "input": "256.0.0.1",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'256.0.0.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'256.0.0.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'256.0.0.1' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "ok": "0.0.0.0"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '0.0.0.0'"
+    },
+    "input": "0.0.0.0",
+    "ip_address": {
+      "ok": "0.0.0.0"
+    },
+    "ip_address_before_percent": {
+      "ok": "0.0.0.0"
+    },
+    "version": {
+      "ok": 4
+    }
+  },
+  {
+    "IPv4Address": {
+      "ok": "255.255.255.255"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '255.255.255.255'"
+    },
+    "input": "255.255.255.255",
+    "ip_address": {
+      "ok": "255.255.255.255"
+    },
+    "ip_address_before_percent": {
+      "ok": "255.255.255.255"
+    },
+    "version": {
+      "ok": 4
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Only decimal digits permitted in ' 1' in ' 1.1.1.1'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in ' 1.1.1.1'"
+    },
+    "input": " 1.1.1.1",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "' 1.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "' 1.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "' 1.1.1.1' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Only decimal digits permitted in '1 ' in '1.1.1.1 '"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '1.1.1.1 '"
+    },
+    "input": "1.1.1.1 ",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1.1.1.1 ' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1.1.1.1 ' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1.1.1.1 ' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Only decimal digits permitted in '١' in '١.١.١.١'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '١.١.١.١'"
+    },
+    "input": "١.١.١.١",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'١.١.١.١' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'١.١.١.١' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'١.١.١.١' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '2001:db8::1'"
+    },
+    "IPv6Address": {
+      "ok": "2001:db8::1"
+    },
+    "input": "2001:db8::1",
+    "ip_address": {
+      "ok": "2001:db8::1"
+    },
+    "ip_address_before_percent": {
+      "ok": "2001:db8::1"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '2001:DB8:0:0:0:0:0:1'"
+    },
+    "IPv6Address": {
+      "ok": "2001:db8::1"
+    },
+    "input": "2001:DB8:0:0:0:0:0:1",
+    "ip_address": {
+      "ok": "2001:db8::1"
+    },
+    "ip_address_before_percent": {
+      "ok": "2001:db8::1"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '2001:db8::0:1'"
+    },
+    "IPv6Address": {
+      "ok": "2001:db8::1"
+    },
+    "input": "2001:db8::0:1",
+    "ip_address": {
+      "ok": "2001:db8::1"
+    },
+    "ip_address_before_percent": {
+      "ok": "2001:db8::1"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '::'"
+    },
+    "IPv6Address": {
+      "ok": "::"
+    },
+    "input": "::",
+    "ip_address": {
+      "ok": "::"
+    },
+    "ip_address_before_percent": {
+      "ok": "::"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '::1'"
+    },
+    "IPv6Address": {
+      "ok": "::1"
+    },
+    "input": "::1",
+    "ip_address": {
+      "ok": "::1"
+    },
+    "ip_address_before_percent": {
+      "ok": "::1"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Only decimal digits permitted in '::ffff:1' in '::ffff:1.2.3.4'"
+    },
+    "IPv6Address": {
+      "ok": "::ffff:102:304"
+    },
+    "input": "::ffff:1.2.3.4",
+    "ip_address": {
+      "ok": "::ffff:102:304"
+    },
+    "ip_address_before_percent": {
+      "ok": "::ffff:102:304"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '::FFFF:102:304'"
+    },
+    "IPv6Address": {
+      "ok": "::ffff:102:304"
+    },
+    "input": "::FFFF:102:304",
+    "ip_address": {
+      "ok": "::ffff:102:304"
+    },
+    "ip_address_before_percent": {
+      "ok": "::ffff:102:304"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in 'fe80::1%eth0'"
+    },
+    "IPv6Address": {
+      "ok": "fe80::1%eth0"
+    },
+    "input": "fe80::1%eth0",
+    "ip_address": {
+      "ok": "fe80::1%eth0"
+    },
+    "ip_address_before_percent": {
+      "ok": "fe80::1"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in 'fe80::1%'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "Invalid IPv6 address: \"'fe80::1%'\""
+    },
+    "input": "fe80::1%",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'fe80::1%' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "ok": "fe80::1"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'fe80::1%' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Unexpected '/' in '2001:db8::1/128'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "Unexpected '/' in '2001:db8::1/128'"
+    },
+    "input": "2001:db8::1/128",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'2001:db8::1/128' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'2001:db8::1/128' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'2001:db8::1/128' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '[2001:db8::1]'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "Only hex digits permitted in '[2001' in '[2001:db8::1]'"
+    },
+    "input": "[2001:db8::1]",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'[2001:db8::1]' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'[2001:db8::1]' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'[2001:db8::1]' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '1:2:3:4:5:6:7:8'"
+    },
+    "IPv6Address": {
+      "ok": "1:2:3:4:5:6:7:8"
+    },
+    "input": "1:2:3:4:5:6:7:8",
+    "ip_address": {
+      "ok": "1:2:3:4:5:6:7:8"
+    },
+    "ip_address_before_percent": {
+      "ok": "1:2:3:4:5:6:7:8"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '1:2:3:4:5:6:7:8:9'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "Exactly 8 parts expected without '::' in '1:2:3:4:5:6:7:8:9'"
+    },
+    "input": "1:2:3:4:5:6:7:8:9",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1:2:3:4:5:6:7:8:9' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1:2:3:4:5:6:7:8:9' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1:2:3:4:5:6:7:8:9' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '1::2::3'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At most one '::' permitted in '1::2::3'"
+    },
+    "input": "1::2::3",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1::2::3' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1::2::3' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1::2::3' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '0:0:0:0:0:0:0:0'"
+    },
+    "IPv6Address": {
+      "ok": "::"
+    },
+    "input": "0:0:0:0:0:0:0:0",
+    "ip_address": {
+      "ok": "::"
+    },
+    "ip_address_before_percent": {
+      "ok": "::"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Expected 4 octets in '2001:0db8:0000:0000:0000:ff00:0042:8329'"
+    },
+    "IPv6Address": {
+      "ok": "2001:db8::ff00:42:8329"
+    },
+    "input": "2001:0db8:0000:0000:0000:ff00:0042:8329",
+    "ip_address": {
+      "ok": "2001:db8::ff00:42:8329"
+    },
+    "ip_address_before_percent": {
+      "ok": "2001:db8::ff00:42:8329"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Only decimal digits permitted in '64:ff9b::192' in '64:ff9b::192.0.2.33'"
+    },
+    "IPv6Address": {
+      "ok": "64:ff9b::c000:221"
+    },
+    "input": "64:ff9b::192.0.2.33",
+    "ip_address": {
+      "ok": "64:ff9b::c000:221"
+    },
+    "ip_address_before_percent": {
+      "ok": "64:ff9b::c000:221"
+    },
+    "version": {
+      "ok": 6
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Leading zeros are not permitted in '04' in '1.2.3.04'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '1.2.3.04'"
+    },
+    "input": "1.2.3.04",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'1.2.3.04' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'1.2.3.04' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'1.2.3.04' does not appear to be an IPv4 or IPv6 address"
+    }
+  },
+  {
+    "IPv4Address": {
+      "error": "AddressValueError",
+      "message": "Leading zeros are not permitted in '000' in '127.000.000.001'"
+    },
+    "IPv6Address": {
+      "error": "AddressValueError",
+      "message": "At least 3 parts expected in '127.000.000.001'"
+    },
+    "input": "127.000.000.001",
+    "ip_address": {
+      "error": "ValueError",
+      "message": "'127.000.000.001' does not appear to be an IPv4 or IPv6 address"
+    },
+    "ip_address_before_percent": {
+      "error": "ValueError",
+      "message": "'127.000.000.001' does not appear to be an IPv4 or IPv6 address"
+    },
+    "version": {
+      "error": "ValueError",
+      "message": "'127.000.000.001' does not appear to be an IPv4 or IPv6 address"
+    }
+  }
+]

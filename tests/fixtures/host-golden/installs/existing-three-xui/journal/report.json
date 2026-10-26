@@ -1,0 +1,101 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "three_xui.routes",
+      "evidence": {
+        "action_id": "three_xui.routes",
+        "details": {
+          "installed": true,
+          "routes": 2
+        },
+        "observations": [
+          "owned 3x-ui routes reach audited loopback inbounds"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    }
+  ],
+  "error": null,
+  "plan_digest": "aad73673d8db6c3a3ac0df9fcc14352b68ffba7eb43e52f252b2ff5b51f5fc7a",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "1fab7ed007fc44dd96162c52742811eb"
+}

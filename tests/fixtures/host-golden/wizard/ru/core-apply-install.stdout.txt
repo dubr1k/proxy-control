@@ -1,0 +1,50 @@
+Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.
+  fresh   — чистый сервер: установщик сам поставит Nginx и займёт TCP 80 и 443
+  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими
+  fresh сохраняет IP клиентов панели; для coexist нужен операторский PROXY bridge (см. INSTALLER_REFERENCE)
+Режим сервера (fresh/coexist) [fresh]:   core       — панель и MTProxy (Telegram)
+  core-naive — то же и NaiveProxy
+  core-mieru — то же и Mieru
+  full       — панель, MTProxy, NaiveProxy и Mieru
+  AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже
+Профиль Proxy Control (core/core-naive/core-mieru/full) [full]:   none        — без 3x-ui
+  existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality
+  managed-new — установщик поставит свой 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+Режим 3x-ui (none/existing/managed-new) [none]: Домен панели: Fake-TLS домен MTProxy: Домен подписки клиентов (пусто — подписки выключены): Домен MCP-сервера — только на центральной панели (пусто — MCP выключен): AmneziaWG — обфусцированный WireGuard 1.5 / 2.0 / 3.1. Клиенты подключаются по UDP прямо к этому серверу,
+поэтому новый домен не нужен: подойдёт домен панели, если он указывает на этот сервер и не проксируется.
+Установить AmneziaWG [y/N]: TrustTunnel — VPN AdGuard поверх HTTP/2 и TLS, только TCP. Делит TCP/443 с остальными сервисами
+по SNI, поэтому порт и правило UDP не добавляются. Нужен отдельный домен с A-записью на этот сервер,
+только DNS: не ставьте перед ним прокси CDN.
+Установить TrustTunnel [y/N]: Email для ACME: Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner): Пароль для входа в панель под owner (пусто — создать автоматически): Открыть порты установщика в UFW (только на свежем сервере) [Y/n]: 
+Проверка конфигурации
+поле | значение
+Email для ACME | admin@example.com
+Fake-TLS домен MTProxy | relay.example.com
+Домен панели | panel.example.com
+Выход Mieru | direct
+Выход NaiveProxy | direct
+Xray-router | нет
+WARP для NaiveProxy и Mieru | нет
+Открыть порты в UFW | да
+Режим сервера | fresh
+Первый пользователь MTProxy и Mieru | owner
+Профиль | core
+Режим 3x-ui | none
+Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.
+Действие (apply/back/edit/save/quit) [apply]: Plan / План
+digest | c9aabef0f2d4f4396c5471823008d7ac1b1b6bd5863663d7749f400ef2a7f79d
+packages.host | package=ca-certificates, package=certbot, package=curl, package=docker-compose-v2, package=docker.io, package=nginx-full, package=openssl, package=python3
+rollback:packages.host | remove only exact packages installed by this action; purge them only on uninstall --purge-data
+nginx.routes | mode=fresh, client_ip=proxy, panel_tls_backend=127.0.0.1:8443, stream_context=create, target=/etc/nginx/stream.d/proxy-control.conf, variable=$proxy_control_backend, path_kind=missing, resolved_path=/etc/nginx/stream.d/proxy-control.conf, symlink_target=-, route=relay.example.com 127.0.0.1:8445, route=panel.example.com 127.0.0.1:8443
+rollback:nginx.routes | restore content, owner, group, mode, and symlink identity
+firewall.ufw | ssh=22, ipv6=true, enable=true, rule=tcp:80, rule=tcp:443
+rollback:firewall.ufw | delete exact comment-scoped rules added by this action
+certificate.proxy-control | service=proxy-control, certificate=relay.example.com, email=admin@example.com, name=panel.example.com, name=relay.example.com, webroot=/var/www/panel.example.com, webroot=/var/www/relay.example.com
+rollback:certificate.proxy-control | remove only the exact owned HTTP-01 vhost and preserve ACME data
+core.runtime | project=/opt/mtproxy-shared443, proxy-domain=relay.example.com, panel-domain=panel.example.com, subscription-domain=, mcp-domain=, users=owner, proxy-backend-port=8445, panel-app-port=8787, panel-tls-port=8443, probe=/usr/local/libexec/mtproxy-respq-probe, probe-image=mtproxy-respq-probe:1.0.0, prebuilt-tdlib=0.1008066.0, adjacent-sni=none
+rollback:core.runtime | stop only the mtproxy Compose project, preserve credentials and named volumes unless data purge is explicit, remove only Core-owned artifacts and the owned probe
+version_agent.runtime | project=/opt/mtproxy-shared443, agent-dir=/opt/proxy-control, socket=/run/proxy-control/version-agent.sock, socket-gid=10001, compose-files=compose.yaml, router=off, naive=off, mieru=off, upstream=on
+rollback:version_agent.runtime | disable the unit and remove only the owned unit, tmpfiles, env, code and marker, preserve the catalog and the agent state unless purge is explicit
+Введите первые 12 символов дайджеста плана (c9aabef0f2d4) или quit: status: active
+plan_digest: c9aabef0f2d4f4396c5471823008d7ac1b1b6bd5863663d7749f400ef2a7f79d
+origin: installer-v1

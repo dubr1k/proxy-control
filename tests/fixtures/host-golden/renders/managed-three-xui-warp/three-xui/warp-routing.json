@@ -1,0 +1,30 @@
+{
+  "outbounds": [
+    {
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 40000
+          }
+        ]
+      },
+      "tag": "WARP"
+    }
+  ],
+  "rules": [
+    {
+      "domain": [
+        "domain:chat.example.org",
+        "geosite:openai"
+      ],
+      "outboundTag": "WARP",
+      "type": "field"
+    },
+    {
+      "network": "tcp,udp",
+      "outboundTag": "direct"
+    }
+  ]
+}

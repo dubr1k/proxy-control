@@ -1,0 +1,11 @@
+{
+  ".": "0700",
+  "backups": "0700",
+  "credentials": "0700",
+  "nginx": "0755",
+  "nginx/945c82ba54e8cf2ea6e5b11eea205ad64bf8022268148cb7e388c704e33c57cd.backup": "0600",
+  "ownership.json": "0600",
+  "plan.json": "0600",
+  "report.json": "0600",
+  "state.json": "0600"
+}

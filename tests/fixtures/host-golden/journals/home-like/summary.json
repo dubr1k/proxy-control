@@ -1,0 +1,47 @@
+{
+  "checkpoints": [
+    [
+      "packages.host",
+      "verified"
+    ],
+    [
+      "nginx.routes",
+      "verified"
+    ],
+    [
+      "firewall.ufw",
+      "verified"
+    ],
+    [
+      "certificate.naive",
+      "verified"
+    ],
+    [
+      "certificate.proxy-control",
+      "verified"
+    ],
+    [
+      "core.runtime",
+      "verified"
+    ],
+    [
+      "naive.runtime",
+      "verified"
+    ],
+    [
+      "mieru.runtime",
+      "verified"
+    ],
+    [
+      "amneziawg.runtime",
+      "verified"
+    ],
+    [
+      "version_agent.runtime",
+      "verified"
+    ]
+  ],
+  "origin": "installer-v1",
+  "schema": 1,
+  "status": "active"
+}

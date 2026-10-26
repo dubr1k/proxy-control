@@ -1,0 +1,5 @@
+{
+  "busy": "TransactionBusyError: another proxyctl operation is in progress",
+  "mode": "0600",
+  "size": 0
+}

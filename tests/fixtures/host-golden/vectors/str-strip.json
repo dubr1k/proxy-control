@@ -1,0 +1,388 @@
+[
+  {
+    "codepoints": [
+      "U+0020",
+      "U+0061",
+      "U+0020"
+    ],
+    "input": " a ",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+0009",
+      "U+0061",
+      "U+0009"
+    ],
+    "input": "\ta\t",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+000A",
+      "U+0061",
+      "U+000A"
+    ],
+    "input": "\na\n",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+000D",
+      "U+000A",
+      "U+0061",
+      "U+000D",
+      "U+000A"
+    ],
+    "input": "\r\na\r\n",
+    "isspace": [
+      true,
+      true,
+      false,
+      true,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+000B",
+      "U+0061",
+      "U+000C"
+    ],
+    "input": "\u000ba\f",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+001C",
+      "U+0061",
+      "U+001D"
+    ],
+    "input": "\u001ca\u001d",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+001E",
+      "U+0061",
+      "U+001F"
+    ],
+    "input": "\u001ea\u001f",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+0085",
+      "U+0061",
+      "U+0085"
+    ],
+    "input": "a",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+00A0",
+      "U+0061",
+      "U+00A0"
+    ],
+    "input": " a ",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+1680",
+      "U+0061"
+    ],
+    "input": " a",
+    "isspace": [
+      true,
+      false
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+2000",
+      "U+0061",
+      "U+200A"
+    ],
+    "input": " a ",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+2028",
+      "U+0061",
+      "U+2029"
+    ],
+    "input": " a ",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+202F",
+      "U+0061",
+      "U+205F"
+    ],
+    "input": " a ",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+3000",
+      "U+0061",
+      "U+3000"
+    ],
+    "input": "　a　",
+    "isspace": [
+      true,
+      false,
+      true
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+200B",
+      "U+0061",
+      "U+200B"
+    ],
+    "input": "​a​",
+    "isspace": [
+      false,
+      false,
+      false
+    ],
+    "split": [
+      "​a​"
+    ],
+    "strip": "​a​",
+    "strip_codepoints": [
+      "U+200B",
+      "U+0061",
+      "U+200B"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+FEFF",
+      "U+0061",
+      "U+FEFF"
+    ],
+    "input": "﻿a﻿",
+    "isspace": [
+      false,
+      false,
+      false
+    ],
+    "split": [
+      "﻿a﻿"
+    ],
+    "strip": "﻿a﻿",
+    "strip_codepoints": [
+      "U+FEFF",
+      "U+0061",
+      "U+FEFF"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+0000",
+      "U+0061",
+      "U+0000"
+    ],
+    "input": "\u0000a\u0000",
+    "isspace": [
+      false,
+      false,
+      false
+    ],
+    "split": [
+      "\u0000a\u0000"
+    ],
+    "strip": "\u0000a\u0000",
+    "strip_codepoints": [
+      "U+0000",
+      "U+0061",
+      "U+0000"
+    ]
+  },
+  {
+    "codepoints": [
+      "U+0061"
+    ],
+    "input": "a",
+    "isspace": [
+      false
+    ],
+    "split": [
+      "a"
+    ],
+    "strip": "a",
+    "strip_codepoints": [
+      "U+0061"
+    ]
+  },
+  {
+    "codepoints": [],
+    "input": "",
+    "isspace": [],
+    "split": [],
+    "strip": "",
+    "strip_codepoints": []
+  },
+  {
+    "codepoints": [
+      "U+0020",
+      "U+0020"
+    ],
+    "input": "  ",
+    "isspace": [
+      true,
+      true
+    ],
+    "split": [],
+    "strip": "",
+    "strip_codepoints": []
+  }
+]

@@ -1,0 +1,41 @@
+{
+  "client_ip": "proxy",
+  "mode": "fresh",
+  "panel_tls_backend": "127.0.0.1:8443",
+  "path_kind": "missing",
+  "resolved_path": "/etc/nginx/stream.d/proxy-control.conf",
+  "routes": [
+    [
+      "relay.example.com",
+      "127.0.0.1:8445"
+    ],
+    [
+      "panel.example.com",
+      "127.0.0.1:8443"
+    ],
+    [
+      "edge.example.com",
+      "127.0.0.1:4443"
+    ],
+    [
+      "vless.example.com",
+      "127.0.0.1:8449"
+    ],
+    [
+      "xhttp.example.com",
+      "127.0.0.1:8450"
+    ],
+    [
+      "xui-sub.example.com",
+      "127.0.0.1:2096"
+    ],
+    [
+      "xui.example.com",
+      "127.0.0.1:8451"
+    ]
+  ],
+  "stream_context": "create",
+  "symlink_target": null,
+  "target": "/etc/nginx/stream.d/proxy-control.conf",
+  "variable": "$proxy_control_backend"
+}

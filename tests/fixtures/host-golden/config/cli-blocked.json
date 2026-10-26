@@ -1,0 +1,176 @@
+[
+  {
+    "exit": 2,
+    "name": "toml-syntax-unterminated-string",
+    "stderr": "BLOCKED: invalid TOML: Illegal character '\\n' (at line 2, column 19)\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "toml-1.1-escape-x",
+    "stderr": "BLOCKED: invalid TOML: Unescaped '\\' in a string (at line 2, column 18)\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "root-unknown-key",
+    "stderr": "BLOCKED: unknown key: zeta\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "schema-float",
+    "stderr": "BLOCKED: schema must be an integer\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "profile-invalid",
+    "stderr": "BLOCKED: invalid profile: everything\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "acme-email-invalid-4",
+    "stderr": "BLOCKED: invalid ACME email\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "initial-user-unsafe-2",
+    "stderr": "BLOCKED: unsafe initial user\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "domains-mieru-required",
+    "stderr": "BLOCKED: domains.mieru is required for profile full\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "domain-value-5",
+    "stderr": "BLOCKED: invalid domain: domains.panel\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "domains-duplicate-sni",
+    "stderr": "BLOCKED: duplicate TCP SNI domain: panel.example.com\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "mieru-no-ports",
+    "stderr": "BLOCKED: mieru requires at least one TCP or UDP port\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "mieru-port-duplicate",
+    "stderr": "BLOCKED: mieru.tcp_ports must not contain duplicates\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "mieru-lane-slots-without-router",
+    "stderr": "BLOCKED: mieru.lane_slots requires egress.router = true\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "three-xui-none-domain",
+    "stderr": "BLOCKED: unknown key: three_xui.panel_domain\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "three-xui-warp-geosite-invalid",
+    "stderr": "BLOCKED: invalid WARP geosite selector\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "egress-router-without-service",
+    "stderr": "BLOCKED: egress.router requires NaiveProxy, Mieru or TrustTunnel (in the profile or [trusttunnel])\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "egress-warp-disagrees",
+    "stderr": "BLOCKED: three_xui.warp disagrees with egress.warp\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "egress-naive-invalid",
+    "stderr": "BLOCKED: invalid egress.naive: socks\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "ingress-on-fresh",
+    "stderr": "BLOCKED: ingress.proxy_protocol_bridge requires coexist mode\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "ingress-panel-port-taken-by-mieru",
+    "stderr": "BLOCKED: mieru.tcp_ports: 9443 is taken by the panel's private TLS listener (ingress.panel_tls_port)\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "awg-host-0",
+    "stderr": "BLOCKED: amneziawg.host must be a DNS name or an IPv4 address\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "awg-ports-unknown-version",
+    "stderr": "BLOCKED: unknown amneziawg version in amneziawg.ports: 9.9\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "awg-mtu-range",
+    "stderr": "BLOCKED: amneziawg.mtu must be between 1280 and 1420\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "awg-dns-normalised-duplicate",
+    "stderr": "BLOCKED: amneziawg.dns must not contain duplicates\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "tt-listen-metrics",
+    "stderr": "BLOCKED: trusttunnel.listen_port collides with TrustTunnel's metrics listener\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "toml-bom",
+    "stderr": "BLOCKED: invalid TOML: Invalid statement (at line 1, column 1)\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "awg-dns-invalid",
+    "stderr": "BLOCKED: amneziawg.dns contains an invalid address\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "missing-file",
+    "stderr": "BLOCKED: [Errno 2] No such file or directory: '<dir>/missing-file.toml'\n",
+    "stdout": ""
+  },
+  {
+    "exit": 2,
+    "name": "invalid-utf8",
+    "stderr": "BLOCKED: 'utf-8' codec can't decode byte 0xff in position 25: invalid start byte\n",
+    "stdout": ""
+  }
+]

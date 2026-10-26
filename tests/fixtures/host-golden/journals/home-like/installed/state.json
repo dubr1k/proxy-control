@@ -1,0 +1,1509 @@
+{
+  "accepted_digest": "7690f52b7abf006a06604d139a526326c6b884406bb1c240014ae02cb12ad613",
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "adapter": "packages",
+      "data": {
+        "installer_added": {
+          "certbot": "2.9.0-1"
+        },
+        "owner": "proxy-control:packages",
+        "ownership": {},
+        "preexisting": {
+          "ca-certificates": "20240203",
+          "curl": "8.5.0-2ubuntu10.6",
+          "docker-compose-v2": "2.24.6+ds1-0ubuntu1~24.04.1",
+          "docker.io": "26.1.3-0ubuntu1~24.04.1",
+          "nginx-full": "1.24.0-2ubuntu7.5",
+          "openssl": "3.0.13-0ubuntu3.5",
+          "python3": "3.12.3-0ubuntu2"
+        }
+      },
+      "evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "packages": [
+            "ca-certificates",
+            "certbot",
+            "curl",
+            "docker-compose-v2",
+            "docker.io",
+            "nginx-full",
+            "openssl",
+            "python3"
+          ]
+        },
+        "observations": [
+          "exact package set is installed"
+        ],
+        "success": true
+      },
+      "ownership": {},
+      "phase": "verified"
+    },
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "data": {
+        "backup_path": "",
+        "owned_sha256": "90fd4df33f2aed5d6a8a45230b2611438fddca537847be02da1a0cadd2095716",
+        "owner": "proxy-control:nginx",
+        "ownership": {
+          "/etc/nginx/stream.d/proxy-control.conf": {
+            "preserve": false,
+            "sha256": "90fd4df33f2aed5d6a8a45230b2611438fddca537847be02da1a0cadd2095716"
+          }
+        },
+        "route_identity": {
+          "exists": false,
+          "gid": 0,
+          "mode": 416,
+          "original_path": "/etc/nginx/stream.d/proxy-control.conf",
+          "original_sha256": null,
+          "path_kind": "missing",
+          "resolved_path": "/etc/nginx/stream.d/proxy-control.conf",
+          "symlink_target": null,
+          "uid": 0
+        }
+      },
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/nginx/stream.d/proxy-control.conf": {
+          "action_id": "nginx.routes",
+          "adapter": "nginx",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "90fd4df33f2aed5d6a8a45230b2611438fddca537847be02da1a0cadd2095716"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "firewall.ufw",
+      "adapter": "firewall",
+      "data": {
+        "initial_fingerprints": [],
+        "installer_added": [
+          "route:awg15",
+          "route:awg20",
+          "route:awg31",
+          "tcp:80",
+          "tcp:443",
+          "tcp:46001",
+          "udp:11892",
+          "udp:13013",
+          "udp:25076",
+          "udp:46001"
+        ],
+        "owner": "proxy-control:firewall",
+        "ownership": {},
+        "preexisting": []
+      },
+      "evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "rules": [
+            "route:awg15",
+            "route:awg20",
+            "route:awg31",
+            "tcp:80",
+            "tcp:443",
+            "tcp:46001",
+            "udp:11892",
+            "udp:13013",
+            "udp:25076",
+            "udp:46001"
+          ]
+        },
+        "observations": [
+          "selected-profile UFW rules are active"
+        ],
+        "success": true
+      },
+      "ownership": {},
+      "phase": "verified"
+    },
+    {
+      "action_id": "certificate.naive",
+      "adapter": "certificates",
+      "data": {
+        "certificate": "edge.example.com",
+        "created_webroots": [
+          "/var/www/edge.example.com",
+          "/var/www/edge.example.com/.well-known",
+          "/var/www/edge.example.com/.well-known/acme-challenge"
+        ],
+        "lineage_preexisting": false,
+        "names": [
+          "edge.example.com"
+        ],
+        "owner": "proxy-control:certificate:naive",
+        "ownership": {
+          "/etc/nginx/conf.d/proxy-control-acme-naive.conf": {
+            "sha256": "d3efff63de9f7cb8d050e41071d4bfe5b4632c7c2369841d5eb159f7b3437a18"
+          }
+        },
+        "vhost": "/etc/nginx/conf.d/proxy-control-acme-naive.conf",
+        "vhost_sha256": "d3efff63de9f7cb8d050e41071d4bfe5b4632c7c2369841d5eb159f7b3437a18"
+      },
+      "evidence": {
+        "action_id": "certificate.naive",
+        "details": {
+          "certificate": "edge.example.com",
+          "names": [
+            "edge.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/nginx/conf.d/proxy-control-acme-naive.conf": {
+          "action_id": "certificate.naive",
+          "adapter": "certificates",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "d3efff63de9f7cb8d050e41071d4bfe5b4632c7c2369841d5eb159f7b3437a18"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "data": {
+        "certificate": "relay.example.com",
+        "created_webroots": [
+          "/var/www/panel.example.com",
+          "/var/www/panel.example.com/.well-known",
+          "/var/www/panel.example.com/.well-known/acme-challenge",
+          "/var/www/relay.example.com",
+          "/var/www/relay.example.com/.well-known",
+          "/var/www/relay.example.com/.well-known/acme-challenge"
+        ],
+        "lineage_preexisting": false,
+        "names": [
+          "panel.example.com",
+          "relay.example.com"
+        ],
+        "owner": "proxy-control:certificate:proxy-control",
+        "ownership": {
+          "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf": {
+            "sha256": "9789b1e2ddf74d532a87c7f2c92d604f774b0bb2c100f063db1147750797ab86"
+          }
+        },
+        "vhost": "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf",
+        "vhost_sha256": "9789b1e2ddf74d532a87c7f2c92d604f774b0bb2c100f063db1147750797ab86"
+      },
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf": {
+          "action_id": "certificate.proxy-control",
+          "adapter": "certificates",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "9789b1e2ddf74d532a87c7f2c92d604f774b0bb2c100f063db1147750797ab86"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "data": {
+        "acceptance_name": "pc-acceptance-3932e40c588cce36",
+        "adoption": "absent",
+        "owner": "proxy-control:core",
+        "ownership": {
+          "/etc/nginx/conf.d/proxy-control-panel.conf": {
+            "preserve": false,
+            "sha256": "6ad582af8347b04d8812d505dc4fec55cfa4e58fa223ab6506693398d5430dce"
+          },
+          "/opt/mtproxy-shared443/.core-acceptance-owner": {
+            "preserve": false,
+            "sha256": "29256197f4c2053341728196a3506f4779e6f097a8644f13999a2ff9462432c1"
+          },
+          "/opt/mtproxy-shared443/.env": {
+            "preserve": false,
+            "sha256": "cf10c2991d7f99abc298828a3fe6bf9e875e55c5d2f2cfaf7da011f6546115e4"
+          },
+          "/opt/mtproxy-shared443/.mtproxy-owned": {
+            "preserve": true,
+            "sha256": "ab7676d0545026c2c48cd946b945e4ac5519ac792fd532a0fe735443a8f8e3da"
+          },
+          "/opt/mtproxy-shared443/.panel-bootstrapped": {
+            "preserve": false,
+            "sha256": "856c104d8db77bae4e49be20e03f03cdf38addaa78af5d8e2a0ed62c2faa1720"
+          },
+          "/opt/mtproxy-shared443/VERSION": {
+            "preserve": false,
+            "sha256": "33bdaf9e2d6bcbde2e4e613e865e403f8fe21fc621078d34c30b0bdc7f68d903"
+          },
+          "/opt/mtproxy-shared443/awg_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "bdb3b910117a4955cd67afa0dd5d4ba57ecd51480657f59554b662f8dbb32e83"
+          },
+          "/opt/mtproxy-shared443/compose.amneziawg.yaml": {
+            "preserve": false,
+            "sha256": "834210ac9e15d070b2249d4b0b6511013bc7de2c1470cae10de0163ea9300682"
+          },
+          "/opt/mtproxy-shared443/compose.mcp.yaml": {
+            "preserve": false,
+            "sha256": "d6108bb8086555293a7a77a4fac4e67bec4e1ce463e6720d06ca7dda32b476fc"
+          },
+          "/opt/mtproxy-shared443/compose.mieru.yaml": {
+            "preserve": false,
+            "sha256": "38477922094867314964c0a69f0cf0b73da33079bbc42003f29a37c12b6ad1bd"
+          },
+          "/opt/mtproxy-shared443/compose.naive.yaml": {
+            "preserve": false,
+            "sha256": "09e021bee268e33126201e89138e31249a2de853c504fe8aa90fa184d10b9035"
+          },
+          "/opt/mtproxy-shared443/compose.trusttunnel.yaml": {
+            "preserve": false,
+            "sha256": "3ed2e4c14fadee470ae7f1edea646058d8c816b76039652bd7038e62764a9384"
+          },
+          "/opt/mtproxy-shared443/compose.xray-router.yaml": {
+            "preserve": false,
+            "sha256": "52ce0ec4d9f0cdc128cf8e362339be64c352218cd941f458b319ba4fdb98228c"
+          },
+          "/opt/mtproxy-shared443/compose.yaml": {
+            "preserve": false,
+            "sha256": "71af9e806d291da127e4e8e92322ae7d3dd8e0b1a5dc1d827294e23a72a41343"
+          },
+          "/opt/mtproxy-shared443/docker/Caddyfile": {
+            "preserve": false,
+            "sha256": "eff02f6e83cb29aeb39a4fdec807a4504cf26f90fb84f118b6f9456d93308988"
+          },
+          "/opt/mtproxy-shared443/docker/Dockerfile.caddy-naive": {
+            "preserve": false,
+            "sha256": "f53ca5feb9a83acada242e0a4ecafd762d5d116473c80551ecfce9eb65b45612"
+          },
+          "/opt/mtproxy-shared443/docker/links.py": {
+            "preserve": false,
+            "sha256": "c51fadb0a1486e83ebe114403b7081a3d51a34f37def5ad817305d9aa51bf4fc"
+          },
+          "/opt/mtproxy-shared443/docker/telemt-entrypoint.sh": {
+            "preserve": false,
+            "sha256": "aafea833f771a44ab93c8536546949a8184bc6fc1d04f6588e4babf599e18646"
+          },
+          "/opt/mtproxy-shared443/installer/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "2c01811e4e1cb711dac8026e35a9a319a0cb63921ca9b51cba43815b645a9336"
+          },
+          "/opt/mtproxy-shared443/mcp_server/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "937368c7177587aef698bad6e3ac32d2ac4c5a8d4fc50b6ba8e66df16ed53404"
+          },
+          "/opt/mtproxy-shared443/mieru_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "816993512013a08f3570a01b65cca7f0b0bb7138bee0b9bbfe00c06e3461df15"
+          },
+          "/opt/mtproxy-shared443/naive_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "3bd231b0fd37165a1ce4952aa8623c539db36692900a13074ce60add4b1b27a2"
+          },
+          "/opt/mtproxy-shared443/panel/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "a5e5d278c2bf8b149a081a6d785754caee4a78795bce08989c596970de4f62f2"
+          },
+          "/opt/mtproxy-shared443/pc_common/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "09e8b687e9882789987c9e86eed666130ce574be333d194367dedb9b445baa71"
+          },
+          "/opt/mtproxy-shared443/scripts/proxyctl.py": {
+            "preserve": false,
+            "sha256": "d3e3ff0dddec2296051c81bf989a40bed251825c5eb7cbf13e26d7eb20a652de"
+          },
+          "/opt/mtproxy-shared443/secrets/panel-bootstrap-password": {
+            "preserve": true,
+            "sha256": "f692207ca6dd39e148c7e69d566f90d9adfdbd77506787b1fc989d2d451d69e4"
+          },
+          "/opt/mtproxy-shared443/secrets/panel-master-key": {
+            "preserve": true,
+            "sha256": "18169d8b9ac578e6f0cc059265703a208934171c638cb8720f3ba9d4d11c28a0"
+          },
+          "/opt/mtproxy-shared443/secrets/telemt-api-token": {
+            "preserve": true,
+            "sha256": "ef1066e3b0f2f0b6cc61df03300a0e8214179848d0cab1afdd49e21f90d11f94"
+          },
+          "/opt/mtproxy-shared443/secrets/users.conf": {
+            "preserve": true,
+            "sha256": "24b1d98b61a264bb7d987235ba63e2e8ead16d2c20efa2dfa4f0a7aa2ddf5fbd"
+          },
+          "/opt/mtproxy-shared443/trusttunnel_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "0cc2feb012de8f3eb275053fff4779a7be24ad9b36e90b32fe95ea9e5191e0f1"
+          },
+          "/opt/mtproxy-shared443/uninstall.sh": {
+            "preserve": false,
+            "sha256": "7f6b4c6e0b756ba8c7b17a9b59e873b5fdb2c79486d73b063490bbbdcf5d8886"
+          },
+          "/opt/mtproxy-shared443/xray_router_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "07430f0db9b515aca5c9abdddad54776a9277a91867b90e81c96662b9991a8db"
+          },
+          "/usr/local/libexec/mtproxy-respq-probe": {
+            "preserve": false,
+            "sha256": "700bf29d8e60a806bfc4c4f80f09c11aa84e6ce5732354a03674cb6fd10efe7f"
+          },
+          "/var/www/panel.example.com/index.html": {
+            "preserve": false,
+            "sha256": "f34798ed348f0cb080b86799f50479e0592f6f132767530e0aa97946f79873d9"
+          },
+          "/var/www/relay.example.com/index.html": {
+            "preserve": false,
+            "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966"
+          }
+        },
+        "planned_ownership": {
+          "/etc/nginx/conf.d/proxy-control-panel.conf": {
+            "preserve": false,
+            "sha256": "6ad582af8347b04d8812d505dc4fec55cfa4e58fa223ab6506693398d5430dce"
+          },
+          "/opt/mtproxy-shared443/.core-acceptance-owner": {
+            "preserve": false,
+            "sha256": "29256197f4c2053341728196a3506f4779e6f097a8644f13999a2ff9462432c1"
+          },
+          "/opt/mtproxy-shared443/.env": {
+            "preserve": false,
+            "sha256": "cf10c2991d7f99abc298828a3fe6bf9e875e55c5d2f2cfaf7da011f6546115e4"
+          },
+          "/opt/mtproxy-shared443/.mtproxy-owned": {
+            "preserve": true,
+            "sha256": "ab7676d0545026c2c48cd946b945e4ac5519ac792fd532a0fe735443a8f8e3da"
+          },
+          "/opt/mtproxy-shared443/VERSION": {
+            "preserve": false,
+            "sha256": "33bdaf9e2d6bcbde2e4e613e865e403f8fe21fc621078d34c30b0bdc7f68d903"
+          },
+          "/opt/mtproxy-shared443/awg_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "bdb3b910117a4955cd67afa0dd5d4ba57ecd51480657f59554b662f8dbb32e83"
+          },
+          "/opt/mtproxy-shared443/compose.amneziawg.yaml": {
+            "preserve": false,
+            "sha256": "834210ac9e15d070b2249d4b0b6511013bc7de2c1470cae10de0163ea9300682"
+          },
+          "/opt/mtproxy-shared443/compose.mcp.yaml": {
+            "preserve": false,
+            "sha256": "d6108bb8086555293a7a77a4fac4e67bec4e1ce463e6720d06ca7dda32b476fc"
+          },
+          "/opt/mtproxy-shared443/compose.mieru.yaml": {
+            "preserve": false,
+            "sha256": "38477922094867314964c0a69f0cf0b73da33079bbc42003f29a37c12b6ad1bd"
+          },
+          "/opt/mtproxy-shared443/compose.naive.yaml": {
+            "preserve": false,
+            "sha256": "09e021bee268e33126201e89138e31249a2de853c504fe8aa90fa184d10b9035"
+          },
+          "/opt/mtproxy-shared443/compose.trusttunnel.yaml": {
+            "preserve": false,
+            "sha256": "3ed2e4c14fadee470ae7f1edea646058d8c816b76039652bd7038e62764a9384"
+          },
+          "/opt/mtproxy-shared443/compose.xray-router.yaml": {
+            "preserve": false,
+            "sha256": "52ce0ec4d9f0cdc128cf8e362339be64c352218cd941f458b319ba4fdb98228c"
+          },
+          "/opt/mtproxy-shared443/compose.yaml": {
+            "preserve": false,
+            "sha256": "71af9e806d291da127e4e8e92322ae7d3dd8e0b1a5dc1d827294e23a72a41343"
+          },
+          "/opt/mtproxy-shared443/docker/Caddyfile": {
+            "preserve": false,
+            "sha256": "eff02f6e83cb29aeb39a4fdec807a4504cf26f90fb84f118b6f9456d93308988"
+          },
+          "/opt/mtproxy-shared443/docker/Dockerfile.caddy-naive": {
+            "preserve": false,
+            "sha256": "f53ca5feb9a83acada242e0a4ecafd762d5d116473c80551ecfce9eb65b45612"
+          },
+          "/opt/mtproxy-shared443/docker/links.py": {
+            "preserve": false,
+            "sha256": "c51fadb0a1486e83ebe114403b7081a3d51a34f37def5ad817305d9aa51bf4fc"
+          },
+          "/opt/mtproxy-shared443/docker/telemt-entrypoint.sh": {
+            "preserve": false,
+            "sha256": "aafea833f771a44ab93c8536546949a8184bc6fc1d04f6588e4babf599e18646"
+          },
+          "/opt/mtproxy-shared443/installer/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "2c01811e4e1cb711dac8026e35a9a319a0cb63921ca9b51cba43815b645a9336"
+          },
+          "/opt/mtproxy-shared443/mcp_server/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "937368c7177587aef698bad6e3ac32d2ac4c5a8d4fc50b6ba8e66df16ed53404"
+          },
+          "/opt/mtproxy-shared443/mieru_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "816993512013a08f3570a01b65cca7f0b0bb7138bee0b9bbfe00c06e3461df15"
+          },
+          "/opt/mtproxy-shared443/naive_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "3bd231b0fd37165a1ce4952aa8623c539db36692900a13074ce60add4b1b27a2"
+          },
+          "/opt/mtproxy-shared443/panel/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "a5e5d278c2bf8b149a081a6d785754caee4a78795bce08989c596970de4f62f2"
+          },
+          "/opt/mtproxy-shared443/pc_common/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "09e8b687e9882789987c9e86eed666130ce574be333d194367dedb9b445baa71"
+          },
+          "/opt/mtproxy-shared443/scripts/proxyctl.py": {
+            "preserve": false,
+            "sha256": "d3e3ff0dddec2296051c81bf989a40bed251825c5eb7cbf13e26d7eb20a652de"
+          },
+          "/opt/mtproxy-shared443/trusttunnel_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "0cc2feb012de8f3eb275053fff4779a7be24ad9b36e90b32fe95ea9e5191e0f1"
+          },
+          "/opt/mtproxy-shared443/uninstall.sh": {
+            "preserve": false,
+            "sha256": "7f6b4c6e0b756ba8c7b17a9b59e873b5fdb2c79486d73b063490bbbdcf5d8886"
+          },
+          "/opt/mtproxy-shared443/xray_router_manager/GOLDEN-STAND-IN": {
+            "preserve": false,
+            "sha256": "07430f0db9b515aca5c9abdddad54776a9277a91867b90e81c96662b9991a8db"
+          },
+          "/var/www/panel.example.com/index.html": {
+            "preserve": false,
+            "sha256": "f34798ed348f0cb080b86799f50479e0592f6f132767530e0aa97946f79873d9"
+          },
+          "/var/www/relay.example.com/index.html": {
+            "preserve": false,
+            "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966"
+          }
+        },
+        "probe_expected_sha256": "700bf29d8e60a806bfc4c4f80f09c11aa84e6ce5732354a03674cb6fd10efe7f",
+        "probe_image_owner": "9c8c4ce6a7acde34e7d9fb0c282efced",
+        "probe_image_preexisting": null,
+        "probe_preexisting": false,
+        "project_created": true,
+        "project_marker_value": "61c055bddcf37d555ba3a6ee5c185bd1"
+      },
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/nginx/conf.d/proxy-control-panel.conf": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "6ad582af8347b04d8812d505dc4fec55cfa4e58fa223ab6506693398d5430dce"
+        },
+        "/opt/mtproxy-shared443/.core-acceptance-owner": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "29256197f4c2053341728196a3506f4779e6f097a8644f13999a2ff9462432c1"
+        },
+        "/opt/mtproxy-shared443/.env": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "cf10c2991d7f99abc298828a3fe6bf9e875e55c5d2f2cfaf7da011f6546115e4"
+        },
+        "/opt/mtproxy-shared443/.mtproxy-owned": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "ab7676d0545026c2c48cd946b945e4ac5519ac792fd532a0fe735443a8f8e3da"
+        },
+        "/opt/mtproxy-shared443/.panel-bootstrapped": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "856c104d8db77bae4e49be20e03f03cdf38addaa78af5d8e2a0ed62c2faa1720"
+        },
+        "/opt/mtproxy-shared443/VERSION": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "33bdaf9e2d6bcbde2e4e613e865e403f8fe21fc621078d34c30b0bdc7f68d903"
+        },
+        "/opt/mtproxy-shared443/awg_manager/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "bdb3b910117a4955cd67afa0dd5d4ba57ecd51480657f59554b662f8dbb32e83"
+        },
+        "/opt/mtproxy-shared443/compose.amneziawg.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "834210ac9e15d070b2249d4b0b6511013bc7de2c1470cae10de0163ea9300682"
+        },
+        "/opt/mtproxy-shared443/compose.mcp.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "d6108bb8086555293a7a77a4fac4e67bec4e1ce463e6720d06ca7dda32b476fc"
+        },
+        "/opt/mtproxy-shared443/compose.mieru.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "38477922094867314964c0a69f0cf0b73da33079bbc42003f29a37c12b6ad1bd"
+        },
+        "/opt/mtproxy-shared443/compose.naive.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "09e021bee268e33126201e89138e31249a2de853c504fe8aa90fa184d10b9035"
+        },
+        "/opt/mtproxy-shared443/compose.trusttunnel.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "3ed2e4c14fadee470ae7f1edea646058d8c816b76039652bd7038e62764a9384"
+        },
+        "/opt/mtproxy-shared443/compose.xray-router.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "52ce0ec4d9f0cdc128cf8e362339be64c352218cd941f458b319ba4fdb98228c"
+        },
+        "/opt/mtproxy-shared443/compose.yaml": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "71af9e806d291da127e4e8e92322ae7d3dd8e0b1a5dc1d827294e23a72a41343"
+        },
+        "/opt/mtproxy-shared443/docker/Caddyfile": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "eff02f6e83cb29aeb39a4fdec807a4504cf26f90fb84f118b6f9456d93308988"
+        },
+        "/opt/mtproxy-shared443/docker/Dockerfile.caddy-naive": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "f53ca5feb9a83acada242e0a4ecafd762d5d116473c80551ecfce9eb65b45612"
+        },
+        "/opt/mtproxy-shared443/docker/links.py": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "c51fadb0a1486e83ebe114403b7081a3d51a34f37def5ad817305d9aa51bf4fc"
+        },
+        "/opt/mtproxy-shared443/docker/telemt-entrypoint.sh": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "aafea833f771a44ab93c8536546949a8184bc6fc1d04f6588e4babf599e18646"
+        },
+        "/opt/mtproxy-shared443/installer/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "2c01811e4e1cb711dac8026e35a9a319a0cb63921ca9b51cba43815b645a9336"
+        },
+        "/opt/mtproxy-shared443/mcp_server/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "937368c7177587aef698bad6e3ac32d2ac4c5a8d4fc50b6ba8e66df16ed53404"
+        },
+        "/opt/mtproxy-shared443/mieru_manager/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "816993512013a08f3570a01b65cca7f0b0bb7138bee0b9bbfe00c06e3461df15"
+        },
+        "/opt/mtproxy-shared443/naive_manager/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "3bd231b0fd37165a1ce4952aa8623c539db36692900a13074ce60add4b1b27a2"
+        },
+        "/opt/mtproxy-shared443/panel/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "a5e5d278c2bf8b149a081a6d785754caee4a78795bce08989c596970de4f62f2"
+        },
+        "/opt/mtproxy-shared443/pc_common/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "09e8b687e9882789987c9e86eed666130ce574be333d194367dedb9b445baa71"
+        },
+        "/opt/mtproxy-shared443/scripts/proxyctl.py": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "d3e3ff0dddec2296051c81bf989a40bed251825c5eb7cbf13e26d7eb20a652de"
+        },
+        "/opt/mtproxy-shared443/secrets/panel-bootstrap-password": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "f692207ca6dd39e148c7e69d566f90d9adfdbd77506787b1fc989d2d451d69e4"
+        },
+        "/opt/mtproxy-shared443/secrets/panel-master-key": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "18169d8b9ac578e6f0cc059265703a208934171c638cb8720f3ba9d4d11c28a0"
+        },
+        "/opt/mtproxy-shared443/secrets/telemt-api-token": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "ef1066e3b0f2f0b6cc61df03300a0e8214179848d0cab1afdd49e21f90d11f94"
+        },
+        "/opt/mtproxy-shared443/secrets/users.conf": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "24b1d98b61a264bb7d987235ba63e2e8ead16d2c20efa2dfa4f0a7aa2ddf5fbd"
+        },
+        "/opt/mtproxy-shared443/trusttunnel_manager/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "0cc2feb012de8f3eb275053fff4779a7be24ad9b36e90b32fe95ea9e5191e0f1"
+        },
+        "/opt/mtproxy-shared443/uninstall.sh": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "7f6b4c6e0b756ba8c7b17a9b59e873b5fdb2c79486d73b063490bbbdcf5d8886"
+        },
+        "/opt/mtproxy-shared443/xray_router_manager/GOLDEN-STAND-IN": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "07430f0db9b515aca5c9abdddad54776a9277a91867b90e81c96662b9991a8db"
+        },
+        "/usr/local/libexec/mtproxy-respq-probe": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "700bf29d8e60a806bfc4c4f80f09c11aa84e6ce5732354a03674cb6fd10efe7f"
+        },
+        "/var/www/panel.example.com/index.html": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "f34798ed348f0cb080b86799f50479e0592f6f132767530e0aa97946f79873d9"
+        },
+        "/var/www/relay.example.com/index.html": {
+          "action_id": "core.runtime",
+          "adapter": "core",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "naive.runtime",
+      "adapter": "naive",
+      "data": {
+        "acceptance_name": "proxy-control-naive-6d1e9fa61452e9dc",
+        "adoption": "absent",
+        "caddy_preexisting": false,
+        "identities_created": {
+          "group": true,
+          "user": true
+        },
+        "log_dir_preexisting": false,
+        "marker_value": "a3605e9d2f9c4817f29fcbd0b3fa597c",
+        "owner": "proxy-control:naive",
+        "ownership": {
+          "/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "038f09e744ca8f79037c44c20f8924bcab4f69f2310476b5e765303c5c9257ca"
+          },
+          "/etc/proxy-control/caddy-naive.pin": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "528dbf5ef3ef70408fc96e3b827c6ff9342f193a9650e0e95db8602b9826b325"
+          },
+          "/etc/proxy-control/naive-acceptance-owner": {
+            "mutable": true,
+            "preserve": false,
+            "sha256": "897676b20d56fc121c9616eed19405c9810c3affb97fdfc8ccf5e1f110f23307"
+          },
+          "/etc/proxy-control/naive-owned": {
+            "mutable": false,
+            "preserve": true,
+            "sha256": "b58d652e65467c90a09008fa1684b2474df3bccba86ac44dd2933dfa8a6d524b"
+          },
+          "/etc/systemd/system/caddy-naive.service": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "89d1d17f95c2f771ef71a5dbcc1e7393cfd4574d6f0900bb6d404da044852c54"
+          },
+          "/opt/mtproxy-shared443/.env.naive": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "32f836b24c9409ffbbab9ab497a6ab80cce2d370429367ace3f687395075ed5a"
+          },
+          "/opt/mtproxy-shared443/secrets/naive-manager-token": {
+            "mutable": false,
+            "preserve": true,
+            "sha256": "729afa257a7bbbad0cc1f879ea6a6acab5f859400c99d6b7d87b3dc793d249e2"
+          },
+          "/usr/local/bin/caddy": {
+            "preserve": false,
+            "sha256": "3f2224279f1e4425f19cf53681eed582506715d5491a62bd611e792ef112bc19"
+          },
+          "/usr/local/libexec/caddy-naive-adapt": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "36dd6109c355d5fecdc998d80740cc7c6ec573701128ea4f17493f027eacb82a"
+          },
+          "/usr/local/libexec/check-naive-caddy-build": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "57711d76c721790868a53a8dc1c49ec1088b6fed561e6fc51ee03a2334bb2409"
+          },
+          "/usr/local/libexec/prepare-naive-state": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "cb823fe92d0c87f9f4b9dc84b50bfde140c191ad62d202c04445d01ef62b1a59"
+          },
+          "/var/lib/naive-manager/Caddyfile": {
+            "mutable": true,
+            "preserve": true,
+            "sha256": "545f6b2000e6b05d1f1c71fe75ca4675596fe48e818a56bf8b0d33d0215797ef"
+          },
+          "/var/lib/naive-manager/manager-token": {
+            "mutable": false,
+            "preserve": true,
+            "sha256": "729afa257a7bbbad0cc1f879ea6a6acab5f859400c99d6b7d87b3dc793d249e2"
+          }
+        },
+        "planned_ownership": {
+          "/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+            "preserve": false,
+            "sha256": "038f09e744ca8f79037c44c20f8924bcab4f69f2310476b5e765303c5c9257ca"
+          },
+          "/etc/proxy-control/caddy-naive.pin": {
+            "preserve": false,
+            "sha256": "528dbf5ef3ef70408fc96e3b827c6ff9342f193a9650e0e95db8602b9826b325"
+          },
+          "/etc/proxy-control/naive-acceptance-owner": {
+            "preserve": false,
+            "sha256": "897676b20d56fc121c9616eed19405c9810c3affb97fdfc8ccf5e1f110f23307"
+          },
+          "/etc/proxy-control/naive-owned": {
+            "preserve": true,
+            "sha256": "b58d652e65467c90a09008fa1684b2474df3bccba86ac44dd2933dfa8a6d524b"
+          },
+          "/etc/systemd/system/caddy-naive.service": {
+            "preserve": false,
+            "sha256": "89d1d17f95c2f771ef71a5dbcc1e7393cfd4574d6f0900bb6d404da044852c54"
+          },
+          "/opt/mtproxy-shared443/.env.naive": {
+            "preserve": false,
+            "sha256": "32f836b24c9409ffbbab9ab497a6ab80cce2d370429367ace3f687395075ed5a"
+          },
+          "/usr/local/libexec/caddy-naive-adapt": {
+            "preserve": false,
+            "sha256": "36dd6109c355d5fecdc998d80740cc7c6ec573701128ea4f17493f027eacb82a"
+          },
+          "/usr/local/libexec/check-naive-caddy-build": {
+            "preserve": false,
+            "sha256": "57711d76c721790868a53a8dc1c49ec1088b6fed561e6fc51ee03a2334bb2409"
+          },
+          "/usr/local/libexec/prepare-naive-state": {
+            "preserve": false,
+            "sha256": "cb823fe92d0c87f9f4b9dc84b50bfde140c191ad62d202c04445d01ef62b1a59"
+          }
+        },
+        "state_dir_preexisting": false,
+        "unit_preexisting": false
+      },
+      "evidence": {
+        "action_id": "naive.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "admin_api_loopback": true,
+          "authenticated_connect_ok": true,
+          "connect_bytes": 4096,
+          "cover_https_ok": true,
+          "log_boundary_ok": true,
+          "manager_health_ok": true,
+          "panel_health_ok": true,
+          "private_listener_ok": true,
+          "recorded_bytes": 4096,
+          "temporary_state_removed": true,
+          "tunnel_closed_ok": true
+        },
+        "observations": [
+          "Naive listener, cover, authenticated CONNECT, and accounting passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "038f09e744ca8f79037c44c20f8924bcab4f69f2310476b5e765303c5c9257ca"
+        },
+        "/etc/proxy-control/caddy-naive.pin": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "528dbf5ef3ef70408fc96e3b827c6ff9342f193a9650e0e95db8602b9826b325"
+        },
+        "/etc/proxy-control/naive-acceptance-owner": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": true,
+          "preserve": false,
+          "sha256": "897676b20d56fc121c9616eed19405c9810c3affb97fdfc8ccf5e1f110f23307"
+        },
+        "/etc/proxy-control/naive-owned": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "b58d652e65467c90a09008fa1684b2474df3bccba86ac44dd2933dfa8a6d524b"
+        },
+        "/etc/systemd/system/caddy-naive.service": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "89d1d17f95c2f771ef71a5dbcc1e7393cfd4574d6f0900bb6d404da044852c54"
+        },
+        "/opt/mtproxy-shared443/.env.naive": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "32f836b24c9409ffbbab9ab497a6ab80cce2d370429367ace3f687395075ed5a"
+        },
+        "/opt/mtproxy-shared443/secrets/naive-manager-token": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "729afa257a7bbbad0cc1f879ea6a6acab5f859400c99d6b7d87b3dc793d249e2"
+        },
+        "/usr/local/bin/caddy": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "3f2224279f1e4425f19cf53681eed582506715d5491a62bd611e792ef112bc19"
+        },
+        "/usr/local/libexec/caddy-naive-adapt": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "36dd6109c355d5fecdc998d80740cc7c6ec573701128ea4f17493f027eacb82a"
+        },
+        "/usr/local/libexec/check-naive-caddy-build": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "57711d76c721790868a53a8dc1c49ec1088b6fed561e6fc51ee03a2334bb2409"
+        },
+        "/usr/local/libexec/prepare-naive-state": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "cb823fe92d0c87f9f4b9dc84b50bfde140c191ad62d202c04445d01ef62b1a59"
+        },
+        "/var/lib/naive-manager/Caddyfile": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": true,
+          "preserve": true,
+          "sha256": "545f6b2000e6b05d1f1c71fe75ca4675596fe48e818a56bf8b0d33d0215797ef"
+        },
+        "/var/lib/naive-manager/manager-token": {
+          "action_id": "naive.runtime",
+          "adapter": "naive",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "729afa257a7bbbad0cc1f879ea6a6acab5f859400c99d6b7d87b3dc793d249e2"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "data": {
+        "acceptance_name": "proxy-control-mieru-3a8f91b605d94db3",
+        "adoption": "absent",
+        "binary_preexisting": false,
+        "identities_created": {
+          "group": true,
+          "user": true
+        },
+        "marker_value": "da723ed6c7cb7dd8be41786c53db4fe6",
+        "owner": "proxy-control:mieru",
+        "ownership": {
+          "/etc/mieru-manager/token": {
+            "mutable": false,
+            "preserve": true,
+            "sha256": "94918269e41d2dadad33dbf8f075533485915910573473764747163f45a65d4f"
+          },
+          "/etc/proxy-control/mieru-acceptance-owner": {
+            "mutable": true,
+            "preserve": false,
+            "sha256": "89fdea776fba4a90201368dbd312cb62937bde66b1aabaf2255829a7c96130e4"
+          },
+          "/etc/proxy-control/mieru-owned": {
+            "mutable": false,
+            "preserve": true,
+            "sha256": "08861b4bbb7d9730a03b45ca6aa6cac8f92fa0daf53397e8bce13b35de06b866"
+          },
+          "/etc/systemd/system/mita.service": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "9eec865c0f33d9a8f844746228fde2534606efb82432d4df44c58f60e2d824ab"
+          },
+          "/etc/systemd/system/mita@.service": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "2ce26dc6dcd60a1aa71e69d5968655827d2a7a625966a6bbc4fd1ec6d2a85472"
+          },
+          "/etc/tmpfiles.d/mita.conf": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "58f3963a3b7240085b7b23aef7043c4c807a19644b220b83518f49376b35301d"
+          },
+          "/opt/mtproxy-shared443/.env.mieru": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "682f0e528d45f80a72e8c93c2e8be7461da11512bca91a3b5b1f659f645aaaff"
+          },
+          "/usr/bin/mita": {
+            "preserve": false,
+            "sha256": "a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061"
+          },
+          "/usr/local/libexec/prepare-mieru-state": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "411c305ee191cef5f10e348da0b1bc35063a24c165177d90710261fea3187f03"
+          },
+          "/usr/local/libexec/prepare-mieru-token": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "86bf7e23b67d5eb4071e27c13c8956b5ffef917a7f33cc7a20c2845198c70c59"
+          },
+          "/usr/share/doc/mita/copyright": {
+            "mutable": false,
+            "preserve": false,
+            "sha256": "54f5959110332e1e7034f2afc2683be90f96fd69b794d25da70a2494bfebe1af"
+          }
+        },
+        "planned_ownership": {
+          "/etc/proxy-control/mieru-acceptance-owner": {
+            "preserve": false,
+            "sha256": "89fdea776fba4a90201368dbd312cb62937bde66b1aabaf2255829a7c96130e4"
+          },
+          "/etc/proxy-control/mieru-owned": {
+            "preserve": true,
+            "sha256": "08861b4bbb7d9730a03b45ca6aa6cac8f92fa0daf53397e8bce13b35de06b866"
+          },
+          "/etc/systemd/system/mita.service": {
+            "preserve": false,
+            "sha256": "9eec865c0f33d9a8f844746228fde2534606efb82432d4df44c58f60e2d824ab"
+          },
+          "/etc/systemd/system/mita@.service": {
+            "preserve": false,
+            "sha256": "2ce26dc6dcd60a1aa71e69d5968655827d2a7a625966a6bbc4fd1ec6d2a85472"
+          },
+          "/etc/tmpfiles.d/mita.conf": {
+            "preserve": false,
+            "sha256": "58f3963a3b7240085b7b23aef7043c4c807a19644b220b83518f49376b35301d"
+          },
+          "/usr/local/libexec/prepare-mieru-state": {
+            "preserve": false,
+            "sha256": "411c305ee191cef5f10e348da0b1bc35063a24c165177d90710261fea3187f03"
+          },
+          "/usr/local/libexec/prepare-mieru-token": {
+            "preserve": false,
+            "sha256": "86bf7e23b67d5eb4071e27c13c8956b5ffef917a7f33cc7a20c2845198c70c59"
+          }
+        },
+        "state_preexisting": false,
+        "token_preexisting": false
+      },
+      "evidence": {
+        "action_id": "mieru.runtime",
+        "details": {
+          "adjacent_listeners_ok": true,
+          "executable_digest_ok": true,
+          "lane_slots": [],
+          "manager_health_ok": true,
+          "mita_status_running": true,
+          "package_digest_ok": true,
+          "panel_health_ok": true,
+          "public_host_ok": true,
+          "send_queue_drained": true,
+          "temporary_state_removed": true,
+          "transports_expected": 2,
+          "transports_verified": 2,
+          "uds_boundary_ok": true
+        },
+        "observations": [
+          "pinned mita, UDS boundary, and official-client acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/mieru-manager/token": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "94918269e41d2dadad33dbf8f075533485915910573473764747163f45a65d4f"
+        },
+        "/etc/proxy-control/mieru-acceptance-owner": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": true,
+          "preserve": false,
+          "sha256": "89fdea776fba4a90201368dbd312cb62937bde66b1aabaf2255829a7c96130e4"
+        },
+        "/etc/proxy-control/mieru-owned": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": true,
+          "sha256": "08861b4bbb7d9730a03b45ca6aa6cac8f92fa0daf53397e8bce13b35de06b866"
+        },
+        "/etc/systemd/system/mita.service": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "9eec865c0f33d9a8f844746228fde2534606efb82432d4df44c58f60e2d824ab"
+        },
+        "/etc/systemd/system/mita@.service": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "2ce26dc6dcd60a1aa71e69d5968655827d2a7a625966a6bbc4fd1ec6d2a85472"
+        },
+        "/etc/tmpfiles.d/mita.conf": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "58f3963a3b7240085b7b23aef7043c4c807a19644b220b83518f49376b35301d"
+        },
+        "/opt/mtproxy-shared443/.env.mieru": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "682f0e528d45f80a72e8c93c2e8be7461da11512bca91a3b5b1f659f645aaaff"
+        },
+        "/usr/bin/mita": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061"
+        },
+        "/usr/local/libexec/prepare-mieru-state": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "411c305ee191cef5f10e348da0b1bc35063a24c165177d90710261fea3187f03"
+        },
+        "/usr/local/libexec/prepare-mieru-token": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "86bf7e23b67d5eb4071e27c13c8956b5ffef917a7f33cc7a20c2845198c70c59"
+        },
+        "/usr/share/doc/mita/copyright": {
+          "action_id": "mieru.runtime",
+          "adapter": "mieru",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "54f5959110332e1e7034f2afc2683be90f96fd69b794d25da70a2494bfebe1af"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "amneziawg.runtime",
+      "adapter": "amneziawg",
+      "data": {
+        "adoption": "absent",
+        "marker_value": "ca5431d5a267b74017f51dce1855368a",
+        "owner": "proxy-control:amneziawg",
+        "ownership": {
+          "/etc/proxy-control/amneziawg-owned": "6059ab149e297e6c7bd195560421140ded38cc96cddbbfa1d8790dd73cb04968",
+          "/etc/sysctl.d/99-proxy-control-amneziawg.conf": "f49a9f8c3224ca0d3ec6b80a0c7301bbaa7845e90edabcd69abc5c87a69afc45",
+          "/opt/mtproxy-shared443/.env.amneziawg": "ceb2de2ef5a710ce02394e2783ae450ea8e48d79a86bf27c1a0c6ef41f0b8fb1"
+        },
+        "state_preexisting": false,
+        "sysctl_preexisting": false,
+        "token_preexisting": false
+      },
+      "evidence": {
+        "action_id": "amneziawg.runtime",
+        "details": {
+          "interfaces": [
+            "awg15",
+            "awg20",
+            "awg31"
+          ],
+          "ports": {
+            "1.5": 25076,
+            "2.0": 11892,
+            "3.1": 13013
+          },
+          "versions": [
+            "1.5",
+            "2.0",
+            "3.1"
+          ]
+        },
+        "observations": [
+          "the awg-manager container is healthy and answers over its Unix socket",
+          "every enabled AmneziaWG version is running and bound to its UDP port",
+          "IPv4 forwarding is enabled",
+          "the operator must keep the UDP ports open and forwarding allowed on the awg interfaces in any firewall the installer does not manage"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/proxy-control/amneziawg-owned": {
+          "action_id": "amneziawg.runtime",
+          "adapter": "amneziawg",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "6059ab149e297e6c7bd195560421140ded38cc96cddbbfa1d8790dd73cb04968"
+        },
+        "/etc/sysctl.d/99-proxy-control-amneziawg.conf": {
+          "action_id": "amneziawg.runtime",
+          "adapter": "amneziawg",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "f49a9f8c3224ca0d3ec6b80a0c7301bbaa7845e90edabcd69abc5c87a69afc45"
+        },
+        "/opt/mtproxy-shared443/.env.amneziawg": {
+          "action_id": "amneziawg.runtime",
+          "adapter": "amneziawg",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "ceb2de2ef5a710ce02394e2783ae450ea8e48d79a86bf27c1a0c6ef41f0b8fb1"
+        }
+      },
+      "phase": "verified"
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "data": {
+        "adoption": "absent",
+        "marker_value": "cde95f095cfdf882bb51378eb692e672",
+        "owner": "proxy-control:version-agent",
+        "ownership": {
+          "/etc/proxy-control/version-agent-owned": "2d7a8323d9120153676dc06114e504b96859a199a7c4ca3b612b5800045a780b",
+          "/etc/proxy-control/version-agent.env": {
+            "mutable": true,
+            "sha256": "d8eab27f1c07a1c9b1931a6081850a7785face210740f219c363df2787aa1c50"
+          },
+          "/etc/systemd/system/version-agent.service": "04d5448ff213652e981ce7fdce53c310a2fea673933babd026359c94cf6ef08b",
+          "/etc/tmpfiles.d/proxy-control-version-agent.conf": "bb06672d82218a149086e2af726f85b2065c9051c971090c1100ea4aae8ad791",
+          "/opt/proxy-control/version_agent/__init__.py": "b687e3f1a9c1f73842ade086814994a0567a268f12d6bc2ffa335cd5cd78ec35",
+          "/opt/proxy-control/version_agent/artifacts.py": "e04c5aa66e0b7e1a25a420246cf51d5bdb7942d102bd44142d91eb565e7e946b",
+          "/opt/proxy-control/version_agent/catalog.py": "20de3a6f2dae7b3e191e7f472b3f0c2eaca751d8d5c400bed8ec4ac1913d5092",
+          "/opt/proxy-control/version_agent/host.py": "d95c0d71be8ffa32422c016f624cb082f84af248c3ba5581ead21069b72004d8",
+          "/opt/proxy-control/version_agent/hostmetrics.py": "bcff92618ec0d3c6976d840397f9752b9b87f4a94c7e95cbc9e70e99afa3943c",
+          "/opt/proxy-control/version_agent/metrics_ports.py": "2b5d5552d0589f3def53cb35ee1c2edd52fda2f94e50631dbc3fcde5f8ff5a9b",
+          "/opt/proxy-control/version_agent/server.py": "43dcfce1b123b7af02a4eb51d3bd4ba97631580291a4905cb3388d63c0b88254",
+          "/opt/proxy-control/version_agent/service.py": "48cbfe1f161ea83ef14555aeafa73870df8972bdf155ceb49c1c71f383cccc29",
+          "/opt/proxy-control/version_agent/upstream.py": "331c2ee4b90b80d1f1283eb77b9a58a684e9cbd0602cbe8e59d9db2428c582c1"
+        }
+      },
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "mita": "3.38.1",
+            "naive": "2.11.7",
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "ownership": {
+        "/etc/proxy-control/version-agent-owned": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "2d7a8323d9120153676dc06114e504b96859a199a7c4ca3b612b5800045a780b"
+        },
+        "/etc/proxy-control/version-agent.env": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": true,
+          "preserve": false,
+          "sha256": "d8eab27f1c07a1c9b1931a6081850a7785face210740f219c363df2787aa1c50"
+        },
+        "/etc/systemd/system/version-agent.service": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "04d5448ff213652e981ce7fdce53c310a2fea673933babd026359c94cf6ef08b"
+        },
+        "/etc/tmpfiles.d/proxy-control-version-agent.conf": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "bb06672d82218a149086e2af726f85b2065c9051c971090c1100ea4aae8ad791"
+        },
+        "/opt/proxy-control/version_agent/__init__.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "b687e3f1a9c1f73842ade086814994a0567a268f12d6bc2ffa335cd5cd78ec35"
+        },
+        "/opt/proxy-control/version_agent/artifacts.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "e04c5aa66e0b7e1a25a420246cf51d5bdb7942d102bd44142d91eb565e7e946b"
+        },
+        "/opt/proxy-control/version_agent/catalog.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "20de3a6f2dae7b3e191e7f472b3f0c2eaca751d8d5c400bed8ec4ac1913d5092"
+        },
+        "/opt/proxy-control/version_agent/host.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "d95c0d71be8ffa32422c016f624cb082f84af248c3ba5581ead21069b72004d8"
+        },
+        "/opt/proxy-control/version_agent/hostmetrics.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "bcff92618ec0d3c6976d840397f9752b9b87f4a94c7e95cbc9e70e99afa3943c"
+        },
+        "/opt/proxy-control/version_agent/metrics_ports.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "2b5d5552d0589f3def53cb35ee1c2edd52fda2f94e50631dbc3fcde5f8ff5a9b"
+        },
+        "/opt/proxy-control/version_agent/server.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "43dcfce1b123b7af02a4eb51d3bd4ba97631580291a4905cb3388d63c0b88254"
+        },
+        "/opt/proxy-control/version_agent/service.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "48cbfe1f161ea83ef14555aeafa73870df8972bdf155ceb49c1c71f383cccc29"
+        },
+        "/opt/proxy-control/version_agent/upstream.py": {
+          "action_id": "version_agent.runtime",
+          "adapter": "version_agent",
+          "kind": "file",
+          "mutable": false,
+          "preserve": false,
+          "sha256": "331c2ee4b90b80d1f1283eb77b9a58a684e9cbd0602cbe8e59d9db2428c582c1"
+        }
+      },
+      "phase": "verified"
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "7690f52b7abf006a06604d139a526326c6b884406bb1c240014ae02cb12ad613",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "168c27df9b904a78a1d9289ecdced5d3"
+}

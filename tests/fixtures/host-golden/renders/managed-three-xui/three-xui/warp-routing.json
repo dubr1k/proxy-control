@@ -1,0 +1,9 @@
+{
+  "outbounds": [],
+  "rules": [
+    {
+      "network": "tcp,udp",
+      "outboundTag": "direct"
+    }
+  ]
+}

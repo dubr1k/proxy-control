@@ -1,0 +1,236 @@
+[
+  {
+    "casefold": "panel.example.com",
+    "input": "PANEL.EXAMPLE.COM",
+    "lower": "panel.example.com",
+    "lower_codepoints": [
+      "U+0070",
+      "U+0061",
+      "U+006E",
+      "U+0065",
+      "U+006C",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065",
+      "U+002E",
+      "U+0063",
+      "U+006F",
+      "U+006D"
+    ],
+    "normalised_domain": "panel.example.com"
+  },
+  {
+    "casefold": "panel.example.com.",
+    "input": "Panel.Example.Com.",
+    "lower": "panel.example.com.",
+    "lower_codepoints": [
+      "U+0070",
+      "U+0061",
+      "U+006E",
+      "U+0065",
+      "U+006C",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065",
+      "U+002E",
+      "U+0063",
+      "U+006F",
+      "U+006D",
+      "U+002E"
+    ],
+    "normalised_domain": "panel.example.com"
+  },
+  {
+    "casefold": "i̇stanbul.example",
+    "input": "İSTANBUL.example",
+    "lower": "i̇stanbul.example",
+    "lower_codepoints": [
+      "U+0069",
+      "U+0307",
+      "U+0073",
+      "U+0074",
+      "U+0061",
+      "U+006E",
+      "U+0062",
+      "U+0075",
+      "U+006C",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "i̇stanbul.example"
+  },
+  {
+    "casefold": "ss.example",
+    "input": "ẞ.example",
+    "lower": "ß.example",
+    "lower_codepoints": [
+      "U+00DF",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "ß.example"
+  },
+  {
+    "casefold": "σ.example",
+    "input": "Σ.example",
+    "lower": "σ.example",
+    "lower_codepoints": [
+      "U+03C3",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "σ.example"
+  },
+  {
+    "casefold": "ασ",
+    "input": "ΑΣ",
+    "lower": "ας",
+    "lower_codepoints": [
+      "U+03B1",
+      "U+03C2"
+    ],
+    "normalised_domain": "ας"
+  },
+  {
+    "casefold": "k.example",
+    "input": "K.example",
+    "lower": "k.example",
+    "lower_codepoints": [
+      "U+006B",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "k.example"
+  },
+  {
+    "casefold": "ⅻ.example",
+    "input": "Ⅻ.example",
+    "lower": "ⅻ.example",
+    "lower_codepoints": [
+      "U+217B",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "ⅻ.example"
+  },
+  {
+    "casefold": "ǆ.example",
+    "input": "ǅ.example",
+    "lower": "ǆ.example",
+    "lower_codepoints": [
+      "U+01C6",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "ǆ.example"
+  },
+  {
+    "casefold": "ff.example",
+    "input": "ﬀ.example",
+    "lower": "ﬀ.example",
+    "lower_codepoints": [
+      "U+FB00",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "ﬀ.example"
+  },
+  {
+    "casefold": "panel.example.com...",
+    "input": "PANEL.example.com...",
+    "lower": "panel.example.com...",
+    "lower_codepoints": [
+      "U+0070",
+      "U+0061",
+      "U+006E",
+      "U+0065",
+      "U+006C",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065",
+      "U+002E",
+      "U+0063",
+      "U+006F",
+      "U+006D",
+      "U+002E",
+      "U+002E",
+      "U+002E"
+    ],
+    "normalised_domain": "panel.example.com"
+  },
+  {
+    "casefold": "àb.example",
+    "input": "ÀB.example",
+    "lower": "àb.example",
+    "lower_codepoints": [
+      "U+00E0",
+      "U+0062",
+      "U+002E",
+      "U+0065",
+      "U+0078",
+      "U+0061",
+      "U+006D",
+      "U+0070",
+      "U+006C",
+      "U+0065"
+    ],
+    "normalised_domain": "àb.example"
+  }
+]

@@ -1,0 +1,14 @@
+add table inet proxy_control_metrics
+delete table inet proxy_control_metrics
+table inet proxy_control_metrics {
+    counter up_naive_tcp_4443 { }
+    counter down_naive_tcp_4443 { }
+  chain input {
+    type filter hook input priority -300; policy accept;
+    tcp dport 4443 counter name "up_naive_tcp_4443"
+  }
+  chain output {
+    type filter hook output priority -300; policy accept;
+    tcp sport 4443 counter name "down_naive_tcp_4443"
+  }
+}

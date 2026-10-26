@@ -1,0 +1,38 @@
+{
+  "acme_email": "unused@example.invalid",
+  "amneziawg": null,
+  "domains": {
+    "mcp": null,
+    "mieru": null,
+    "mtproxy": "xui.example.com",
+    "naive": null,
+    "panel": "xui.example.com",
+    "subscription": null,
+    "trusttunnel": null
+  },
+  "egress": null,
+  "firewall": {
+    "manage_ufw": false
+  },
+  "host_mode": "coexist",
+  "ingress": null,
+  "initial_user": "owner",
+  "mieru": null,
+  "profile": "core",
+  "schema": 1,
+  "three_xui": {
+    "hysteria_domain": "hy2.example.com",
+    "mode": "managed-new",
+    "panel_domain": "xui.example.com",
+    "subscription_domain": "xui-sub.example.com",
+    "vless_tcp_domain": "vless.example.com",
+    "vless_xhttp_domain": "xhttp.example.com",
+    "warp": true,
+    "warp_domains": [
+      "domain:chat.example.org",
+      "geosite:openai"
+    ],
+    "warp_port": 40000
+  },
+  "trusttunnel": null
+}

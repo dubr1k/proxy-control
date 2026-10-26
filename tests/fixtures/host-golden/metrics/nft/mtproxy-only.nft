@@ -1,0 +1,14 @@
+add table inet proxy_control_metrics
+delete table inet proxy_control_metrics
+table inet proxy_control_metrics {
+    counter up_mtproxy_tcp_8445 { }
+    counter down_mtproxy_tcp_8445 { }
+  chain input {
+    type filter hook input priority -300; policy accept;
+    tcp dport 8445 counter name "up_mtproxy_tcp_8445"
+  }
+  chain output {
+    type filter hook output priority -300; policy accept;
+    tcp sport 8445 counter name "down_mtproxy_tcp_8445"
+  }
+}

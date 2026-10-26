@@ -1,0 +1,24 @@
+schema = 1
+host_mode = "fresh"
+profile = "full"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+naive = "edge.example.com"
+mieru = "mieru.example.com"
+
+[mieru]
+tcp_ports = [46001]
+udp_ports = [46001]
+
+[amneziawg]
+enabled = true
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

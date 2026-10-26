@@ -1,0 +1,264 @@
+[
+  {
+    "adapter": "packages",
+    "credentials_required": false,
+    "id": "packages.host",
+    "inverse": [
+      "remove only exact packages installed by this action; purge them only on uninstall --purge-data"
+    ],
+    "mutations": [
+      "package=ca-certificates",
+      "package=certbot",
+      "package=curl",
+      "package=docker-compose-v2",
+      "package=docker.io",
+      "package=nginx-full",
+      "package=openssl",
+      "package=python3"
+    ],
+    "owner": "proxy-control:packages",
+    "preconditions": [
+      "supported package manager and package status are observed"
+    ],
+    "verification": [
+      "every exact requested package is installed"
+    ]
+  },
+  {
+    "adapter": "nginx",
+    "credentials_required": false,
+    "id": "nginx.routes",
+    "inverse": [
+      "restore content, owner, group, mode, and symlink identity"
+    ],
+    "mutations": [
+      "mode=fresh",
+      "client_ip=proxy",
+      "panel_tls_backend=127.0.0.1:8443",
+      "stream_context=create",
+      "target=/etc/nginx/stream.d/proxy-control.conf",
+      "variable=$proxy_control_backend",
+      "path_kind=missing",
+      "resolved_path=/etc/nginx/stream.d/proxy-control.conf",
+      "symlink_target=-",
+      "route=relay.example.com 127.0.0.1:8445",
+      "route=panel.example.com 127.0.0.1:8443",
+      "route=edge.example.com 127.0.0.1:4443"
+    ],
+    "owner": "proxy-control:nginx",
+    "preconditions": [
+      "effective Nginx topology is observed and unambiguous",
+      "Nginx has no stream context: one including the router is added first"
+    ],
+    "verification": [
+      "the router path is included by the stream context",
+      "Nginx configuration test passes before reload"
+    ]
+  },
+  {
+    "adapter": "certificates",
+    "credentials_required": false,
+    "id": "certificate.naive",
+    "inverse": [
+      "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+    ],
+    "mutations": [
+      "service=naive",
+      "certificate=edge.example.com",
+      "email=admin@example.com",
+      "name=edge.example.com",
+      "webroot=/var/www/edge.example.com"
+    ],
+    "owner": "proxy-control:certificate:naive",
+    "preconditions": [
+      "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+    ],
+    "verification": [
+      "owned port-80 HTTP-01 vhosts are active",
+      "certificate validity, trust, exact SANs, and key pair pass",
+      "Certbot renewal dry run succeeds for the exact lineage"
+    ]
+  },
+  {
+    "adapter": "certificates",
+    "credentials_required": false,
+    "id": "certificate.proxy-control",
+    "inverse": [
+      "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+    ],
+    "mutations": [
+      "service=proxy-control",
+      "certificate=relay.example.com",
+      "email=admin@example.com",
+      "name=panel.example.com",
+      "name=relay.example.com",
+      "webroot=/var/www/panel.example.com",
+      "webroot=/var/www/relay.example.com"
+    ],
+    "owner": "proxy-control:certificate:proxy-control",
+    "preconditions": [
+      "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+    ],
+    "verification": [
+      "owned port-80 HTTP-01 vhosts are active",
+      "certificate validity, trust, exact SANs, and key pair pass",
+      "Certbot renewal dry run succeeds for the exact lineage"
+    ]
+  },
+  {
+    "adapter": "core",
+    "credentials_required": true,
+    "id": "core.runtime",
+    "inverse": [
+      "stop only the mtproxy Compose project",
+      "preserve credentials and named volumes unless data purge is explicit",
+      "remove only Core-owned artifacts and the owned probe"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "proxy-domain=relay.example.com",
+      "panel-domain=panel.example.com",
+      "subscription-domain=",
+      "mcp-domain=",
+      "users=owner",
+      "proxy-backend-port=8445",
+      "panel-app-port=8787",
+      "panel-tls-port=8443",
+      "probe=/usr/local/libexec/mtproxy-respq-probe",
+      "probe-image=mtproxy-respq-probe:1.0.0",
+      "prebuilt-tdlib=0.1008066.0",
+      "adjacent-sni=none"
+    ],
+    "owner": "proxy-control:core",
+    "preconditions": [
+      "Nginx routes and certificates are verified",
+      "the existing mtproxy project boundary is absent or explicitly owned"
+    ],
+    "verification": [
+      "Compose model and all service health checks pass",
+      "panel health and an HTTPS authenticated session pass",
+      "Telemt management API remains private to Compose",
+      "every temporary MTProto credential returns validated resPQ",
+      "adjacent SNI routes and bounded sensitive-data scan pass"
+    ]
+  },
+  {
+    "adapter": "naive",
+    "credentials_required": true,
+    "id": "naive.runtime",
+    "inverse": [
+      "stop only the Caddy unit and the naive-manager service",
+      "preserve manager state and credentials unless purge is explicit",
+      "restore binary, unit, helper, hook, and identity ownership"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "naive-domain=edge.example.com",
+      "panel-domain=panel.example.com",
+      "data-dir=/var/lib/naive-manager",
+      "log-dir=/var/log/naive-proxy",
+      "caddy-binary=/usr/local/bin/caddy",
+      "caddy-build=v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "unit=/etc/systemd/system/caddy-naive.service",
+      "private-port=4443",
+      "caddy-uid=10003",
+      "accounting-gid=10004",
+      "manager-uid=10002",
+      "manager-gid=101",
+      "adjacent-sni=none",
+      "egress=direct",
+      "warp-port=40000",
+      "warp-provider=",
+      "router-provider="
+    ],
+    "owner": "proxy-control:naive",
+    "preconditions": [
+      "the Core runtime and the Naive certificate are verified",
+      "fixed Naive identities are free or already owned",
+      "the shared 443 route reaches the private Caddy listener"
+    ],
+    "verification": [
+      "loopback Admin API and private Caddy listener are private",
+      "public cover HTTPS answers without credentials",
+      "one authenticated CONNECT carries a known payload and closes",
+      "closed-tunnel accounting observes at least the sent payload",
+      "manager, panel, adjacent SNI, and log boundary pass"
+    ]
+  },
+  {
+    "adapter": "mieru",
+    "credentials_required": true,
+    "id": "mieru.runtime",
+    "inverse": [
+      "stop only the mita unit, the lane slot units and the mieru-manager service",
+      "preserve manager state, token, and mita config unless purge",
+      "remove only the owned binary, units, tmpfiles, and helpers"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "mieru-host=mieru.example.com",
+      "panel-domain=panel.example.com",
+      "mita-version=3.38.1",
+      "architecture=amd64",
+      "package-url=https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb",
+      "package-digest=2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+      "executable-digest=991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207",
+      "binary=/usr/bin/mita",
+      "unit=/etc/systemd/system/mita.service",
+      "socket=/run/mita/mita.sock",
+      "manager-uid=10005",
+      "manager-gid=10005",
+      "bootstrap-user=owner",
+      "transports=TCP:46001",
+      "egress=direct",
+      "warp-port=40000",
+      "warp-provider=",
+      "router-provider=",
+      "lane-slots=0"
+    ],
+    "owner": "proxy-control:mieru",
+    "preconditions": [
+      "the Core runtime is verified",
+      "the selected Mieru listeners are free",
+      "fixed manager identity 10005 is free or already owned"
+    ],
+    "verification": [
+      "package and executable digests match the pinned release",
+      "mita reports the exact status \"RUNNING\"",
+      "the management UDS keeps its owner and 0770 mode",
+      "the official client reaches the Internet over every transport",
+      "manager and panel health pass and adjacent listeners are intact"
+    ]
+  },
+  {
+    "adapter": "version_agent",
+    "credentials_required": false,
+    "id": "version_agent.runtime",
+    "inverse": [
+      "disable the unit and remove only the owned unit, tmpfiles, env, code and marker",
+      "preserve the catalog and the agent state unless purge is explicit"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "agent-dir=/opt/proxy-control",
+      "socket=/run/proxy-control/version-agent.sock",
+      "socket-gid=10001",
+      "compose-files=compose.yaml:compose.naive.yaml:compose.mieru.yaml",
+      "router=off",
+      "naive=on",
+      "mieru=on",
+      "upstream=on"
+    ],
+    "owner": "proxy-control:version-agent",
+    "preconditions": [
+      "the Core runtime is verified",
+      "no foreign version-agent unit, env or code directory exists without the ownership marker"
+    ],
+    "verification": [
+      "the version-agent unit is active and enabled",
+      "/v1/health answers ok over the group-10001 socket",
+      "/v1/versions lists the profile's components at the versions the installer recorded",
+      "the env names the profile's Compose overlays and the router flag"
+    ]
+  }
+]

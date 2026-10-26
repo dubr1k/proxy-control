@@ -1,0 +1,11 @@
+{
+  "names": [
+    "panel",
+    "installer",
+    "pc_common",
+    "compose.yaml",
+    "VERSION",
+    "version_agent"
+  ],
+  "version": "3.3.1"
+}

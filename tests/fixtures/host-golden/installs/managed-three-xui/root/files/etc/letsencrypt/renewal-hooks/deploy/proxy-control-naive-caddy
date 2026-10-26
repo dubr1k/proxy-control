@@ -1,0 +1,12 @@
+#!/bin/sh
+# Managed by proxy-control: publish the Naive keypair for the
+# unprivileged Caddy identity after every issuance and renewal.
+set -eu
+lineage="/etc/letsencrypt/live/edge.example.com"
+target="/var/lib/naive-caddy/tls"
+[ "${RENEWED_LINEAGE:-$lineage}" = "$lineage" ] || exit 0
+[ -r "$lineage/fullchain.pem" ] || exit 1
+[ -r "$lineage/privkey.pem" ] || exit 1
+install -d -m 0750 -o root -g naive-accounting "$target"
+install -m 0640 -o root -g naive-accounting "$lineage/fullchain.pem" "$target/fullchain.pem"
+install -m 0640 -o root -g naive-accounting "$lineage/privkey.pem" "$target/privkey.pem"

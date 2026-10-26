@@ -1,0 +1,62 @@
+add table inet proxy_control_metrics
+delete table inet proxy_control_metrics
+table inet proxy_control_metrics {
+    counter up_mieru_tcp_46001 { }
+    counter down_mieru_tcp_46001 { }
+    counter up_mieru_tcp_46003 { }
+    counter down_mieru_tcp_46003 { }
+    counter up_mieru_tcp_46101 { }
+    counter down_mieru_tcp_46101 { }
+    counter up_mieru_tcp_46102 { }
+    counter down_mieru_tcp_46102 { }
+    counter up_mieru_tcp_46103 { }
+    counter down_mieru_tcp_46103 { }
+    counter up_mieru_tcp_46104 { }
+    counter down_mieru_tcp_46104 { }
+    counter up_mieru_udp_46002 { }
+    counter down_mieru_udp_46002 { }
+    counter up_mieru_udp_46010 { }
+    counter down_mieru_udp_46010 { }
+    counter up_mieru_udp_46011 { }
+    counter down_mieru_udp_46011 { }
+    counter up_mieru_udp_46012 { }
+    counter down_mieru_udp_46012 { }
+    counter up_mtproxy_tcp_8445 { }
+    counter down_mtproxy_tcp_8445 { }
+    counter up_naive_tcp_4443 { }
+    counter down_naive_tcp_4443 { }
+    counter up_trusttunnel_tcp_4453 { }
+    counter down_trusttunnel_tcp_4453 { }
+  chain input {
+    type filter hook input priority -300; policy accept;
+    tcp dport 46001 counter name "up_mieru_tcp_46001"
+    tcp dport 46003 counter name "up_mieru_tcp_46003"
+    tcp dport 46101 counter name "up_mieru_tcp_46101"
+    tcp dport 46102 counter name "up_mieru_tcp_46102"
+    tcp dport 46103 counter name "up_mieru_tcp_46103"
+    tcp dport 46104 counter name "up_mieru_tcp_46104"
+    udp dport 46002 counter name "up_mieru_udp_46002"
+    udp dport 46010 counter name "up_mieru_udp_46010"
+    udp dport 46011 counter name "up_mieru_udp_46011"
+    udp dport 46012 counter name "up_mieru_udp_46012"
+    tcp dport 8445 counter name "up_mtproxy_tcp_8445"
+    tcp dport 4443 counter name "up_naive_tcp_4443"
+    tcp dport 4453 counter name "up_trusttunnel_tcp_4453"
+  }
+  chain output {
+    type filter hook output priority -300; policy accept;
+    tcp sport 46001 counter name "down_mieru_tcp_46001"
+    tcp sport 46003 counter name "down_mieru_tcp_46003"
+    tcp sport 46101 counter name "down_mieru_tcp_46101"
+    tcp sport 46102 counter name "down_mieru_tcp_46102"
+    tcp sport 46103 counter name "down_mieru_tcp_46103"
+    tcp sport 46104 counter name "down_mieru_tcp_46104"
+    udp sport 46002 counter name "down_mieru_udp_46002"
+    udp sport 46010 counter name "down_mieru_udp_46010"
+    udp sport 46011 counter name "down_mieru_udp_46011"
+    udp sport 46012 counter name "down_mieru_udp_46012"
+    tcp sport 8445 counter name "down_mtproxy_tcp_8445"
+    tcp sport 4443 counter name "down_naive_tcp_4443"
+    tcp sport 4453 counter name "down_trusttunnel_tcp_4453"
+  }
+}

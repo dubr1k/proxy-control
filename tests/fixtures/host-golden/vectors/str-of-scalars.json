@@ -1,0 +1,56 @@
+[
+  {
+    "python": "str(True)",
+    "value": "True"
+  },
+  {
+    "python": "str(False)",
+    "value": "False"
+  },
+  {
+    "python": "str(None)",
+    "value": "None"
+  },
+  {
+    "python": "str(443)",
+    "value": "443"
+  },
+  {
+    "python": "str(-1)",
+    "value": "-1"
+  },
+  {
+    "python": "str(2**70)",
+    "value": "1180591620717411303424"
+  },
+  {
+    "python": "str(1.0)",
+    "value": "1.0"
+  },
+  {
+    "python": "str(1e16)",
+    "value": "1e+16"
+  },
+  {
+    "python": "str(0.1+0.2)",
+    "value": "0.30000000000000004"
+  },
+  {
+    "python": "str(('a', 1))",
+    "value": "('a', 1)"
+  },
+  {
+    "python": "str({'a': [1, True, None]})",
+    "value": "{'a': [1, True, None]}"
+  },
+  {
+    "python": "json key from {True: 1, 443: 2, None: 3}",
+    "value": "{\"true\": 1, \"443\": 2, \"null\": 3}"
+  },
+  {
+    "python": "planner._freeze key str(True)",
+    "value": {
+      "ok": "{\"1.5\": 3, \"443\": 2, \"True\": 1}"
+    }
+  }
+]

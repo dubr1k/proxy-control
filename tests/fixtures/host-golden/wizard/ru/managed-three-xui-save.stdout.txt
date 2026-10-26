@@ -1,0 +1,45 @@
+Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.
+  fresh   — чистый сервер: установщик сам поставит Nginx и займёт TCP 80 и 443
+  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими
+  fresh сохраняет IP клиентов панели; для coexist нужен операторский PROXY bridge (см. INSTALLER_REFERENCE)
+Режим сервера (fresh/coexist) [fresh]:   core       — панель и MTProxy (Telegram)
+  core-naive — то же и NaiveProxy
+  core-mieru — то же и Mieru
+  full       — панель, MTProxy, NaiveProxy и Mieru
+  AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже
+Профиль Proxy Control (core/core-naive/core-mieru/full) [full]:   none        — без 3x-ui
+  existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality
+  managed-new — установщик поставит свой 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+Режим 3x-ui (none/existing/managed-new) [none]: Домен панели: Fake-TLS домен MTProxy: Домен подписки клиентов (пусто — подписки выключены): Домен MCP-сервера — только на центральной панели (пусто — MCP выключен): Домен NaiveProxy: Имя хоста Mieru: TCP-порты Mieru (через запятую) [46001]: UDP-порты Mieru (через запятую) [46001]: Домен панели 3x-ui: Домен VLESS Reality TCP: Домен VLESS Reality XHTTP: Домен Hysteria2: Включить маршрутизацию WARP [y/N]: Домены и geosite-списки, которые 3x-ui пустит через WARP (через запятую, хотя бы один: example.com, geosite:openai): Установить Xray-router (закреплённый Xray-core 26.10.17; архив скачивается сам, если не положен в /var/lib/proxy-control; через него из панели можно направить и MTProxy) [y/N]: Направлять весь трафик NaiveProxy через WARP [y/N]: Направлять весь трафик Mieru через WARP [y/N]: AmneziaWG — обфусцированный WireGuard 1.5 / 2.0 / 3.1. Клиенты подключаются по UDP прямо к этому серверу,
+поэтому новый домен не нужен: подойдёт домен панели, если он указывает на этот сервер и не проксируется.
+Установить AmneziaWG [y/N]: TrustTunnel — VPN AdGuard поверх HTTP/2 и TLS, только TCP. Делит TCP/443 с остальными сервисами
+по SNI, поэтому порт и правило UDP не добавляются. Нужен отдельный домен с A-записью на этот сервер,
+только DNS: не ставьте перед ним прокси CDN.
+Установить TrustTunnel [y/N]: Email для ACME: Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner): Пароль для входа в панель под owner (пусто — создать автоматически): Имя пользователя панели 3x-ui: Пароль панели 3x-ui (пусто — создать автоматически): Открыть порты установщика в UFW (только на свежем сервере) [Y/n]: 
+Проверка конфигурации
+поле | значение
+Email для ACME | admin@example.com
+Имя хоста Mieru | mieru.example.com
+Fake-TLS домен MTProxy | relay.example.com
+Домен NaiveProxy | edge.example.com
+Домен панели | panel.example.com
+Выход Mieru | direct
+Выход NaiveProxy | direct
+Xray-router | нет
+WARP для NaiveProxy и Mieru | да
+Открыть порты в UFW | нет
+Режим сервера | fresh
+Первый пользователь MTProxy и Mieru | owner
+TCP-порты Mieru | 46001
+UDP-порты Mieru | 46001
+Профиль | full
+Домен Hysteria2 | hy2.example.com
+Режим 3x-ui | managed-new
+Домен панели 3x-ui | xui.example.com
+Домен VLESS Reality TCP | vless.example.com
+Домен VLESS Reality XHTTP | xhttp.example.com
+3x-ui через WARP | да
+Домены 3x-ui через WARP | domain:chat.example.org,geosite:openai
+Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.
+Действие (apply/back/edit/save/quit) [apply]: Конфигурация сохранена: <work>/proxy-control.toml
+Учётные данные сохранены приватно: <work>/proxy-control.credentials

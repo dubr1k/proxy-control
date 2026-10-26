@@ -1,0 +1,29 @@
+{
+    admin 127.0.0.1:2019
+    auto_https disable_redirects
+}
+# NaiveProxy cover site and forward proxy for edge.example.com.
+https://:443 {
+    bind 127.0.0.1
+    tls /var/lib/naive-caddy/tls/fullchain.pem /var/lib/naive-caddy/tls/privkey.pem
+    log {
+        output file /var/log/naive-proxy/access.json {
+            mode 0640
+            roll_size 10MiB
+            roll_keep 10
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+        format json
+    }
+    root * /var/www/edge.example.com
+    route {
+        forward_proxy {
+            basic_auth bootstrap-04efbe4e 3E0j-i-QEK0JWtgusJCrOCFpOWNDtacc
+            hide_ip
+            hide_via
+            probe_resistance
+        }
+        file_server
+    }
+}

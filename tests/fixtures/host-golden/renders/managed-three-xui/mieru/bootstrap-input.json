@@ -1,0 +1,1 @@
+{"portBindings":[{"port":46001,"protocol":"TCP"},{"port":46001,"protocol":"UDP"}],"users":[{"name":"owner","password":"golden-bootstrap-password"}],"loggingLevel":"INFO","mtu":1400,"egress":{"proxies":[{"name":"warp","protocol":"SOCKS5_PROXY_PROTOCOL","host":"127.0.0.1","port":40000}],"rules":[{"ipRanges":["0.0.0.0/0","::/0"],"domainNames":[],"action":"DIRECT","proxyNames":[]}]}}

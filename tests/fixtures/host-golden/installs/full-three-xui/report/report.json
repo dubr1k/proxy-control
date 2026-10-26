@@ -1,0 +1,122 @@
+{
+  "actions": [
+    {
+      "action_id": "nginx.routes",
+      "facts": {},
+      "observations": [
+        "owned Nginx route verified"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.naive",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "compose_config_ok": true,
+        "expected_services": 3,
+        "healthy_services": 3,
+        "panel_health_ok": true,
+        "panel_login_ok": true,
+        "respq_expected": 2,
+        "respq_verified": 2,
+        "sensitive_scan_ok": true,
+        "telemt_api_internal": true,
+        "temporary_state_removed": true
+      },
+      "observations": [
+        "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "naive.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "admin_api_loopback": true,
+        "authenticated_connect_ok": true,
+        "connect_bytes": 4096,
+        "cover_https_ok": true,
+        "log_boundary_ok": true,
+        "manager_health_ok": true,
+        "panel_health_ok": true,
+        "private_listener_ok": true,
+        "recorded_bytes": 4096,
+        "temporary_state_removed": true,
+        "tunnel_closed_ok": true
+      },
+      "observations": [
+        "Naive listener, cover, authenticated CONNECT, and accounting passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "mieru.runtime",
+      "facts": {
+        "adjacent_listeners_ok": true,
+        "executable_digest_ok": true,
+        "manager_health_ok": true,
+        "mita_status_running": true,
+        "package_digest_ok": true,
+        "panel_health_ok": true,
+        "public_host_ok": true,
+        "send_queue_drained": true,
+        "temporary_state_removed": true,
+        "transports_expected": 2,
+        "transports_verified": 2,
+        "uds_boundary_ok": true
+      },
+      "observations": [
+        "pinned mita, UDS boundary, and official-client acceptance passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "three_xui.routes",
+      "facts": {
+        "installed": true,
+        "routes": 2
+      },
+      "observations": [
+        "owned 3x-ui routes reach audited loopback inbounds"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "facts": {},
+      "observations": [
+        "the version-agent is active, enabled and healthy over its socket",
+        "it lists the profile's components at the recorded versions"
+      ],
+      "success": true
+    }
+  ],
+  "operator_notes": [
+    "compose files: compose.yaml compose.naive.yaml compose.mieru.yaml"
+  ],
+  "profile": "full",
+  "release": {
+    "digest": "5977f21ce4ade9b0cebd5acdc6097928a1dd6de40e52aaaf3d3581763e819328",
+    "tag": "installer-v1"
+  },
+  "schema": 1
+}

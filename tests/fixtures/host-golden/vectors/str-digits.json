@@ -1,0 +1,343 @@
+[
+  {
+    "codepoints": [
+      "U+0030"
+    ],
+    "input": "0",
+    "int": {
+      "ok": 0
+    },
+    "isascii": true,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": true,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+0031",
+      "U+0032",
+      "U+0033"
+    ],
+    "input": "123",
+    "int": {
+      "ok": 123
+    },
+    "isascii": true,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": true,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [],
+    "input": "",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: ''"
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0020",
+      "U+0031"
+    ],
+    "input": " 1",
+    "int": {
+      "ok": 1
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0031",
+      "U+0020"
+    ],
+    "input": "1 ",
+    "int": {
+      "ok": 1
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+002B",
+      "U+0031"
+    ],
+    "input": "+1",
+    "int": {
+      "ok": 1
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+002D",
+      "U+0031"
+    ],
+    "input": "-1",
+    "int": {
+      "ok": -1
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0031",
+      "U+002E",
+      "U+0035"
+    ],
+    "input": "1.5",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '1.5'"
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0030",
+      "U+0078",
+      "U+0031",
+      "U+0030"
+    ],
+    "input": "0x10",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '0x10'"
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0031",
+      "U+005F",
+      "U+0030",
+      "U+0030",
+      "U+0030"
+    ],
+    "input": "1_000",
+    "int": {
+      "ok": 1000
+    },
+    "isascii": true,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0661",
+      "U+0662",
+      "U+0663"
+    ],
+    "input": "١٢٣",
+    "int": {
+      "ok": 123
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+06F1"
+    ],
+    "input": "۱",
+    "int": {
+      "ok": 1
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+0967"
+    ],
+    "input": "१",
+    "int": {
+      "ok": 1
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+FF11",
+      "U+FF12"
+    ],
+    "input": "１２",
+    "int": {
+      "ok": 12
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+00B2"
+    ],
+    "input": "²",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '²'"
+    },
+    "isascii": false,
+    "isdecimal": false,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+2460"
+    ],
+    "input": "①",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '①'"
+    },
+    "isascii": false,
+    "isdecimal": false,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+00BD"
+    ],
+    "input": "½",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '½'"
+    },
+    "isascii": false,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+4E00"
+    ],
+    "input": "一",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: '一'"
+    },
+    "isascii": false,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+1D7CE"
+    ],
+    "input": "𝟎",
+    "int": {
+      "ok": 0
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  },
+  {
+    "codepoints": [
+      "U+1D7C",
+      "U+0065"
+    ],
+    "input": "ᵼe",
+    "int": {
+      "error": "ValueError",
+      "message": "invalid literal for int() with base 10: 'ᵼe'"
+    },
+    "isascii": false,
+    "isdecimal": false,
+    "isdigit": false,
+    "isnumeric": false,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": false
+  },
+  {
+    "codepoints": [
+      "U+0663",
+      "U+0034"
+    ],
+    "input": "٣4",
+    "int": {
+      "ok": 34
+    },
+    "isascii": false,
+    "isdecimal": true,
+    "isdigit": true,
+    "isnumeric": true,
+    "re_09_fullmatch": false,
+    "re_d_fullmatch": true
+  }
+]

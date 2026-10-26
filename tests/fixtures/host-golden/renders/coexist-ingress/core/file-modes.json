@@ -1,0 +1,11 @@
+{
+  ".core-acceptance-owner": "0600",
+  ".core-acceptance-pending": "0600",
+  ".env": "0600",
+  ".mtproxy-owned": "0600",
+  "/etc/nginx/conf.d/proxy-control-panel.conf": "0644",
+  "secrets": "0700",
+  "secrets/panel-bootstrap-password": "0600",
+  "secrets/telemt-api-token": "0600",
+  "secrets/users.conf": "0600"
+}

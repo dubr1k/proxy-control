@@ -1,0 +1,452 @@
+[
+  {
+    "calls": [
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": null,
+    "step": "seed"
+  },
+  {
+    "calls": [
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": {
+      "checked_at": 1767225600,
+      "components": {
+        "mita": {
+          "available": [
+            {
+              "archive": {
+                "format": "tar.gz",
+                "member": "mita"
+              },
+              "kind": "binary",
+              "newer": true,
+              "published_at": "2026-01-01T00:00:00Z",
+              "sha256": "177ff860d3b4b9e8ddbbeabbffc1a3fa99859e29654d0d6ed610c479dc8405c5",
+              "source": "upstream",
+              "tag": "v3.39.0",
+              "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+              "version": "3.39.0"
+            }
+          ],
+          "current": "3.38.1",
+          "status": "ready",
+          "upstream": {
+            "checked_at": 1767225600,
+            "installable": true,
+            "last_error": null,
+            "latest": "3.39.0",
+            "reason": null
+          }
+        },
+        "naive": {
+          "available": [
+            {
+              "kind": "binary",
+              "newer": true,
+              "sha256": "e8cb892526c7dc4929bf860552c8c84cef18c62ea0d1b50b39a4cdeacfa7b195",
+              "source": "catalog",
+              "url": "https://artifacts.example.com/caddy-2.11.8",
+              "version": "2.11.8"
+            }
+          ],
+          "current": "2.11.7",
+          "status": "ready",
+          "upstream": {
+            "checked_at": 1767225600,
+            "installable": false,
+            "last_error": "upstream answered 403 for /repos/caddyserver/caddy/releases",
+            "latest": null,
+            "reason": null
+          }
+        },
+        "panel": {
+          "available": [],
+          "current": null,
+          "status": "ready",
+          "upstream": {
+            "checked_at": 1767225600,
+            "installable": false,
+            "last_error": null,
+            "latest": null,
+            "reason": "no_releases"
+          }
+        },
+        "telemt": {
+          "available": [
+            {
+              "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "kind": "image",
+              "newer": true,
+              "source": "catalog",
+              "version": "3.5.15"
+            }
+          ],
+          "current": "sha256:7c843f370ec5",
+          "status": "ready",
+          "upstream": {
+            "checked_at": 1767225600,
+            "installable": false,
+            "last_error": null,
+            "latest": null,
+            "reason": "no_releases"
+          }
+        },
+        "xray": {
+          "available": [
+            {
+              "archive": {
+                "format": "zip",
+                "members": {
+                  "geoip.dat": "geoip.dat",
+                  "geosite.dat": "geosite.dat",
+                  "xray": "xray"
+                }
+              },
+              "kind": "binary",
+              "newer": true,
+              "sha256": "7e6a7cc24b251fa0d8a3dfc1a019fed8652fe7ba4791ed72af6188ce0b874c17",
+              "source": "catalog",
+              "url": "https://github.com/XTLS/Xray-core/releases/download/v26.11.1/Xray-linux-64.zip",
+              "version": "26.11.1"
+            }
+          ],
+          "current": "26.10.17",
+          "status": "ready",
+          "upstream": {
+            "checked_at": 1767225600,
+            "installable": true,
+            "last_error": null,
+            "latest": "26.11.1",
+            "reason": null
+          }
+        }
+      },
+      "enabled": true,
+      "upstream_enabled": true
+    },
+    "step": "check-upstream"
+  },
+  {
+    "calls": [
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Config.Image}}",
+        "proxy-control-mtproxy"
+      ],
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{index .Config.Labels \"com.docker.compose.project\"}}",
+        "proxy-control-panel"
+      ],
+      [
+        "docker",
+        "compose",
+        "--project-name",
+        "proxy_panel_by_dubr1k",
+        "--env-file",
+        "<work>/project/.env",
+        "--env-file",
+        "<work>/project/.env.naive",
+        "--env-file",
+        "<work>/project/.env.mieru",
+        "--env-file",
+        "<work>/project/.env.xray-router",
+        "-f",
+        "<work>/project/compose.yaml",
+        "-f",
+        "<work>/project/compose.naive.yaml",
+        "-f",
+        "<work>/project/compose.mieru.yaml",
+        "-f",
+        "<work>/project/compose.xray-router.yaml",
+        "-f",
+        "<work>/project/version-overrides/compose.versions.yaml",
+        "pull",
+        "mtproxy"
+      ],
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{index .Config.Labels \"com.docker.compose.project\"}}",
+        "proxy-control-panel"
+      ],
+      [
+        "docker",
+        "compose",
+        "--project-name",
+        "proxy_panel_by_dubr1k",
+        "--env-file",
+        "<work>/project/.env",
+        "--env-file",
+        "<work>/project/.env.naive",
+        "--env-file",
+        "<work>/project/.env.mieru",
+        "--env-file",
+        "<work>/project/.env.xray-router",
+        "-f",
+        "<work>/project/compose.yaml",
+        "-f",
+        "<work>/project/compose.naive.yaml",
+        "-f",
+        "<work>/project/compose.mieru.yaml",
+        "-f",
+        "<work>/project/compose.xray-router.yaml",
+        "-f",
+        "<work>/project/version-overrides/compose.versions.yaml",
+        "up",
+        "-d",
+        "--no-deps",
+        "mtproxy"
+      ],
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Config.Image}}",
+        "proxy-control-mtproxy"
+      ],
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.State.Health.Status}}",
+        "proxy-control-mtproxy"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": {
+      "changed": true,
+      "component": "telemt",
+      "version": "3.5.15"
+    },
+    "step": "update-telemt"
+  },
+  {
+    "calls": [
+      [
+        "systemctl",
+        "restart",
+        "mita"
+      ],
+      [
+        "systemctl",
+        "is-active",
+        "mita"
+      ],
+      [
+        "systemctl",
+        "list-units",
+        "--plain",
+        "--no-legend",
+        "mita@*.service"
+      ],
+      [
+        "systemctl",
+        "restart",
+        "mita@1"
+      ],
+      [
+        "systemctl",
+        "is-active",
+        "mita@1"
+      ],
+      [
+        "systemctl",
+        "restart",
+        "mita@2"
+      ],
+      [
+        "systemctl",
+        "is-active",
+        "mita@2"
+      ],
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{index .Config.Labels \"com.docker.compose.project\"}}",
+        "proxy-control-panel"
+      ],
+      [
+        "docker",
+        "compose",
+        "--project-name",
+        "proxy_panel_by_dubr1k",
+        "--env-file",
+        "<work>/project/.env",
+        "--env-file",
+        "<work>/project/.env.naive",
+        "--env-file",
+        "<work>/project/.env.mieru",
+        "--env-file",
+        "<work>/project/.env.xray-router",
+        "-f",
+        "<work>/project/compose.yaml",
+        "-f",
+        "<work>/project/compose.naive.yaml",
+        "-f",
+        "<work>/project/compose.mieru.yaml",
+        "-f",
+        "<work>/project/compose.xray-router.yaml",
+        "-f",
+        "<work>/project/version-overrides/compose.versions.yaml",
+        "up",
+        "-d",
+        "--no-deps",
+        "--wait",
+        "mieru-manager"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": {
+      "changed": true,
+      "component": "mita",
+      "version": "3.39.0"
+    },
+    "step": "update-mita"
+  },
+  {
+    "calls": [
+      [
+        "docker",
+        "inspect",
+        "--format",
+        "{{index .Config.Labels \"com.docker.compose.project\"}}",
+        "proxy-control-panel"
+      ],
+      [
+        "docker",
+        "compose",
+        "--project-name",
+        "proxy_panel_by_dubr1k",
+        "--env-file",
+        "<work>/project/.env",
+        "--env-file",
+        "<work>/project/.env.naive",
+        "--env-file",
+        "<work>/project/.env.mieru",
+        "--env-file",
+        "<work>/project/.env.xray-router",
+        "-f",
+        "<work>/project/compose.yaml",
+        "-f",
+        "<work>/project/compose.naive.yaml",
+        "-f",
+        "<work>/project/compose.mieru.yaml",
+        "-f",
+        "<work>/project/compose.xray-router.yaml",
+        "-f",
+        "<work>/project/version-overrides/compose.versions.yaml",
+        "up",
+        "-d",
+        "--no-deps",
+        "--wait",
+        "xray-router"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-xray-router",
+        "sh",
+        "-c",
+        "if [ -x /usr/local/bin/xray-router-manager ]; then exec /usr/local/bin/xray-router-manager healthcheck --status; else exec python -m xray_router_manager.healthcheck --status; fi"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": {
+      "changed": true,
+      "component": "xray",
+      "version": "26.11.1"
+    },
+    "step": "update-xray"
+  },
+  {
+    "calls": [
+      [
+        "systemctl",
+        "restart",
+        "caddy-naive"
+      ],
+      [
+        "systemctl",
+        "restart",
+        "caddy-naive"
+      ],
+      [
+        "systemctl",
+        "is-active",
+        "caddy-naive"
+      ],
+      [
+        "systemctl",
+        "list-units",
+        "--plain",
+        "--no-legend",
+        "caddy-naive@*.service"
+      ],
+      [
+        "docker",
+        "exec",
+        "proxy-control-panel",
+        "cat",
+        "/app/VERSION"
+      ]
+    ],
+    "result": {
+      "exception": "RolledBackError",
+      "message": "naive update failed; previous generation was restored and verified"
+    },
+    "step": "update-naive-rolled-back"
+  }
+]

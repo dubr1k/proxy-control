@@ -1,0 +1,105 @@
+{
+  "actions": [
+    {
+      "action_id": "packages.host",
+      "facts": {},
+      "observations": [
+        "exact package set is installed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "facts": {},
+      "observations": [
+        "owned Nginx route verified"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "firewall.ufw",
+      "facts": {},
+      "observations": [
+        "selected-profile UFW rules are active"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.naive",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "compose_config_ok": true,
+        "expected_services": 3,
+        "healthy_services": 3,
+        "panel_health_ok": true,
+        "panel_login_ok": true,
+        "respq_expected": 2,
+        "respq_verified": 2,
+        "sensitive_scan_ok": true,
+        "telemt_api_internal": true,
+        "temporary_state_removed": true
+      },
+      "observations": [
+        "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "naive.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "admin_api_loopback": true,
+        "authenticated_connect_ok": true,
+        "connect_bytes": 4096,
+        "cover_https_ok": true,
+        "log_boundary_ok": true,
+        "manager_health_ok": true,
+        "panel_health_ok": true,
+        "private_listener_ok": true,
+        "recorded_bytes": 4096,
+        "temporary_state_removed": true,
+        "tunnel_closed_ok": true
+      },
+      "observations": [
+        "Naive listener, cover, authenticated CONNECT, and accounting passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "facts": {},
+      "observations": [
+        "the version-agent is active, enabled and healthy over its socket",
+        "it lists the profile's components at the recorded versions"
+      ],
+      "success": true
+    }
+  ],
+  "operator_notes": [
+    "compose files: compose.yaml compose.naive.yaml"
+  ],
+  "profile": "core-naive",
+  "release": {
+    "digest": "ef08973b6037b623fca4d6e551aec554f55af3cf9b48035a925ee400c6e45ea5",
+    "tag": "installer-v1"
+  },
+  "schema": 1
+}

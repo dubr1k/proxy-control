@@ -1,0 +1,12 @@
+{
+  "components": {
+    "telemt": {
+      "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:7c843f370ec519cd30e98c686f7fe409c76272f8865ba29a64f6f7099877bc81",
+      "kind": "image",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "sha256:7c843f370ec5"
+    }
+  },
+  "schema": 2
+}
