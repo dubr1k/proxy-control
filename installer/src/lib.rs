@@ -166,6 +166,9 @@ pub mod journal;
 pub mod migration;
 pub mod proxy_helpers;
 pub mod store;
+pub mod three_xui_api;
+mod three_xui_ordered;
+pub mod three_xui_templates;
 
 pub use installer_core::{model, planner};
 
