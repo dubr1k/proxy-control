@@ -313,6 +313,11 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("d /run/proxy-control 0770 root 10001 -", tmpfiles)
         unit = (ROOT / "deploy/version-agent.service").read_text()
         self.assertIn(
+            "ExecStart=/opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent",
+            unit,
+        )
+        self.assertNotIn("python", unit)
+        self.assertIn(
             "ExecStartPre=/usr/bin/chown root:10001 /run/proxy-control",
             unit,
         )
