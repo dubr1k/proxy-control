@@ -14,14 +14,17 @@
 //!     let task = tokio::spawn(collector.clone().run_forever());
 //!     // shutdown: collector.stop(); wait up to 5 s for `task`, then abort it
 //! }
-//! // routes (registered where app.py:318 registers them): the app state implements MetricsState
-//! let app = Router::new().merge(panel_metrics::routes::router::<AppState>()) /* … */;
+//! // routes (registered where app.py:318 registers them): the shell runs `context.current`, then
+//! // calls the handler with the caller and the request head
+//! let caller = Caller { token_hash, via_api_key };
+//! let response = panel_metrics::routes::live(&app_state, caller, &parts).await;
 //! ```
 //!
-//! `AppState: MetricsState` supplies the caller check (`context.current`: session cookie or API
-//! key → [`routes::Caller`], or the auth error response), the re-check of a long stream's
-//! session/key, the list of linked nodes (`nodes.list()` minus `local` and disabled ones) and
-//! the shared [`Metrics`]. The fleet node routes `/api/fleet/v2/metrics*` (WP12) reuse
+//! `AppState: MetricsState` supplies the re-check of a long stream's session/key, the list of
+//! linked nodes (`nodes.list()` minus `local` and disabled ones) and the shared [`Metrics`]; the
+//! caller check (`context.current`: session cookie or API key → [`routes::Caller`]) is the
+//! shell's. [`routes::router`] serves the same handlers as a stand-alone axum router over
+//! [`routes::MetricsHttp`] (this crate's tests). The fleet node routes `/api/fleet/v2/metrics*` (WP12) reuse
 //! [`Metrics::local_entry`], [`Metrics::local_summary`], [`routes::parse_series`] and
 //! [`MetricsStore::history`].
 

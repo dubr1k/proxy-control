@@ -2634,6 +2634,9 @@ def record_agent(out: Output) -> None:
         "https://github.com/XTLS/Xray-core/releases/download/v26.11.1/Xray-linux-64.zip": xray_archive,
         "https://artifacts.example.com/caddy-2.11.8": caddy_new,
     }
+    # The downloaded bytes themselves: a replay must pass the same SHA-256 checks.
+    for url, payload in downloads.items():
+        out.bytes(f"agent/updates/downloads/{url.rsplit('/', 1)[1]}", payload)
     catalog = work / "versions.json"
     catalog.write_text(json.dumps({"schema": 1, "components": {
         "telemt": [{"version": "3.5.15", "kind": "image", "image": TELEMT_IMAGE_NEW}],
@@ -3055,7 +3058,7 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `renders/ingress-upgrade/` | the old panel/stream forms, what `ingress_upgrade` turns them into, its result and backup metadata | `ingress_upgrade.py` |
 | `renders/core-vhosts/` | panel, subscription and MCP vhost texts with non-default ports | `core.py:2771` |
 | `agent/seed/` | the installer's agent `state.json` (indent 2, sorted, trailing newline) and catalog seed | `adapters/version_agent.py:460` |
-| `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays and every command | `version_agent/service.py` |
+| `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays, every command and (`downloads/`) the artifacts the steps download | `version_agent/service.py` |
 | `metrics/` | nft rulesets, the discovered port map (with override variants), `parse_counters`, and two sampler ticks over a fake `/proc` (Python `round`) | `version_agent/{hostmetrics,metrics_ports}.py` |
 | `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install; `<scenario>.plan.json` is the canonical plan a scenario printed | `wizard.py`, `i18n.py`, `cli.py` |
 | `wizard/i18n-catalogue.json` | the message catalogue in both languages | `i18n.py` |

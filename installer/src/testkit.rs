@@ -1,6 +1,7 @@
 //! Test helpers for the engine and the adapter packages: a temporary root, plans built like
 //! `tests/test_installer_transaction.py` builds them, and the recording adapter of that file.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -13,7 +14,7 @@ use crate::engine::TransactionEngine;
 use crate::error::Error;
 use crate::journal::{CheckpointData, Phase, RollbackTarget};
 use crate::model::InstallerConfig;
-use crate::plan::{Action, AuditFacts, Evidence, InstallPlan, ReleaseIdentity};
+use crate::planner::{Action, AuditFacts, Evidence, InstallPlan, ReleaseIdentity, PLAN_SCHEMA};
 use crate::store::TransactionStore;
 
 /// A directory removed on drop (`tmp_path`).
@@ -65,17 +66,22 @@ pub fn plan_with(actions: Vec<Action>, platform: Map<String, Value>) -> InstallP
             order.push(action.adapter.clone());
         }
     }
-    InstallPlan {
-        config: json!({"profile": "test"}),
-        facts: AuditFacts { platform, ..AuditFacts::default() },
-        release: ReleaseIdentity::new("v1.2.3", &"a".repeat(40), &"b".repeat(64)),
-        adapter_dependencies: order.iter().map(|name| (name.clone(), Vec::new())).collect(),
-        adapter_order: order,
+    InstallPlan::new(
+        json!({"profile": "test"}),
+        AuditFacts { platform, ..AuditFacts::default() },
+        release(),
+        order.clone(),
+        order.iter().map(|name| (name.clone(), Vec::new())).collect(),
         actions,
-        schema: 1,
-    }
-    .checked()
+        PLAN_SCHEMA,
+    )
     .expect("valid test plan")
+}
+
+/// The release identity of the test plans (`v1.2.3`, commit `a…`, manifest `b…`).
+pub fn release() -> ReleaseIdentity {
+    ReleaseIdentity::new("v1.2.3", &"a".repeat(40), &"b".repeat(64), BTreeMap::new(), BTreeMap::new())
+        .expect("valid test release")
 }
 
 /// `plan_for(*names)`: one `<name>.install` action per name, platform `{"os": "test"}`.
@@ -170,7 +176,7 @@ impl RecordingAdapter {
 }
 
 fn evidence(action: &Action, success: bool, observation: &str) -> Result<Evidence, Error> {
-    Ok(Evidence::new(&action.id, success, vec![observation.into()], Map::new())?)
+    Ok(Evidence::with_details(&action.id, success, vec![observation.into()], Map::new())?)
 }
 
 impl Adapter for RecordingAdapter {

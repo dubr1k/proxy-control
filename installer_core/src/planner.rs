@@ -256,7 +256,9 @@ impl Action {
         Ok(action)
     }
 
-    fn validate(&self) -> Result<()> {
+    /// `Action.__post_init__`: what [`Action::new`] checks, for an action built as a struct
+    /// literal.
+    pub fn validate(&self) -> Result<()> {
         for (name, value) in [("id", &self.id), ("adapter", &self.adapter), ("owner", &self.owner)] {
             if !nonempty(value) {
                 return Err(PlanError::new(format!("action {name} must be a non-empty string")));
@@ -273,6 +275,12 @@ impl Action {
             }
         }
         assert_secret_free(&self.to_value(), "plan")
+    }
+
+    /// [`validate`](Self::validate), then the action itself.
+    pub fn checked(self) -> Result<Action> {
+        self.validate()?;
+        Ok(self)
     }
 
     /// `Action(**item)` from a stored plan: exactly the eight fields, Python's checks and texts.
@@ -374,6 +382,65 @@ impl Evidence {
             "plan",
         )?;
         Ok(evidence)
+    }
+
+    /// Successful evidence without details.
+    pub fn ok(action_id: &str, observations: &[&str]) -> Result<Evidence> {
+        Evidence::new(action_id, true, observations.iter().map(|s| s.to_string()).collect(), Fact::Map(BTreeMap::new()))
+    }
+
+    /// Failed evidence without details.
+    pub fn failed(action_id: &str, observations: &[&str]) -> Result<Evidence> {
+        Evidence::new(
+            action_id,
+            false,
+            observations.iter().map(|s| s.to_string()).collect(),
+            Fact::Map(BTreeMap::new()),
+        )
+    }
+
+    /// Evidence with JSON details (a checkpoint's `details` object; checked like [`Evidence::new`]).
+    pub fn with_details(
+        action_id: &str,
+        success: bool,
+        observations: Vec<String>,
+        details: Map<String, Value>,
+    ) -> Result<Evidence> {
+        Evidence::new(action_id, success, observations, Fact::from(Value::Object(details)))
+    }
+
+    /// `_evidence_to_dict`: what a checkpoint stores as `evidence` / `rollback_evidence`.
+    pub fn to_map(&self) -> Map<String, Value> {
+        match json!({
+            "action_id": self.action_id,
+            "details": self.details,
+            "observations": self.observations,
+            "success": self.success,
+        }) {
+            Value::Object(map) => map,
+            _ => unreachable!("an object literal"),
+        }
+    }
+
+    /// Evidence back from a stored checkpoint record (exactly `{action_id, details,
+    /// observations, success}` with their types; `evidence is invalid` otherwise), e.g. to replay
+    /// a recorded run. The `report` command's lenient reader is
+    /// [`crate::report::evidence_from_checkpoint`].
+    pub fn from_map(map: &Map<String, Value>) -> Result<Evidence> {
+        let invalid = || PlanError::new("evidence is invalid");
+        let observations = map
+            .get("observations")
+            .and_then(Value::as_array)
+            .ok_or_else(invalid)?
+            .iter()
+            .map(|item| item.as_str().map(str::to_owned).ok_or_else(invalid))
+            .collect::<Result<Vec<_>>>()?;
+        Evidence::with_details(
+            map.get("action_id").and_then(Value::as_str).ok_or_else(invalid)?,
+            map.get("success").and_then(Value::as_bool).ok_or_else(invalid)?,
+            observations,
+            map.get("details").and_then(Value::as_object).cloned().ok_or_else(invalid)?,
+        )
     }
 }
 

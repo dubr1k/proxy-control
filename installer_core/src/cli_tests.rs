@@ -246,3 +246,51 @@ fn blocked_lines_are_bounded_and_redacted() {
         "Wrote the public acceptance report to /r/report.json\n"
     );
 }
+
+// Ported from the installer crate's former command-line skeleton (host WP2).
+
+#[test]
+fn version_names_the_release() {
+    let exit = parse(&args(&["--version"]), 78).unwrap_err();
+    assert_eq!((exit.status, exit.stderr.as_str()), (0, ""));
+    assert_eq!(exit.stdout, format!("proxy-control-installer {}\n", VERSION.trim()));
+    assert!(!VERSION.trim().is_empty());
+    assert_eq!(parse(&args(&["--root", "/x", "--vers"]), 78).unwrap_err().stdout, exit.stdout);
+    // The Python surface never had it.
+    assert_eq!(parse_with(&python_parser(), &args(&["--version"]), 78).unwrap_err().status, 2);
+}
+
+#[test]
+fn root_is_parsed_like_argparse() {
+    for form in [&["--root", "/tmp/x", "status"][..], &["--root=/tmp/x", "status"], &["--ro", "/tmp/x", "status"]] {
+        assert_eq!(
+            parse(&args(form), 78).unwrap(),
+            Args { root: "/tmp/x".into(), command: Command::Status { json: false } }
+        );
+    }
+    assert_eq!(
+        parse(&args(&["resume", "--json"]), 78).unwrap(),
+        Args { root: "/".into(), command: Command::Resume { json: true } }
+    );
+}
+
+#[test]
+fn usage_errors_exit_2() {
+    let exit = parse(&args(&[]), 78).unwrap_err();
+    assert_eq!(exit.status, 2);
+    assert!(
+        exit.stderr.ends_with("proxy-control-installer: error: the following arguments are required: command\n"),
+        "{}",
+        exit.stderr
+    );
+    assert!(exit.stderr.starts_with("usage: proxy-control-installer [-h] [--version]"), "{}", exit.stderr);
+    let exit = parse(&args(&["frobnicate"]), 78).unwrap_err();
+    assert_eq!(exit.status, 2);
+    assert!(exit.stderr.contains("invalid choice: 'frobnicate'"), "{}", exit.stderr);
+    assert_eq!(parse(&args(&["--bogus", "status"]), 78).unwrap_err().status, 2);
+    assert_eq!(parse(&args(&["--root"]), 78).unwrap_err().status, 2);
+    let help = parse(&args(&["-h"]), 78).unwrap_err();
+    assert_eq!(help.status, 0);
+    let line = help.stdout.lines().find(|line| line.trim_start().starts_with("--version")).unwrap();
+    assert!(line.ends_with(" show program's version number and exit"), "{}", help.stdout);
+}

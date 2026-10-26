@@ -57,7 +57,7 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `renders/ingress-upgrade/` | the old panel/stream forms, what `ingress_upgrade` turns them into, its result and backup metadata | `ingress_upgrade.py` |
 | `renders/core-vhosts/` | panel, subscription and MCP vhost texts with non-default ports | `core.py:2771` |
 | `agent/seed/` | the installer's agent `state.json` (indent 2, sorted, trailing newline) and catalog seed | `adapters/version_agent.py:460` |
-| `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays and every command | `version_agent/service.py` |
+| `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays, every command and (`downloads/`) the artifacts the steps download | `version_agent/service.py` |
 | `metrics/` | nft rulesets, the discovered port map (with override variants), `parse_counters`, and two sampler ticks over a fake `/proc` (Python `round`) | `version_agent/{hostmetrics,metrics_ports}.py` |
 | `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install; `<scenario>.plan.json` is the canonical plan a scenario printed | `wizard.py`, `i18n.py`, `cli.py` |
 | `wizard/i18n-catalogue.json` | the message catalogue in both languages | `i18n.py` |
