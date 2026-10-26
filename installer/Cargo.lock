@@ -232,6 +232,16 @@ dependencies = [
 name = "installer"
 version = "0.1.0"
 dependencies = [
+ "installer-core",
+ "pc_host",
+ "serde_json",
+]
+
+[[package]]
+name = "installer-core"
+version = "0.1.0"
+dependencies = [
+ "libc",
  "pc_host",
  "serde_json",
 ]

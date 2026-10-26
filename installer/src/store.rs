@@ -22,7 +22,7 @@ use serde_json::{Map, Value};
 
 use crate::error::Error;
 use crate::journal::{ownership_from_value, ownership_to_value, Ownership, TransactionState, TRANSACTION_SCHEMA};
-use crate::plan::InstallPlan;
+use crate::planner::InstallPlan;
 
 /// Which journal file a write targets (for the test fault hook).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

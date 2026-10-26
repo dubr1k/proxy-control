@@ -9,8 +9,9 @@
 //!   them, and the `asdict` form of a view;
 //! - [`service`] — [`service::NodeLifecycleService`]: list, get, rename, disable/enable with their
 //!   audit rows, plus the CLI's `node-list`/`node-disable`/`node-enable` output;
-//! - [`routes`] — `GET /api/nodes`, `GET /api/nodes/{node_id}`, `POST …/rename|disable|enable`,
-//!   generic over [`routes::NodesState`];
+//! - [`routes`] — `GET /api/nodes`, `GET /api/nodes/{node_id}`, `POST …/rename|disable|enable`:
+//!   framework-free handlers over [`routes::NodesState`] (the web shell serves them behind its own
+//!   gates) and a stand-alone axum router over [`routes::NodesHttp`];
 //! - [`fleet_compat`] — the node-id grammar and the inventory allow-list of `fleet.py`;
 //! - [`certificates`] — the certificate rows a fleet v1 node left behind (read only).
 //!

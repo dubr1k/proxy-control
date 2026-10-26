@@ -18,6 +18,11 @@ impl TempDir {
         TempDir { path }
     }
 
+    /// Takes over an existing directory (removed on drop).
+    pub fn adopt(path: PathBuf) -> TempDir {
+        TempDir { path }
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
