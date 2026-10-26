@@ -806,9 +806,12 @@ mod tests {
         let answer = failed(RoutingFailure::manager(Protocol::Naive, error)).into_response();
         assert_eq!(answer.status(), 409);
         let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(serde_json::from_slice::<Value>(&body).unwrap(), json!({
-            "detail": "Quota exhausted: reset traffic or raise the quota first", "code": "quota_exhausted"
-        }));
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            json!({
+                "detail": "Quota exhausted: reset traffic or raise the quota first", "code": "quota_exhausted"
+            })
+        );
         let error = raw_telemt(TelemtError::indeterminate("lost reply"));
         let answer = failed(RoutingFailure::manager(Protocol::Mtproxy, error)).into_response();
         assert_eq!(answer.status(), 502);

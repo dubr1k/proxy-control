@@ -256,8 +256,9 @@ fn sql(value: Option<&Value>) -> rusqlite::types::Value {
     }
 }
 
-/// `confirmed(node_id, email)` when the panel has no fleet: only this node.
-pub fn local_only(node_id: &str, _email: &str) -> std::result::Result<bool, SeamError> {
+/// The unit-test stand has no fleet: only this node can confirm an account.
+#[cfg(test)]
+pub(crate) fn local_only(node_id: &str, _email: &str) -> std::result::Result<bool, SeamError> {
     Ok(node_id == "local")
 }
 
