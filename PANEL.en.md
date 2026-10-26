@@ -14,7 +14,7 @@ read -rsp 'New password: ' PANEL_INITIAL_PASSWORD; echo
 # starts uvicorn, so `run` would simply bring up a second server.
 docker compose up -d panel
 printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose exec -T panel \
-  python -m panel.cli create-admin --username owner --role owner --password-stdin
+  panel cli create-admin --username owner --role owner --password-stdin
 unset PANEL_INITIAL_PASSWORD
 docker compose up -d
 ```
@@ -34,7 +34,7 @@ Passwords require at least 12 characters and are stored with Argon2id. SQLite st
 
 `GET /api/audit` remains a read-only `items` response and supports `limit` (1–200), `before_id`, and equality filters for `actor`, `action`, and `target` (`actor` is case-insensitive). When more matching rows exist, `next_cursor` is the `before_id` value for the next page.
 
-A panel can manage other panels: the central adds a panel by URL and a `node-sync` API key, imports its users and issues, rotates and revokes accesses on it; the linked panel keeps its own owner and UI. The whole model — linked panels, generations, heartbeat, the legacy mTLS transport v1 — is documented in [FLEET.en.md](FLEET.en.md).
+A panel can manage other panels: the central adds a panel by URL and a `node-sync` API key, imports its users and issues, rotates and revokes accesses on it; the linked panel keeps its own owner and UI. Linked panels, generations and heartbeat are documented in [FLEET.en.md](FLEET.en.md).
 
 ## API keys and Bearer authentication
 
@@ -308,17 +308,13 @@ of three outcomes:
   removed. Anything that existed on the server beforehand is never touched;
 - **manual_intervention_required** — the runtime changed but cannot be rolled back
   safely. The panel names the operation id; continue with
-  `python -m panel.cli operations-resume <id>`.
+  `panel cli operations-resume <id>`.
 
 The journal survives a restart: a second `run` resumes from the last checkpoint instead
 of starting over, so a duplicate account with the same name never appears.
 
 After success the panel shows every link of the operation once. The same token does not
 open twice — it is a one-time reveal.
-
-A v1 node that still carries grants cannot be disabled; subscribers would lose access
-silently. Delete the grants first, then disable the node. Disabling a linked panel
-only pauses its link (see below).
 
 The node picker in "Issue access" lists linked panels next to this server. A grant on
 a linked panel is declarative: the operation waits as `pending_remote` and the grant
@@ -349,19 +345,18 @@ resources card on the overview links here. Sources, alert thresholds, retention 
 
 ## The Nodes screen
 
-The screen lists three kinds of nodes: this server, **linked panels** (Fleet v2) and
-legacy **v1 nodes** (the mTLS agent). The reserved "this server" node exists in every
-installation — a database migration creates it, not the operator — and is always listed
-first.
+The screen lists this server and **linked panels**. The reserved "this server" node
+exists in every installation — a database migration creates it, not the operator —
+and is always listed first.
 
-**This server.** Instead of certificates, the card shows the health of the three
+**This server.** The card shows the health of the three
 managers — Telemt, NaiveProxy, Mieru: "ok", "unavailable", or "disabled" for a protocol
 this installation does not run — plus what a central needs to link this panel: its GUID
 and the URL to enter there, with a hint to create a `node-sync` key. Once a central has
 pushed a generation, the card shows «управляется центром <GUID>» and, for the owner,
 **«Отвязать»**: the panel forgets its master, the accounts the central owned become local
-again and nothing on the runtime changes. It can be renamed, but not disabled and not
-revoked; the `node_id` `local` is reserved.
+again and nothing on the runtime changes. It can be renamed, but not disabled;
+the `node_id` `local` is reserved.
 
 **Linked panels.** The header button **«Добавить узел»** opens the dialog «Добавить узел»
 (name, `https://` URL, API key, TLS `verify` or `pin` with «Получить отпечаток»,
@@ -376,18 +371,7 @@ node means the same), **Проверить** (heartbeat and delivery now), **И�
 URL, key, TLS) and **Удалить**, which is refused while the panel still carries provisioned
 grants, unconfirmed deletions included. The API key is never displayed again (`has_api_key`).
 
-**v1 nodes.** «Зарегистрировать узел v1 (mTLS-агент)» in the collapsed «Дополнительно» block creates the node
-and immediately shows the enrollment checklist; the panel cannot issue the certificate
-for you, because the private key is generated on the node and never copied anywhere. The
-card shows identity (name, `node_id`), enrollment state, transport (last check-in) and
-daemon state, and lists certificates with their expiry (anything within two weeks is
-highlighted). **Rename** changes the display name only — `node_id` is immutable because
-certificates and grants are bound to it. **Disable / Enable**: a disabled node fails
-transport authentication; the panel refuses to disable a node with pending commands or
-with grants that are not deleted. **Revoke all certificates** requires retyping `node_id`.
-Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer.
-
-Details of both transports: [FLEET.en.md](FLEET.en.md).
+Linked-panel lifecycle and security: [FLEET.en.md](FLEET.en.md).
 
 ## The Routing screen
 
@@ -441,10 +425,10 @@ a compromised panel process, which holds the key while it runs.
 
 ```sh
 # check that a key and a database belong together (prints counts, never values)
-docker compose exec panel python -m panel.cli master-key-verify --path /run/panel/master-key
+docker compose exec panel panel cli master-key-verify --path /run/panel/master-key
 
 # rotate: add a new active key, re-encrypt in batches, verify, then narrow the keyring
-docker compose exec panel python -m panel.cli master-key-rotate --path /run/panel/master-key
+docker compose exec panel panel cli master-key-rotate --path /run/panel/master-key
 ```
 
 Rotation is overlap-first: the file carries both keys while rows are rewrapped,

@@ -420,6 +420,20 @@ def test_a_version_mismatch_is_refused(tmp_path):
         )
 
 
+@pytest.mark.parametrize("marker", [None, "0.0.0\n"])
+def test_rust_panel_release_refuses_missing_or_stale_shared_generation(tmp_path, marker):
+    source = clean_checkout(tmp_path)
+    (source / "panel").mkdir()
+    (source / "panel/Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    if marker is not None:
+        (source / "pc_common").mkdir()
+        (source / "pc_common/RELEASE").write_text(marker)
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "Rust panel generation fixture")
+    with pytest.raises(ReleaseBuildError, match="pc_common/RELEASE must match VERSION"):
+        build(tmp_path, "dist", source)
+
+
 def test_a_non_semantic_version_is_refused(tmp_path):
     source = clean_checkout(tmp_path)
     with pytest.raises(ReleaseBuildError, match="must be semantic"):

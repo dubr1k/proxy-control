@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+- The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
+- Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
+
+### Removed
+- Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
+
 ## [3.3.0] - 2026-10-25
 
 ### Added

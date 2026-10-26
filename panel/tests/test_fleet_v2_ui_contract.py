@@ -79,16 +79,6 @@ def test_unlink_dialog_tells_the_truth_about_re_mastering():
     assert 'id="unlink-master"' in dialog and "node-sync" in dialog and "удалите узел на центре" in dialog
 
 
-def test_nodes_screen_leads_with_add_node_and_hides_v1_jargon():
-    html = (STATIC / "index.html").read_text()
-    nodes = (STATIC / "js/nodes.js").read_text()
-    main = (STATIC / "js/main.js").read_text()
-    assert 'fleet: "Добавить узел"' in main and "mTLS long-poll" not in main
-    assert '"Добавить узел"' in nodes and "Введите адрес панели узла и её ключ" in html
-    # v1 registration lives only inside the collapsed «Дополнительно» block, with the jargon.
-    advanced = nodes[nodes.index('<details class="node-advanced">'):nodes.index("</details>")]
-    assert "Дополнительно" in advanced and 'data-node-action="register-v1"' in advanced and "mTLS" in advanced
-    assert nodes.count('data-node-action="register-v1"') == 1
 
 
 def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(tmp_path):

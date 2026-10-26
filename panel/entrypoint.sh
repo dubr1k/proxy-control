@@ -43,8 +43,7 @@ case ${MIERU_ENABLED-false} in
     ;;
 esac
 
-SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
-STAGE_SECRET=$SCRIPT_DIR/stage_secret.py
+PANEL_BIN=/usr/local/bin/panel
 TELEMT_SOURCE=${TELEMT_API_TOKEN_SOURCE:-/run/secrets/telemt-api-token}
 NAIVE_SOURCE=${NAIVE_MANAGER_TOKEN_SOURCE:-/run/secrets/naive-manager-token}
 MIERU_SOURCE=${MIERU_MANAGER_TOKEN_SOURCE:-/run/secrets/mieru-manager-token}
@@ -63,7 +62,7 @@ MASTER_KEY_TARGET=/run/panel/master-key
 
 # Validate the immutable Compose source before creating or copying any token.
 if [ "$mieru_enabled" = true ]; then
-  python3 "$STAGE_SECRET" verify "$MIERU_SOURCE"
+  "$PANEL_BIN" stage-secret verify "$MIERU_SOURCE"
 fi
 
 install -d -m 0700 -o panel -g panel "$PANEL_RUNTIME_DIR"
@@ -75,7 +74,7 @@ if [ -r "$NAIVE_SOURCE" ]; then
 fi
 if [ "$mieru_enabled" = true ]; then
   rm -f -- "$MIERU_TARGET"
-  python3 "$STAGE_SECRET" stage "$MIERU_SOURCE" "$MIERU_TARGET"
+  "$PANEL_BIN" stage-secret stage "$MIERU_SOURCE" "$MIERU_TARGET"
   export MIERU_MANAGER_TOKEN_FILE="$MIERU_TARGET"
 fi
 # The Xray-router token (v0.5) is staged the way the naive-manager's is: present only
@@ -102,6 +101,4 @@ if [ -r "$MASTER_KEY_SOURCE" ]; then
 fi
 # No access log: the subscription path `/s/{token}` is a bearer credential, and an
 # access line in `docker logs` would be a copy of it.
-exec setpriv --reuid=panel --regid=panel "$@" --no-new-privs \
-  uvicorn panel.app:create_app --factory --host 0.0.0.0 --port 8787 \
-  --proxy-headers --forwarded-allow-ips 172.16.0.0/12 --no-access-log
+exec setpriv --reuid=panel --regid=panel "$@" --no-new-privs "$PANEL_BIN"

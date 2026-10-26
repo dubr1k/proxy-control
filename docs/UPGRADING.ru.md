@@ -183,7 +183,7 @@ entrypoint никогда не пересоздаёт существующую.
 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml ps
 curl --fail -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 docker exec proxy-control-panel cat /app/VERSION
-docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 21 начиная с 1.1.0
+docker compose exec -T panel panel cli db-status | grep -o '"applied": true' | wc -l   # 26 применённых миграций
 sudo nginx -t
 sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
@@ -533,8 +533,8 @@ numeric group должен быть доступен UID панели `10001`, �
 
 ```bash
 umask 077
-docker run --rm -v "$PWD/secrets":/out --entrypoint python proxy_panel_by_dubr1k-panel:latest \
-  -m panel.cli master-key-init --path /out/panel-master-key
+docker run --rm -v "$PWD/secrets":/out --entrypoint /usr/local/bin/panel proxy_panel_by_dubr1k-panel:latest \
+  cli master-key-init --path /out/panel-master-key
 ```
 
 Положите копию **отдельно от базы** ([backup и restore](BACKUP_RESTORE.ru.md)). Панель, которая ещё
@@ -546,7 +546,7 @@ docker run --rm -v "$PWD/secrets":/out --entrypoint python proxy_panel_by_dubr1k
 Ротация — отдельная осознанная операция и никогда не часть обновления:
 
 ```bash
-docker compose exec panel python -m panel.cli master-key-rotate --path /run/panel/master-key
+docker compose exec panel panel cli master-key-rotate --path /run/panel/master-key
 ```
 
 Она добавляет новый активный ключ, перешифровывает все секреты батчами, проверяет результат и только
