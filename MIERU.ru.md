@@ -86,6 +86,8 @@ sudo ./scripts/prepare-mieru-token.sh prepare "$MIERU_MANAGER_TOKEN_FILE"
 sudo env MIERU_MITA_GID="$MIERU_MITA_GID" ./scripts/prepare-mieru-state.sh prepare "$MIERU_MANAGER_STATE_DIR"
 ```
 
+Скрипт подготовки токена запускает нативный `installer/bin/linux-amd64/proxy-control-installer` из архива выпуска, а не Python. Используйте полный архив с бинарником (после установки доступен также `/usr/local/libexec/prepare-mieru-token`); вызов из checkout без собранного бинарника не поддерживается.
+
 Любая unrelated UID/GID collision — hard stop. Не применяйте recursive `chown` к restored non-empty state.
 
 ## Compose overlay

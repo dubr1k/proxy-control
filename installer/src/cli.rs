@@ -269,6 +269,9 @@ pub fn run(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> i32 {
+    if let Some(status) = crate::proxy_helpers::cli(arguments, stdout, stderr) {
+        return status;
+    }
     if let Some(result) = crate::vpn_helpers::dispatch(arguments, &release_tree()) {
         return match result {
             Ok(text) => {

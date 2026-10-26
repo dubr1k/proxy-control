@@ -206,7 +206,10 @@ fn interrupted_host_files(resumed: &TransactionState) -> BTreeMap<String, Vec<u8
         ("/etc/systemd/system/mita@.service", "deploy/mita@.service"),
         ("/etc/tmpfiles.d/mita.conf", "deploy/mita.tmpfiles.conf"),
         ("/usr/local/libexec/prepare-mieru-state", "scripts/prepare-mieru-state.sh"),
-        ("/usr/local/libexec/prepare-mieru-token", "scripts/prepare_mieru_token.py"),
+        (
+            "/usr/local/libexec/prepare-mieru-token",
+            "tests/fixtures/host-golden/journals/interrupted/prepare-mieru-token.snapshot",
+        ),
         ("/etc/tmpfiles.d/proxy-control-version-agent.conf", "deploy/proxy-control-version-agent.tmpfiles.conf"),
     ] {
         files.insert(host_path.to_string(), bytes(repo().join(source)));
