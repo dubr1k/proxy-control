@@ -38,7 +38,18 @@ def private_bundle():
         yield root
 
 
-def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None, duplicate_manifest=False):
+def _malformed_object(data, change):
+    if change == "missing-comma":
+        return data.replace(b'",\n', b'"\n', 1)
+    if change == "trailing-comma":
+        return data.replace(b'\n}', b',\n}', 1)
+    if change == "duplicate-close":
+        return data + b"}\n"
+    raise AssertionError(change)
+
+
+def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None, duplicate_manifest=False,
+            manifest_syntax=None, binary_syntax=None):
     source = root / "dist"
     source.mkdir()
     native = Path("/bin/true").read_bytes()
@@ -46,6 +57,14 @@ def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None,
                 "binaries": {INSTALLER: "0" * 64 if bad_digest else _sha(native), AGENT: _sha(native)}}
     files = {"install.sh": (ROOT / "install.sh").read_bytes(), "VERSION": (version + "\n").encode(),
              "release/release.json": _json(identity), INSTALLER: native, AGENT: native}
+    if binary_syntax:
+        identity_data = files["release/release.json"]
+        if binary_syntax == "missing-comma":
+            identity_data = identity_data.replace(b'",\n', b'"\n', 1)
+        else:
+            assert binary_syntax == "trailing-comma"
+            identity_data = identity_data.replace(b'"\n  }', b'",\n  }', 1)
+        files["release/release.json"] = identity_data
     archive = source / f"proxy-control-v{version}.tar.gz"
     with tarfile.open(archive, "w:gz") as output:
         for name, content in files.items():
@@ -65,6 +84,8 @@ def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None,
     data = _json(manifest)
     if duplicate_manifest:
         data = data.replace(b'{\n', b'{\n  "version": "9.9.9",\n', 1)
+    if manifest_syntax:
+        data = _malformed_object(data, manifest_syntax)
     (source / "release-manifest.json").write_bytes(data)
     (source / "sbom.spdx.json").write_bytes(b"{}\n")
     checksums = "".join(f"{_sha((source / name).read_bytes())}  {name}\n"
@@ -129,6 +150,17 @@ def test_untrusted_or_unverified_binary_never_reaches_sudo(private_bundle, boots
     assert not log.exists()
 
 
+@pytest.mark.parametrize("bootstrap", [False, True])
+@pytest.mark.parametrize("change", [{"manifest_syntax": "missing-comma"}, {"manifest_syntax": "trailing-comma"},
+                                  {"manifest_syntax": "duplicate-close"}, {"binary_syntax": "missing-comma"},
+                                  {"binary_syntax": "trailing-comma"}])
+def test_malformed_verification_objects_never_reach_sudo(private_bundle, bootstrap, change):
+    source, archive = _bundle(private_bundle, **change)
+    result, log = _run(private_bundle, source, archive, bootstrap=bootstrap)
+    assert result.returncode != 0, result.stdout
+    assert not log.exists()
+
+
 def test_stable_bootstrap_refuses_prerelease(private_bundle):
     source, archive = _bundle(private_bundle, version="4.0.0-rc.1")
     result, log = _run(private_bundle, source, archive, bootstrap=True)
@@ -156,7 +188,14 @@ def test_shell_shims_dispatch_real_native_cli_in_private_tree(private_bundle, sc
     target = tree / INSTALLER
     target.parent.mkdir(parents=True)
     shutil.copy2(executable, target)
-    result = subprocess.run(["/bin/bash", str(tree / script), "--help"], capture_output=True, text=True, timeout=20)
+    tools = private_bundle / "tools"
+    tools.mkdir()
+    for tool in ("bash", "dirname", "uname", "id"):
+        target = shutil.which(tool)
+        assert target, tool
+        (tools / tool).symlink_to(target)
+    result = subprocess.run(["/bin/bash", str(tree / script), "--help"],
+                            env={"PATH": str(tools), "LANG": "C"}, capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout.lower()
     if command:

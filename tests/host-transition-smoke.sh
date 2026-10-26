@@ -43,44 +43,56 @@ PROXY_CONTROL_VERSION_SOCKET_GID=0
 OPERATOR_OVERRIDE=keep
 ENV
 printf '{"components":{}}\n' > "$root/etc/proxy-control/versions.json"
+# A persistent parent owns and reaps the agent, like systemd. Separate systemctl shell
+# processes cannot wait for each other's children; polling /proc had an exists/open race
+# when a native agent exited between the test and cut. The FIFO reply acknowledges wait,
+# not a guessed sleep or a second observation of an already-disappearing process.
+cat > "$root/lab/service-manager" <<'MANAGER'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec 3<> /run/service-command 4<> /run/service-result
+pid=''
+while read -r command <&3; do
+    printf '%s version-agent\n' "$command" >> /var/log/systemctl.log
+    status=0
+    case $command in
+        stop)
+            if [[ -n $pid ]]; then
+                kill "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+                pid=''
+                rm /run/agent.pid
+            fi
+            ;;
+        start)
+            if [[ -n $pid ]]; then
+                status=1
+            else
+                set -a
+                # shellcheck disable=SC1091
+                source /etc/proxy-control/version-agent.env
+                set +a
+                if grep -q '^ExecStart=/usr/bin/python3 ' /etc/systemd/system/version-agent.service; then
+                    PYTHONPATH=/opt/proxy-control /usr/bin/python3 -m version_agent.server > /var/log/agent.log 2>&1 < /dev/null &
+                else
+                    /opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent > /var/log/agent.log 2>&1 < /dev/null &
+                fi
+                pid=$!
+                printf '%s\n' "$pid" > /run/agent.pid
+            fi
+            ;;
+        *) status=90 ;;
+    esac
+    printf '%s\n' "$status" >&4
+done
+MANAGER
 cat > "$root/lab/bin/systemctl" <<'SERVICE'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-printf '%s\n' "$*" >> /var/log/systemctl.log
-case $1 in
-    daemon-reload) exit 0 ;;
-    stop)
-        if [[ -f /run/agent.pid ]]; then
-            pid=$(cat /run/agent.pid)
-            printf 'stopping PID %s: ' "$pid" >> /var/log/systemctl.log
-            [[ ! -e /proc/$pid/stat ]] || cat "/proc/$pid/stat" >> /var/log/systemctl.log
-            kill "$pid" 2>/dev/null || true
-            for _ in {1..100}; do
-                [[ -e /proc/$pid/stat ]] || break
-                [[ $(cut -d' ' -f3 "/proc/$pid/stat") != Z ]] || break
-                sleep .02
-            done
-            if [[ -e /proc/$pid/stat && $(cut -d' ' -f3 "/proc/$pid/stat") != Z ]]; then
-                cat "/proc/$pid/status" >> /var/log/systemctl.log
-                exit 1
-            fi
-            rm /run/agent.pid
-        fi
-        ;;
-    start)
-        set -a
-        # shellcheck disable=SC1091
-        source /etc/proxy-control/version-agent.env
-        set +a
-        if grep -q '^ExecStart=/usr/bin/python3 ' /etc/systemd/system/version-agent.service; then
-            PYTHONPATH=/opt/proxy-control setsid /usr/bin/python3 -m version_agent.server > /var/log/agent.log 2>&1 < /dev/null &
-        else
-            setsid /opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent > /var/log/agent.log 2>&1 < /dev/null &
-        fi
-        printf '%s\n' "$!" > /run/agent.pid
-        ;;
-    *) exit 90 ;;
-esac
+[[ $1 != daemon-reload ]] || exit 0
+printf '%s\n' "$1" > /run/service-command
+read -r status < /run/service-result
+exit "$status"
 SERVICE
 chmod 0755 "$root/lab/bin/systemctl"
 cat > "$root/lab/run" <<'RUN'
@@ -94,6 +106,8 @@ write_identity() {
     printf '{\n  "binaries": {\n    "version_agent/bin/linux-amd64/proxy-control-version-agent": "%s"\n  },\n  "commit": "%040d",\n  "manifest_sha256": "%064d",\n  "tag": "v%s",\n  "version": "%s"\n}\n' "$(sha256sum /release/version_agent/bin/linux-amd64/proxy-control-version-agent | cut -d' ' -f1)" 0 0 "$1" "$1" > /release/release/release.json
 }
 health() { curl -fsS --max-time 2 --unix-socket /run/proxy-control/version-agent.sock http://agent/v1/health; }
+mkfifo /run/service-command /run/service-result
+bash /lab/service-manager &
 systemctl start version-agent
 for _ in {1..100}; do health > /tmp/old-health.json 2>/dev/null && break; sleep .02; done
 grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/old-health.json
@@ -109,6 +123,7 @@ grep -q 'previous generation restored and verified' /tmp/failure.err
 cmp /tmp/old-unit /etc/systemd/system/version-agent.service
 cmp /tmp/old-env /etc/proxy-control/version-agent.env
 cmp /tmp/old-tmpfiles /etc/tmpfiles.d/proxy-control-version-agent.conf
+[[ ! -e /var/lib/proxy-control/installer/state.json && ! -e /var/lib/proxy-control/installer/ownership.json ]]
 health > /tmp/restored-health.json
 ! grep -q implementation /tmp/restored-health.json
 printf '%s\n' "$version" > /release/VERSION
@@ -128,6 +143,7 @@ python=$(readlink -f /usr/bin/python3)
 mount --bind /dev/null "$python"
 "$binary" --source /release migrate-agent --version "$version"
 health > /tmp/no-python-health.json
+[[ ! -e /var/lib/proxy-control/installer/state.json && ! -e /var/lib/proxy-control/installer/ownership.json ]]
 grep -Eq '"implementation"[[:space:]]*:[[:space:]]*"rust"' /tmp/no-python-health.json
 printf 'SMOKE PASS: real Python agent rollback, native replacement, strict version/implementation health, preserved overrides, no-Python rerun\n'
 systemctl stop version-agent

@@ -435,8 +435,8 @@ fi
 check_manifest() {
     LC_ALL=C awk -v archive="$archive_name" -v digest="$actual" -v version="$VERSION" '
         NR == 1 { if ($0 != "{") exit 1; next }
-        $0 == "}" { if (comma) exit 1; closed=1; next }
         closed { exit 1 }
+        $0 == "}" { if (comma) exit 1; closed=1; next }
         { if (count && !comma) exit 1
           if ($0 !~ /^  "[a-z_][a-z_0-9]*": ("[^"\\]*"|[0-9]+),?$/) exit 1
           comma=($0 ~ /,$/); count++

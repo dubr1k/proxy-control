@@ -168,6 +168,27 @@ fn full_agent_swap_rebases_python_checkpoint_and_stays_repairable() {
 }
 
 #[test]
+fn failed_owned_agent_swap_restores_both_journals_and_owned_files() {
+    let dir = TempDir::new("owned-rollback");
+    let root = dir.path().join("root");
+    let owned = fakes::owned_host(&root, dir.path(), true);
+    let before_state = fs::read(owned.engine.store().state_path()).unwrap();
+    let before_ownership = fs::read(owned.engine.store().ownership_path()).unwrap();
+    let before_unit = fs::read(root.join("etc/systemd/system/version-agent.service")).unwrap();
+    let before_code = fs::read(root.join("opt/proxy-control/version_agent/service.py")).unwrap();
+    let source = release(dir.path());
+    let runner = agent_runner(&root, json!({"status":"ok","implementation":"rust","version":"4.0.1"}), false);
+    let error = agent::migrate(&host(&root, &source, &runner), "4.0.0").unwrap_err();
+    assert!(error.contains("previous generation restored and verified"), "{error}");
+    assert_eq!(fs::read(owned.engine.store().state_path()).unwrap(), before_state);
+    assert_eq!(fs::read(owned.engine.store().ownership_path()).unwrap(), before_ownership);
+    assert_eq!(fs::read(root.join("etc/systemd/system/version-agent.service")).unwrap(), before_unit);
+    assert_eq!(fs::read(root.join("opt/proxy-control/version_agent/service.py")).unwrap(), before_code);
+    let state = owned.engine.store().read_state().unwrap();
+    owned.engine.assert_all_owned(&state).unwrap();
+}
+
+#[test]
 fn native_health_is_strict_even_when_agent_already_responds() {
     let dir = TempDir::new("strict-health");
     let root = dir.path().join("root");
@@ -228,6 +249,41 @@ fn rejects_foreign_compose_destination_before_stop() {
 }
 
 #[test]
+fn compose_migration_copies_only_project_scoped_data_volumes() {
+    let dir = TempDir::new("compose-volumes");
+    let root = dir.path().join("root");
+    let project = root.join("project");
+    fakes::write(&project.join("compose.yaml"), b"services: {}\n");
+    fakes::write(&project.join(".env"), b"\n");
+    let runner =
+        RecordingRunner::with_responder(|call| {
+            let args = call.argv.join(" ");
+            if args.starts_with("docker ps -a") {
+                Some(Reply::ok("old-container\n"))
+            } else if args.starts_with("docker ps --filter") {
+                Some(Reply::ok("panel\n"))
+            } else if args.contains(" config --format json") {
+                Some(Reply::ok(&json!({
+                "services": {"panel": {}},
+                "volumes": {
+                    "panel-data": {"name": "proxy_panel_by_dubr1k_panel-data"},
+                    "unnamed-data": {},
+                    "operator-data": {"name": "operator-panel-data"},
+                    "old-explicit-data": {"name": "mtproxy_old-explicit-data"},
+                    "external-data": {"name": "proxy_panel_by_dubr1k_external-data", "external": true},
+                    "socket-data": {"name": "proxy_panel_by_dubr1k_socket-data", "driver_opts": {"type": "tmpfs"}}
+                }
+            }).to_string()))
+            } else {
+                None
+            }
+        });
+    let result = compose::migrate(&host(&root, dir.path(), &runner), &project, true).unwrap();
+    assert!(result.ends_with("volumes panel-data unnamed-data\n"), "{result}");
+    assert!(runner.calls().iter().all(|call| call.kind != CallKind::Run));
+}
+
+#[test]
 fn unknown_host_command_option_fails_without_composing_services() {
     let mut out = Vec::new();
     let mut err = Vec::new();
@@ -272,7 +328,10 @@ fn update_fleet_v1_is_rejected_before_migration() {
 
 #[test]
 fn update_rejects_wrong_native_version_before_any_dependent_mutation() {
-    for reported in [json!({"status":"ok","implementation":"rust"}), json!({"status":"ok","implementation":"rust","version":"4.0.1"})] {
+    for reported in [
+        json!({"status":"ok","implementation":"rust"}),
+        json!({"status":"ok","implementation":"rust","version":"4.0.1"}),
+    ] {
         let dir = TempDir::new("update-bad-health");
         let root = dir.path().join("root");
         old_host(&root);
@@ -284,12 +343,18 @@ fn update_rejects_wrong_native_version_before_any_dependent_mutation() {
         let inspect_root = root.clone();
         let runner = RecordingRunner::with_responder(move |call| {
             let line = call.argv.join(" ");
-            if line.contains("/v1/versions") { Some(Reply::ok("{\"components\":{\"panel\":{\"current\":\"3.3.0\"}}}")) }
-            else if line.contains("/v1/health") {
-                let native = inspect_root.join("opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent").exists();
+            if line.contains("/v1/versions") {
+                Some(Reply::ok("{\"components\":{\"panel\":{\"current\":\"3.3.0\"}}}"))
+            } else if line.contains("/v1/health") {
+                let native = inspect_root
+                    .join("opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent")
+                    .exists();
                 Some(Reply::ok(&if native { reported.to_string() } else { json!({"status":"ok"}).to_string() }))
-            } else if line.contains("docker inspect --format") { Some(Reply::ok("mtproxy\n")) }
-            else { None }
+            } else if line.contains("docker inspect --format") {
+                Some(Reply::ok("mtproxy\n"))
+            } else {
+                None
+            }
         });
         let error = update::update(&host(&root, &source, &runner), "4.0.0", &"a".repeat(64)).unwrap_err();
         assert!(error.contains("previous generation restored and verified"));
@@ -304,8 +369,14 @@ fn update_rejects_wrong_native_version_before_any_dependent_mutation() {
 fn native_doc_examples_parse_without_a_host_audit() {
     let tree = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let mut checked = 0;
-    for file in ["README.md", "README.en.md", "INSTALL.en.md", "INSTALL.ru.md",
-        "docs/INSTALLER_REFERENCE.en.md", "docs/INSTALLER_REFERENCE.ru.md"] {
+    for file in [
+        "README.md",
+        "README.en.md",
+        "INSTALL.en.md",
+        "INSTALL.ru.md",
+        "docs/INSTALLER_REFERENCE.en.md",
+        "docs/INSTALLER_REFERENCE.ru.md",
+    ] {
         let text = fs::read_to_string(tree.join(file)).unwrap();
         let mut marked = false;
         for line in text.lines() {
@@ -313,10 +384,13 @@ fn native_doc_examples_parse_without_a_host_audit() {
                 marked = !marked && line.contains("installer-check");
                 continue;
             }
-            if !marked { continue; }
+            if !marked {
+                continue;
+            }
             let Some(command) = line.trim().strip_prefix("sudo bash install.sh ") else { continue };
             let arguments: Vec<String> = command.split_whitespace().map(str::to_string).collect();
-            installer_core::cli::parse(&arguments, 100).unwrap_or_else(|error| panic!("{file}: {command}: {}", error.stderr));
+            installer_core::cli::parse(&arguments, 100)
+                .unwrap_or_else(|error| panic!("{file}: {command}: {}", error.stderr));
             if let Some(index) = arguments.iter().position(|arg| arg == "--config") {
                 installer_core::config::load_config(&tree.join(&arguments[index + 1])).unwrap();
             }
