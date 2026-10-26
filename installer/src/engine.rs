@@ -25,7 +25,7 @@ use crate::error::Error;
 use crate::journal::{
     Checkpoint, CheckpointData, Ownership, OwnershipEntry, Phase, RollbackTarget, Status, TransactionState,
 };
-use crate::plan::{Action, Evidence, InstallPlan};
+use crate::planner::{Action, Evidence, InstallPlan};
 use crate::store::TransactionStore;
 
 /// Files the version-agent legitimately rewrites after the installer recorded them
@@ -126,6 +126,16 @@ impl TransactionEngine {
 
     pub fn store(&self) -> &TransactionStore {
         &self.store
+    }
+
+    /// The registered adapter called `name` (the planner composes a plan from these).
+    pub fn adapter_named(&self, name: &str) -> Option<Arc<dyn Adapter>> {
+        self.adapters.get(name).cloned()
+    }
+
+    /// The names of the registered adapters, sorted.
+    pub fn adapter_names(&self) -> Vec<String> {
+        self.adapters.keys().cloned().collect()
     }
 
     /// Install an approved plan. The accepted digest must be the plan's; re-applying the same
@@ -407,7 +417,7 @@ impl TransactionEngine {
                 }
                 Phase::Prepared | Phase::RolledBack => continue,
             };
-            if !evidence.success() {
+            if !evidence.success {
                 return Err(crate::error::transaction(format!("adapter rollback failed: {}", action.adapter)).into());
             }
             if !purge_data {
@@ -447,12 +457,12 @@ impl TransactionEngine {
 
     fn verify(&self, action: &Action) -> Result<Evidence, Error> {
         let evidence = self.adapter(action)?.verify(action)?;
-        if evidence.action_id() != action.id {
+        if evidence.action_id != action.id {
             return Err(
                 crate::error::transaction(format!("adapter returned invalid evidence: {}", action.adapter)).into()
             );
         }
-        if !evidence.success() {
+        if !evidence.success {
             return Err(crate::error::transaction(format!("adapter verification failed: {}", action.adapter)).into());
         }
         Ok(evidence)

@@ -143,13 +143,13 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     assert chooser_text(browser, "#confirm-title") == "Закрыть, ничего не скопировав?"
     browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed")
-    assert browser.js("document.querySelector('#bundle-modal').open")
+    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
     # Esc asks the same way: a real key press (the dialog's `close` event, which ends the first question,
     # is a task behind `open`, so the press is repeated until the question appears).
     press_escape_until(browser, "document.querySelector('#confirm').open === true", "confirm after Esc")
     browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed again")
-    assert browser.js("document.querySelector('#bundle-modal').open")
+    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
     # The folded data are all there, secrets in the open.
     browser.js("document.querySelector('#bundle-details').open = true; true")
     assert browser.js("document.querySelectorAll('#bundle-body .bundle-grant').length") >= 1

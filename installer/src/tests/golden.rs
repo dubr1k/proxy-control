@@ -19,7 +19,7 @@ use crate::handoff::rebase_panel_ownership;
 use crate::journal::{CheckpointData, RollbackTarget, Status, TransactionState};
 use crate::migration::rebase_agent_ownership;
 use crate::model::InstallerConfig;
-use crate::plan::{Action, AuditFacts, Evidence, InstallPlan};
+use crate::planner::{Action, AuditFacts, Evidence, InstallPlan};
 use crate::store::TransactionStore;
 use crate::testkit::{engine_for, TempDir};
 

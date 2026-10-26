@@ -1,10 +1,9 @@
 //! `panel cli …` — the administration commands of `python -m panel.cli` (`panel/cli.py`), and
 //! `panel stage-secret verify|stage` (`panel/stage_secret.py`).
 //!
-//! This is the skeleton of WP4: the commands the harness and the installer need first
-//! (`create-admin --password-stdin`, `api-key-create`, `master-key-init`) with Python's stdout,
+//! Fleet v1 commands are retired (owner decision 2). The remaining commands keep Python's stdout,
 //! messages and exit codes (0; 2 for a usage error, as argparse; 1 for a failure Python let escape
-//! as a traceback). The other commands answer exit 2 until WP14 ports them.
+//! as a traceback).
 
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -18,7 +17,7 @@ use panel_secrets::store::Store;
 use serde_json::json;
 
 /// The commands of `cli.py`, for the usage line.
-const COMMANDS: &str = "create-admin,fleet-register-node,fleet-ca-init,fleet-sign-csr,fleet-bind-cert,fleet-revoke-cert,db-migrate,db-status,master-key-init,master-key-rotate,master-key-verify,operations-resume,node-list,node-disable,node-enable,api-key-create,api-key-revoke";
+const COMMANDS: &str = "create-admin,db-migrate,db-status,master-key-init,master-key-rotate,master-key-verify,operations-resume,node-list,node-disable,node-enable,api-key-create,api-key-revoke";
 
 /// How a command ended.
 #[derive(Debug, PartialEq, Eq)]
@@ -77,11 +76,16 @@ pub fn run(args: &[String], stdin: &mut dyn std::io::BufRead, out: &mut dyn std:
     let sub = format!("{prog} {command}");
     match command.as_str() {
         "create-admin" => create_admin(&sub, &database, options, stdin, out),
-        "api-key-create" => api_key_create(&sub, &database, options, out),
+        "db-migrate" => db_migrate(&sub, &database, options, out),
+        "db-status" => db_status(&sub, &database, options, out),
         "master-key-init" => master_key_init(&sub, options, out),
-        other if COMMANDS.split(',').any(|name| name == other) => {
-            usage(&sub, format!("{other} is not available in this build yet"))
-        }
+        "master-key-rotate" => master_key_rotate(&sub, &database, options, out),
+        "master-key-verify" => master_key_verify(&sub, &database, options, out),
+        "operations-resume" => operations_resume(&sub, &database, options, out),
+        "node-list" => node_list(&sub, &database, options, out),
+        "node-disable" | "node-enable" => node_toggle(&sub, &database, options, out, command == "node-disable"),
+        "api-key-create" => api_key_create(&sub, &database, options, out),
+        "api-key-revoke" => api_key_revoke(&sub, &database, options, out),
         other => usage(
             prog,
             format!("argument command: invalid choice: {} (choose from {})", panel_core::pytext::repr(other), {
@@ -285,6 +289,226 @@ fn master_key_init(prog: &str, options: Options, out: &mut dyn std::io::Write) -
     }
 }
 
+fn db_migrate(_prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&[]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let result = (|| -> Result<Vec<i64>, String> {
+        let database = Database::open(database).map_err(|error| error.to_string())?;
+        panel_core::migrations::apply_migrations(&database).map_err(|error| error.to_string())
+    })();
+    match result {
+        Ok(applied) => {
+            let line = json!({"database": database.display().to_string(), "applied": applied});
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&line));
+            Exit::Ok
+        }
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn db_status(_prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&[]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let result = Database::open(database)
+        .map_err(|error| error.to_string())
+        .and_then(|database| panel_core::migrations::migration_status(&database).map_err(|error| error.to_string()));
+    match result {
+        Ok(status) => {
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&json!(status)));
+            Exit::Ok
+        }
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn master_key_rotate(prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&["--path", "--batch-size"]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let path = match required(prog, &options, &["--path"]) {
+        Ok(values) => py_path(values[0]),
+        Err(exit) => return exit,
+    };
+    let batch_size = match options.value("--batch-size") {
+        None => 200,
+        Some(text) => match panel_core::pytext::int_from_str(text) {
+            Ok(value) => value,
+            Err(_) => {
+                return usage(
+                    prog,
+                    format!("argument --batch-size: invalid int value: {}", panel_core::pytext::repr(text)),
+                )
+            }
+        },
+    };
+    if batch_size < 1 {
+        return usage("cli.py", "--batch-size must be positive");
+    }
+    let result = Database::open(database).map_err(|error| error.to_string()).and_then(|database| {
+        panel_secrets::secrets_store::rotate_master_key(&database, &path, batch_size).map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(rotation) => {
+            let line = json!({"active_key_id": rotation.active_key_id, "rewrapped": rotation.rewrapped});
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&line));
+            Exit::Ok
+        }
+        Err(error) if error == panel_secrets::secrets_store::RotationError::LEFT_OVER => usage("cli.py", error),
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn master_key_verify(prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&["--path"]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let path = match required(prog, &options, &["--path"]) {
+        Ok(values) => py_path(values[0]),
+        Err(exit) => return exit,
+    };
+    let result = Database::open(database).map_err(|error| error.to_string()).and_then(|database| {
+        panel_secrets::secrets_store::verify_master_key(&database, &path).map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(counts) => {
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&json!(counts)));
+            Exit::Ok
+        }
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn api_key_revoke(prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&["--name"]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let name = match required(prog, &options, &["--name"]) {
+        Ok(values) => values[0].to_string(),
+        Err(exit) => return exit,
+    };
+    let result = (|| -> Result<usize, String> {
+        let database = Database::open(database).map_err(|error| error.to_string())?;
+        let service = ApiKeyService::new(database);
+        let keys = service.list().map_err(|error| error.to_string())?;
+        let mut revoked = 0;
+        for key in keys.into_iter().filter(|key| key.name == name) {
+            service
+                .delete(key.id, &Actor::new(None, "installer"), "127.0.0.1", None)
+                .map_err(|error| error.to_string())?;
+            revoked += 1;
+        }
+        Ok(revoked)
+    })();
+    match result {
+        Ok(revoked) => {
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&json!({"revoked": revoked})));
+            Exit::Ok
+        }
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn node_list(_prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    if let Some(unknown) = options.unknown(&[]) {
+        return usage("cli.py", format!("unrecognized arguments: {unknown}"));
+    }
+    let result = (|| -> Result<String, String> {
+        let database = Database::open(database).map_err(|error| error.to_string())?;
+        panel_core::migrations::apply_migrations(&database).map_err(|error| error.to_string())?;
+        let service = panel_nodes::NodeLifecycleService::new(database, panel_core::clock::SystemClock::shared());
+        let views = service.list().map_err(|error| error.to_string())?;
+        Ok(panel_nodes::service::cli_node_list(&views))
+    })();
+    match result {
+        Ok(line) => {
+            let _ = writeln!(out, "{line}");
+            Exit::Ok
+        }
+        Err(error) => Exit::Failed(error),
+    }
+}
+
+fn one_positional(prog: &str, options: &Options, name: &str) -> Result<String, Exit> {
+    if let Some((key, _)) = options.pairs.first() {
+        return Err(usage("cli.py", format!("unrecognized arguments: {key}")));
+    }
+    match options.positional.as_slice() {
+        [] => Err(usage(prog, format!("the following arguments are required: {name}"))),
+        [value] => Ok(value.clone()),
+        [_, extra @ ..] => Err(usage("cli.py", format!("unrecognized arguments: {}", extra.join(" ")))),
+    }
+}
+
+fn node_toggle(prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write, disabled: bool) -> Exit {
+    let node_id = match one_positional(prog, &options, "node_id") {
+        Ok(value) => value,
+        Err(exit) => return exit,
+    };
+    let database = match Database::open(database) {
+        Ok(database) => database,
+        Err(error) => return Exit::Failed(error.to_string()),
+    };
+    if let Err(error) = panel_core::migrations::apply_migrations(&database) {
+        return Exit::Failed(error.to_string());
+    }
+    let service = panel_nodes::NodeLifecycleService::new(database, panel_core::clock::SystemClock::shared());
+    let view = match service.set_disabled(&node_id, disabled, &panel_nodes::AuditContext::cli()) {
+        Ok(view) => view,
+        Err(error) => {
+            return match panel_nodes::service::cli_error_message(&node_id, &error) {
+                Some(message) => usage("cli.py", message),
+                None => Exit::Failed(error.to_string()),
+            }
+        }
+    };
+    let _ = writeln!(out, "{}", panel_nodes::service::cli_toggle_line(&view));
+    Exit::Ok
+}
+
+fn operations_resume(prog: &str, database: &PathBuf, options: Options, out: &mut dyn std::io::Write) -> Exit {
+    let operation_id = match one_positional(prog, &options, "operation_id") {
+        Ok(value) => value,
+        Err(exit) => return exit,
+    };
+    let result = (|| -> Result<panel_clients::provisioning::OperationResult, Option<String>> {
+        let settings = panel_core::settings::Settings::from_env().map_err(|error| Some(error.to_string()))?;
+        let keyring = settings
+            .master_key_file
+            .as_deref()
+            .map(Keyring::load)
+            .transpose()
+            .map_err(|error| Some(error.to_string()))?;
+        let secrets = panel_secrets::secrets_store::SecretStore::new(keyring);
+        let database = Database::open(database).map_err(|error| Some(error.to_string()))?;
+        let runtime = panel_fleet::node::ManagerRuntime::from_settings(&settings, None);
+        let adapters = crate::routes::clients::adapters(&runtime);
+        let clock = panel_core::clock::SystemClock::shared();
+        let clients =
+            panel_clients::ClientService::new(database.clone(), secrets.clone(), clock.clone(), adapters.clone());
+        let service = panel_clients::ProvisioningService::new(database, secrets, adapters, clients, clock);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| Some(error.to_string()))?;
+        match runtime.block_on(service.run(&operation_id)) {
+            Ok(result) => Ok(result),
+            Err(panel_clients::ClientsError::NotFound(_)) => Err(None),
+            Err(error) => Err(Some(error.to_string())),
+        }
+    })();
+    match result {
+        Ok(result) => {
+            let line = json!({"operation_id": result.operation_id, "status": result.status});
+            let _ = writeln!(out, "{}", panel_core::pyjson::sorted(&line));
+            Exit::Ok
+        }
+        Err(None) => usage("cli.py", format!("unknown operation {operation_id}")),
+        Err(Some(error)) => Exit::Failed(error),
+    }
+}
+
 /// The process side of [`run`]: real stdin/stdout, messages on stderr, the exit code.
 pub fn main(args: &[String]) -> i32 {
     let stdin = std::io::stdin();
@@ -387,8 +611,66 @@ mod tests {
         );
         assert!(Keyring::load(path.as_ref()).is_ok());
         assert_eq!(call(&["master-key-init", "--path", path], "").0.code(), 2);
-        assert_eq!(call(&["db-status"], "").0.code(), 2);
         assert_eq!(call(&["bogus"], "").0.code(), 2);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn database_key_and_node_commands_match_python_stdout() {
+        let dir = temp();
+        let db = dir.join("panel.db");
+        let db_text = db.to_str().unwrap();
+        let (exit, out) = call(&["--database", db_text, "db-migrate"], "");
+        assert_eq!(exit, Exit::Ok);
+        let migrated = parse(out.as_bytes());
+        assert_eq!(migrated["database"], db_text);
+        assert_eq!(migrated["applied"].as_array().unwrap().len(), 26);
+        let (exit, out) = call(&["--database", db_text, "db-migrate"], "");
+        assert_eq!((exit, parse(out.as_bytes())["applied"].as_array().unwrap().len()), (Exit::Ok, 0));
+        let (exit, out) = call(&["--database", db_text, "db-status"], "");
+        assert_eq!(exit, Exit::Ok);
+        let status = parse(out.as_bytes());
+        assert_eq!(status.as_array().unwrap().len(), 26);
+        assert!(status.as_array().unwrap().iter().all(|row| row["applied"] == true && row["checksum_ok"] == true));
+
+        let (exit, out) = call(&["--database", db_text, "node-list"], "");
+        assert_eq!(exit, Exit::Ok);
+        let nodes = parse(out.as_bytes());
+        assert_eq!(nodes[0]["node_id"], "local");
+        let (exit, out) = call(&["--database", db_text, "node-enable", "local"], "");
+        assert_eq!((exit, out.as_str()), (Exit::Ok, "{\"disabled\": false, \"node_id\": \"local\"}\n"));
+        assert_eq!(call(&["--database", db_text, "node-disable", "local"], "").0.code(), 2);
+        assert_eq!(call(&["--database", db_text, "node-enable", "missing"], "").0.code(), 2);
+
+        let (exit, _) = call(&["--database", db_text, "api-key-create", "--name", "mcp", "--scope", "admin"], "");
+        assert_eq!(exit, Exit::Ok);
+        let (exit, out) = call(&["--database", db_text, "api-key-revoke", "--name", "mcp"], "");
+        assert_eq!((exit, out.as_str()), (Exit::Ok, "{\"revoked\": 1}\n"));
+        let (exit, out) = call(&["--database", db_text, "api-key-revoke", "--name", "mcp"], "");
+        assert_eq!((exit, out.as_str()), (Exit::Ok, "{\"revoked\": 0}\n"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn master_key_verify_and_rotate_use_python_json() {
+        let dir = temp();
+        let db = dir.join("panel.db");
+        let db_text = db.to_str().unwrap();
+        let key = dir.join("master-key");
+        let key_text = key.to_str().unwrap();
+        assert_eq!(call(&["master-key-init", "--path", key_text], "").0, Exit::Ok);
+        assert_eq!(call(&["--database", db_text, "db-migrate"], "").0, Exit::Ok);
+        let (exit, out) = call(&["--database", db_text, "master-key-verify", "--path", key_text], "");
+        assert_eq!((exit, out.as_str()), (Exit::Ok, "{}\n"));
+        let (exit, out) = call(&["--database", db_text, "master-key-rotate", "--path", key_text], "");
+        assert_eq!(exit, Exit::Ok);
+        let rotated = parse(out.as_bytes());
+        assert!(rotated["active_key_id"].as_str().unwrap().starts_with("k-"));
+        assert_eq!(rotated["rewrapped"], json!({}));
+        assert_eq!(
+            call(&["--database", db_text, "master-key-rotate", "--path", key_text, "--batch-size", "0"], "").0.code(),
+            2
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

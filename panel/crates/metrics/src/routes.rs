@@ -44,12 +44,13 @@ pub struct Caller {
     pub via_api_key: bool,
 }
 
-/// What the routes need from the application state (implemented by the shell's `AppState`).
+/// What the handlers need from the application state (implemented by the shell's `AppState`).
+///
+/// The web shell runs `context.current` itself and calls the framework-free handlers ([`live`],
+/// [`clients`], [`stream`], [`history`], [`summary`]) with the [`Caller`] and the request head;
+/// [`router`] serves the same handlers as a stand-alone axum router over [`MetricsHttp`].
 pub trait MetricsState: Clone + Send + Sync + 'static {
     fn metrics(&self) -> &Arc<Metrics>;
-
-    /// `Depends(context.current)`: the caller, or the response to send instead (401/403/429…).
-    fn current<'a>(&'a self, parts: &'a Parts) -> BoxFuture<'a, Result<Caller, Response>>;
 
     /// A long stream's re-check: the session cookie (or the bearer key for API-key callers) of
     /// the original request is still valid.
@@ -69,13 +70,55 @@ pub trait MetricsState: Clone + Send + Sync + 'static {
     }
 }
 
-pub fn router<S: MetricsState>() -> Router<S> {
+/// What the stand-alone [`router`] needs on top of [`MetricsState`]: the caller check the web shell
+/// does itself when it serves the handlers.
+pub trait MetricsHttp: MetricsState {
+    /// `Depends(context.current)`: the caller, or the response to send instead (401/403/429…).
+    fn current<'a>(&'a self, parts: &'a Parts) -> BoxFuture<'a, Result<Caller, Response>>;
+}
+
+/// The metrics routes as a stand-alone axum router.
+pub fn router<S: MetricsHttp>() -> Router<S> {
     Router::new()
-        .route("/api/metrics/live", get(live::<S>))
-        .route("/api/metrics/clients", get(clients::<S>))
-        .route("/api/metrics/stream", get(stream::<S>))
-        .route("/api/metrics/history", get(history::<S>))
-        .route("/api/metrics/summary", get(summary::<S>))
+        .route("/api/metrics/live", get(live_route::<S>))
+        .route("/api/metrics/clients", get(clients_route::<S>))
+        .route("/api/metrics/stream", get(stream_route::<S>))
+        .route("/api/metrics/history", get(history_route::<S>))
+        .route("/api/metrics/summary", get(summary_route::<S>))
+}
+
+/// `context.current` first, then the handler.
+async fn serve<S, F, Fut>(state: S, request: Request, handler: F) -> Response
+where
+    S: MetricsHttp,
+    F: FnOnce(S, Caller, Parts) -> Fut,
+    Fut: std::future::Future<Output = Response>,
+{
+    let (parts, _body) = request.into_parts();
+    match state.current(&parts).await {
+        Ok(caller) => handler(state, caller, parts).await,
+        Err(response) => response,
+    }
+}
+
+async fn live_route<S: MetricsHttp>(State(state): State<S>, request: Request) -> Response {
+    serve(state, request, |state, caller, parts| async move { live(&state, caller, &parts).await }).await
+}
+
+async fn clients_route<S: MetricsHttp>(State(state): State<S>, request: Request) -> Response {
+    serve(state, request, |state, caller, parts| async move { clients(&state, caller, &parts).await }).await
+}
+
+async fn stream_route<S: MetricsHttp>(State(state): State<S>, request: Request) -> Response {
+    serve(state, request, |state, caller, parts| async move { stream(&state, caller, &parts).await }).await
+}
+
+async fn history_route<S: MetricsHttp>(State(state): State<S>, request: Request) -> Response {
+    serve(state, request, |state, caller, parts| async move { history(&state, caller, &parts).await }).await
+}
+
+async fn summary_route<S: MetricsHttp>(State(state): State<S>, request: Request) -> Response {
+    serve(state, request, |state, caller, parts| async move { summary(&state, caller, &parts).await }).await
 }
 
 /// A JSON answer rendered like Starlette's `JSONResponse`, with `Cache-Control: no-store`.
@@ -128,12 +171,9 @@ fn finish<S: MetricsState>(state: &S, result: Result<Response, Stop>) -> Respons
     }
 }
 
-/// The caller and the parsed query; validation issues become one 422.
-async fn begin<S: MetricsState>(state: &S, request: Request) -> Result<(Parts, Caller, Query), Stop> {
-    let (parts, _body) = request.into_parts();
-    let caller = state.current(&parts).await.map_err(|response| Stop::Response(Box::new(response)))?;
-    let query = Query::parse(parts.uri.query());
-    Ok((parts, caller, query))
+/// The parsed query of the request (the caller was checked before).
+fn query_of(parts: &Parts) -> Query {
+    Query::parse(parts.uri.query())
 }
 
 fn validated(issues: Vec<ValidationIssue>) -> Result<(), Stop> {
@@ -247,12 +287,13 @@ fn envelope(metrics: &Metrics, entries: Vec<Value>) -> Value {
     json!({"ts": float(round_to(metrics.clock().time(), 3)), "interval": float(interval), "nodes": entries})
 }
 
-async fn live<S: MetricsState>(State(state): State<S>, request: Request) -> Response {
+/// `GET /api/metrics/live` after `context.current`.
+pub async fn live<S: MetricsState>(state: &S, _caller: Caller, parts: &Parts) -> Response {
     let result: Result<Response, Stop> = async {
-        let (_parts, _caller, query) = begin(&state, request).await?;
+        let query = query_of(parts);
         let metrics = state.metrics();
         enabled(metrics)?;
-        let (node, others) = check_node(&state, query.get("node").unwrap_or(LOCAL_NODE)).await?;
+        let (node, others) = check_node(state, query.get("node").unwrap_or(LOCAL_NODE)).await?;
         let payload = match live_payload(metrics, &node, &others, LIVE_BUDGET).await {
             Some(payload) => payload,
             None => {
@@ -268,12 +309,13 @@ async fn live<S: MetricsState>(State(state): State<S>, request: Request) -> Resp
         Ok(json_response(200, &payload))
     }
     .await;
-    finish(&state, result)
+    finish(state, result)
 }
 
-async fn clients<S: MetricsState>(State(state): State<S>, request: Request) -> Response {
+/// `GET /api/metrics/clients` after `context.current`.
+pub async fn clients<S: MetricsState>(state: &S, _caller: Caller, parts: &Parts) -> Response {
     let result: Result<Response, Stop> = async {
-        let (_parts, _caller, query) = begin(&state, request).await?;
+        let query = query_of(parts);
         let mut issues = Vec::new();
         let protocol = query::required(&query, "protocol", &mut issues);
         validated(issues)?;
@@ -291,15 +333,17 @@ async fn clients<S: MetricsState>(State(state): State<S>, request: Request) -> R
         Ok(json_response(200, &body))
     }
     .await;
-    finish(&state, result)
+    finish(state, result)
 }
 
-async fn stream<S: MetricsState>(State(state): State<S>, request: Request) -> Response {
+/// `GET /api/metrics/stream` after `context.current`: the SSE answer (the stream re-checks the
+/// caller's session or key with the request's headers).
+pub async fn stream<S: MetricsState>(state: &S, caller: Caller, parts: &Parts) -> Response {
     let result: Result<Response, Stop> = async {
-        let (parts, caller, query) = begin(&state, request).await?;
+        let query = query_of(parts);
         let metrics = state.metrics().clone();
         enabled(&metrics)?;
-        let (node, others) = check_node(&state, query.get("node").unwrap_or(LOCAL_NODE)).await?;
+        let (node, others) = check_node(state, query.get("node").unwrap_or(LOCAL_NODE)).await?;
         let Some(lease) = metrics.streams().acquire(&caller.token_hash) else {
             let mut response = json_response(429, &json!({"detail": "too many metric streams"}));
             response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from_static("5"));
@@ -330,12 +374,13 @@ async fn stream<S: MetricsState>(State(state): State<S>, request: Request) -> Re
         Ok(response)
     }
     .await;
-    finish(&state, result)
+    finish(state, result)
 }
 
-async fn history<S: MetricsState>(State(state): State<S>, request: Request) -> Response {
+/// `GET /api/metrics/history` after `context.current`.
+pub async fn history<S: MetricsState>(state: &S, _caller: Caller, parts: &Parts) -> Response {
     let result: Result<Response, Stop> = async {
-        let (_parts, _caller, query) = begin(&state, request).await?;
+        let query = query_of(parts);
         let mut issues = Vec::new();
         let series = query::required(&query, "series", &mut issues);
         let points = query::bounded_int(&query, "points", POINTS_DEFAULT, POINTS_MIN, POINTS_MAX, &mut issues);
@@ -350,7 +395,7 @@ async fn history<S: MetricsState>(State(state): State<S>, request: Request) -> R
         if node == "all" {
             return Err(ApiError::detail(422, "history is served for one node at a time").into());
         }
-        let (node, _others) = check_node(&state, node).await?;
+        let (node, _others) = check_node(state, node).await?;
         if node != LOCAL_NODE {
             let source = metrics.source();
             let body = match &source {
@@ -371,7 +416,7 @@ async fn history<S: MetricsState>(State(state): State<S>, request: Request) -> R
         Ok(json_response(200, &Value::Object(body)))
     }
     .await;
-    finish(&state, result)
+    finish(state, result)
 }
 
 fn summary_placeholder(item: &MetricsNode, status: &str) -> Map<String, Value> {
@@ -502,15 +547,16 @@ fn compare(nodes: &[Value]) -> Value {
     Value::Array(rows.into_iter().map(|(_, row)| row).collect())
 }
 
-async fn summary<S: MetricsState>(State(state): State<S>, request: Request) -> Response {
+/// `GET /api/metrics/summary` after `context.current`.
+pub async fn summary<S: MetricsState>(state: &S, _caller: Caller, parts: &Parts) -> Response {
     let result: Result<Response, Stop> = async {
-        let (_parts, _caller, query) = begin(&state, request).await?;
+        let query = query_of(parts);
         let node = query.get("node").unwrap_or(LOCAL_NODE);
         let range = query.get("range").unwrap_or("24h");
         let metrics = state.metrics();
         enabled(metrics)?;
         check_range(range)?;
-        let (node, others) = check_node(&state, node).await?;
+        let (node, others) = check_node(state, node).await?;
         let mut nodes = Vec::new();
         if includes_local(&node) {
             nodes.push(metrics.local_summary(range).await?);
@@ -528,7 +574,7 @@ async fn summary<S: MetricsState>(State(state): State<S>, request: Request) -> R
         Ok(json_response(200, &Value::Object(body)))
     }
     .await;
-    finish(&state, result)
+    finish(state, result)
 }
 
 #[cfg(test)]

@@ -13,7 +13,7 @@ use std::io;
 use pc_host::runner::{BoundedError, RunError};
 use pc_host::TxError;
 
-use crate::plan::PlanError;
+use installer_core::planner::PlanError;
 
 /// `TransactionError(message)` (pc_host keeps its own constructor crate-private).
 pub fn transaction(message: impl Into<String>) -> TxError {
@@ -54,7 +54,7 @@ impl Error {
     pub fn python_class_name(&self) -> &str {
         match self {
             Error::Tx(err) => err.python_class_name(),
-            Error::Plan(_) => "PlanError",
+            Error::Plan(err) => err.python_class_name(),
             Error::Other { class, .. } | Error::Fatal { class, .. } => class,
         }
     }
@@ -63,7 +63,7 @@ impl Error {
     pub fn message(&self) -> String {
         match self {
             Error::Tx(err) => err.message(),
-            Error::Plan(err) => err.0.clone(),
+            Error::Plan(err) => err.message().to_string(),
             Error::Other { message, .. } | Error::Fatal { message, .. } => message.clone(),
         }
     }
@@ -153,7 +153,9 @@ mod tests {
         );
         let io: Error = io::Error::from_raw_os_error(libc_enoent()).into();
         assert_eq!(io.python_class_name(), "FileNotFoundError");
-        assert_eq!(Error::from(PlanError("bad".into())).python_class_name(), "PlanError");
+        assert_eq!(Error::from(PlanError::new("bad")).python_class_name(), "PlanError");
+        let refused = Error::from(PlanError::adapter("NginxError", "port 80 is taken"));
+        assert_eq!((refused.python_class_name(), refused.message().as_str()), ("NginxError", "port 80 is taken"));
         let crash = Error::from(RunError::CleanupUnconfirmed);
         assert!(crash.is_fatal());
         assert_eq!(crash.python_class_name(), "SystemExit");

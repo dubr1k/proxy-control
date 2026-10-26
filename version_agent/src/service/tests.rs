@@ -65,7 +65,16 @@ impl Updater for Recording {
     }
 
     fn rebuild_managers(&self, agent: &Arc<VersionAgent>) -> Result<Value, AgentError> {
-        NotPorted.rebuild_managers(agent)
+        let services = {
+            let _lock = agent.lock()?;
+            let state = agent.load_state()?;
+            agent.rebuild_preflight(&state)?
+        };
+        if services.is_empty() {
+            agent.managers_state()
+        } else {
+            Err(AgentError::Internal("recording updater cannot rebuild services".into()))
+        }
     }
 }
 
@@ -289,19 +298,6 @@ fn an_unverified_rollback_blocks_updates_and_a_failed_rollback_is_recorded() {
     let error = agent.update("mita", "3.35.0", Some("3.34.0")).unwrap_err();
     assert!(error.message().contains("operator recovery"), "{error:?}");
     assert_eq!(error.update_state(), Some(UpdateState::RollbackFailed));
-}
-
-#[test]
-fn the_stub_updater_refuses_with_the_python_error_shape() {
-    let dir = TempDir::new("agent-stub");
-    std::fs::write(dir.join("state.json"), json!({"components": {"naive": {"version": "2.11.3"}}}).to_string())
-        .unwrap();
-    let agent = Arc::new(agent_in(&dir));
-    let before = std::fs::read(dir.join("state.json")).unwrap();
-    let error = agent.update("naive", "2.11.4-custom.1", None).unwrap_err();
-    assert_eq!(error.update_state(), Some(UpdateState::UpdateFailed));
-    assert_eq!(std::fs::read(dir.join("state.json")).unwrap(), before);
-    assert_eq!(agent.update("panel", "9.9.9", None).unwrap_err().update_state(), Some(UpdateState::UpdateFailed));
 }
 
 #[test]

@@ -964,6 +964,7 @@ dependencies = [
  "panel-managers",
  "panel-metrics",
  "panel-model",
+ "panel-nodes",
  "panel-protocols",
  "panel-secrets",
  "serde_json",

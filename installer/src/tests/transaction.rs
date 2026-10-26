@@ -54,16 +54,16 @@ fn unconfirmed_core_command_cleanup_prevents_automatic_rollback() {
             fn plan(
                 &self,
                 c: &crate::model::InstallerConfig,
-                f: &crate::plan::AuditFacts,
-            ) -> Result<Vec<crate::plan::Action>, Error> {
+                f: &crate::planner::AuditFacts,
+            ) -> Result<Vec<crate::planner::Action>, Error> {
                 self.0.plan(c, f)
             }
-            fn prepare(&self, a: &crate::plan::Action) -> Result<crate::journal::CheckpointData, Error> {
+            fn prepare(&self, a: &crate::planner::Action) -> Result<crate::journal::CheckpointData, Error> {
                 self.0.prepare(a)
             }
             fn apply(
                 &self,
-                a: &crate::plan::Action,
+                a: &crate::planner::Action,
                 c: crate::journal::CheckpointData,
             ) -> Result<crate::journal::CheckpointData, Error> {
                 self.0.apply(a, c)?;
@@ -71,37 +71,37 @@ fn unconfirmed_core_command_cleanup_prevents_automatic_rollback() {
             }
             fn reconcile_apply(
                 &self,
-                a: &crate::plan::Action,
+                a: &crate::planner::Action,
                 c: crate::journal::CheckpointData,
             ) -> Result<crate::journal::CheckpointData, Error> {
                 self.0.reconcile_apply(a, c)
             }
-            fn verify(&self, a: &crate::plan::Action) -> Result<crate::plan::Evidence, Error> {
+            fn verify(&self, a: &crate::planner::Action) -> Result<crate::planner::Evidence, Error> {
                 self.0.verify(a)
             }
             fn repair(
                 &self,
-                a: &crate::plan::Action,
+                a: &crate::planner::Action,
                 c: crate::journal::CheckpointData,
             ) -> Result<crate::journal::CheckpointData, Error> {
                 self.0.repair(a, c)
             }
             fn rollback(
                 &self,
-                a: &crate::plan::Action,
+                a: &crate::planner::Action,
                 c: crate::journal::CheckpointData,
                 p: bool,
                 t: crate::journal::RollbackTarget,
-            ) -> Result<crate::plan::Evidence, Error> {
+            ) -> Result<crate::planner::Evidence, Error> {
                 self.0.rollback(a, c, p, t)
             }
             fn reconcile_rollback(
                 &self,
-                a: &crate::plan::Action,
+                a: &crate::planner::Action,
                 c: crate::journal::CheckpointData,
                 p: bool,
                 t: crate::journal::RollbackTarget,
-            ) -> Result<crate::plan::Evidence, Error> {
+            ) -> Result<crate::planner::Evidence, Error> {
                 self.0.reconcile_rollback(a, c, p, t)
             }
         }
