@@ -130,8 +130,8 @@ Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
 
 - An **x86-64** server with Ubuntu 24.04 LTS and `systemd`. Other architectures are
   refused during the host audit, before any change.
-- Python 3.11 or newer and a regular user with `sudo` access. Do not start the installer
-  directly as `root`.
+- Bash, awk, curl, tar, sha256sum and a regular user with `sudo` access. Release
+  verification runs unprivileged. Neither Python nor Rust is needed: static binaries ship in the release.
 - DNS A/AAAA records of every name point **directly** at the server. For MTProto, CDN
   proxying is off — DNS-only mode.
 - TCP/80 free: this is how Let's Encrypt validates your domains.
@@ -326,7 +326,7 @@ certificates, services. It holds no secrets. The plan changes nothing, so you ca
 in advance to check the domains and DNS:
 
 ```bash installer-check
-sudo python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
+sudo bash install.sh plan --config examples/installer/full-three-xui.toml --json
 ```
 
 The installation starts only after you confirm the digest of exactly this plan. If the
@@ -334,7 +334,7 @@ server changed between the plan and the installation, the digest does not match 
 installation does not run:
 
 ```bash installer-check
-sudo python3 -m installer.cli install --config examples/installer/full-three-xui.toml --accept-plan DIGEST
+sudo bash install.sh install --config examples/installer/full-three-xui.toml --accept-plan DIGEST
 ```
 
 The wizard does the same on its own: it shows the plan and asks for the first 12 digest
@@ -466,10 +466,10 @@ go into the TOML.
 ### Step 3. Get the plan and show it to the owner
 
 ```bash
-sudo python3 -m installer.cli plan --config ~/proxy-control.toml --json > ~/plan.json
+sudo bash install.sh plan --config ~/proxy-control.toml --json > ~/plan.json
 echo "exit=$?"                                   # not 0 — stop, give the reason to the owner
-python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json
-sudo python3 -m installer.cli plan --config ~/proxy-control.toml   # the readable plan for the owner
+awk -F'"' '/^  "digest": / {print $4}' ~/plan.json
+sudo bash install.sh plan --config ~/proxy-control.toml   # the readable plan for the owner
 ```
 
 Show the owner the readable plan and the digest and wait for an explicit confirmation.
@@ -477,9 +477,9 @@ Show the owner the readable plan and the digest and wait for an explicit confirm
 ### Step 4. Install exactly this plan
 
 ```bash
-digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json)
-sudo python3 -m installer.cli install --config ~/proxy-control.toml --accept-plan "$digest" --json > ~/install.json
-sudo python3 -m installer.cli status --json      # expected: "status": "active"
+digest=$(awk -F'"' '/^  "digest": / {print $4}' ~/plan.json)
+sudo bash install.sh install --config ~/proxy-control.toml --accept-plan "$digest" --json > ~/install.json
+sudo bash install.sh status --json      # expected: "status": "active"
 ```
 
 The installation takes a few minutes and runs the protocol acceptance itself. An SSH drop
@@ -550,6 +550,13 @@ sha256sum --check install-release.sh.sha256 &&
 bash install-release.sh --update
 ```
 
+**3.3.0 → 4.0 uses only this command, not the 3.3.0 UI Update button.** Before any
+panel/manager change, the verified native installer replaces the Python agent, preserves
+operator env/unit directives/drop-ins, and requires health `status=ok`,
+`implementation=rust`, `version=<target>`. Failed replacement restores and verifies the old
+agent and ownership journal. Move Fleet v1 nodes to v2 before the 4.0 update. Neither
+Python nor Cargo is a host prerequisite; Bash/awk verifies both prebuilt binaries before use.
+
 The script verifies the release exactly as during installation and asks the server's
 `version-agent` to update the panel to exactly the verified archive — with a backup of the
 files, image and database and a rollback on failure; then it rebuilds the changed managers.
@@ -611,9 +618,9 @@ how to restore it: [docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md).
 ### If the installation was interrupted
 
 ```bash installer-check
-sudo python3 -m installer.cli status --json
-sudo python3 -m installer.cli resume --json
-sudo python3 -m installer.cli repair --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
 ```
 
 `resume` continues an interrupted installation from the saved phase. `repair` checks that
@@ -624,7 +631,7 @@ Do not delete `journal.json`, `journal.key`, `transaction.json`, WAL/SHM files o
 ### Uninstalling
 
 ```bash installer-check
-sudo python3 -m installer.cli uninstall --json
+sudo bash install.sh uninstall --json
 ```
 
 Uninstalling stops the services and removes only the routes, files and packages the
@@ -767,7 +774,7 @@ More cases: [troubleshooting](docs/TROUBLESHOOTING.en.md) and the
 ### Host packages
 
 The `packages` adapter installs exactly these packages: `ca-certificates`, `certbot`, `curl`,
-`docker-compose-v2`, `docker.io`, `nginx-full`, `openssl`, `python3`.
+`docker-compose-v2`, `docker.io`, `nginx-full`, `openssl`.
 
 ### Pinned third-party components
 

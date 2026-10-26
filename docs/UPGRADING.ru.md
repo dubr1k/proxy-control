@@ -1,5 +1,49 @@
 # Обновление и откат
 
+## 3.3.0 → 4.0: нативный переход хоста
+
+Поддерживается только `bash install-release.sh --update --version 4.0.0` из проверенного
+релиза. Кнопка обновления панели 3.3.0 для этого перехода не подходит: guard образа 4.0
+отвергает сборку старым агентом, а старый агент восстанавливает прежнее поколение.
+Не публикуйте prerelease 4.0, пока есть хосты 3.3.0; репетиции выполняются из локальных
+архивов. Все узлы Fleet v1 переведите на Fleet v2 **до** обновления узлов и центра.
+
+Верификатор использует Bash/awk, tar, curl и SHA-256, а не Python или Cargo.
+До распаковки он проверяет архив, манифест и типы членов; после — обычный тип файла,
+права `0755` и записанный digest обоих статических бинарников хоста до их выполнения.
+`install.sh`, `uninstall.sh`, `scripts/update-host.sh` и
+`scripts/migrate-compose-project.sh` — обёртки над нативным установщиком.
+
+`update-host` проверяет сокет, версии и полный состав Compose, затем под блокировкой
+операции выполняет `migrate-agent` **до** запроса обновления панели. Он останавливает
+старый агент, сохраняет его код, unit и tmpfiles, меняет код и только распознанный
+`ExecStart`, выполняет daemon-reload и запуск. Ответ health должен содержать
+`status=ok`, `implementation=rust` и точную запрошенную `version`. Пропущенное поле,
+чужая версия или отказ запуска приводят к проверяемому восстановлению прежнего агента,
+unit и журнала; запросов обновления панели и менеджеров ещё нет. Копии остаются в
+`/var/lib/proxy-control/agent-migration/`. Прерванная замена восстанавливается при
+следующей миграции до новой попытки.
+
+Env, остальные директивы unit, drop-in оператора, секреты и данные сохраняются.
+Нераспознанный операторский `ExecStart` — отказ, а не перезапись. Активный журнал
+установщика перебазируется: сначала state, затем ownership; хосту без журнала он
+не создаётся. После обновления панели Rust-агентом проверяются versioned Rust health
+и корректный `pending_rebuild`, пересобираются и подтверждаются выбранные менеджеры
+с точками отката образов, мигрируют принадлежащий ingress и проект Compose,
+затем repair обновляет хостовые обёртки и проверяется runtime только этого проекта.
+Недоступные health или pending — ошибка, не успешное завершение.
+
+Отдельная миграция из уже проверенного дерева:
+
+```bash
+sudo bash install.sh migrate-agent --version 4.0.0
+sudo bash install.sh migrate-compose-project --dir /opt/mtproxy-shared443 --check
+```
+
+`migrate-compose-project` сохраняет прежние тома данных и поднимает прежний проект
+при отказе; существующий целевой том никогда не перезаписывается и не удаляется.
+
+
 Это руководство — для хоста, на котором уже работает Proxy Control 1.0.0 или новее: как его
 обновить, что делает `version-agent` панели, как откатиться и как включить необязательные
 компоненты на уже установленном узле. Каждый runtime — панель, каждый менеджер, Telemt,
@@ -189,7 +233,7 @@ sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 sudo journalctl -u version-agent --since=-15min --no-pager
 # с Xray-router:
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ```
 
 Health-check требует заголовок `Host`: установщик разрешает только домен панели. Сводку
@@ -252,8 +296,8 @@ runtime-path.
 
   ```bash installer-check
   cd proxy-control-vX.Y.Z/proxy-control
-  sudo python3 -m installer.cli reconcile-panel-update --archive ../proxy-control-vX.Y.Z.tar.gz --sha256 '<64-символьный digest архива>'
-  sudo python3 -m installer.cli repair --json
+  sudo bash install.sh reconcile-panel-update --archive ../proxy-control-vX.Y.Z.tar.gz --sha256 '<64-символьный digest архива>'
+  sudo bash install.sh repair --json
   ```
 
   Команда проверяет архив, версию работающей панели, заменённые файлы и все не связанные с этим
@@ -287,8 +331,8 @@ runtime-path.
   установщика](INSTALLER_REFERENCE.ru.md)):
 
   ```bash
-  python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443
-  sudo python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443 --apply
+  sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443
+  sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443 --apply
   ```
 
 - **1.1.1: 3x-ui.** Управляемая установка 3x-ui закрепляет 3x-ui 3.9.0. Существующий 3x-ui
@@ -484,6 +528,8 @@ version-agent`) самым последним шагом, после запис�
 
 ```bash
 sudo install -d -m 0750 /etc/proxy-control
+sudo install -d -m 0755 /opt/proxy-control
+sudo cp -a version_agent /opt/proxy-control/version_agent
 sudo install -o root -g root -m 0644 deploy/version-agent.service /etc/systemd/system/version-agent.service
 sudo install -o root -g root -m 0644 deploy/proxy-control-version-agent.tmpfiles.conf /etc/tmpfiles.d/proxy-control-version-agent.conf
 sudo install -o root -g root -m 0600 deploy/version-agent.env.example /etc/proxy-control/version-agent.env
@@ -594,7 +640,7 @@ exists`) и ничего на хосте не меняет, а повторны�
 сбросьте её.
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, владелец — xray
 ```
 
@@ -627,7 +673,7 @@ docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.
 Проверка:
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay | python3 -m json.tool   # enabled, public_key
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay   # enabled, public_key
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
@@ -646,7 +692,7 @@ chocolate4u», «v2fly» или свои URL. Каждое скачивание 
 ошибку перезапуска роутера, если она была.
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status   # включает geodata
 ```
 
 Обновление `xray` с экрана «Версии» заменяет бинарник вместе со списками его архива; с источником

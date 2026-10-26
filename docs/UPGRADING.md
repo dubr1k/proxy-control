@@ -1,5 +1,49 @@
 # Upgrading and rollback
 
+## 3.3.0 → 4.0: native host transition
+
+Use only the verified release's `bash install-release.sh --update --version 4.0.0`.
+The 3.3.0 panel's Update button is not a supported transition: the 4.0 image guard
+must refuse that old-agent build and the old agent restores its previous generation.
+Do not publish 4.0 prereleases while 3.3.0 hosts exist; rehearse from local release archives.
+Move all Fleet v1 nodes to Fleet v2 **before** updating either node or centre.
+
+The release verifier uses Bash/awk, tar, curl and SHA-256 tools, not Python or Cargo.
+It verifies the archive, manifest and member types before extraction, then both static
+host binaries' regular-file type, mode `0755` and recorded digest before executing one.
+From the verified tree, `install.sh`, `uninstall.sh`, `scripts/update-host.sh` and
+`scripts/migrate-compose-project.sh` are shims to the native installer.
+
+`update-host` preflights the socket, versions and complete Compose scope, then runs
+`migrate-agent` under the operation lock **before** asking any agent to update the panel.
+It stops the old agent; backs up its tree, unit and tmpfiles; replaces the code and
+only the unit's recognized `ExecStart`; reloads systemd and starts the agent. The health
+response must prove `status=ok`, `implementation=rust` and the exact requested release
+`version`. Missing fields, a wrong version, or a failed start restore and verify the old
+agent, unit and journal; no panel or manager update is submitted. Backups are retained
+under `/var/lib/proxy-control/agent-migration/`. A pending interrupted swap is restored
+on the next migration before a new one starts.
+
+The environment, operator unit directives, drop-ins, credentials and data are preserved.
+An unrecognized operator-custom `ExecStart` is a hard stop, not an overwrite.
+An existing active installer journal is rebased state-first, then ownership; hosts without
+a journal migrate without inventing one. After the Rust agent updates the panel, the updater
+waits for versioned Rust health and a valid `pending_rebuild` read, rebuilds and acknowledges
+the selected managers with rollback images, migrates owned ingress and the Compose project,
+then repairs the journal-owned host helpers and checks the project-scoped runtime.
+An unavailable health or pending response is fatal, never interpreted as success.
+
+For a standalone migration from an already verified release:
+
+```bash
+sudo bash install.sh migrate-agent --version 4.0.0
+sudo bash install.sh migrate-compose-project --dir /opt/mtproxy-shared443 --check
+```
+
+`migrate-compose-project` retains the old data volumes and brings the old project back on
+failure; destination volumes that already exist are never removed or overwritten.
+
+
 This guide is for a host that already runs Proxy Control 1.0.0 or later: how to update it, what
 the panel's `version-agent` does, how to roll back, and how to enable optional components on a
 node that is already installed. Treat every runtime — the panel, each manager, Telemt,
@@ -192,7 +236,7 @@ sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 sudo journalctl -u version-agent --since=-15min --no-pager
 # with the Xray-router:
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ```
 
 The health check needs the `Host` header: the installer allows only the panel domain. For an
@@ -254,8 +298,8 @@ keep serving the generation they last applied.
 
   ```bash installer-check
   cd proxy-control-vX.Y.Z/proxy-control
-  sudo python3 -m installer.cli reconcile-panel-update --archive ../proxy-control-vX.Y.Z.tar.gz --sha256 '<64-character archive digest>'
-  sudo python3 -m installer.cli repair --json
+  sudo bash install.sh reconcile-panel-update --archive ../proxy-control-vX.Y.Z.tar.gz --sha256 '<64-character archive digest>'
+  sudo bash install.sh repair --json
   ```
 
   The command verifies the archive, the running panel version, the replaced files and every
@@ -287,8 +331,8 @@ keep serving the generation they last applied.
   reference](INSTALLER_REFERENCE.en.md)):
 
   ```bash
-  python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443
-  sudo python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443 --apply
+  sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443
+  sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443 --apply
   ```
 
 - **1.1.1: 3x-ui.** Managed 3x-ui installations pin 3x-ui 3.9.0. An existing 3x-ui is updated
@@ -483,6 +527,8 @@ changing the running stack:
 
 ```bash
 sudo install -d -m 0750 /etc/proxy-control
+sudo install -d -m 0755 /opt/proxy-control
+sudo cp -a version_agent /opt/proxy-control/version_agent
 sudo install -o root -g root -m 0644 deploy/version-agent.service /etc/systemd/system/version-agent.service
 sudo install -o root -g root -m 0644 deploy/proxy-control-version-agent.tmpfiles.conf /etc/tmpfiles.d/proxy-control-version-agent.conf
 sudo install -o root -g root -m 0600 deploy/version-agent.env.example /etc/proxy-control/version-agent.env
@@ -592,7 +638,7 @@ the routing screen when you are ready («Connect to Xray-router»; their session
 once). Attaching with a native policy still applied is refused (`policy_applied`): reset it first.
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
 ```
 
@@ -625,7 +671,7 @@ docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.
 Verification:
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay | python3 -m json.tool   # enabled, public_key
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay   # enabled, public_key
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
@@ -644,7 +690,7 @@ when the lists were last checked, when the next check is due, and a router resta
 happened.
 
 ```bash
-docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status   # includes geodata
 ```
 
 An `xray` update from the «Versions» screen replaces the binary together with the lists of its

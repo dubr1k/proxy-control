@@ -3,7 +3,7 @@
 #
 # `install-bootstrap` (inside every archive) refuses a pre-release suffix (`-rc.N`), so a
 # pre-release is installed by the same steps without it: download the four release files,
-# `sha256sum --check SHA256SUMS`, extract, and run `sudo python3 -m installer.cli wizard`
+# `sha256sum --check SHA256SUMS`, extract, and run `sudo bash install.sh wizard`
 # from the extracted tree. This script performs
 # exactly those steps for any tag and stops at the first failed check. It never pipes a
 # download into a shell: the files land on disk, the payload is checked against
@@ -61,7 +61,7 @@ usage: scripts/install-release.sh [--version X.Y.Z[-rc.N]] [--sha256 DIGEST] [--
   --update        update this already installed host to the release instead of installing:
                   the same verification, then (as root) the host's version-agent updates the
                   panel and changed managers plus enabled MCP are rebuilt (scripts/update-host.sh)
-  --              everything after it goes to `python3 -m installer.cli` (default: wizard)
+  --              everything after it goes to the native installer (default: wizard)
 USAGE
     exit 2
 }
@@ -113,8 +113,8 @@ Proxy Control — что нужно для установки
     собирается и проверяется на стенде только под x86-64.
   • Ubuntu 24.04 LTS с systemd; вход обычным пользователем с `sudo` (проверка
     архива идёт без привилегий, root нужен только самому установщику).
-  • Python 3.11+ (в Ubuntu 24.04 — 3.12) для установщика; curl, tar, sha256sum — для
-    этого скрипта.
+  • Bash, awk, curl, tar, sha256sum и sudo для проверки и запуска; Python и Rust
+    на хосте не нужны: релиз содержит проверяемые статические исполняемые файлы.
   • Свободные TCP/443 и TCP/80 в режиме `fresh`; в режиме `coexist` — ваш Nginx
   со `stream` уже владеет 443 и имеет ровно одну карту `$ssl_preread_server_name`.
   fresh сохраняет IP клиентов панели через приватные Unix-сокеты Nginx; новых
@@ -184,18 +184,18 @@ TrustTunnel (необязательно): секция [trusttunnel] и ключ
   исходники изменились, awg-manager пересобирается: туннели на секунды рвутся,
   клиенты переподключаются сами, /var/lib/awg-manager с ключами не трогается.
   Так же пересобирается trusttunnel-manager: перезапуск endpoint рвёт сессии на секунды.
-  После первого обновления старым агентом перед repair выполните
-  `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
-  из нового выпуска с точным архивом и проверенным digest (INSTALLER_REFERENCE).
+  Переход 3.3.0 → 4.0 выполняется только этой командой: сначала заменяется Python-
+  агент, проверяются Rust-реализация и точная версия, затем обновляется панель.
+  При отказе миграции агент и его журнал откатываются; данные и настройки сохраняются.
 
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
-    docker-compose-v2 docker.io nginx-full openssl python3 — и только они
-    попадают под его владение.
+    docker-compose-v2 docker.io nginx-full openssl — и только они
+    попадают под его владение (Python установщику не нужен).
   • Сертификаты Let's Encrypt (certbot, webroot) и проверка продления сразу.
   • Nginx: свой блок SNI-маршрутов на общем 443 и TLS-vhost панели; чужие
     маршруты не трогает, при неоднозначной конфигурации останавливается.
-  • Compose-проект `mtproxy` в /opt/mtproxy-shared443: контейнеры
+  • Compose-проект `proxy_panel_by_dubr1k` в /opt/mtproxy-shared443: контейнеры
     proxy-control-panel, -mtproxy (Telemt), -mask, а по профилю -naive-manager и
     -mieru-manager; тома, секреты (secrets/), мастер-ключ панели.
   • Host-службы по профилю: caddy-naive.service (NaiveProxy) и mita.service (Mieru).
@@ -212,7 +212,7 @@ TrustTunnel (необязательно): секция [trusttunnel] и ключ
     `managed-new` требует отсутствия прежней базы и её каталога /etc/x-ui.
   • Журнал транзакции, владение и отчёты — /var/lib/proxy-control/.
 Каждый шаг журналируется и откатывается; прерванную установку продолжает
-`python3 -m installer.cli resume`. Ничего не меняется до подтверждения digest плана.
+`sudo bash install.sh resume`. Ничего не меняется до подтверждения digest плана.
 TEXT
     else
         cat <<'TEXT'
@@ -223,8 +223,8 @@ Server
     the release is built and lab-tested for x86-64 only.
   • Ubuntu 24.04 LTS with systemd; log in as a regular user with `sudo` (the archive
     is verified unprivileged; root is needed by the installer alone).
-  • Python 3.11+ (Ubuntu 24.04 ships 3.12) for the installer; curl, tar, sha256sum —
-    for this script.
+  • Bash, awk, curl, tar, sha256sum and sudo for verification and hand-off; neither
+    Python nor Rust is required on the host: verified static binaries ship in the release.
   • Free TCP/443 and TCP/80 in `fresh` mode; in `coexist` mode your Nginx `stream`
   already owns 443 and has exactly one `$ssl_preread_server_name` map.
   fresh preserves panel client IPs through private Nginx Unix sockets, with no new
@@ -293,18 +293,18 @@ Updating an installed host (since v1.1): download the new release's install-rele
   awg-manager is rebuilt: the tunnels drop for a few seconds and the clients reconnect
   by themselves; /var/lib/awg-manager with the keys is not touched.
   trusttunnel-manager is rebuilt the same way: restarting the endpoint drops sessions for seconds.
-  After the first update by an older agent, before repair run
-  `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
-  from the new release with the exact archive and verified digest (INSTALLER_REFERENCE).
+  The 3.3.0 → 4.0 transition is supported only through this command: replace the Python
+  agent, verify its Rust implementation and exact version, then update the panel.
+  A migration failure restores the agent and journal; operator settings and data stay intact.
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl
-    docker-compose-v2 docker.io nginx-full openssl python3 — only those come
-    under its ownership.
+    docker-compose-v2 docker.io nginx-full openssl — only those come
+    under its ownership (the installer does not require Python).
   • Let's Encrypt certificates (certbot, webroot) with a renewal dry-run right away.
   • Nginx: its own SNI-route block on the shared 443 and the panel's TLS vhost;
     foreign routes stay untouched, an ambiguous configuration is a hard stop.
-  • The Compose project `mtproxy` in /opt/mtproxy-shared443: the containers
+  • The Compose project `proxy_panel_by_dubr1k` in /opt/mtproxy-shared443: the containers
     proxy-control-panel, -mtproxy (Telemt), -mask and, per profile, -naive-manager
     and -mieru-manager; volumes, secrets (secrets/), the panel's master key.
   • Host services per profile: caddy-naive.service (NaiveProxy), mita.service (Mieru).
@@ -321,7 +321,7 @@ What the installer does (wizard → plan → digest confirmation → apply):
     `managed-new` requires the old database and its /etc/x-ui directory to be absent.
   • The transaction journal, ownership and reports — /var/lib/proxy-control/.
 Every step is journaled and reversible; an interrupted install continues with
-`python3 -m installer.cli resume`. Nothing changes before the plan digest is confirmed.
+`sudo bash install.sh resume`. Nothing changes before the plan digest is confirmed.
 TEXT
     fi
 }
@@ -357,7 +357,7 @@ case $(uname -m) in
     *) fail "поддерживается только x86-64, здесь $(uname -m)" "x86-64 only, this host is $(uname -m)" ;;
 esac
 
-for tool in curl tar python3; do
+for tool in curl tar awk; do
     command -v "$tool" >/dev/null 2>&1 || fail "нужен $tool" "$tool is required"
 done
 if command -v sha256sum >/dev/null 2>&1; then
@@ -367,8 +367,6 @@ elif command -v shasum >/dev/null 2>&1; then
 else
     fail "нужен sha256sum" "sha256sum is required"
 fi
-python3 -c 'import tomllib' 2>/dev/null \
-    || fail "установщику нужен Python 3.11 или новее (tomllib)" "the installer needs Python 3.11 or newer (tomllib)"
 
 os_id=; os_version=
 if [[ -r /etc/os-release ]]; then
@@ -435,16 +433,20 @@ if [[ -n $EXPECTED ]]; then
     say "digest архива совпал с закреплённым" "the archive digest matches the pinned one"
 fi
 check_manifest() {
-    python3 - release-manifest.json "$archive_name" "$actual" "$VERSION" <<'PYEOF'
-import json, sys
-manifest = json.load(open(sys.argv[1], encoding="utf-8"))
-if manifest.get("archive") != sys.argv[2]:
-    raise SystemExit("the manifest names a different archive")
-if manifest.get("archive_sha256") != sys.argv[3]:
-    raise SystemExit("the manifest records a different archive digest")
-if str(manifest.get("version", "")) != sys.argv[4] or manifest.get("tag") != f"v{sys.argv[4]}":
-    raise SystemExit("the manifest version or tag disagrees with the requested release")
-PYEOF
+    LC_ALL=C awk -v archive="$archive_name" -v digest="$actual" -v version="$VERSION" '
+        NR == 1 { if ($0 != "{") exit 1; next }
+        $0 == "}" { if (comma) exit 1; closed=1; next }
+        closed { exit 1 }
+        { if (count && !comma) exit 1
+          if ($0 !~ /^  "[a-z_]+": ("[^"\\]*"|[0-9]+),?$/) exit 1
+          comma=($0 ~ /,$/); count++
+          line=$0; sub(/^  "/,"",line); key=line; sub(/".*/,"",key)
+          if (seen[key]++) exit 1
+          sub(/^[^"]*": /,"",line); sub(/,$/,"",line)
+          if (line ~ /^"/) { sub(/^"/,"",line); sub(/"$/,"",line) }
+          value[key]=line }
+        END { if (!closed || value["archive"]!=archive || value["archive_sha256"]!=digest || value["version"]!=version || value["tag"]!="v"version) exit 1 }
+    ' release-manifest.json
 }
 check_manifest \
     || fail "release-manifest.json не описывает этот архив" "release-manifest.json does not describe this archive"
@@ -462,14 +464,12 @@ elif ((REQUIRE_ATTESTATION)); then
     fail "--attest требует установленного gh" "--attest needs gh installed"
 fi
 
-tar -tzf "$archive_name" | python3 -c '
-import sys
-for line in sys.stdin:
-    name = line.rstrip("\n")
-    if name.startswith("/") or ".." in name.split("/"):
-        raise SystemExit(f"unsafe member in the release archive: {name}")
-    if not name.startswith("proxy-control/"):
-        raise SystemExit(f"member outside the release prefix: {name}")
+# Do not let tar create a link, device or special file, even from a checksum-valid archive.
+tar -tvzf "$archive_name" | LC_ALL=C awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' \
+    || fail "архив содержит не обычный файл/каталог" "the archive contains a link or special member"
+tar -tzf "$archive_name" | LC_ALL=C awk '
+    { if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /[[:cntrl:]]/) bad=1; count++ }
+    END { exit bad || !count }
 ' || fail "архив не прошёл проверку перед распаковкой" "the archive failed its extraction preflight"
 
 say "проверено: $archive_name ($actual)" "verified: $archive_name ($actual)"
@@ -484,11 +484,36 @@ tar -xzf "$archive_name"
 root=$DESTINATION/proxy-control
 [[ -f $root/install.sh && -f $root/release/release.json ]] \
     || fail "распакованный релиз неполон" "the extracted release is incomplete"
+
+# Canonical release.json records both host binaries. Verify them without running archive code.
+rows=$(LC_ALL=C awk '
+    /^  "binaries": \{$/ { if (seen++) exit 1; inside=1; next }
+    inside && /^  },?$/ { inside=0; done=1; next }
+    inside { if ($0 !~ /^    "[a-zA-Z0-9_./-]+": "[0-9a-f]+",?$/) exit 1
+             line=$0; sub(/^    "/,"",line); path=line; sub(/".*/,"",path)
+             sub(/^[^"]*": "/,"",line); sub(/",?$/,"",line)
+             if (length(line)!=64 || paths[path]++) exit 1
+             if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent") exit 1
+             print path " " line; count++ }
+    END { if (!done || inside || count!=2) exit 1 }
+' "$root/release/release.json") \
+    || fail "неверная запись binaries в release.json" "invalid release.json binaries"
+count=0
+while read -r path expected; do
+    [[ -f $root/$path && ! -L $root/$path ]] \
+        || fail "нет обычного файла $path" "missing regular binary $path"
+    mode=$(stat -c '%a' -- "$root/$path" 2>/dev/null || stat -f '%Lp' -- "$root/$path")
+    binary_digest=$("${SHA256SUM[@]}" -- "$root/$path" | cut -d' ' -f1)
+    [[ $mode == 755 && $binary_digest == "$expected" ]] \
+        || fail "неверные права или digest $path" "binary mode or digest mismatch: $path"
+    count=$((count + 1))
+done <<< "$rows"
+((count == 2)) || fail "неполный набор бинарников" "incomplete host binaries"
 say "распаковано в $root" "extracted to $root"
 
 if [[ $MODE == unpack ]]; then
-    say "дальше: cd $root && sudo python3 -m installer.cli wizard   (или plan --config ... --json без изменений)" \
-        "next: cd $root && sudo python3 -m installer.cli wizard   (or plan --config ... --json, which changes nothing)"
+    say "дальше: cd $root && sudo bash install.sh wizard   (или plan --config ... --json без изменений)" \
+        "next: cd $root && sudo bash install.sh wizard   (or plan --config ... --json, which changes nothing)"
     exit 0
 fi
 
@@ -498,12 +523,11 @@ if [[ $MODE == update ]]; then
     say "обновляю этот хост до v$VERSION от root (sudo): панель через version-agent, затем изменившиеся менеджеры" \
         "updating this host to v$VERSION as root (sudo): the panel through the version-agent, then the changed managers"
     cd -- "$root"
-    # No .pyc: root-owned bytecode in the user's directory would keep them from deleting it.
-    exec sudo -- env PYTHONDONTWRITEBYTECODE=1 bash "$root/scripts/update-host.sh" --version "$VERSION" --sha256 "$actual" --lang "$LANGUAGE"
+    exec sudo -- bash "$root/scripts/update-host.sh" --version "$VERSION" --sha256 "$actual" --lang "$LANGUAGE"
 fi
 
 if (($#)); then
-    say "запускаю от root (sudo): python3 -m installer.cli $*" "starting as root (sudo): python3 -m installer.cli $*"
+    say "запускаю от root (sudo): proxy-control-installer $*" "starting as root (sudo): proxy-control-installer $*"
 else
     say "запускаю мастер установщика от root (sudo); он спросит, покажет план и ничего не применит без подтверждения digest" \
         "starting the installer's wizard as root (sudo); it asks, shows the plan and applies nothing without the digest confirmation"
@@ -512,4 +536,4 @@ cd -- "$root"
 if (($# == 0)) && ((LANGUAGE_GIVEN)); then
     set -- wizard --lang "$LANGUAGE"
 fi
-exec sudo -- env PYTHONDONTWRITEBYTECODE=1 bash "$root/install.sh" "$@"
+exec sudo -- bash "$root/install.sh" "$@"

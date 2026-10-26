@@ -130,8 +130,8 @@ TLS-приветствии (SNI) и передаёт соединение нуж
 
 - Сервер **x86-64** с Ubuntu 24.04 LTS и `systemd`. Другие архитектуры установщик
   отвергает при проверке сервера, до любых изменений.
-- Python 3.11 или новее и обычная учётная запись с доступом к `sudo`. Установщик не
-  запускают непосредственно от `root`.
+- Bash, awk, curl, tar, sha256sum и обычная учётная запись с `sudo`. Проверка релиза
+  идёт без root. Python и Rust на хосте не нужны: релиз содержит статические бинарники.
 - DNS-записи A/AAAA всех ваших имён указывают **напрямую** на сервер. Для MTProto
   проксирование CDN выключено — только режим DNS-only.
 - Свободный TCP/80: по нему Let's Encrypt проверяет домены.
@@ -325,7 +325,7 @@ A-запись на сервер, только DNS (без проксирова�
 чтобы проверить домены и DNS:
 
 ```bash installer-check
-sudo python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
+sudo bash install.sh plan --config examples/installer/full-three-xui.toml --json
 ```
 
 Установка начинается только после подтверждения контрольной суммы (digest) именно этого
@@ -333,7 +333,7 @@ sudo python3 -m installer.cli plan --config examples/installer/full-three-xui.to
 пойдёт:
 
 ```bash installer-check
-sudo python3 -m installer.cli install --config examples/installer/full-three-xui.toml --accept-plan DIGEST
+sudo bash install.sh install --config examples/installer/full-three-xui.toml --accept-plan DIGEST
 ```
 
 Мастер делает то же самое сам: показывает план и просит ввести первые 12 символов digest.
@@ -459,10 +459,10 @@ chmod 600 ~/proxy-control.toml
 ### Шаг 3. Получить план и показать его владельцу
 
 ```bash
-sudo python3 -m installer.cli plan --config ~/proxy-control.toml --json > ~/plan.json
+sudo bash install.sh plan --config ~/proxy-control.toml --json > ~/plan.json
 echo "exit=$?"                                   # не 0 — стоп, причина владельцу
-python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json
-sudo python3 -m installer.cli plan --config ~/proxy-control.toml   # читаемый план для владельца
+awk -F'"' '/^  "digest": / {print $4}' ~/plan.json
+sudo bash install.sh plan --config ~/proxy-control.toml   # читаемый план для владельца
 ```
 
 Покажите владельцу читаемый план и digest и дождитесь явного подтверждения.
@@ -470,9 +470,9 @@ sudo python3 -m installer.cli plan --config ~/proxy-control.toml   # читае�
 ### Шаг 4. Установить ровно этот план
 
 ```bash
-digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json)
-sudo python3 -m installer.cli install --config ~/proxy-control.toml --accept-plan "$digest" --json > ~/install.json
-sudo python3 -m installer.cli status --json      # ожидается "status": "active"
+digest=$(awk -F'"' '/^  "digest": / {print $4}' ~/plan.json)
+sudo bash install.sh install --config ~/proxy-control.toml --accept-plan "$digest" --json > ~/install.json
+sudo bash install.sh status --json      # ожидается "status": "active"
 ```
 
 Установка идёт несколько минут и сама проводит приёмку протоколов. При обрыве SSH код `255`
@@ -540,6 +540,13 @@ sha256sum --check install-release.sh.sha256 &&
 bash install-release.sh --update
 ```
 
+**3.3.0 → 4.0 — только этой командой, не кнопкой обновления UI 3.3.0.** До любых
+изменений панели/менеджеров проверенный нативный установщик заменяет Python-агент,
+сохраняет env, директивы unit и drop-in оператора и требует health `status=ok`,
+`implementation=rust`, `version=<цель>`. При отказе прежний агент и журнал владения
+восстанавливаются и проверяются. До обновления 4.0 переведите узлы Fleet v1 на v2.
+Python и Cargo на хосте не нужны: Bash/awk проверяет оба готовых бинарника до запуска.
+
 Сценарий проверяет выпуск так же, как при установке, и просит `version-agent` сервера
 обновить панель ровно до проверенного архива — с резервной копией файлов, образа и базы и
 откатом при неудаче; затем пересобирает изменившиеся службы управления. Telemt,
@@ -602,9 +609,9 @@ PY
 ### Если установка прервалась
 
 ```bash installer-check
-sudo python3 -m installer.cli status --json
-sudo python3 -m installer.cli resume --json
-sudo python3 -m installer.cli repair --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
 ```
 
 `resume` продолжает прерванную установку с сохранённой фазы. `repair` проверяет, что всё
@@ -615,7 +622,7 @@ sudo python3 -m installer.cli repair --json
 ### Удаление
 
 ```bash installer-check
-sudo python3 -m installer.cli uninstall --json
+sudo bash install.sh uninstall --json
 ```
 
 Удаление останавливает службы и убирает только принадлежащие установщику маршруты, файлы и
@@ -754,7 +761,7 @@ Mieru заявлен только TCP. Учёт трафика не предна
 ### Пакеты сервера
 
 Адаптер `packages` ставит ровно эти пакеты: `ca-certificates`, `certbot`, `curl`,
-`docker-compose-v2`, `docker.io`, `nginx-full`, `openssl`, `python3`.
+`docker-compose-v2`, `docker.io`, `nginx-full`, `openssl`.
 
 ### Закреплённые версии сторонних компонентов
 

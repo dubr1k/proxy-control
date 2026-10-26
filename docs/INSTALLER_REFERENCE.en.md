@@ -73,7 +73,7 @@ attestation) rather than against a local rebuild.
 With no arguments the installer starts the bilingual wizard:
 
 ```bash installer-check
-python3 -m installer.cli wizard --lang en --config-output proxy-control.toml
+sudo bash install.sh wizard --lang en --config-output proxy-control.toml
 ```
 
 The wizard asks, in order: language, host mode, profile, every required domain,
@@ -95,6 +95,23 @@ with `PYTHONDONTWRITEBYTECODE=1` so that root leaves no `.pyc` in the user's dir
 
 ## Commands
 
+Host commands use the same verified executable as `install.sh`: no host Python or Rust
+toolchain is required. The binary resolves its release tree from its installed path;
+host transition commands accept `--source RELEASE` when that path is overridden.
+
+| Native host command | Contract |
+| --- | --- |
+| `update-host` | `--version X.Y.Z --sha256 DIGEST [--lang ru|en]`; migrate the agent first, prove versioned Rust health, then update panel/managers, ingress and Compose; repair owned helpers. Normally invoked by `install-release.sh --update`. |
+| `migrate-agent` | `[--version X.Y.Z] [--lang ru|en]`; verified source defaults to this executable's release tree; keep env/drop-ins and unit directives, replace only recognized ExecStart, rebase an active journal, restore on failure. |
+| `migrate-compose-project` | `[--dir DIR] [--lang ru|en] [--check]`; preflight the full model and binds, copy data volumes while stopped, keep old volumes, restore the old project on failure. |
+| `ingress-upgrade` | `--project-dir DIR [--apply]`; inspect or apply exact owned predecessor templates, never foreign ingress. |
+| `verify-release` | Verify release assets with the native verifier; run `sudo bash install.sh verify-release --help` for its asset and attestation options. |
+
+The shell verification stage rejects links and special archive members and verifies both
+prebuilt host binaries' SHA-256 and `0755` modes before executing archive code.
+See [the 3.3.0 → 4.0 ordering and rollback contract](UPGRADING.md#330--40-native-host-transition).
+
+
 | Command | What it does |
 | --- | --- |
 | `wizard` | Ask the questions, write the configuration, show the plan, apply it after digest confirmation |
@@ -108,9 +125,9 @@ with `PYTHONDONTWRITEBYTECODE=1` so that root leaves no `.pyc` in the user's dir
 | `uninstall` | Remove the owned generation; `--purge-data` also removes persistent state |
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
-python3 -m installer.cli status --json
-python3 -m installer.cli report --config examples/installer/full-three-xui.toml --output /var/lib/proxy-control/reports
+sudo bash install.sh plan --config examples/installer/full-three-xui.toml --json
+sudo bash install.sh status --json
+sudo bash install.sh report --config examples/installer/full-three-xui.toml --output /var/lib/proxy-control/reports
 ```
 
 `plan` is read-only. `install` refuses a digest that does not match the plan it
@@ -246,7 +263,7 @@ the panel nor a backend bridge can recover it. Do not enable PROXY globally on a
 foreign frontend without verifying every existing backend.
 
 The verified one-command updater migrates only exact predecessor fresh templates.
-`python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443` prints a
+`sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443` prints a
 read-only plan; add `--apply` as root to back up both configs, replace them, run
 `nginx -t` and reload, then waits for a new live Nginx worker generation. Occupied
 new Unix socket paths are refused without removing them. Validation/reload failure restores both files and reloads
@@ -343,11 +360,11 @@ profile = "full"        # Telemt, panel, NaiveProxy, and Mieru together
 Ready-made examples live in `examples/installer/`:
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/core.toml --json
-python3 -m installer.cli plan --config examples/installer/core-naive.toml --json
-python3 -m installer.cli plan --config examples/installer/core-mieru.toml --json
-python3 -m installer.cli plan --config examples/installer/core-trusttunnel.toml --json
-python3 -m installer.cli plan --config examples/installer/existing-three-xui.toml --json
+sudo bash install.sh plan --config examples/installer/core.toml --json
+sudo bash install.sh plan --config examples/installer/core-naive.toml --json
+sudo bash install.sh plan --config examples/installer/core-mieru.toml --json
+sudo bash install.sh plan --config examples/installer/core-trusttunnel.toml --json
+sudo bash install.sh plan --config examples/installer/existing-three-xui.toml --json
 ```
 
 Managed 3x-ui **3.10.2** publishes three reference inbounds: **VLESS Reality TCP** and
@@ -578,10 +595,10 @@ already delegated to the Docker daemon; Docker build cancellation requires its o
 acceptance check.
 
 ```bash installer-check
-python3 -m installer.cli status --json
-python3 -m installer.cli resume --json
-python3 -m installer.cli repair --json
-python3 -m installer.cli uninstall --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
+sudo bash install.sh uninstall --json
 ```
 
 `resume` continues from the durable journal and performs each committed

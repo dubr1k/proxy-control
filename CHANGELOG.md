@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Host installer
+- Replace host Python entry points with verified static binaries. Release/bootstrap verification
+  uses Bash/awk and rejects unsafe archive members and mismatched executable digests/modes.
+- The supported 3.3.0 → 4.0 path is `install-release.sh --update`: replace and verify the Rust
+  agent's exact release before submitting a panel update; restore code/unit/tmpfiles and journal
+  on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
+
+
 ## [3.3.0] - 2026-10-25
 
 ### Added

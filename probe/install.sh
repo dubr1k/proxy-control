@@ -3,8 +3,6 @@ set -euo pipefail
 
 readonly IMAGE="mtproxy-respq-probe:1.0.0"
 readonly DESTINATION="/usr/local/libexec/mtproxy-respq-probe"
-readonly TDLIB_VERSION="0.1008066.0"
-readonly TDL_VERSION="8.1.0"
 
 owner_id=
 if [[ $# -eq 2 && $1 == "--owner-id" && $2 =~ ^[0-9a-f]{32}$ ]]; then
@@ -19,9 +17,8 @@ fi
 }
 
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-python3 -c \
-    'import json, sys; dependencies = json.load(open(sys.argv[1], encoding="utf-8"))["packages"][""]["dependencies"]; expected = {"prebuilt-tdlib": sys.argv[2], "tdl": sys.argv[3]}; raise SystemExit(0 if dependencies == expected else "locked probe dependency mismatch")' \
-    "$source_dir/package-lock.json" "$TDLIB_VERSION" "$TDL_VERSION"
+# Core validates the exact locked dependencies in Rust before invoking this script.
+# npm ci in the image verifies package-lock integrity; no host interpreter is needed.
 # The image carries the digest of the sources it was built from. Without it an
 # image built from older sources looks current, and a fix that shipped in a
 # release never reaches the container that runs it.
