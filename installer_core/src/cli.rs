@@ -5,7 +5,7 @@
 //!
 //! Exit codes: 0 success or `-h`; 2 usage errors and `BLOCKED:`. Differences from Python
 //! (DIFFERENCES.md): adapter, audit and credential refusals become `BLOCKED:`/2 instead of a
-//! traceback; the binary adds `verify-release` (formerly `release/verify.py`).
+//! traceback; the binary adds `--version` and `verify-release` (formerly `release/verify.py`).
 
 use std::path::{Path, PathBuf};
 
@@ -19,6 +19,9 @@ use crate::pystr::split_whitespace;
 use crate::secret::redact;
 
 pub const PROG: &str = "proxy-control-installer";
+/// The release version, compiled in from the tree's `VERSION` (nothing reads the clock or the
+/// repository, so the binary is reproducible).
+pub const VERSION: &str = include_str!("../../VERSION");
 pub const DESCRIPTION: &str = "Typed Proxy Control release installer";
 pub const DEFAULT_CONFIG_OUTPUT: &str = "proxy-control.toml";
 const INSTALLED_VERSION: &str = "opt/mtproxy-shared443/VERSION";
@@ -57,15 +60,24 @@ pub fn python_parser() -> Parser {
     parser_with(&[])
 }
 
-/// The parser of the Rust binary: the Python surface plus `verify-release`.
+/// The parser of the Rust binary: the Python surface plus `--version` and `verify-release`.
 pub fn installer_parser() -> Parser {
-    parser_with(&["verify-release"])
+    parser_with(&["--version", "verify-release"])
 }
 
-/// The Python surface plus the named extra subcommands (known: `verify-release`).
+/// What `--version` prints: `proxy-control-installer <VERSION>`.
+pub fn version_text() -> String {
+    format!("{PROG} {}", crate::pystr::strip(VERSION))
+}
+
+/// The Python surface plus the named extras (known: the `--version` option and the
+/// `verify-release` subcommand).
 pub fn parser_with(extra: &[&str]) -> Parser {
     let mut parser = Parser::new(PROG, Some(DESCRIPTION));
     parser.add_option(&["--root"], false, Help::Suppress, true, Arg::Str("/".into()));
+    if extra.contains(&"--version") {
+        parser.add_version(&["--version"], &version_text());
+    }
     let mut commands = Vec::new();
     let mut add = |name: &str, help: &str, build: &dyn Fn(&mut Parser)| {
         let mut sub = Parser::new(&parser.sub_prog(name), None);

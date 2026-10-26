@@ -52,10 +52,10 @@ fn panel_sync_covers_every_synced_tree() {
     for name in PANEL_SYNC_330 {
         assert!(PANEL_SYNC.contains(name), "{name} synced by 3.3.0 agents is missing");
     }
-    for name in RUST_MANAGERS.iter().chain([&"pc_common", &"pc_host"]) {
+    for name in RUST_MANAGERS.iter().chain([&"pc_common", &"pc_host", &"installer_core"]) {
         assert!(PANEL_SYNC.contains(name), "{name}");
     }
-    assert_eq!(PANEL_SYNC.len(), PANEL_SYNC_330.len() + 2);
+    assert_eq!(PANEL_SYNC.len(), PANEL_SYNC_330.len() + 3);
     let mut sorted = PANEL_SYNC.to_vec();
     sorted.sort();
     sorted.dedup();
@@ -75,8 +75,9 @@ fn panel_sync_is_also_the_handoff_allow_list() {
 #[test]
 fn panel_sync_matches_the_python_lists_while_they_exist() {
     // Until the cutover removes them: the agent's tuple and the handoff's allow-list are the
-    // Rust list without `pc_host`.
-    let mut ours: Vec<String> = PANEL_SYNC.iter().filter(|n| **n != "pc_host").map(|n| n.to_string()).collect();
+    // Rust list without the host crates `pc_host` and `installer_core`.
+    let mut ours: Vec<String> =
+        PANEL_SYNC.iter().filter(|n| !["pc_host", "installer_core"].contains(*n)).map(|n| n.to_string()).collect();
     ours.sort();
     if let Some(mut agent) = python_names("version_agent/service.py", "PANEL_SYNC = (", ')') {
         agent.sort();

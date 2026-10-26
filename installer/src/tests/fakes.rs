@@ -15,7 +15,7 @@ use crate::engine::TransactionEngine;
 use crate::error::Error;
 use crate::journal::{CheckpointData, RollbackTarget};
 use crate::model::InstallerConfig;
-use crate::plan::{Action, AuditFacts, Evidence};
+use crate::planner::{Action, AuditFacts, Evidence};
 use crate::testkit::{engine_for, plan_with};
 
 pub const PROJECT: &str = "/opt/mtproxy-shared443";

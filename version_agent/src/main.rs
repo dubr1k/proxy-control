@@ -93,11 +93,17 @@ fn main() -> ExitCode {
         logging::print(&format!("signal handlers could not be installed: {err}"));
     }
     let reader = Arc::new(HostReader::default());
+    let activity = Arc::new(server::RequestActivity::default());
     let routes = Routes {
         api: Some(Arc::new(agent.clone())),
         host: Arc::new(move || reader.host_metrics()),
         metrics: Some(sampler),
+        activity: activity.clone(),
     };
     server::serve(server, routes);
+    // Stop late accepted handlers, drain component updates and the request that registers a
+    // background worker, then let the panel update or rebuild record its verdict before exit.
+    activity.stop_and_wait();
+    agent.updater.wait_idle();
     ExitCode::SUCCESS
 }
