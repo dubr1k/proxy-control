@@ -95,6 +95,8 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     );
     // The WP7 clients domain over that adapter set, its enforcer ticking the node's reconciler.
     crate::routes::clients::wire(core, &mut services, &runtime, &node);
+    // The subscriptions over the clients domain, its generation hook and `POST /api/clients`'s issuer (WP9).
+    crate::routes::subscriptions_admin::wire(core, &mut services);
     services.insert(runtime);
     services.insert(node);
     Ok(services)

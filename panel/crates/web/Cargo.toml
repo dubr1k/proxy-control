@@ -28,6 +28,7 @@ panel-managers = { path = "../managers" }
 panel-fleet = { path = "../fleet" }
 panel-metrics = { path = "../metrics" }
 panel-protocols = { path = "../protocols" }
+panel-subscriptions = { path = "../subscriptions" }
 # Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette
 # first-match semantics, exact headers and bodies).
 axum = { version = "0.8", default-features = false }
