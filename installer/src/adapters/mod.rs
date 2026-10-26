@@ -25,15 +25,17 @@ pub(crate) mod example;
 pub mod certificates;
 pub mod core;
 pub mod firewall;
+pub mod mieru;
+pub mod naive;
 pub mod nginx;
 pub mod packages;
-pub mod naive;
-pub mod mieru;
-mod proxy_common;
 mod proxy_acceptance;
-pub mod three_xui;
+mod proxy_common;
+#[cfg(test)]
+mod proxy_smoke;
 #[cfg(test)]
 mod proxy_tests;
+pub mod three_xui;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
