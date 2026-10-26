@@ -211,3 +211,52 @@ fn failed_health_rolls_back_through_engine() {
         }
     }
 }
+
+#[test]
+fn agent_managed_vpn_pins_survive_installer_apply_and_repair_without_becoming_owned() {
+    for awg in [false, true] {
+        let (root, _runner, adapter, selected) = setup(awg);
+        let shared = root.path().join("opt/mtproxy-shared443/version-overrides/compose.versions.yaml");
+        fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        let installed = b"services:\n  awg-manager:\n    build:\n      args:\n        AWG_GO_VERSION: v1.0.20261001\n  trusttunnel-manager:\n    build:\n      args:\n        TT_VERSION: v9.8.7\n        TT_SHA256_X86_64: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n  mtproxy:\n    image: operator/telemt:kept\n";
+        fs::write(&shared, installed).unwrap();
+        let prepared = adapter.prepare(&selected).unwrap();
+        let applied = adapter.apply(&selected, prepared).unwrap();
+        assert_eq!(fs::read(&shared).unwrap(), installed);
+        assert!(applied["ownership"].get("/opt/mtproxy-shared443/version-overrides/compose.versions.yaml").is_none());
+        let updated = String::from_utf8(installed.to_vec()).unwrap().replace("v9.8.7", "v9.8.8");
+        fs::write(&shared, &updated).unwrap();
+        let repaired = adapter.repair(&selected, applied).unwrap();
+        assert_eq!(fs::read(&shared).unwrap(), updated.as_bytes());
+        assert!(repaired["ownership"].get("/opt/mtproxy-shared443/version-overrides/compose.versions.yaml").is_none());
+        assert!(adapter.verify(&selected).unwrap().success);
+    }
+}
+
+#[test]
+fn trusttunnel_rejects_shared_domains_and_conflicting_loopback_ports() {
+    let base = fs::read_to_string(tree().join("examples/installer/core-trusttunnel.toml")).unwrap();
+    for (text, field) in [
+        (base.replace("gate.example.org", "panel.example.com"), "domains.panel"),
+        (base.replace("gate.example.org", "relay.example.com"), "domains.mtproxy"),
+        (base.replace("[domains]", "[domains]\nsubscription = \"gate.example.org\""), "domains.subscription"),
+    ] {
+        let error = installer_core::config::parse_config(&text).unwrap_err();
+        assert!(error.0.contains(field), "{error}");
+    }
+    let mieru = base
+        .replace("profile = \"core\"", "profile = \"core-mieru\"")
+        .replace("[domains]", "[domains]\nmieru = \"mieru.example.com\"")
+        .replace("[trusttunnel]", "[mieru]\ntcp_ports = [4453]\nudp_ports = [46002]\n\n[trusttunnel]");
+    assert!(installer_core::config::parse_config(&mieru).unwrap_err().0.contains("4453"));
+    let awg = format!(
+        "{base}\n[amneziawg]\nenabled = true\nversions = [\"2.0\"]\nports = {{ \"2.0\" = 4453 }}\n"
+    );
+    assert!(installer_core::config::parse_config(&awg).unwrap_err().0.contains("4453"));
+    let metrics = base.replace("[trusttunnel]", "[trusttunnel]\nlisten_port = 1987");
+    assert!(installer_core::config::parse_config(&metrics).unwrap_err().0.contains("metrics"));
+    let valid = installer_core::config::parse_config(&base).unwrap();
+    let reserved = installer_core::config::reserved_tcp_ports(&valid);
+    assert!(reserved[&4453].contains("TrustTunnel"));
+    assert!(reserved[&1987].contains("TrustTunnel"));
+}
