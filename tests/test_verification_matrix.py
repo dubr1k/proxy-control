@@ -1,7 +1,8 @@
-"""The verification matrix (v0.6): every function promised in v0.2–v0.5 names the proof
-that it works — a test, a lab scenario or a browser scenario — and the
-guard keeps the names honest: a proof that does not exist in the tree is a lie, a route
-or a screen without a row is a hole, and the rendered document is the fixture, not prose."""
+"""Every maintained function names behavioral proof; native HTTP route inventory supplies routes.
+
+Missing proofs, retired route claims, unclaimed operations and strict-gate gaps fail closed.
+The generated matrix document must match the fixture exactly.
+"""
 from __future__ import annotations
 
 import json
@@ -62,6 +63,27 @@ def test_every_route_and_every_view_has_a_row(rows):
     for view in VIEWS:
         assert view in views_with_rows or view in views_with_gap_rows, f"no ui row for the view {view}"
 
+def test_route_matrix_rejects_stale_and_unclaimed_native_operations():
+    claims = [{"routes": ["GET /retired"]}]
+    actual = [{"method": "GET", "path": "/native"}]
+    assert matrix.route_problems(claims, actual) == [
+        "native route not covered: GET /native",
+        "retired route still claimed: GET /retired",
+    ]
+
+
+def test_strict_cli_refuses_gaps_even_if_every_proof_and_route_is_valid(monkeypatch, tmp_path):
+    rows = [{"id": "unproven", "since": "3.3", "area": "backend", "claim": "A missing behavioral proof.",
+             "proof": [], "routes": [], "status": "gap"}]
+    document = tmp_path / "verification.md"
+    document.write_text(matrix.render(rows), encoding="utf-8")
+    monkeypatch.setattr(matrix, "DOCUMENT", document)
+    monkeypatch.setattr(matrix, "load", lambda: rows)
+    monkeypatch.setattr(route_coverage, "collect_routes", lambda: [])
+    monkeypatch.delenv("VERIFICATION_STRICT", raising=False)
+    assert matrix.main(["--check"]) == 0
+    monkeypatch.setenv("VERIFICATION_STRICT", "1")
+    assert matrix.main(["--check"]) == 1
 
 def test_the_rendered_document_is_the_fixture(rows):
     assert DOCUMENT.read_text(encoding="utf-8") == matrix.render(rows), \
