@@ -9,7 +9,7 @@ import httpx
 from .local_http import uds_transport
 from .routing.document import EGRESS_REASON_CODES, document_digest
 
-# What the pinned mita build enforces (mieru_manager/egress.py, from the spike).
+# What the pinned mita build enforces (mieru_manager/src/egress.rs, from the spike).
 MIERU_EGRESS_CAPABILITIES = ("whole_direct", "whole_warp", "block_domain", "block_cidr",
                              "selective_domain", "selective_cidr")
 EGRESS_DIRECT = {"schema": 1, "proxies": [], "rules": []}
@@ -133,7 +133,7 @@ class MieruClient:
             "POST", f"/v1/users/{quote(username, safe='')}/reset-metrics", {}
         )
 
-    # egress (v0.4 routing): the `egress` section of the mita config, see mieru_manager/egress.py
+    # egress (v0.4 routing): the `egress` section of the mita config, see mieru_manager/src/egress.rs
     async def egress(self):
         return await self._request("GET", "/v1/egress")
 

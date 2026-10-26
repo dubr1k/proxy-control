@@ -15,7 +15,7 @@ import pytest
 
 from installer.adapters.firewall import _selected_ports
 from installer.adapters.trusttunnel import (
-    _HEALTH_SCRIPT,
+    _HEALTH_COMMAND,
     TT_SHA256,
     TT_VERSION,
     TrustTunnelAdapter,
@@ -526,9 +526,9 @@ def test_the_default_runner_asks_health_inside_the_container_without_the_token(m
                         lambda self, argv: seen.append(tuple(argv)) or '{"status": "ok", "clients": 0}')
     assert _DefaultTrustTunnelRunner().manager_health() == {"status": "ok", "clients": 0}
     argv = seen[0]
-    assert argv[:5] == ("docker", "exec", "proxy-control-trusttunnel-manager", "python", "-c")
-    assert argv[5] == _HEALTH_SCRIPT and "X-Trusttunnel-Token" in argv[5] and "TT_MANAGER_TOKEN_FILE" in argv[5]
-    compile(_HEALTH_SCRIPT, "<health>", "exec")
+    # 4.0: the Rust image has no Python; its binary reads the token inside the container.
+    assert argv == ("docker", "exec", "proxy-control-trusttunnel-manager", *_HEALTH_COMMAND)
+    assert _HEALTH_COMMAND == ("/usr/local/bin/trusttunnel-manager", "health")
     monkeypatch.setattr(_DefaultTrustTunnelRunner, "_capture_checked", lambda self, argv: "[1]")
     with pytest.raises(TrustTunnelError, match="not an object"):
         _DefaultTrustTunnelRunner().manager_health()

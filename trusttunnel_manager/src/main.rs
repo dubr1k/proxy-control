@@ -38,6 +38,22 @@ fn healthcheck() -> i32 {
     }
 }
 
+/// `trusttunnel-manager health`: prints the manager's `/v1/health` body for the installer, which
+/// runs it inside the container so the token never leaves it. Exit 1 unless the answer is 200.
+fn print_health() -> i32 {
+    let Ok(token_file) = std::env::var("TT_MANAGER_TOKEN_FILE") else { return 1 };
+    let socket = std::env::var("TT_MANAGER_SOCKET").unwrap_or_else(|_| "/run/trusttunnel-manager/manager.sock".into());
+    let Ok(token) = std::fs::read_to_string(&token_file) else { return 1 };
+    let headers = [(server::TOKEN_HEADER, token.trim())];
+    match pc_common::client::request(socket.as_ref(), "GET", "/v1/health", &headers, None, Duration::from_secs(5)) {
+        Ok(reply) if reply.status == 200 => {
+            println!("{}", String::from_utf8_lossy(&reply.body));
+            0
+        }
+        _ => 1,
+    }
+}
+
 fn run() -> Result<(), String> {
     let config = config::from_env(&std::env::vars().collect()).map_err(|err| err.to_string())?;
     let token = pc_common::read_token(&config.token_file)?;
@@ -87,8 +103,10 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
-    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
-        std::process::exit(healthcheck());
+    match std::env::args().nth(1).as_deref() {
+        Some("healthcheck") => std::process::exit(healthcheck()),
+        Some("health") => std::process::exit(print_health()),
+        _ => {}
     }
     pc_common::logger::init(log::LevelFilter::Info);
     if let Err(err) = run() {

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -464,3 +466,22 @@ async def test_memory_naive_replays_an_operation_and_can_lose_a_response(naive):
     assert rotated["proxy_url"] == again["proxy_url"] and again["replayed"] is True
     with pytest.raises(NaiveError):
         await naive.create("desktop", password="caller-supplied-password-03", operation_id="op-3")
+
+
+def test_panel_naive_overview_sums_decimal_strings_exactly_above_javascript_safe_integer():
+    """Catch routing exact decimal accounting through JavaScript Number during aggregation."""
+    common = Path(__file__).resolve().parents[1] / "static" / "js" / "common.js"
+    script = """
+const fs = require('fs');
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+import(url).then(({sumNaiveTraffic}) => {
+  console.log(String(sumNaiveTraffic([
+    {total_bytes_decimal: '9007199254740993'},
+    {total_bytes_decimal: '7'}
+  ])));
+});
+"""
+    result = subprocess.run(["node", "-e", script, str(common)], check=True, capture_output=True, text=True)
+
+    assert result.stdout.strip() == "9007199254741000"

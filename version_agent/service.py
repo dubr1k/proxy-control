@@ -86,7 +86,7 @@ PANEL_SYNC = (
 # Images the agent does not rebuild: a change here is reported as `pending_rebuild`.
 PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "awg_manager", "trusttunnel_manager", "mcp_server", "docker")
 # Managers written in Rust: their images also build `pc_common`, so a change there rebuilds them.
-RUST_MANAGERS = ("trusttunnel_manager",)
+RUST_MANAGERS = ("trusttunnel_manager", "awg_manager", "mieru_manager", "mcp_server", "naive_manager", "xray_router_manager")
 RUST_SHARED = "pc_common"
 PANEL_AGENT_DIR = "version_agent"
 PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
@@ -1248,11 +1248,18 @@ class VersionAgent:
         "geoip.dat": "XRAY_ROUTER_GEOIP_SHA256",
         "geosite.dat": "XRAY_ROUTER_GEOSITE_SHA256",
     }
+    # 4.0: the manager is a Rust binary; a router still on an image from before its rebuild (the
+    # manager's change pending, the Xray pin updated first) has the Python module instead.
+    XRAY_STATUS_COMMAND = (
+        "sh", "-c",
+        "if [ -x /usr/local/bin/xray-router-manager ]; then exec /usr/local/bin/xray-router-manager healthcheck --status; "
+        "else exec python -m xray_router_manager.healthcheck --status; fi",
+    )
 
     def _xray_status(self) -> dict:
         """The manager's `/v1/status`, read over its own socket from inside the container."""
         output = self.runner(
-            ["docker", "exec", self.xray_container, "python", "-m", "xray_router_manager.healthcheck", "--status"],
+            ["docker", "exec", self.xray_container, *self.XRAY_STATUS_COMMAND],
             timeout=30,
         )
         try:

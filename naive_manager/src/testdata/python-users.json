@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "host": "naive.example.com",
+  "users": [
+    {
+      "username": "old-user",
+      "password": "old-password",
+      "enabled": true,
+      "quota_bytes": null,
+      "disabled_reason": null,
+      "created_at": "2026-10-25T19:21:31.959308+00:00",
+      "updated_at": "2026-10-25T19:21:31.959609+00:00",
+      "lane": null
+    },
+    {
+      "username": "second",
+      "password": "sécond-password",
+      "enabled": true,
+      "quota_bytes": null,
+      "disabled_reason": null,
+      "created_at": "2026-10-25T19:21:31.959616+00:00",
+      "updated_at": "2026-10-25T19:21:31.959619+00:00",
+      "lane": null
+    },
+    {
+      "username": "phone",
+      "password": "caller-supplied-password-01",
+      "enabled": true,
+      "quota_bytes": 1000,
+      "disabled_reason": null,
+      "created_at": "2026-10-25T19:21:32.044998+00:00",
+      "updated_at": "2026-10-25T19:21:32.044998+00:00",
+      "lane": "grant:7f3a"
+    }
+  ],
+  "tombstones": [
+    {
+      "username": "laptop",
+      "deleted_at": "2026-10-25T19:21:32.339658+00:00"
+    }
+  ],
+  "lanes": {
+    "grant:7f3a": {
+      "upstream": "socks5://grant-7f3a:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@127.0.0.1:45101"
+    }
+  },
+  "operations": {
+    "op-1": {
+      "operation": "create",
+      "username": "phone",
+      "completed_at": "2099-01-01T00:00:00.000001+00:00",
+      "result": {
+        "username": "phone",
+        "proxy_url": "https://phone:caller-supplied-password-01@naive.example.com",
+        "config": {
+          "listen": "socks://127.0.0.1:1080",
+          "proxy": "https://phone:caller-supplied-password-01@naive.example.com"
+        }
+      }
+    }
+  },
+  "egress": {
+    "current": {
+      "document": {
+        "schema": 1,
+        "upstream": null,
+        "acl": [
+          {
+            "deny": [
+              "example.com",
+              "10.0.0.0/8"
+            ]
+          }
+        ]
+      },
+      "revision": "8f9bce8211448223db1e45a297c668d3c34119b6b38a695662b644c6f085e12a",
+      "rendered_sha256": "7ce06a8627742c78279f9fc5f4e0a82813d27d6d639d7b8621177ed56e622284",
+      "operation_id": "op-e1",
+      "applied_at": "2026-10-25T19:21:32.282662+00:00"
+    },
+    "previous": {
+      "document": null,
+      "revision": "a8d403b6a5f3188d6bc87b3c0aac5085b7d44723bc2d7adeedcb60b52de6be8c",
+      "raw_lines": [
+        "            upstream socks5://127.0.0.1:40000"
+      ],
+      "rendered_sha256": null,
+      "operation_id": null,
+      "applied_at": null
+    },
+    "history": [
+      {
+        "document": null,
+        "revision": "a8d403b6a5f3188d6bc87b3c0aac5085b7d44723bc2d7adeedcb60b52de6be8c",
+        "raw_lines": [
+          "            upstream socks5://127.0.0.1:40000"
+        ],
+        "rendered_sha256": null,
+        "operation_id": null,
+        "applied_at": null
+      },
+      {
+        "document": {
+          "schema": 1,
+          "upstream": null,
+          "acl": [
+            {
+              "deny": [
+                "example.com",
+                "10.0.0.0/8"
+              ]
+            }
+          ]
+        },
+        "revision": "8f9bce8211448223db1e45a297c668d3c34119b6b38a695662b644c6f085e12a",
+        "rendered_sha256": "7ce06a8627742c78279f9fc5f4e0a82813d27d6d639d7b8621177ed56e622284",
+        "operation_id": "op-e1",
+        "applied_at": "2026-10-25T19:21:32.282662+00:00"
+      }
+    ]
+  }
+}

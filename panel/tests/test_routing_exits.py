@@ -4,13 +4,13 @@ in a router intent, and the test through this server's router and a linked panel
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from panel.routing.exits import ExitInput, parse_share_link
 from panel.routing.models import normalise_exit
 from panel.xray_router import MemoryXrayRouter
-from xray_router_manager.intent import validate_exit
 
 pytestmark = pytest.mark.anyio
 ACTOR = {"id": 1, "username": "owner"}
@@ -47,10 +47,12 @@ def test_share_links_become_exit_inputs_and_the_panel_shape_is_the_routers():
     for bad in ("wireguard://x", "vless://nope@host", "ss://!!!", "ftp://x:1", ""):
         with pytest.raises(ValueError):
             parse_share_link(bad)
-    # What the panel normalises is exactly what the router validates.
-    for item in (vless, trojan, ss, socks, plain):
-        spec = {**item.settings(), "credential": json.loads(item.credential_bytes() or b"{}")}
-        assert validate_exit(spec)["protocol"] == item.protocol
+    # What the panel normalises is exactly what the router validates: the Rust manager validates the
+    # specs of tests/fixtures/xray-router-contract.json (xray_router_manager/src/tests.rs).
+    contract = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "xray-router-contract.json"
+    specs = [{**item.settings(), "credential": json.loads(item.credential_bytes() or b"{}")}
+             for item in (vless, trojan, ss, socks, plain)]
+    assert specs == json.loads(contract.read_text())["panel_exit_specs"]
 
 
 def test_exit_input_refuses_the_impossible():

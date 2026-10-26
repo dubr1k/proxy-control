@@ -783,11 +783,11 @@ Telemt и сверх образа — из бинарника релиза `tele
 | Dockerfile | Образ | База |
 |---|---|---|
 | `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
-| `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy | `python:3.13.5-slim` |
-| `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru | `python:3.13.5-slim` |
-| `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
-| `mcp_server/Dockerfile` | MCP-сервер (только центральная панель) | `python:3.13.5-slim` |
-| `awg_manager/Dockerfile` | AmneziaWG: служба управления и `amneziawg-go` (необязательно) | `golang:1.25.12` → `python:3.13.5-slim` |
+| `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
+| `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
+| `xray_router_manager/Dockerfile` | Xray-router: служба управления (Rust) и мост MTProxy (Go) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
+| `mcp_server/Dockerfile` | MCP-сервер (Rust, только центральная панель) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
+| `awg_manager/Dockerfile` | AmneziaWG: служба управления (Rust) и `amneziawg-go` (необязательно) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `trusttunnel_manager/Dockerfile` | TrustTunnel: служба управления (Rust) и закреплённый `trusttunnel_endpoint` (необязательно) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `deploy/Dockerfile.agent` | Агент узла Fleet v1 | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Вход Fleet v1 с mTLS | `python:3.13.5-slim` |
@@ -806,15 +806,8 @@ Telemt и сверх образа — из бинарника релиза `tele
 `MarkupSafe`, `argon2-cffi`, `argon2-cffi-bindings`, `cryptography`, `cffi`, `pycparser`,
 `uvicorn`, `click`, `qrcode`.
 
-MCP-сервер (`mcp_server/requirements.txt`): `mcp`, `mcp-types`, `starlette`, `sse-starlette`,
-`uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`, `anyio`, `pydantic`,
-`pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`, `jsonschema`,
-`jsonschema-specifications`, `referencing`, `rpds-py`, `attrs`, `PyJWT`, `cryptography`,
-`cffi`, `pycparser`, `python-multipart`, `opentelemetry-api`, `truststore`, `certifi`,
-`idna`, `click`.
-
 Разработка (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`, `iniconfig`,
-`packaging`, `pluggy`, `Pygments`, `ruff` и зависимости MCP-сервера.
+`packaging`, `pluggy`, `Pygments`, `ruff`.
 
 Все версии закреплены точно. Установщик и службы управления NaiveProxy и Mieru используют
 только стандартную библиотеку Python.

@@ -1,0 +1,34 @@
+[package]
+name = "awg-manager"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Runs one amneziawg-go server per AmneziaWG protocol version, keeps its keys, obfuscation and peers, and steers the clients' egress (direct, WARP or the Xray-router)."
+publish = false
+
+[[bin]]
+name = "awg-manager"
+path = "src/main.rs"
+
+[dependencies]
+pc_common = { path = "../pc_common" }
+base64 = "0.22"
+getrandom = "0.3"
+httparse = "1"
+indexmap = "2"
+libc = "0.2"
+log = "0.4"
+# The WARP registration (one HTTPS call at Cloudflare's client API, as urllib made it): rustls on
+# ring, trusting the system CA bundle the image carries.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+# Python dicts keep insertion order; so do the state document and the API answers.
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+# X25519 (RFC 7748) for the server and WARP key pairs, the same function the Python manager computed.
+x25519-dalek = { version = "2", default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

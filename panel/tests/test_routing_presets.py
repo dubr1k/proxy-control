@@ -3,6 +3,7 @@ that the store keeps, the router compiles `protocols` into Xray's `protocol` and
 native backends refuse it honestly, the definitions come from one place."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -16,10 +17,14 @@ from panel.routing.compiler import explain
 from panel.routing.models import COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
 from panel.routing.presets import PRESET_IDS, PRESETS, rule_for
 from panel.routing.store import RoutingStore
-from xray_router_manager.intent import CAPABILITIES, EgressInvalid, validate_document
-from xray_router_manager.render import _rule
 
 pytestmark = pytest.mark.anyio
+CONTRACT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "xray-router-contract.json"
+
+
+def _contract() -> dict:
+    """What the Rust router manager serves (its own test checks the same file)."""
+    return json.loads(CONTRACT.read_text())
 
 
 def test_a_rule_may_stand_on_the_sniffed_protocol_alone_and_carries_its_preset():
@@ -59,18 +64,11 @@ def test_native_backends_refuse_the_protocol_selector_and_explain_leaves_it_to_t
     assert verdict["rule_id"] is None and verdict["uncertain"] == ["a" * 36]
 
 
-def test_the_router_intent_and_the_xray_rule_carry_the_protocol_selector():
-    document = validate_document({"schema": 1, "default": {"action": "direct", "egress": None},
-                                  "rules": [{"protocols": ["bittorrent", "bittorrent"], "action": "block"}]})
-    assert document["rules"][0]["protocols"] == ["bittorrent"]
-    assert "protocols" not in validate_document({"schema": 1, "default": {"action": "direct", "egress": None},
-                                                 "rules": [{"domains": ["x.com"], "action": "block"}]})["rules"][0]
-    with pytest.raises(EgressInvalid, match="protocol selector"):
-        validate_document({"schema": 1, "default": {"action": "direct", "egress": None},
-                           "rules": [{"protocols": ["ssh"], "action": "block"}]})
-    rendered = _rule("naive", {**document["rules"][0], "domains": [], "geosites": [], "cidrs": [], "geoips": [], "ports": []})
-    assert rendered["protocol"] == ["bittorrent"] and rendered["outboundTag"] == "block" and "domain" not in rendered
-    assert {"block_protocol", "selective_protocol"} <= set(CAPABILITIES)
+# The router's side of the protocol selector (the intent keeps `protocols`, the Xray rule carries
+# `protocol`) is tested with the Rust manager:
+# xray_router_manager/src/intent.rs::the_router_intent_and_the_xray_rule_carry_the_protocol_selector.
+def test_the_router_announces_the_protocol_selector():
+    assert {"block_protocol", "selective_protocol"} <= set(_contract()["capabilities"])
 
 
 def test_the_store_keeps_the_preset_mark_across_a_save(tmp_path):
@@ -115,7 +113,9 @@ def test_the_panel_knows_every_geodata_source_the_router_manager_does():
     from panel.fleet_v2.node_routes import GeodataSource
     from panel.routing.routes import GeodataSourceBody
     from panel.xray_router import GEODATA_SOURCE_KINDS
-    from xray_router_manager.geodata import SOURCE_KINDS
+
+    # The Rust router manager checks the same fixture (xray_router_manager/src/tests.rs).
+    SOURCE_KINDS = _contract()["geodata_source_kinds"]
     for model in (GeodataSourceBody, GeodataSource):
         assert set(get_args(model.model_fields["kind"].annotation)) == set(SOURCE_KINDS)
     assert set(GEODATA_SOURCE_KINDS) == set(SOURCE_KINDS)

@@ -114,8 +114,8 @@ def cleanup(client_id, panel_host):
 
 def connect(repo, issue_json, binary):
     assert os.environ.get("AWG_REMOTE") == "1" and os.geteuid() == 0, "client host only: AWG_REMOTE=1, root"
-    sys.path.insert(0, repo)
-    from awg_manager.host import _uapi_exchange
+    sys.path.insert(0, f"{repo}/scripts/lab")
+    from awg_lab import uapi_exchange as _uapi_exchange
 
     document = json.loads(Path(issue_json).read_text())
     work = Path("/root/awg-remote")
@@ -233,8 +233,8 @@ def cleanup_multi(client_ids, panel_host):
 
 def connect_multi(repo, multi_json, binary):
     assert os.environ.get("AWG_REMOTE") == "1" and os.geteuid() == 0, "client host only: AWG_REMOTE=1, root"
-    sys.path.insert(0, repo)
-    from awg_manager.host import _uapi_exchange
+    sys.path.insert(0, f"{repo}/scripts/lab")
+    from awg_lab import uapi_exchange as _uapi_exchange
 
     document = json.loads(Path(multi_json).read_text())
     work = Path("/root/awg-multi")

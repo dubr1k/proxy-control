@@ -287,7 +287,7 @@ def test_upstream_disabled_lists_only_the_catalog_and_refuses_to_check(tmp_path:
 
 
 XRAY_MEMBERS = ("xray", "geoip.dat", "geosite.dat")
-XRAY_STATUS = ["docker", "exec", "proxy-control-xray-router", "python", "-m", "xray_router_manager.healthcheck", "--status"]
+XRAY_STATUS = ["docker", "exec", "proxy-control-xray-router", *VersionAgent.XRAY_STATUS_COMMAND]
 
 
 def _xray_zip() -> bytes:

@@ -54,6 +54,10 @@ def test_interpreter_and_source_are_independent_and_cores_can_be_skipped(tmp_pat
     assert args.python == "/root/dev/.venv/bin/python" and args.source == tmp_path
     assert args.singbox_image == "" and args.mihomo_image == "" and args.mtproxy_probe == ""
     assert args.cleanup is True and args.bulk_grants == 5
+    # 4.0: node B's router is the Rust binary built in the same tree, unless named.
+    assert args.router_manager == tmp_path.resolve() / "xray_router_manager/target/release/xray-router-manager"
+    named = fa.parse_args(REQUIRED + ["--router-manager", str(tmp_path / "bin/xray-router-manager")])
+    assert named.router_manager == (tmp_path / "bin/xray-router-manager").resolve()
 
 
 def test_routing_scenarios_are_opt_in_and_sit_after_the_grants(tmp_path):

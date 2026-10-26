@@ -50,6 +50,9 @@ _ROUTER_UID = 10006
 _ROUTER_GID = 10006
 _SERVICE = "xray-router"
 _CONTAINER = "proxy-control-xray-router"
+# 4.0: the manager is a Rust binary (no Python in the image); its probe prints the manager's own
+# JSON (`--status`, `--relay`, `--relay-enable <name> <port>`), the token read inside the container.
+_HEALTHCHECK = ("/usr/local/bin/xray-router-manager", "healthcheck")
 # v1.1: the MTProxy ingress bridge — Telemt's way to the router from the Compose network.
 _BRIDGE_SERVICE = "xray-router-ingress"
 _BRIDGE_CONTAINER = "proxy-control-xray-router-ingress"
@@ -146,7 +149,7 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
     def router_status(self) -> Mapping[str, object]:
         """The manager's `/v1/status`, asked from inside the container over its own UDS."""
         output = self._capture_checked(
-            ("docker", "exec", _CONTAINER, "python", "-m", "xray_router_manager.healthcheck", "--status")
+            ("docker", "exec", _CONTAINER, *_HEALTHCHECK, "--status")
         )
         try:
             value = json.loads(output)
@@ -175,7 +178,7 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
 
     def _relay_json(self, *arguments: str) -> Mapping[str, object]:
         output = self._capture_checked(
-            ("docker", "exec", _CONTAINER, "python", "-m", "xray_router_manager.healthcheck", *arguments)
+            ("docker", "exec", _CONTAINER, *_HEALTHCHECK, *arguments)
         )
         try:
             value = json.loads(output)

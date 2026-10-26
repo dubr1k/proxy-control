@@ -32,8 +32,10 @@ def test_it_does_what_the_installer_does_and_never_touches_the_server_keys():
     text = SCRIPT.read_text()
     for needed in ("awg_manager", "compose.amneziawg.yaml", ".env.amneziawg", "99-proxy-control-amneziawg.conf",
                    "awg-forward.service", "ufw allow", "ufw route allow in on", "PROXY_CONTROL_COMPOSE_FILES",
-                   "awg_manager.healthcheck", "AWG_MANAGER_SOCKET_GID=10007", "chown -R root:root"):
+                   "/usr/local/bin/awg-manager healthcheck", "AWG_MANAGER_SOCKET_GID=10007", "chown -R root:root"):
         assert needed in text, needed
+    # 4.0: the Rust manager's image builds against pc_common, and the manager is its own probe
+    assert "for tree in awg_manager pc_common; do" in text and "python -m awg_manager" not in text
     # the state directory with the server keys is created, never removed or emptied
     assert "rm -rf /var/lib/awg-manager" not in text and "/var/lib/awg-manager/" not in text.replace("AWG_MANAGER_STATE_DIR=/var/lib/awg-manager", "")
     # the compose list comes from the version agent's configuration, not from guessing by env files

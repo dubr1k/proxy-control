@@ -252,8 +252,8 @@ class Rig:
             if sock.exists():
                 break
             time.sleep(0.1)
-        sys.path.insert(0, self.repo)
-        from awg_manager.host import _uapi_exchange  # noqa: PLC0415
+        sys.path.insert(0, f"{self.repo}/scripts/lab")
+        from awg_lab import uapi_exchange as _uapi_exchange  # noqa: PLC0415
 
         conv = sh(sys.executable, f"{self.repo}/scripts/lab/awg_conf_to_uapi.py", self.repo, str(WORK / "c.conf"),
                   f"{ip}:{opts['port']}", check_rc=True)

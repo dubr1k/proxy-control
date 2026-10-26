@@ -1,17 +1,17 @@
-FROM python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
-# The base image ships no bytecode and the container's root is read-only, so every Python start
-# (health checks, `docker exec`) would compile the standard library again. First step after
-# FROM, so every Proxy Control image shares this layer.
-RUN python -m compileall -q -j0 /usr/local/lib/python3.13
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
-WORKDIR /app
-COPY mcp_server/requirements.txt /tmp/requirements.txt
-RUN pip install -r /tmp/requirements.txt \
- && groupadd --system --gid 10007 mcp \
- && useradd --system --uid 10007 --gid mcp --no-create-home mcp
-COPY mcp_server /app/mcp_server
-RUN python -m compileall -q /usr/local/lib/python3.13/site-packages /app
+# The MCP server: built from the locked dependency set, nothing fetched beyond Cargo.lock.
+FROM rust:1.99-slim-bookworm@sha256:86234e857a413004348b471d11a4ebe1aa92d2eae2b6b143cac68fd1ac3c48be AS build
+WORKDIR /src
+COPY pc_common /src/pc_common
+COPY mcp_server /src/mcp_server
+RUN cd /src/mcp_server \
+    && cargo build --release --locked \
+    && install -D -m 0755 target/release/mcp-server /out/mcp-server
+
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+COPY --from=build /out/mcp-server /usr/local/bin/mcp-server
+# CA bundle for an https MCP_PANEL_URL (the panel is plain http inside the Compose network).
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 USER 10007:10007
 EXPOSE 8793
-HEALTHCHECK --interval=20s --timeout=3s --retries=3 --start-period=15s CMD ["python", "-m", "mcp_server.healthcheck"]
-ENTRYPOINT ["python", "-m", "mcp_server"]
+HEALTHCHECK --interval=20s --timeout=3s --retries=3 --start-period=15s CMD ["/usr/local/bin/mcp-server", "healthcheck"]
+ENTRYPOINT ["/usr/local/bin/mcp-server"]

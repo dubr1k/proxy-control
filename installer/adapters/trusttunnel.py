@@ -56,29 +56,10 @@ _HEX_32 = re.compile(r"[0-9a-f]{32}\Z")
 _HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
 _VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+\Z")
 _LOOPBACK = re.compile(r"127\.0\.0\.1:([0-9]{1,5})\Z")
-# Run inside the manager container: asks `GET /v1/health` over its own Unix socket with its own
-# token file and prints the answer's body only. The token never leaves the container.
-_HEALTH_SCRIPT = (
-    "import os, socket\n"
-    "from pathlib import Path\n"
-    "token = Path(os.environ['TT_MANAGER_TOKEN_FILE']).read_text().strip()\n"
-    "request = ('GET /v1/health HTTP/1.1\\r\\nHost: trusttunnel-manager\\r\\nX-Trusttunnel-Token: ' + token\n"
-    "           + '\\r\\nConnection: close\\r\\n\\r\\n').encode('ascii')\n"
-    "with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:\n"
-    "    client.settimeout(5)\n"
-    "    client.connect(os.environ.get('TT_MANAGER_SOCKET', '/run/trusttunnel-manager/manager.sock'))\n"
-    "    client.sendall(request)\n"
-    "    chunks = []\n"
-    "    while True:\n"
-    "        chunk = client.recv(4096)\n"
-    "        if not chunk:\n"
-    "            break\n"
-    "        chunks.append(chunk)\n"
-    "head, _, body = b''.join(chunks).partition(b'\\r\\n\\r\\n')\n"
-    "if head.split(b'\\r\\n', 1)[0] not in (b'HTTP/1.0 200 OK', b'HTTP/1.1 200 OK'):\n"
-    "    raise SystemExit(1)\n"
-    "print(body.decode())\n"
-)
+# Run inside the manager container: the manager's own binary asks `GET /v1/health` over its Unix
+# socket with its own token file and prints the answer's body only. The token never leaves the
+# container.
+_HEALTH_COMMAND = ("/usr/local/bin/trusttunnel-manager", "health")
 
 
 class TrustTunnelError(RuntimeError):
@@ -121,7 +102,7 @@ class _DefaultTrustTunnelRunner(_DefaultCoreRunner):
         return output.strip()
 
     def manager_health(self) -> Mapping[str, object]:
-        output = self._capture_checked(("docker", "exec", _CONTAINER, "python", "-c", _HEALTH_SCRIPT))
+        output = self._capture_checked(("docker", "exec", _CONTAINER, *_HEALTH_COMMAND))
         try:
             value = json.loads(output)
         except ValueError as exc:

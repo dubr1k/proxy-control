@@ -1,0 +1,1989 @@
+{
+ "canonical": [
+  [
+   {
+    "b": 1,
+    "a": [
+     1.0,
+     1e+16,
+     1.5e-05,
+     0.0001,
+     1.2345678901234568e+17,
+     -0.0,
+     1e+22,
+     2.5,
+     1e-07,
+     123.456,
+     0.1
+    ]
+   },
+   "{\"a\":[1.0,1e+16,1.5e-05,0.0001,1.2345678901234568e+17,-0.0,1e+22,2.5,1e-07,123.456,0.1],\"b\":1}"
+  ],
+  [
+   {
+    "ü": "jürgen    \u0001 \"q\" \\ \n\t\r\b\f 😀 ☃",
+    "z": null,
+    "t": true,
+    "f": false
+   },
+   "{\"f\":false,\"t\":true,\"z\":null,\"\\u00fc\":\"j\\u00fcrgen \\u2028 \\u007f \\u0001 \\\"q\\\" \\\\ \\n\\t\\r\\b\\f \\ud83d\\ude00 \\u2603\"}"
+  ],
+  [
+   {
+    "nested": {
+     "y": [],
+     "x": {},
+     "w": [
+      {
+       "k": -5
+      },
+      18446744073709551615,
+      -9223372036854775808
+     ]
+    }
+   },
+   "{\"nested\":{\"w\":[{\"k\":-5},18446744073709551615,-9223372036854775808],\"x\":{},\"y\":[]}}"
+  ],
+  [
+   "plain",
+   "\"plain\""
+  ],
+  [
+   [],
+   "[]"
+  ],
+  [
+   {},
+   "{}"
+  ]
+ ],
+ "indent1": [
+  [
+   {
+    "b": 1,
+    "a": [
+     1.0,
+     1e+16,
+     1.5e-05,
+     0.0001,
+     1.2345678901234568e+17,
+     -0.0,
+     1e+22,
+     2.5,
+     1e-07,
+     123.456,
+     0.1
+    ]
+   },
+   "{\n \"a\": [\n  1.0,\n  1e+16,\n  1.5e-05,\n  0.0001,\n  1.2345678901234568e+17,\n  -0.0,\n  1e+22,\n  2.5,\n  1e-07,\n  123.456,\n  0.1\n ],\n \"b\": 1\n}"
+  ],
+  [
+   {
+    "ü": "jürgen    \u0001 \"q\" \\ \n\t\r\b\f 😀 ☃",
+    "z": null,
+    "t": true,
+    "f": false
+   },
+   "{\n \"f\": false,\n \"t\": true,\n \"z\": null,\n \"\\u00fc\": \"j\\u00fcrgen \\u2028 \\u007f \\u0001 \\\"q\\\" \\\\ \\n\\t\\r\\b\\f \\ud83d\\ude00 \\u2603\"\n}"
+  ],
+  [
+   {
+    "nested": {
+     "y": [],
+     "x": {},
+     "w": [
+      {
+       "k": -5
+      },
+      18446744073709551615,
+      -9223372036854775808
+     ]
+    }
+   },
+   "{\n \"nested\": {\n  \"w\": [\n   {\n    \"k\": -5\n   },\n   18446744073709551615,\n   -9223372036854775808\n  ],\n  \"x\": {},\n  \"y\": []\n }\n}"
+  ],
+  [
+   "plain",
+   "\"plain\""
+  ],
+  [
+   [],
+   "[]"
+  ],
+  [
+   {},
+   "{}"
+  ]
+ ],
+ "ip_network": [
+  [
+   "10.1.2.3/8",
+   "10.0.0.0/8"
+  ],
+  [
+   "::ffff:1.2.3.4/128",
+   "::ffff:1.2.3.4/128"
+  ],
+  [
+   "::ffff:1.2.3.4/96",
+   "::ffff:0.0.0.0/96"
+  ],
+  [
+   "fe80::1%eth0/64",
+   "fe80::/64"
+  ],
+  [
+   "fe80::1%eth0/128",
+   "fe80::1%eth0/128"
+  ],
+  [
+   "1:0:0:1:0:0:0:1/128",
+   "1:0:0:1::1/128"
+  ],
+  [
+   "0012",
+   null
+  ],
+  [
+   "10.0.0.0/255.0.0.0",
+   "10.0.0.0/8"
+  ],
+  [
+   "10.0.0.0/0.0.0.255",
+   "10.0.0.0/24"
+  ],
+  [
+   "::/0",
+   "::/0"
+  ],
+  [
+   "::1.2.3.4/128",
+   "::102:304/128"
+  ],
+  [
+   "0.0.0.0/0",
+   "0.0.0.0/0"
+  ],
+  [
+   "1.2.3.4",
+   "1.2.3.4/32"
+  ],
+  [
+   "2001:db8::",
+   "2001:db8::/128"
+  ],
+  [
+   "2001:DB8:0:0:1::/64",
+   "2001:db8::/64"
+  ],
+  [
+   "1.2.3.4/32",
+   "1.2.3.4/32"
+  ],
+  [
+   "1.2.3.4/33",
+   null
+  ],
+  [
+   "1.2.3/24",
+   null
+  ],
+  [
+   "01.2.3.4/8",
+   null
+  ],
+  [
+   "1.2.3.4/+8",
+   null
+  ],
+  [
+   "1.2.3.4/ 8",
+   null
+  ],
+  [
+   "1.2.3.4/08",
+   "1.0.0.0/8"
+  ],
+  [
+   "::1/129",
+   null
+  ],
+  [
+   "1::2::3",
+   null
+  ],
+  [
+   ":1::2",
+   null
+  ],
+  [
+   "1:2:3:4:5:6:7:8",
+   "1:2:3:4:5:6:7:8/128"
+  ],
+  [
+   "1:2:3:4:5:6:7:8:9",
+   null
+  ],
+  [
+   "1:2:3:4:5:6:7::",
+   "1:2:3:4:5:6:7:0/128"
+  ],
+  [
+   "::1:2:3:4:5:6:7",
+   "0:1:2:3:4:5:6:7/128"
+  ],
+  [
+   "1:2:3:4:5:6:1.2.3.4",
+   "1:2:3:4:5:6:102:304/128"
+  ],
+  [
+   "::ffff:1.2.3.256",
+   null
+  ],
+  [
+   "1.2.3.4/255.255.0.255",
+   null
+  ],
+  [
+   "fe80::%",
+   null
+  ],
+  [
+   "fe80::1%a%b/64",
+   null
+  ],
+  [
+   "abcde::1",
+   null
+  ],
+  [
+   "a/b/c",
+   null
+  ],
+  [
+   "",
+   null
+  ],
+  [
+   "1.2.3.4/",
+   null
+  ],
+  [
+   "/8",
+   null
+  ],
+  [
+   "0:0:0:0:0:ffff:0:0/96",
+   "::ffff:0.0.0.0/96"
+  ],
+  [
+   "::ffff:0:0/96",
+   "::ffff:0.0.0.0/96"
+  ],
+  [
+   "2001:0:0:0:1:0:0:0/128",
+   "2001::1:0:0:0/128"
+  ],
+  [
+   "0:0:1:0:0:0:0:0/128",
+   "0:0:1::/128"
+  ],
+  [
+   "1.2.3.4/0.0.0.0",
+   "0.0.0.0/0"
+  ],
+  [
+   "1.2.3.4/255.255.255.255",
+   "1.2.3.4/32"
+  ],
+  [
+   "١.2.3.4/8",
+   null
+  ],
+  [
+   "1.2.3.4/٨",
+   null
+  ],
+  [
+   "10.0.0.0/8\n",
+   null
+  ]
+ ],
+ "ip_address": [
+  [
+   "127.0.0.1",
+   true
+  ],
+  [
+   "1.2.3.4",
+   true
+  ],
+  [
+   "01.2.3.4",
+   false
+  ],
+  [
+   "::1",
+   true
+  ],
+  [
+   "fe80::1%eth0",
+   true
+  ],
+  [
+   "fe80::1%",
+   false
+  ],
+  [
+   "256.1.1.1",
+   false
+  ],
+  [
+   "1.2.3",
+   false
+  ],
+  [
+   "",
+   false
+  ],
+  [
+   "::ffff:1.2.3.4",
+   true
+  ],
+  [
+   "1:2:3:4:5:6:7:8",
+   true
+  ],
+  [
+   "1:2:3:4:5:6:7:8:9",
+   false
+  ],
+  [
+   5,
+   true
+  ],
+  [
+   -1,
+   false
+  ],
+  [
+   true,
+   true
+  ],
+  [
+   1.5,
+   false
+  ],
+  [
+   null,
+   false
+  ],
+  [
+   [
+    1
+   ],
+   false
+  ],
+  [
+   "١.2.3.4",
+   false
+  ],
+  [
+   4294967296,
+   true
+  ],
+  [
+   "1.2.3.4 ",
+   false
+  ]
+ ],
+ "domains": [
+  [
+   "Example.COM.",
+   "example.com"
+  ],
+  [
+   "a.example",
+   "a.example"
+  ],
+  [
+   "bad host",
+   null
+  ],
+  [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.com",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.com"
+  ],
+  [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.com",
+   null
+  ],
+  [
+   "-a.com",
+   null
+  ],
+  [
+   "a-.com",
+   null
+  ],
+  [
+   "a..com",
+   null
+  ],
+  [
+   "*",
+   "*"
+  ],
+  [
+   ".",
+   null
+  ],
+  [
+   "..",
+   null
+  ],
+  [
+   "KELVIN-K.com",
+   "kelvin-k.com"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+   null
+  ],
+  [
+   "1.2.3.4",
+   "1.2.3.4"
+  ],
+  [
+   "xn--d1acufc.xn--p1ai",
+   "xn--d1acufc.xn--p1ai"
+  ],
+  [
+   "é.com",
+   null
+  ],
+  [
+   "a.b.c.",
+   "a.b.c"
+  ]
+ ],
+ "durations": [
+  [
+   "1ms",
+   1000000
+  ],
+  [
+   "999ms",
+   999000000
+  ],
+  [
+   "0.999999999s",
+   999999999
+  ],
+  [
+   "1 s",
+   null
+  ],
+  [
+   "1d",
+   null
+  ],
+  [
+   "2562047h47m16.854775808s",
+   null
+  ],
+  [
+   "1s",
+   1000000000
+  ],
+  [
+   "1000ms",
+   1000000000
+  ],
+  [
+   "1.5s",
+   1500000000
+  ],
+  [
+   "1m30s",
+   90000000000
+  ],
+  [
+   "+2s",
+   2000000000
+  ],
+  [
+   "-2s",
+   -2000000000
+  ],
+  [
+   "1.s",
+   1000000000
+  ],
+  [
+   ".5s",
+   500000000
+  ],
+  [
+   ".s",
+   null
+  ],
+  [
+   "1h1m1s1ms1us1µs1μs1ns",
+   3661001003001
+  ],
+  [
+   "0",
+   null
+  ],
+  [
+   "0s",
+   0
+  ],
+  [
+   "1",
+   null
+  ],
+  [
+   "s",
+   null
+  ],
+  [
+   "2562047h47m16.854775807s",
+   9223372036854775807
+  ],
+  [
+   "-2562047h47m16.854775808s",
+   -9223372036854775808
+  ],
+  [
+   "-2562047h47m16.854775809s",
+   null
+  ],
+  [
+   "1.0000000001s",
+   1000000000
+  ],
+  [
+   "00000000000000000000000000001s",
+   1000000000
+  ],
+  [
+   "0.9999999999999999999999s",
+   999999999
+  ],
+  [
+   "1h-1m",
+   null
+  ],
+  [
+   "1e3s",
+   null
+  ],
+  [
+   "1µs",
+   1000
+  ],
+  [
+   "3.5m",
+   210000000000
+  ],
+  [
+   "1s ",
+   null
+  ],
+  [
+   " 1s",
+   null
+  ],
+  [
+   "1ss",
+   null
+  ],
+  [
+   "1sm",
+   null
+  ]
+ ],
+ "quote": [
+  [
+   "alice",
+   "alice"
+  ],
+  [
+   "a b",
+   "a%20b"
+  ],
+  [
+   "a+b/c?d&e=f",
+   "a%2Bb%2Fc%3Fd%26e%3Df"
+  ],
+  [
+   "jürgen",
+   "j%C3%BCrgen"
+  ],
+  [
+   "~._-",
+   "~._-"
+  ],
+  [
+   "x@y:z",
+   "x%40y%3Az"
+  ],
+  [
+   "😀",
+   "%F0%9F%98%80"
+  ],
+  [
+   "%41",
+   "%2541"
+  ],
+  [
+   "\n",
+   "%0A"
+  ]
+ ],
+ "urlencode": [
+  [
+   "alice",
+   "profile=alice&port=8443"
+  ],
+  [
+   "a b",
+   "profile=a+b&port=8443"
+  ],
+  [
+   "a+b/c?d&e=f",
+   "profile=a%2Bb%2Fc%3Fd%26e%3Df&port=8443"
+  ],
+  [
+   "jürgen",
+   "profile=j%C3%BCrgen&port=8443"
+  ],
+  [
+   "~._-",
+   "profile=~._-&port=8443"
+  ],
+  [
+   "x@y:z",
+   "profile=x%40y%3Az&port=8443"
+  ],
+  [
+   "😀",
+   "profile=%F0%9F%98%80&port=8443"
+  ],
+  [
+   "%41",
+   "profile=%2541&port=8443"
+  ],
+  [
+   "\n",
+   "profile=%0A&port=8443"
+  ]
+ ],
+ "diff": [
+  [
+   null,
+   {
+    "proxies": [
+     {
+      "name": "warp",
+      "protocol": "SOCKS5_PROXY_PROTOCOL",
+      "host": "127.0.0.1",
+      "port": 45000
+     }
+    ],
+    "rules": [
+     {
+      "action": "PROXY",
+      "ipRanges": [
+       "*"
+      ],
+      "domainNames": [
+       "*"
+      ],
+      "proxyNames": [
+       "warp"
+      ]
+     }
+    ]
+   },
+   [
+    "-null",
+    "+{",
+    "+ \"proxies\": [",
+    "+  {",
+    "+   \"host\": \"127.0.0.1\",",
+    "+   \"name\": \"warp\",",
+    "+   \"port\": 45000,",
+    "+   \"protocol\": \"SOCKS5_PROXY_PROTOCOL\"",
+    "+  }",
+    "+ ],",
+    "+ \"rules\": [",
+    "+  {",
+    "+   \"action\": \"PROXY\",",
+    "+   \"domainNames\": [",
+    "+    \"*\"",
+    "+   ],",
+    "+   \"ipRanges\": [",
+    "+    \"*\"",
+    "+   ],",
+    "+   \"proxyNames\": [",
+    "+    \"warp\"",
+    "+   ]",
+    "+  }",
+    "+ ]",
+    "+}"
+   ]
+  ],
+  [
+   {
+    "proxies": [
+     {
+      "name": "warp",
+      "protocol": "SOCKS5_PROXY_PROTOCOL",
+      "host": "127.0.0.1",
+      "port": 40000
+     }
+    ],
+    "rules": [
+     {
+      "ipRanges": [
+       "0.0.0.0/0",
+       "::/0"
+      ],
+      "action": "DIRECT"
+     }
+    ]
+   },
+   {
+    "proxies": [
+     {
+      "name": "warp",
+      "protocol": "SOCKS5_PROXY_PROTOCOL",
+      "host": "127.0.0.1",
+      "port": 45000
+     }
+    ],
+    "rules": [
+     {
+      "action": "REJECT",
+      "domainNames": [
+       "example.com"
+      ]
+     },
+     {
+      "action": "DIRECT",
+      "ipRanges": [
+       "10.0.0.0/8"
+      ],
+      "domainNames": [
+       "api.ipify.org"
+      ]
+     },
+     {
+      "action": "PROXY",
+      "ipRanges": [
+       "*"
+      ],
+      "domainNames": [
+       "*"
+      ],
+      "proxyNames": [
+       "warp"
+      ]
+     }
+    ]
+   },
+   [
+    "-   \"port\": 40000,",
+    "+   \"port\": 45000,",
+    "+   \"action\": \"REJECT\",",
+    "+   \"domainNames\": [",
+    "+    \"example.com\"",
+    "+   ]",
+    "+  },",
+    "+  {",
+    "+   \"domainNames\": [",
+    "+    \"api.ipify.org\"",
+    "+   ],",
+    "-    \"0.0.0.0/0\",",
+    "-    \"::/0\"",
+    "+    \"10.0.0.0/8\"",
+    "+   ]",
+    "+  },",
+    "+  {",
+    "+   \"action\": \"PROXY\",",
+    "+   \"domainNames\": [",
+    "+    \"*\"",
+    "+   ],",
+    "+   \"ipRanges\": [",
+    "+    \"*\"",
+    "+   ],",
+    "+   \"proxyNames\": [",
+    "+    \"warp\""
+   ]
+  ],
+  [
+   {
+    "rules": [
+     {
+      "action": "REJECT",
+      "domainNames": [
+       "d0.example",
+       "d1.example",
+       "d2.example",
+       "d3.example",
+       "d4.example",
+       "d5.example",
+       "d6.example",
+       "d7.example",
+       "d8.example",
+       "d9.example",
+       "d10.example",
+       "d11.example",
+       "d12.example",
+       "d13.example",
+       "d14.example",
+       "d15.example",
+       "d16.example",
+       "d17.example",
+       "d18.example",
+       "d19.example",
+       "d20.example",
+       "d21.example",
+       "d22.example",
+       "d23.example",
+       "d24.example",
+       "d25.example",
+       "d26.example",
+       "d27.example",
+       "d28.example",
+       "d29.example",
+       "d30.example",
+       "d31.example",
+       "d32.example",
+       "d33.example",
+       "d34.example",
+       "d35.example",
+       "d36.example",
+       "d37.example",
+       "d38.example",
+       "d39.example",
+       "d40.example",
+       "d41.example",
+       "d42.example",
+       "d43.example",
+       "d44.example",
+       "d45.example",
+       "d46.example",
+       "d47.example",
+       "d48.example",
+       "d49.example",
+       "d50.example",
+       "d51.example",
+       "d52.example",
+       "d53.example",
+       "d54.example",
+       "d55.example",
+       "d56.example",
+       "d57.example",
+       "d58.example",
+       "d59.example",
+       "d60.example",
+       "d61.example",
+       "d62.example",
+       "d63.example",
+       "d64.example",
+       "d65.example",
+       "d66.example",
+       "d67.example",
+       "d68.example",
+       "d69.example",
+       "d70.example",
+       "d71.example",
+       "d72.example",
+       "d73.example",
+       "d74.example",
+       "d75.example",
+       "d76.example",
+       "d77.example",
+       "d78.example",
+       "d79.example",
+       "d80.example",
+       "d81.example",
+       "d82.example",
+       "d83.example",
+       "d84.example",
+       "d85.example",
+       "d86.example",
+       "d87.example",
+       "d88.example",
+       "d89.example",
+       "d90.example",
+       "d91.example",
+       "d92.example",
+       "d93.example",
+       "d94.example",
+       "d95.example",
+       "d96.example",
+       "d97.example",
+       "d98.example",
+       "d99.example",
+       "d100.example",
+       "d101.example",
+       "d102.example",
+       "d103.example",
+       "d104.example",
+       "d105.example",
+       "d106.example",
+       "d107.example",
+       "d108.example",
+       "d109.example",
+       "d110.example",
+       "d111.example",
+       "d112.example",
+       "d113.example",
+       "d114.example",
+       "d115.example",
+       "d116.example",
+       "d117.example",
+       "d118.example",
+       "d119.example"
+      ]
+     }
+    ]
+   },
+   {
+    "rules": [
+     {
+      "action": "REJECT",
+      "domainNames": [
+       "d0.example",
+       "d2.example",
+       "d4.example",
+       "d6.example",
+       "d8.example",
+       "d10.example",
+       "d12.example",
+       "d14.example",
+       "d16.example",
+       "d18.example",
+       "d20.example",
+       "d22.example",
+       "d24.example",
+       "d26.example",
+       "d28.example",
+       "d30.example",
+       "d32.example",
+       "d34.example",
+       "d36.example",
+       "d38.example",
+       "d40.example",
+       "d42.example",
+       "d44.example",
+       "d46.example",
+       "d48.example",
+       "d50.example",
+       "d52.example",
+       "d54.example",
+       "d56.example",
+       "d58.example",
+       "d60.example",
+       "d62.example",
+       "d64.example",
+       "d66.example",
+       "d68.example",
+       "d70.example",
+       "d72.example",
+       "d74.example",
+       "d76.example",
+       "d78.example",
+       "d80.example",
+       "d82.example",
+       "d84.example",
+       "d86.example",
+       "d88.example",
+       "d90.example",
+       "d92.example",
+       "d94.example",
+       "d96.example",
+       "d98.example",
+       "d100.example",
+       "d102.example",
+       "d104.example",
+       "d106.example",
+       "d108.example",
+       "d110.example",
+       "d112.example",
+       "d114.example",
+       "d116.example",
+       "d118.example",
+       "d120.example",
+       "d122.example",
+       "d124.example",
+       "d126.example",
+       "d128.example",
+       "d130.example",
+       "d132.example",
+       "d134.example",
+       "d136.example",
+       "d138.example",
+       "d140.example",
+       "d142.example",
+       "d144.example",
+       "d146.example",
+       "d148.example",
+       "d150.example",
+       "d152.example",
+       "d154.example",
+       "d156.example",
+       "d158.example",
+       "d160.example",
+       "d162.example",
+       "d164.example",
+       "d166.example",
+       "d168.example",
+       "d170.example",
+       "d172.example",
+       "d174.example",
+       "d176.example",
+       "d178.example",
+       "d180.example",
+       "d182.example",
+       "d184.example",
+       "d186.example",
+       "d188.example",
+       "d190.example",
+       "d192.example",
+       "d194.example",
+       "d196.example",
+       "d198.example",
+       "d200.example",
+       "d202.example",
+       "d204.example",
+       "d206.example",
+       "d208.example",
+       "d210.example",
+       "d212.example",
+       "d214.example",
+       "d216.example",
+       "d218.example",
+       "d220.example",
+       "d222.example",
+       "d224.example",
+       "d226.example",
+       "d228.example",
+       "d230.example",
+       "d232.example",
+       "d234.example",
+       "d236.example",
+       "d238.example"
+      ]
+     }
+    ]
+   },
+   [
+    "-    \"d1.example\",",
+    "-    \"d3.example\",",
+    "-    \"d5.example\",",
+    "-    \"d7.example\",",
+    "-    \"d9.example\",",
+    "-    \"d11.example\",",
+    "-    \"d13.example\",",
+    "-    \"d15.example\",",
+    "-    \"d17.example\",",
+    "-    \"d19.example\",",
+    "-    \"d21.example\",",
+    "-    \"d23.example\",",
+    "-    \"d25.example\",",
+    "-    \"d27.example\",",
+    "-    \"d29.example\",",
+    "-    \"d31.example\",",
+    "-    \"d33.example\",",
+    "-    \"d35.example\",",
+    "-    \"d37.example\",",
+    "-    \"d39.example\",",
+    "-    \"d41.example\",",
+    "-    \"d43.example\",",
+    "-    \"d45.example\",",
+    "-    \"d47.example\",",
+    "-    \"d49.example\",",
+    "-    \"d51.example\",",
+    "-    \"d53.example\",",
+    "-    \"d55.example\",",
+    "-    \"d57.example\",",
+    "-    \"d59.example\",",
+    "-    \"d61.example\",",
+    "-    \"d63.example\",",
+    "-    \"d65.example\",",
+    "-    \"d67.example\",",
+    "-    \"d69.example\",",
+    "-    \"d71.example\",",
+    "-    \"d73.example\",",
+    "-    \"d75.example\",",
+    "-    \"d77.example\",",
+    "-    \"d79.example\",",
+    "-    \"d81.example\",",
+    "-    \"d83.example\",",
+    "-    \"d85.example\",",
+    "-    \"d87.example\",",
+    "-    \"d89.example\",",
+    "-    \"d91.example\",",
+    "-    \"d93.example\",",
+    "-    \"d95.example\",",
+    "-    \"d97.example\",",
+    "-    \"d99.example\",",
+    "-    \"d101.example\",",
+    "-    \"d103.example\",",
+    "-    \"d105.example\",",
+    "-    \"d107.example\",",
+    "-    \"d109.example\",",
+    "-    \"d111.example\",",
+    "-    \"d113.example\",",
+    "-    \"d115.example\",",
+    "-    \"d117.example\",",
+    "-    \"d119.example\"",
+    "+    \"d120.example\",",
+    "+    \"d122.example\",",
+    "+    \"d124.example\",",
+    "+    \"d126.example\",",
+    "+    \"d128.example\",",
+    "+    \"d130.example\",",
+    "+    \"d132.example\",",
+    "+    \"d134.example\",",
+    "+    \"d136.example\",",
+    "+    \"d138.example\",",
+    "+    \"d140.example\",",
+    "+    \"d142.example\",",
+    "+    \"d144.example\",",
+    "+    \"d146.example\",",
+    "+    \"d148.example\",",
+    "+    \"d150.example\",",
+    "+    \"d152.example\",",
+    "+    \"d154.example\",",
+    "+    \"d156.example\",",
+    "+    \"d158.example\",",
+    "+    \"d160.example\",",
+    "+    \"d162.example\",",
+    "+    \"d164.example\",",
+    "+    \"d166.example\",",
+    "+    \"d168.example\",",
+    "+    \"d170.example\",",
+    "+    \"d172.example\",",
+    "+    \"d174.example\",",
+    "+    \"d176.example\",",
+    "+    \"d178.example\",",
+    "+    \"d180.example\",",
+    "+    \"d182.example\",",
+    "+    \"d184.example\",",
+    "+    \"d186.example\",",
+    "+    \"d188.example\",",
+    "+    \"d190.example\",",
+    "+    \"d192.example\",",
+    "+    \"d194.example\",",
+    "+    \"d196.example\",",
+    "+    \"d198.example\",",
+    "+    \"d200.example\",",
+    "+    \"d202.example\",",
+    "+    \"d204.example\",",
+    "+    \"d206.example\",",
+    "+    \"d208.example\",",
+    "+    \"d210.example\",",
+    "+    \"d212.example\",",
+    "+    \"d214.example\",",
+    "+    \"d216.example\",",
+    "+    \"d218.example\",",
+    "+    \"d220.example\",",
+    "+    \"d222.example\",",
+    "+    \"d224.example\",",
+    "+    \"d226.example\",",
+    "+    \"d228.example\",",
+    "+    \"d230.example\",",
+    "+    \"d232.example\",",
+    "+    \"d234.example\",",
+    "+    \"d236.example\",",
+    "+    \"d238.example\""
+   ]
+  ],
+  [
+   {
+    "a": [
+     1,
+     2,
+     3,
+     1,
+     2,
+     3,
+     1,
+     2,
+     3
+    ]
+   },
+   {
+    "a": [
+     3,
+     2,
+     1,
+     3,
+     2,
+     1
+    ]
+   },
+   [
+    "+  3,",
+    "+  2,",
+    "+  3,",
+    "-  3,",
+    "-  1,",
+    "-  2,",
+    "-  3,",
+    "-  1,",
+    "-  2,",
+    "-  3",
+    "+  1"
+   ]
+  ],
+  [
+   {
+    "rules": [
+     {
+      "x": [
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1"
+      ]
+     }
+    ]
+   },
+   {
+    "rules": [
+     {
+      "x": [
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "2",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1",
+       "1"
+      ]
+     }
+    ]
+   },
+   [
+    "+    \"1\",",
+    "+    \"2\","
+   ]
+  ],
+  [
+   {
+    "a": 1
+   },
+   null,
+   [
+    "-{",
+    "- \"a\": 1",
+    "-}",
+    "+null"
+   ]
+  ]
+ ],
+ "state": {
+  "r0": "dcf4ffce50cbf7e72464c040f0be357ba7eb63eb8700ac2953f24d620ed7e803",
+  "r1": "b4162e9486d60e86f250cc41e683df1240108b9b2f0814f403b02e01aed790de",
+  "r2": "54bf5ef784a9e2f5706be7728e3efaec2e8e2df7d046076c3275c7a90cacb23b",
+  "r3": "5eda5d6ce8d1c899477afaa4c95cf513973cdf444e2f2c15ced3664d68912e6e",
+  "r4": "4fe884f30c3113c23f2de9bc16a1554cbd83f7edce17f9d613e42bf0258fecad",
+  "state_r2": "{\"config_hash\":\"62c8daad13a5522cd8ccac62c7df92d04ea05e35af9b783ab69da7cecbc6f4b7\",\"disabled\":{\"j\\u00fcrgen\":{\"hashedPassword\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"name\":\"j\\u00fcrgen\"}},\"generation\":2,\"lanes\":{},\"metric_baselines\":{},\"operations\":{},\"revision\":\"54bf5ef784a9e2f5706be7728e3efaec2e8e2df7d046076c3275c7a90cacb23b\",\"tombstones\":[\"bob\"],\"version\":2}\n",
+  "config_r2": {
+   "portBindings": [
+    {
+     "port": 8443,
+     "protocol": "TCP"
+    },
+    {
+     "portRange": "9000-9010",
+     "protocol": "UDP"
+    }
+   ],
+   "users": [
+    {
+     "name": "alice",
+     "hashedPassword": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   ],
+   "loggingLevel": "INFO",
+   "mtu": 1400
+  },
+  "state_r3": "{\"config_hash\":\"075153bf69be3ca116ea9031869357d8de2df93ea2eb6b1857fcc3ef40d97e72\",\"disabled\":{\"j\\u00fcrgen\":{\"hashedPassword\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"name\":\"j\\u00fcrgen\"}},\"generation\":3,\"lanes\":{},\"metric_baselines\":{},\"operations\":{},\"revision\":\"5eda5d6ce8d1c899477afaa4c95cf513973cdf444e2f2c15ced3664d68912e6e\",\"tombstones\":[\"bob\"],\"version\":2}\n",
+  "config_r3": {
+   "portBindings": [
+    {
+     "port": 8443,
+     "protocol": "TCP"
+    },
+    {
+     "portRange": "9000-9010",
+     "protocol": "UDP"
+    }
+   ],
+   "users": [
+    {
+     "name": "alice",
+     "hashedPassword": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "quotas": [
+      {
+       "days": 7,
+       "megabytes": 100
+      }
+     ]
+    }
+   ],
+   "loggingLevel": "INFO",
+   "mtu": 1400
+  },
+  "state_r4": "{\"config_hash\":\"33f5b2a3289d77f1aea25d2584dc445bca2386081869c5ae67cdbb5082fe403a\",\"disabled\":{},\"generation\":4,\"lanes\":{},\"metric_baselines\":{},\"operations\":{},\"revision\":\"4fe884f30c3113c23f2de9bc16a1554cbd83f7edce17f9d613e42bf0258fecad\",\"tombstones\":[\"bob\"],\"version\":2}\n",
+  "config_r4": {
+   "portBindings": [
+    {
+     "port": 8443,
+     "protocol": "TCP"
+    },
+    {
+     "portRange": "9000-9010",
+     "protocol": "UDP"
+    }
+   ],
+   "users": [
+    {
+     "name": "alice",
+     "hashedPassword": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "quotas": [
+      {
+       "days": 7,
+       "megabytes": 100
+      }
+     ]
+    },
+    {
+     "hashedPassword": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "name": "jürgen"
+    }
+   ],
+   "loggingLevel": "INFO",
+   "mtu": 1400
+  },
+  "users_r4": [
+   {
+    "username": "alice",
+    "enabled": true,
+    "quotas": [
+     {
+      "days": 7,
+      "megabytes": 100
+     }
+    ],
+    "lane": null
+   },
+   {
+    "username": "jürgen",
+    "enabled": true,
+    "quotas": [],
+    "lane": null
+   }
+  ]
+ }
+}

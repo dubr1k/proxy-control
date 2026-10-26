@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import stat
 from pathlib import Path
 
@@ -302,13 +303,14 @@ def _file_writer_options(text: str, path: str) -> set[str]:
 def test_naive_bootstrap_log_matches_the_manager_accounting_writer():
     """Caddy shares one writer per filename: mismatched options lock the
     accounting group out of the log and gzip the rotations the manager reads."""
-    from naive_manager.service import NaiveCredentialManager
-
     rendered = NaiveAdapter(source_dir=ROOT).render(naive_action())
     bootstrap = _file_writer_options(rendered.caddyfile_template, PATHS.access_log)
-    accounting = _file_writer_options(
-        "\n".join(NaiveCredentialManager._accounting_lines("    ")), PATHS.access_log
-    )
+    # The manager (Rust) declares the writer's options once, beside its accounting block.
+    source = (ROOT / "naive_manager" / "src" / "caddyfile.rs").read_text()
+    assert f"output file {PATHS.access_log} {{{{" in source
+    writer = re.search(r"pub const ACCOUNTING_WRITER: \[&str; \d+\] =\s*\[(.*?)\];", source, re.S)
+    assert writer, "naive_manager/src/caddyfile.rs must declare ACCOUNTING_WRITER"
+    accounting = set(re.findall(r'"([^"]+)"', writer.group(1)))
     assert bootstrap, "bootstrap Caddyfile must open the accounting log"
     assert accounting, "manager accounting block must open the accounting log"
     assert bootstrap == accounting

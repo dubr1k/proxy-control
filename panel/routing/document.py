@@ -11,8 +11,8 @@ import hashlib
 import json
 import re
 
-# What the managers' egress APIs answer with (naive_manager/server.py, mieru_manager/
-# server.py). Bounded on purpose: any other code is a plain conflict or an outage, so a
+# What the managers' egress APIs answer with (naive_manager/server.py, mieru_manager/src/
+# server.rs). Bounded on purpose: any other code is a plain conflict or an outage, so a
 # manager response never dictates panel copy.
 EGRESS_REASON_CODES = frozenset({
     "egress_conflict",
@@ -43,7 +43,7 @@ ATTACH_DOCUMENTS = {
     # writes it into Telemt itself — there is no manager in between.
     "mtproxy": {"schema": 1, "upstream": {"provider": "router"}},
     # v1.6: the TrustTunnel manager's own document — the endpoint's SOCKS5 forward protocol, pointed at the
-    # router's no-auth loopback ingress (`xray_router_manager.intent.TRUSTTUNNEL_PORT`).
+    # router's no-auth loopback ingress (`TRUSTTUNNEL_PORT` of `xray_router_manager/src/intent.rs`).
     "trusttunnel": {"mode": "socks5", "address": "127.0.0.1:45104"},
     # v3.0.0: the AWG manager steers the tunnels into the router's `tun` inbound device (`awgxr`).
     "amneziawg": {"schema": 1, "upstream": {"provider": "router"}},

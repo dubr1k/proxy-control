@@ -70,7 +70,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-m", "xray_router_manager.healthcheck"]
+      test: ["CMD", "/usr/local/bin/xray-router-manager", "healthcheck"]
       interval: 20s
       timeout: 3s
       retries: 3

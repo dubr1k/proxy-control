@@ -90,6 +90,8 @@ def host(tmp_path):
     (project / ".env").write_text("X=1\n")
     (project / ".env.xray-router").write_text("Y=1\n")
     (project / "compose.xray-router.yaml").write_text("services:\n  xray-router:\n    image: x\n  xray-router-ingress:\n    image: x\n")
+    # A 4.0 host: the agent already syncs the shared Rust crate.
+    shutil.copytree(ROOT / "pc_common", project / "pc_common", ignore=shutil.ignore_patterns("target"))
     env_file = tmp_path / "version-agent.env"
     env_file.write_text(f"PROXY_CONTROL_COMPOSE_DIR={project}\n"
                         "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.naive.yaml:compose.xray-router.yaml\n")
@@ -206,6 +208,19 @@ def test_a_host_already_on_the_release_only_rebuilds_what_is_missing(host):
     assert len(up) == 1 and up[0].endswith("--wait xray-router-ingress")
 
 
+def test_a_host_without_the_shared_rust_crate_gets_it_and_rebuilds_the_router(host):
+    """4.0: the router's manager is Rust and builds against `pc_common`, which agents before 4.0 do
+    not sync: the script completes it from the verified release and rebuilds the router with it."""
+    shutil.rmtree(host["project"] / "pc_common")
+    agent = Agent(current="1.1.0")
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert (host["project"] / "pc_common" / "Cargo.toml").read_bytes() == (ROOT / "pc_common" / "Cargo.toml").read_bytes()
+    up = [line for line in host["log"].read_text().splitlines() if " up -d " in line]
+    assert len(up) == 1 and up[0].endswith("--wait xray-router xray-router-ingress")
+    assert {"names": ["xray_router_manager"]} in agent.acks
+
+
 def test_without_an_agent_it_points_to_the_manual_upgrade(host):
     environment = {"PATH": "/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(host["tmp"] / "none.sock")}
     result = subprocess.run(["bash", str(SCRIPT), "--version", "1.1.0", "--sha256", DIGEST], env=environment,
@@ -308,6 +323,33 @@ def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
     assert any(" up -d --build --no-deps --wait mcp" in line for line in host["log"].read_text().splitlines())
 
 
+def test_python_mcp_sources_are_replaced_by_the_rust_crate(host):
+    """4.0: a host still carrying the Python MCP package gets the Rust crate from the verified
+    release; the old tree (with its bytecode) goes to the backup and `mcp` is rebuilt once."""
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    release = host["tmp"] / "release"
+    (release / "scripts").mkdir(parents=True)
+    (release / "mcp_server/src").mkdir(parents=True)
+    (release / "mcp_server/Cargo.toml").write_text('[package]\nname = "mcp-server"\n')
+    (release / "mcp_server/src/main.rs").write_text("fn main() {}\n")
+    shutil.copytree(ROOT / "installer", release / "installer")
+    host["script"] = release / "scripts/update-host.sh"
+    shutil.copy2(SCRIPT, host["script"])
+    shutil.copy2(ROOT / "scripts" / "migrate-compose-project.sh", release / "scripts")
+    source = host["project"] / "mcp_server"
+    (source / "__pycache__").mkdir(parents=True)
+    (source / "server.py").write_text("old mcp")
+    (source / "__pycache__/server.cpython-313.pyc").write_bytes(b"\0")
+    result = _run(host, Agent(pending=("mcp_server",)))
+    assert result.returncode == 0, result.stderr
+    assert sorted(path.relative_to(source).as_posix() for path in source.rglob("*")) == ["Cargo.toml", "src", "src/main.rs"]
+    previous = list((host["project"] / "version-overrides").glob("mcp-source-previous-*"))
+    assert len(previous) == 1 and (previous[0] / "server.py").read_text() == "old mcp"
+    rebuilds = [line for line in host["log"].read_text().splitlines() if " up -d --build --no-deps --wait " in line]
+    assert len(rebuilds) == 1 and rebuilds[0].endswith("--wait mcp")
+
+
 @pytest.mark.parametrize("migration_exit", [0, 1])
 def test_verified_update_runs_ingress_migration_and_reports_failure(host, migration_exit):
     wrapper = host["bin"] / "python3"
@@ -357,6 +399,17 @@ def test_rebuilt_managers_are_acknowledged_to_the_agent(host):
     result = _run(host, agent)
     assert result.returncode == 0, result.stderr
     assert agent.acks == [{"names": ["xray_router_manager"]}]
+
+
+def test_a_host_before_4_0_gets_pc_common_and_rebuilds_the_rust_naive_manager(host):
+    shutil.rmtree(host["project"] / "pc_common")
+    agent = Agent(pending=())
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert (host["project"] / "pc_common" / "Cargo.toml").is_file()
+    up = next(line for line in host["log"].read_text().splitlines() if " up -d --build --no-deps --wait " in line)
+    assert "naive-manager" in up.split(" --wait ", 1)[1].split()
+    assert agent.acks == [{"names": ["naive_manager"]}]
 
 
 def test_an_agent_without_the_ack_endpoint_does_not_fail_the_update(host):

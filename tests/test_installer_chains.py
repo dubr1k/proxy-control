@@ -179,46 +179,8 @@ def test_a_router_action_without_relay_keys_still_applies_and_verifies(tmp_path)
                                    inverse=action.inverse, credentials_required=True))
 
 
-def test_healthcheck_relay_flags_post_and_get(tmp_path, monkeypatch):
-    import io
-    import socket
-    import sys
-    import threading
-
-    from xray_router_manager import healthcheck
-
-    sock, token = tmp_path / "manager.sock", tmp_path / "token"
-    token.write_text("t" * 40 + "\n")
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(str(sock))
-    server.listen(2)
-    seen: list[bytes] = []
-
-    def serve(count):
-        with server:
-            for _ in range(count):
-                client, _ = server.accept()
-                with client:
-                    seen.append(client.recv(4096))
-                    client.sendall(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n{"enabled": true, "port": 45443}')
-
-    thread = threading.Thread(target=serve, args=(2,))
-    thread.start()
-    monkeypatch.setenv("XRAY_ROUTER_SOCKET", str(sock))
-    monkeypatch.setenv("XRAY_ROUTER_MANAGER_TOKEN_FILE", str(token))
-    buffer = io.BytesIO()
-    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(buffer))
-    with pytest.raises(SystemExit) as raised:
-        healthcheck.main(["--relay-enable", "panel.example.com", "45443"])
-    assert raised.value.code == 0
-    with pytest.raises(SystemExit) as raised:
-        healthcheck.main(["--relay"])
-    thread.join(timeout=5)
-    assert raised.value.code == 0
-    assert seen[0].startswith(b"POST /v1/relay ") and b'{"server_name": "panel.example.com", "port": 45443}' in seen[0]
-    assert seen[1].startswith(b"GET /v1/relay ")
-    with pytest.raises(SystemExit):
-        healthcheck.main(["--relay-enable", "panel.example.com"])
+# The probe's relay flags (`--relay`, `--relay-enable <name> <port>`) are tested with the Rust
+# manager: xray_router_manager/src/healthcheck.rs::healthcheck_relay_flags_post_and_get.
 
 
 # -- Mieru lane slots ---------------------------------------------------------------------

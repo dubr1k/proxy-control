@@ -192,7 +192,7 @@ sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 sudo journalctl -u version-agent --since=-15min --no-pager
 # with the Xray-router:
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ```
 
 The health check needs the `Host` header: the installer allows only the panel domain. For an
@@ -592,7 +592,7 @@ the routing screen when you are ready («Connect to Xray-router»; their session
 once). Attaching with a native policy still applied is refused (`policy_applied`): reset it first.
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
 ```
 
@@ -613,7 +613,7 @@ A host assembled by hand:
 
 ```bash
 # the relay (the panel's domain is the Reality cover; the port is public)
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay-enable panel.example.com 45443
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay-enable panel.example.com 45443
 ufw allow 45443/tcp
 # Mieru slots: the unit template, the daemons, the manager's env
 install -m 0644 deploy/mita@.service /etc/systemd/system/mita@.service && systemctl daemon-reload
@@ -625,7 +625,7 @@ docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.
 Verification:
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay | python3 -m json.tool   # enabled, public_key
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay | python3 -m json.tool   # enabled, public_key
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
@@ -644,7 +644,7 @@ when the lists were last checked, when the next check is due, and a router resta
 happened.
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
 ```
 
 An `xray` update from the «Versions» screen replaces the binary together with the lists of its
