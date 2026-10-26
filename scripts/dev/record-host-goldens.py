@@ -938,6 +938,11 @@ class SimHost:
         self.group: dict[int, str] = {}
         self.unexpected: list[tuple[str, ...]] = []
         self.calls: list[tuple[str, ...]] = []
+        # Every executed command with its answer, and the audits sliced out of it (`facts_for`),
+        # so the Rust audit can be replayed against the exact outputs the Python audit saw.
+        self.transcript: list[dict[str, object]] = []
+        self.audits: list[dict[str, object]] = []
+        self.audit_mark = 0
         self._seed(existing_xui=existing_xui)
 
     # -- the root --------------------------------------------------------------------------
@@ -985,10 +990,12 @@ class SimHost:
             self.unexpected.append(command)
             return subprocess.CompletedProcess(command, 127, "", f"golden host: unexpected command {command[0]}")
         result = handler(command)
-        if isinstance(result, subprocess.CompletedProcess):
-            return result
-        code, stdout, stderr = result
-        return subprocess.CompletedProcess(command, code, stdout, stderr)
+        if not isinstance(result, subprocess.CompletedProcess):
+            code, stdout, stderr = result
+            result = subprocess.CompletedProcess(command, code, stdout, stderr)
+        self.transcript.append({"argv": list(command), "returncode": result.returncode,
+                                "stderr": result.stderr, "stdout": result.stdout})
+        return result
 
     def resolver(self, host: str, port: int, *, type: int) -> list[tuple[int, int, int, str, tuple[object, ...]]]:  # noqa: A002
         import socket
@@ -1456,7 +1463,22 @@ def stand_in_pins() -> Iterator[None]:
 def facts_for(host: SimHost, config) -> Any:
     from installer.audit import audit_host
 
-    return audit_host(config, host.command_runner())
+    mark = len(host.transcript)
+    facts = audit_host(config, host.command_runner())
+    host.audits.append(audit_transcript(host.transcript[mark:], facts))
+    return facts
+
+
+def audit_transcript(commands: list[dict[str, object]], facts: Any) -> dict[str, object]:
+    """One audit as the Rust port replays it: every command with its answer, the resolver's
+    answer (the same for every name: `SimHost.resolver`) and the facts the Python audit built."""
+    from installer.planner import _canonical_fact_value  # type: ignore[attr-defined]
+
+    return {
+        "commands": commands,
+        "facts": {**facts.stable_dict(), "transient": _canonical_fact_value(facts.transient)},
+        "resolver": {"a": [HOST_V4], "aaaa": [HOST_V6]},
+    }
 
 
 # --------------------------------------------------------------------------------------------
@@ -1516,6 +1538,8 @@ class PlanServices:
         self.runners = dict(runners or {})
         self.store = TransactionStore(host.root)
         self.engine = TransactionEngine(self.store, {})
+        # Every plan this composition built (the wizard fixtures keep the one they printed).
+        self.plans: list[Any] = []
 
     def adapters(self, config) -> tuple[object, ...]:
         from installer.planner import adapters_for
@@ -1537,7 +1561,9 @@ class PlanServices:
         def plan(config, facts):
             adapters = self.adapters(config)
             self.engine.adapters.update({adapter.name: adapter for adapter in adapters})
-            return build_plan(config, facts, adapters, release_identity(self.tree))
+            built = build_plan(config, facts, adapters, release_identity(self.tree))
+            self.plans.append(built)
+            return built
 
         return CliServices(
             audit=audit,
@@ -1652,6 +1678,7 @@ def record_plans(out: Output) -> None:
             "sha256_of_plan_json": hashlib.sha256(plan.to_canonical_json()).hexdigest(),
         })
         out.json(f"{base}/audit-commands.json", [list(call) for call in host.calls])
+        out.json(f"{base}/audit-transcript.json", host.audits[-1])
         summary[name] = {"config": f"examples/installer/{name}.toml" if name not in EXTRA_CONFIGS else f"{base}/config.toml",
                          "digest": digest, "actions": [action.id for action in plan.actions]}
     out.json("plans/index.json", {
@@ -1960,6 +1987,7 @@ def perform_install(
             raise RuntimeError(f"install plan {name}: {stderr.getvalue()}")
         digest = json.loads(stdout.getvalue())["digest"]
         host.calls.clear()
+        host.audit_mark = len(host.audits)
         stdout, stderr = io.StringIO(), io.StringIO()
         try:
             code = cli.run(["--root", str(root), "install", "--config", str(config_path), "--accept-plan", digest,
@@ -2041,6 +2069,8 @@ def record_installs(out: Output) -> None:
             for produced in sorted(report_dir.rglob("*"))
         })
         out.json(f"{base}/commands.json", sanitize_paths([list(call) for call in run.host.calls], run))
+        # The audit `install` ran first: its facts are the journal plan's `audit_facts`.
+        out.json(f"{base}/audit-transcript.json", sanitize_paths(run.host.audits[run.host.audit_mark], run))
         snapshot_root(out, f"{base}/root", run.host, run.tree)
 
 
@@ -2918,6 +2948,9 @@ def run_wizard(name: str, locale: str, answers: Sequence[str], *, lang_flag: boo
     }
     if output.exists():
         result["config_output"] = output.read_text()
+    if composition.plans:
+        # Not part of the transcript: the plan the scenario printed, for replaying its summary.
+        result["_plan"] = composition.plans[-1].to_canonical_json()
     credentials = output.with_suffix(".credentials")
     if credentials.exists():
         result["credentials_output_mode"] = f"{stat.S_IMODE(credentials.stat().st_mode):04o}"
@@ -2946,10 +2979,14 @@ def record_wizard(out: Output) -> None:
                     raise RuntimeError(f"wizard {name}/{locale} printed no digest")
                 answers = [match.group(1)[:12] if a == "<DIGEST12>" else a for a in answers]
             result = run_wizard(name, locale, answers, lang_flag=bool(scenario["lang"]))
+            plan = result.pop("_plan", None)
+            if plan is not None:
+                out.bytes(f"wizard/{locale}/{name}.plan.json", plan)
             out.json(f"wizard/{locale}/{name}.json", result)
             out.text(f"wizard/{locale}/{name}.stdout.txt", str(result["stdout"]))
         for name, answers in (("already-installed", []), ("already-installed-continue", ["continue", "quit"])):
             result = run_wizard(name, locale, answers, lang_flag=True, installed=True)
+            result.pop("_plan", None)
             out.json(f"wizard/{locale}/{name}.json", result)
             out.text(f"wizard/{locale}/{name}.stdout.txt", str(result["stdout"]))
     # The message catalogue itself (both languages), so texts can be checked one by one.
@@ -3002,12 +3039,13 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `config/cli-blocked.json` | the same failures through `plan --config`: `BLOCKED: …` on stderr, exit 2 (plus a missing file and invalid UTF-8) | `installer/cli.py` |
 | `config/render/` | `render_config` of every example and the round-trip result | `config.py:139` |
 | `vectors/` | Python semantics the digest and validators rely on: `isdigit`/`isdecimal`/`\\d`, `strip`, `lower`, `ipaddress`, `str()` of scalars and keys, `round()`, float `repr`, JSON escaping and key order; validator outcomes (domains, version regexes) and `compare_versions` | stdlib, `audit.py`, `config.py`, `wizard.py`, `version_agent/{catalog,upstream}.py` |
-| `plans/<name>/` | for every `examples/installer/*.toml` and two extra configs (`kitchen-sink`, `coexist-ingress`): canonical `plan.json` bytes, `digest`, `digests.json` (plan + intent digest), `plan --json` and text output, the audit commands; **real release pins** | `planner.py`, `audit.py` |
+| `plans/<name>/` | for every `examples/installer/*.toml` and two extra configs (`kitchen-sink`, `coexist-ingress`): canonical `plan.json` bytes, `digest`, `digests.json` (plan + intent digest), `plan --json` and text output, the audit commands, and `audit-transcript.json` (every audit command with its output, the resolver answer, the facts built from them); **real release pins** | `planner.py`, `audit.py` |
 | `plans/index.json`, `plans/release.json` | the host facts and release identity the plans were made with | |
 | `installs/<name>/journal/` | `state.json`, `plan.json`, `ownership.json`, `report.json` (+ modes) after `install --accept-plan` | `transaction.py` |
 | `installs/<name>/root/tree.json` | every path the install left: kind, mode, uid/gid, size, sha256 (copies of release files are marked `copy_of_source`) | all adapters |
 | `installs/<name>/root/files/…` | the bytes of every text file the install wrote (rendered vhosts, stream router, ACME vhosts, `.env*`, master key, `users.conf`, markers, WARP owner marker, version-agent env/state/catalog, units, …) | all adapters |
 | `installs/<name>/commands.json` | every command the install ran, in order (`<root>`/`<work>`/`<tmp>` replace the throwaway paths) | |
+| `installs/<name>/audit-transcript.json` | the audit `install` ran: every command with its output, the resolver answer and the facts (= the journal plan's `audit_facts`) | `audit.py` |
 | `installs/<name>/{status.json,status.txt,install-stdout.json,report/}` | CLI `status`, `install --json` output, `report` (public report + root-only handoff, modes) | `cli.py`, `report.py` |
 | `journals/handoff/{before,after}` | a panel update's `PanelOwnershipHandoff` prepare/commit on the kitchen-sink host (`report.json` stays stale: Python bug) | `transaction.py:483` |
 | `journals/home-like/` | shaped like the `home` host (see below) | |
@@ -3022,7 +3060,7 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `agent/seed/` | the installer's agent `state.json` (indent 2, sorted, trailing newline) and catalog seed | `adapters/version_agent.py:460` |
 | `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays, every command and (`downloads/`) the artifacts the steps download | `version_agent/service.py` |
 | `metrics/` | nft rulesets, the discovered port map (with override variants), `parse_counters`, and two sampler ticks over a fake `/proc` (Python `round`) | `version_agent/{hostmetrics,metrics_ports}.py` |
-| `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install | `wizard.py`, `i18n.py`, `cli.py` |
+| `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install; `<scenario>.plan.json` is the canonical plan a scenario printed | `wizard.py`, `i18n.py`, `cli.py` |
 | `wizard/i18n-catalogue.json` | the message catalogue in both languages | `i18n.py` |
 
 ## Stand-ins that differ from a real host

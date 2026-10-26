@@ -1,8 +1,8 @@
 //! Proxy Control installer core: the Rust port of `installer/config.py`, `model.py`,
 //! `planner.py`, `report.py`, `credentials.py`, `awg_ports.py`, the argument surface and output
-//! forms of `cli.py`, and `release/verify.py`. The `installer` crate (the transaction engine, the
-//! adapters, the audit and the wizard) links it; nothing here touches the host beyond reading
-//! the files it is pointed at and writing reports and credentials.
+//! forms of `cli.py`, the host audit, the wizard and `release/verify.py`. The `installer` crate
+//! (the transaction engine and adapters) links it; host observation is read-only and every
+//! mutation is confined to the explicit config/credential/report output paths.
 //!
 //! | Module | What | Python |
 //! |---|---|---|
@@ -11,6 +11,8 @@
 //! | [`model`] | the typed configuration and its canonical dict | `installer/model.py` |
 //! | [`awg_ports`] | host-stable AmneziaWG ports | `installer/awg_ports.py` |
 //! | [`planner`] | facts, actions, evidence, release identity, plan + digest, adapter selection and order | `installer/planner.py` |
+//! | [`audit`], [`nginx_topology`] | bounded read-only host observation and deterministic facts | `installer/audit.py` |
+//! | [`wizard`], [`i18n`] | interactive questions, review/save/apply and EN/RU texts | `installer/wizard.py`, `installer/i18n.py` |
 //! | [`report`] | public report, credential handoff, operator notes | `installer/report.py`, `cli._write_reports` |
 //! | [`credentials`] | operator credentials beside the config and their staging | `installer/credentials.py` |
 //! | [`argparse`] | Python 3.12 `argparse` behaviour and bytes for the parsers used here | `argparse` |
@@ -34,6 +36,10 @@
 //!   intent_digest, assert_fresh}`, trait `PlanAdapter`, `build_plan`, `adapters_for`,
 //!   `adapter_requires`, `ADAPTER_NAMES`, `PROFILE_ORDER`, `compose_file_list`,
 //!   `assert_secret_free`, `PlanError` (`Plan`, `Stale`, `Adapter{class,message}`).
+//! - `audit`: `audit_host`, `CommandRunner`, `SystemExecutor`/`SystemResolver`, `Audit`,
+//!   `AuditError`, `AuditExecutor`/`Resolver`, `HardStop`, `OperatorPrerequisite` and parsers.
+//! - `wizard`: `Wizard`/`WizardOptions`, `TerminalIO`, `run_wizard_command`, `WizardCommand`,
+//!   `WizardEngine`, `Stop`, `EngineError`; `i18n`: `Locale`, `text`, `try_text`, `catalog`.
 //! - `report`: `AcceptanceReport`, `CredentialHandoff`, `ReportWriter::{write_public,
 //!   write_credentials}`, `evidence_from_checkpoint`, `operator_notes`, `encode`, `ReportError`.
 //! - `credentials`: `OperatorCredentials`, `credentials_path`, `write_credentials`,
@@ -50,15 +56,19 @@
 //! - `verify_release`: `Request`, `run(&request) -> (status, stdout, stderr)`.
 
 pub mod argparse;
+pub mod audit;
 pub mod awg_ports;
 pub mod cli;
 pub mod config;
 pub mod credentials;
+pub mod i18n;
 pub mod ipaddr;
 pub mod model;
+pub mod nginx_topology;
 pub mod planner;
 pub mod pystr;
 pub mod report;
 pub mod secret;
 pub mod toml;
 pub mod verify_release;
+pub mod wizard;
