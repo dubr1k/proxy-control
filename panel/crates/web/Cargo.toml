@@ -20,10 +20,14 @@ path = "src/main.rs"
 test-hooks = []
 
 [dependencies]
+panel-clients = { path = "../clients" }
 panel-core = { path = "../core" }
 panel-model = { path = "../model" }
 panel-secrets = { path = "../secrets" }
 panel-managers = { path = "../managers" }
+panel-fleet = { path = "../fleet" }
+panel-metrics = { path = "../metrics" }
+panel-protocols = { path = "../protocols" }
 # Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette
 # first-match semantics, exact headers and bodies).
 axum = { version = "0.8", default-features = false }
