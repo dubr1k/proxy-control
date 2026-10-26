@@ -20,9 +20,6 @@ export function createPanelState() {
     naiveQuery: "",
     versions: { enabled: false, components: {} },
     nodes: [],
-    fleet: [],
-    fleetSelection: "",
-    fleetCommands: [],
     // Linked panels (Fleet v2): the open tab per node, the inventory of the nodes whose
     // «Пользователи» tab is open, and the last successful probe of the link dialog.
     nodeTab: {},

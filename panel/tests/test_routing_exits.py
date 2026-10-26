@@ -141,7 +141,7 @@ async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, serve
     assert all("p2" not in json.dumps(row.get("detail", "")) for row in server.audits())
 
 
-async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, login_user, router):
+async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, server, login_user, router):
     await login_user(client)
     headers = _csrf(client)
     created = await client.post("/api/routing/exits", headers=headers, json={
@@ -150,8 +150,7 @@ async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, lo
     preview = await client.post("/api/routing/policies/local/naive/preview", headers=headers, json={
         "default_action": "egress", "default_egress": f"exit:{exit_id}", "fallback": "fail_closed", "rules": []})
     assert preview.json()["status"] == "unsupported" and preview.json()["reasons"][0]["code"] == "rule_kind_unsupported"
-    app = client._transport.app
-    app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await client.post("/api/auth/logout", headers=headers)
     client.cookies.clear()
     await login_user(client, "reader", "viewer correct horse battery")
@@ -160,18 +159,22 @@ async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, lo
     assert (await client.post("/api/routing/exits", headers=_csrf(client), json={"node_id": "local", "name": "x", "protocol": "socks", "address": "h", "port": 1})).status_code == 403
 
 
-async def test_a_linked_panels_exit_is_tested_through_its_fleet_api(pair_factory):
+async def test_a_linked_panels_exit_is_tested_through_its_fleet_api(pair_factory, login_user):
+    from panel.tests.harness.routing import csrf, linked
+
     fake = MemoryXrayRouter()
     node, central, plaintext = pair_factory(node={"router": fake})
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
-                                            actor=ACTOR, ip="x", auto_import=False)
-    await central.tick("pusher")
-    data = ExitInput(name="edge socks", protocol="socks", address="10.0.0.9", port=1080, credential={"username": "u", "password": "p"})
-    created = central.state.routing.create_exit(node_id, data, actor=ACTOR, ip="x")
-    result = await central.state.routing.test_exit(created["id"], actor=ACTOR, ip="x")
-    assert result["ok"] is True and fake.calls[-1] == ("exit_test", "socks", "10.0.0.9")
-    with node.state.database.connect() as db:
-        rows = [row["action"] for row in db.execute("SELECT action FROM audit_log")]
-    assert "fleet.exit.test" in rows
-    down = central.state.routing.create_exit(node_id, ExitInput(name="down", protocol="http", address="down.example.org", port=3128), actor=ACTOR, ip="x")
-    assert (await central.state.routing.test_exit(down["id"], actor=ACTOR, ip="x"))["code"] == "exit_unreachable"
+    async with linked(central, plaintext, login_user) as (client, node_id):
+        data = {"node_id": node_id, "name": "edge socks", "protocol": "socks", "address": "10.0.0.9",
+                "port": 1080, "credential": {"username": "u", "password": "p"}}
+        created = await client.post("/api/routing/exits", headers=csrf(client), json=data)
+        assert created.status_code == 201, created.text
+        result = await client.post(f"/api/routing/exits/{created.json()['id']}/test", headers=csrf(client))
+        assert result.status_code == 200 and result.json()["ok"] is True, result.text
+        assert fake.calls[-1] == ("exit_test", "socks", "10.0.0.9")
+        assert "fleet.exit.test" in [row["action"] for row in node.audits()]
+        down = await client.post("/api/routing/exits", headers=csrf(client), json={
+            "node_id": node_id, "name": "down", "protocol": "http", "address": "down.example.org", "port": 3128})
+        assert down.status_code == 201, down.text
+        result = await client.post(f"/api/routing/exits/{down.json()['id']}/test", headers=csrf(client))
+        assert result.json()["code"] == "exit_unreachable"

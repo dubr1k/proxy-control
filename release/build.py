@@ -517,6 +517,10 @@ def build_release(
         raise ReleaseBuildError(
             f"VERSION declares {declared!r} but the build asked for {version!r}"
         )
+    if (source / "panel" / "Cargo.toml").is_file():
+        generation = source / "pc_common" / "RELEASE"
+        if not generation.is_file() or generation.read_bytes() != (source / "VERSION").read_bytes():
+            raise ReleaseBuildError("pc_common/RELEASE must match VERSION for the Rust panel build guard")
     timestamp = epoch if epoch is not None else commit_epoch(source, resolved)
     names = tracked_files(source)
 

@@ -29,6 +29,8 @@ libc = "0.2"
 # Plain sorted maps: every journal is key-sorted (pc_host::json writes the bytes).
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
+base64 = "0.23"
+getrandom = "0.4"
 
 [profile.release]
 lto = true

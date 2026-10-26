@@ -14,7 +14,7 @@ async function listLength(context, path) {
   }
 }
 
-export const fleetCount = (context) => listLength(context, "/api/fleet/nodes");
+export const fleetCount = (context) => listLength(context, "/api/nodes");
 // The badge is working clients: archived ones have their own pill on the Clients screen.
 export async function clientEntries(context) {
   try {

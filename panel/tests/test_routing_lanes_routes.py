@@ -157,7 +157,7 @@ async def test_targets_learn_a_relay_the_installer_enabled_on_the_local_router(c
     item = next(item for item in targets.json()["items"] if item["protocol"] == "naive" and item["node_id"] == "local")
     assert item["relay"] == {"enabled": True, "port": 45443, "pending": False, "known": True}
     with server.db() as db:
-        assert client._transport.app.state.relays.relay(db, "local")["public_key"] == router.public_key
+        assert db.execute("SELECT public_key FROM router_relays WHERE node_id='local'").fetchone()[0] == router.public_key
 
 
 async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_itself_is_a_loop(client, server, login_user, router, naive):
@@ -192,6 +192,7 @@ async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_its
     assert (await client.post("/api/routing/relay/local/enable", headers=_csrf(client))).status_code == 403
 
 
+@pytest.mark.panel_settings(subscription_url="https://testserver", subscription_host="testserver")
 async def test_mieru_lane_carries_the_slot_port_into_the_grant_link(client, login_user, router, mieru):
     grant_id, client_id, csrf = await _grant(client, login_user, protocol="mieru", username="phone")
     await _attach(client, csrf, "mieru")
@@ -204,27 +205,25 @@ async def test_mieru_lane_carries_the_slot_port_into_the_grant_link(client, logi
     listing = (await client.get(f"/api/clients/{client_id}")).json()
     template = listing["grants"][0]["options"]["share_template"]
     assert template.endswith(f"port={mieru.lane_slots[1]}&protocol=TCP&mtu=1400") and "{password}" in template
-    assert f"port={mieru.lane_slots[1]}" in _subscription(client, client_id)
+    assert f"port={mieru.lane_slots[1]}" in await _subscription(client, client_id)
     # back on the service: the main port again
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "service"}, headers=csrf)).status_code == 200
     listing = (await client.get(f"/api/clients/{client_id}")).json()
     assert "port=8443" in listing["grants"][0]["options"]["share_template"]  # the manager's service template
-    rendered = _subscription(client, client_id)
+    rendered = await _subscription(client, client_id)
     assert f"port={mieru.lane_slots[1]}" not in rendered and "port=8443" in rendered
 
 
-def _subscription(client, client_id: str) -> str:
-    """The client's subscription as `/s/{token}` renders it (raw links), from the same
-    reveal-and-render path the public route uses."""
-    from panel.fleet_v2.central_routes import public_hosts_for
-    from panel.subscriptions.renderers import RENDERERS, resolve_artifacts
-
-    app = client._transport.app
-    service = app.state.subscriptions
-    ctx = {"actor": {"id": 1, "username": "owner"}, "ip": "127.0.0.1", "request_id": None}
-    subscription = service.get(client_id) or service.create(client_id, **ctx)[0]
-    manifest = service.effective_manifest(subscription, int(app.state.clock.time()) if hasattr(app.state, "clock") else 0)
-    with app.state.database.connect() as db:
-        artifacts = resolve_artifacts(manifest, app.state.secrets, app.state.adapters, db,
-                                      public_hosts=lambda node_id: public_hosts_for(app.state, node_id))
-    return RENDERERS["raw"].render(manifest, artifacts).decode()
+async def _subscription(client, client_id: str) -> str:
+    """Read the same public URL and credential-rendering path a subscriber uses."""
+    overview = (await client.get(f"/api/clients/{client_id}/subscription")).json()
+    action = "reveal" if overview["subscription"] else ""
+    path = f"/api/clients/{client_id}/subscription" + (f"/{action}" if action else "")
+    issued = await client.post(path, headers=_csrf(client))
+    assert issued.status_code in (200, 201), issued.text
+    reveal = await client.get(f"/api/reveal/{issued.json()['reveal_token']}")
+    assert reveal.status_code == 200, reveal.text
+    token = reveal.json()["url"].rsplit("/", 1)[1]
+    rendered = await client.get(f"/s/{token}?format=raw")
+    assert rendered.status_code == 200, rendered.text
+    return rendered.text

@@ -7,7 +7,6 @@ import { renderDashboard } from "./dashboard.js";
 import { refreshNavCounts, startNavCountsRefresh } from "./nav-counts.js";
 import { createGrantDialog } from "./grant.js";
 import { bindMonitoring, renderMonitoring } from "./monitoring.js";
-import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
 import { bindKeys, handleKeysClick } from "./keys.js";
 import {
   bindManagement,
@@ -262,11 +261,11 @@ function bindPanel(context) {
     handleRoutingInput(context, event.target) || handleClientsInput(context, event.target) || handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
   });
   ui.view.addEventListener("change", (event) => {
-    handleRoutingChange(context, event.target) || handleManagementChange(context, event.target) || handleFleetChange(context, event.target);
+    handleRoutingChange(context, event.target) || handleManagementChange(context, event.target);
   });
   ui.view.addEventListener("submit", (event) => {
     event.preventDefault();
-    handleRoutingSubmit(context, event.target) || handleFleetSubmit(context, event.target) || handleAuditSubmit(context, event.target);
+    handleRoutingSubmit(context, event.target) || handleAuditSubmit(context, event.target);
   });
   ui.view.addEventListener("click", (event) => {
     const button = event.target.closest("button");
@@ -279,7 +278,6 @@ function bindPanel(context) {
     if (handleRoutingClick(context, button)) return;
     if (handleClientsClick(context, button)) return;
     if (handleNodesClick(context, button)) return;
-    if (handleFleetClick(context, button)) return;
     if (handleManagementClick(context, button)) return;
     if (handleKeysClick(context, button)) return;
     if (handleMieruClick(context, button)) return;

@@ -1,4 +1,4 @@
-# Fleet в Proxy Control: связанные панели (v2) и legacy mTLS-транспорт (v1)
+# Fleet в Proxy Control: связанные панели
 
 [English](FLEET.en.md) · **Русский**
 
@@ -26,9 +26,6 @@
 учётных данных, обновление компонента, unlink). Ни shell, ни URL, ни HTTP method, ни YAML,
 ни готовые конфиги по связи не передаются. Учётные данные едут рядом с документом в том
 же TLS-запросе, а внутри документа — только по ссылке.
-
-mTLS pull-агент Fleet v1 не тронут и продолжает работать; он описан в разделе
-[Legacy transport v1](#legacy-transport-v1) в конце.
 
 ## Подключение панели
 
@@ -421,156 +418,14 @@ fleet-состояния на узле, который никто не подк�
   отвечает 409 `foreign_master` любому другому до отвязки. Добавление панели, которая уже
   сообщает чужой `master_guid`, центр отклоняет ещё до записи.
 - **Ограниченная типизированная поверхность.** Тело запроса ≤ 64 KiB (выше — 413),
-  ≤ 500 ресурсов в документе, ≤ 200 элементов в capture или импорте; pydantic-модели с
-  `extra = forbid`. Узел принимает только документы и типизированные операции — никогда
+  ≤ 500 ресурсов в документе, ≤ 200 элементов в capture или импорте; неизвестные поля
+  отклоняются. Узел принимает только документы и типизированные операции — никогда
   shell, URL, HTTP method/path, YAML или конфиги.
 - **Секрет не утекает случайно.** `Cache-Control: no-store` на каждом ответе панели, кроме
   `/s/` (у него собственное кеширование); учётные данные появляются только внутри
   push-запроса, push-ответа и ответа capture; `identity`, `inventory`, `observed`,
   карточка узла, `GET /api/nodes/{id}/generations` и строки аудита несут только ссылки и
   имена. `last_error` фиксирует класс и код сбоя, никогда — тело.
-
-## Legacy transport v1
-
-Fleet v1 — исходящий mTLS pull-агент, прежний способ связи панелей. Он заморожен и
-байт-совместим — `panel/fleet.py`, маршруты реестра
-`/api/fleet/nodes*`, пути ingress `/agent/v1/*`, форма `TypedCommand` и семантика
-sequence/outbox — и остаётся только для Telemt. Новые узлы следует подключать как панели;
-текст ниже сохранён для установок, где узлы v1 уже зарегистрированы, и для раздела
-«Advanced: транспорт v1» карточки узла v1 (сырые typed-команды). Узел v1 показан на экране
-«Узлы» с `transport = v1` рядом со связанными панелями; «Зарегистрировать узел v1
-(mTLS-агент)» в свёрнутом блоке «Дополнительно» открывает чек-лист enrollment.
-
-### Контракт
-
-- Узлы создают только **исходящие HTTPS-подключения** к отдельному central ingress, который
-  сам терминирует TLS и выводит идентичность узла из проверенного клиентского сертификата —
-  без identity-заголовков и без bearer fallback.
-- Идентичность сервера: WebPKI-сертификат на точное имя `FLEET_CENTRAL_URL`, проверяемый по
-  системному хранилищу (`FLEET_SERVER_CA` — только для приватного тестового PKI).
-  Идентичность клиента: приватный CA выдаёт по сертификату на узел с единственным URI SAN
-  `urn:mtproxy-panel:node:<node-id>`; центр дополнительно требует активную запись в базе с
-  совпадающими node ID, serial, SHA-256 fingerprint и сроком.
-- TLS 1.2+, обязательный клиентский сертификат, без компрессии. Неизвестный CA падает на
-  handshake; сертификат другого узла, незарегистрированный serial/fingerprint или отозванный
-  приложением сертификат получают 403.
-- Границы: 4 KiB request line, 8 KiB заголовков, лимит тела ≤ 64 KiB (по умолчанию 16 KiB),
-  без chunked-тел, long poll 30 с, rate limit на сертификат внутри процесса (по умолчанию
-  120/мин, сбрасывается при рестарте).
-- Команда несёт версию протокола, UUID, node ID, монотонный sequence, idempotency key,
-  allowlisted-операцию, ожидаемую ревизию Telemt, actor, срок, канонический SHA-256
-  payload и типизированный payload; состояния `queued`, `dispatched`, `succeeded`,
-  `failed`, `indeterminate`. Просроченная команда всё равно доставляется по порядку и
-  журналируется как failed no-op, так что срок никогда не выполняет мутацию и не оставляет
-  разрыва в sequence.
-- Агент журналирует получение (SQLite WAL, `synchronous=FULL`) до вызова Telemt;
-  завершённые результаты образуют durable outbox; потерянное подтверждение повторяет
-  отправку сохранённого результата, а не мутацию; остатки после падения — `indeterminate` и
-  не выполняются повторно. Единственная его authority — фиксированный loopback URL Telemt с
-  локальным bearer; каждый method/path/body берётся из типизированного allowlist, мутации
-  несут `If-Match`.
-- Разрешённые операции: обновление инвентаря, включение, выключение, изменение лимитов,
-  сброс квоты. Create/delete/rotate/reveal и операции Mieru отклоняются — именно это дают
-  связанные панели.
-
-### Развёртывание центра
-
-Панель и ingress работают с **одной** `PANEL_DATABASE`; сделайте бэкап перед первым стартом.
-
-1. Получите WebPKI-сертификат сервера с SAN на имя ingress (`fleet.example.com` ниже).
-   Никогда не используйте fleet client CA как публичную идентичность сервера.
-2. Инициализируйте offline client CA на защищённой операторской системе, не в контейнере
-   панели:
-
-   ```sh
-   python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-     fleet-ca-init --ca-dir /root/mtproxy-fleet-ca
-   install -m 0644 /root/mtproxy-fleet-ca/ca.crt /etc/mtproxy-panel/fleet-client-ca.crt
-   # ca.key остаётся offline/root-only; ingress нужен только ca.crt.
-   ```
-
-3. Установите `deploy/mtproxy-fleet-ingress.service` с `deploy/fleet-ingress.env.example`,
-   поправив root-only пути Certbot и имя хоста. Root-only шаги `ExecStartPre=+` юнита
-   копируют сертификат (`0444`) и ключ (`0400`) владельцем `panel:panel` в его runtime-каталог
-   `/run/mtproxy-fleet-ingress` с режимом `0700`; сам процесс работает как `panel:panel`.
-   После продления сертификата перезапускайте юнит (`systemctl restart
-   mtproxy-fleet-ingress.service` из root-owned deploy hook). Наружу выставляется только
-   TCP-порт ingress; слушатель терминирует mTLS сам.
-4. Для контейнеров `compose.fleet-central.yaml` — hardened overlay того же проекта
-   `mtproxy` с общим `panel-data`; вызывайте его вместе с `compose.yaml`, никогда отдельно.
-   Смонтированные ключи ingress должны быть читаемы только UID/GID 10001 (образ агента
-   работает под UID 10002).
-
-### Enrollment узла (`example-node-02`)
-
-Регистрация, переименование, отключение и отзыв сертификатов живут на экране «Узлы»; шаги
-ниже остаются ручными ровно потому, что приватный ключ не покидает узел. После
-«Зарегистрировать» панель показывает этот чек-лист прямо в диалоге.
-
-```sh
-# центр: регистрация
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-register-node example-node-02 --display-name 'Example Region 2'
-
-# узел: ключ и CSR локально
-install -d -m 0700 /etc/mtproxy-agent
-openssl req -new -newkey rsa:3072 -nodes -sha256 -subj '/CN=example-node-02' \
-  -keyout /etc/mtproxy-agent/example-node-02.key -out /etc/mtproxy-agent/example-node-02.csr
-chmod 0600 /etc/mtproxy-agent/example-node-02.key
-
-# CA-система: подпись (signer игнорирует запрошенные расширения и пишет канонический URI SAN)
-python -m panel.cli fleet-sign-csr example-node-02 --ca-dir /root/mtproxy-fleet-ca \
-  --csr /secure-inbox/example-node-02.csr --out /secure-outbox/example-node-02.crt --days 90
-
-# центр: привязка точного serial/fingerprint/срока
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-bind-cert example-node-02 --cert /secure-inbox/example-node-02.crt
-```
-
-Между системами перемещайте только CSR и выпущенный сертификат — никогда
-`example-node-02.key` или `ca.key`. На узле установите пакет/venv,
-`deploy/mtproxy-agent.service` и `deploy/agent.env.example`; локальный bearer Telemt храните
-как `/etc/mtproxy-agent/telemt-api-token`, доступный только службе. Служба требует ключ без
-group/world-битов и пишет только в `/var/lib/mtproxy-agent`. Затем
-`systemctl daemon-reload && systemctl enable --now mtproxy-agent` и проверьте
-`journalctl -u mtproxy-agent --since -5m`. `auth_state` проходит `unenrolled` → `enrolled`
-(сертификат привязан) → `connected` (mTLS-авторизация прошла). Первой поставьте
-короткоживущую команду инвентаризации и посмотрите её результат до любой мутации.
-
-Необязательный `compose.agent.yaml` входит в ту же приватную сеть Compose, обращается к
-Telemt только как `http://mtproxy:9091`, не монтирует Docker socket и не публикует портов;
-он валиден только как overlay `compose.yaml`, bind ключа — `0400`/`0600` владельцем UID 10002.
-
-### Ротация, отзыв и проверки
-
-Ротация overlap-first: новый ключ и CSR на узле → `fleet-sign-csr` → `fleet-bind-cert` (оба
-serial принимаются) → атомарная замена и рестарт агента → `auth_state=connected` и
-завершённая команда инвентаризации → отзыв старого serial:
-
-```sh
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-revoke-cert example-node-02 --serial OLD_HEX_SERIAL
-```
-
-Отзыв приложением действует немедленно для новых запросов, даже пока TLS-цепочка валидна;
-при компрометации сначала отзовите, остановите агент, затем выпустите новые ключ и
-сертификат. Инструменты CA v1 не публикуют OCSP и CRL — никогда не полагайтесь только на
-отзыв на уровне handshake.
-
-Операционные проверки: `openssl s_client` без клиентского сертификата и сертификат другого
-CA должны падать на handshake; валидный сертификат на пути другого узла и отозванный serial
-должны получать 403; проверьте `auth_state`, `last_seen_at`, `dispatched_at`, статус
-завершения и отсутствие незагруженных завершённых записей журнала; убедитесь, что Telemt
-слушает только loopback и ни один Compose-файл не монтирует `/var/run/docker.sock`.
-
-### Ограничения v1
-
-Одобрение enrollment и передача CSR ручные по замыслу (bearer-эндпоинта enrollment нет);
-отзыв проверяется после TLS базой центра; rate limiter — на процесс ingress; в allowlist
-только пять операций Telemt выше. Ни один боевой хост в v1 так и не был зарегистрирован;
-артефакты и процедура готовы, но реальное развёртывание всё ещё требует DNS/WebPKI-
-сертификата, согласованного порта и передачи CSR. Для всего, что выходит за инвентарь и
-лимиты, подключайте панель.
 
 См. также [operations](docs/OPERATIONS.ru.md), [upgrading](docs/UPGRADING.ru.md),
 [backup](docs/BACKUP_RESTORE.ru.md), [security](SECURITY.md) и

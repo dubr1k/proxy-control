@@ -101,14 +101,74 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     );
     // The WP7 clients domain over that adapter set, its enforcer ticking the node's reconciler.
     crate::routes::clients::wire(core, &mut services, &runtime, &node);
+    crate::routes::fleet_central::wire(core, &mut services)?;
+
+    // Routing and grant lanes (`app.py:232-250`), over the same adapter set and router.
+    let clients = services.get::<crate::routes::clients::ClientsDomain>().cloned().expect("clients are wired");
+    let routing_adapters: Arc<dyn panel_routing::runtime::RoutingAdapters> = Arc::new(
+        panel_routing::runtime::Managers::new(clients.adapters.clone(), runtime.naive.clone(), runtime.mieru.clone()),
+    );
+    let router: Option<Arc<dyn panel_routing::runtime::RoutingRouter>> =
+        runtime.router.clone().map(|router| router as Arc<dyn panel_routing::runtime::RoutingRouter>);
+    let (naive, mieru, amneziawg, trusttunnel) = (
+        core.settings.naive_enabled,
+        core.settings.mieru_enabled,
+        core.settings.amneziawg_enabled,
+        core.settings.trusttunnel_enabled,
+    );
+    let enabled: Arc<dyn panel_model::seams::ProtocolSwitch> = Arc::new(move |protocol: &str| match protocol {
+        "naive" => naive,
+        "mieru" => mieru,
+        "amneziawg" => amneziawg,
+        "trusttunnel" => trusttunnel,
+        _ => true,
+    });
+    let managed_store = node.managed().clone();
+    let managed: Arc<dyn panel_routing::service::CentralManagement> = Arc::new(move |db: &panel_core::db::Conn| {
+        managed_store.master_guid(db).map_err(|error| -> panel_model::seams::SeamError { Box::new(error) })
+    });
+    let confirmed: Arc<dyn panel_model::seams::RelayConfirmation> = Arc::new(
+        services.get::<panel_fleet_central::generations::DesiredStore>().cloned().expect("desired store is wired"),
+    );
+    let publisher: Option<Arc<dyn panel_model::seams::GenerationPublisher>> = Some(
+        services.get::<Arc<panel_fleet_central::generations::PublishService>>().cloned().expect("publisher is wired"),
+    );
+    let node_client: Option<Arc<dyn panel_model::seams::NodeClientProvider>> = Some(
+        services.get::<Arc<panel_fleet_central::links::NodeLinkService>>().cloned().expect("node links are wired"),
+    );
+    let relays = panel_routing::lanes::RelayRegistry::new(core.secrets.clone());
+    let routing = panel_routing::service::RoutingService::new(
+        core.database.clone(),
+        routing_adapters.clone(),
+        enabled,
+        publisher.clone(),
+        Some(managed),
+        core.clock.clone(),
+        router.clone(),
+        Some(relays.clone()),
+        core.panel_guid.clone(),
+        core.settings.allowed_hosts.first().cloned().unwrap_or_default(),
+        confirmed,
+        node_client,
+    );
+    let lanes = panel_routing::lanes::LaneService::new(
+        core.database.clone(),
+        routing_adapters,
+        router,
+        core.clock.clone(),
+        publisher,
+    );
+    clients.lifecycle.set_lanes(Arc::new(lanes.clone()));
+    services.insert(relays);
+    services.insert(routing);
+    services.insert(lanes);
     // The subscriptions over the clients domain, its generation hook and `POST /api/clients`'s issuer (WP9).
     crate::routes::subscriptions_admin::wire(core, &mut services);
     services.insert(runtime);
     services.insert(node);
     // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13, `app.py:252`):
     // the collector reads the host agent and the five protocol managers; the local node's name
-    // comes from the node store. The fleet source (WP12b) is plugged in with
-    // `Metrics::set_source`; until then linked nodes answer `unsupported`.
+    // comes from the node store; linked-node reads share the fleet source's cache and concurrency.
     let managers = &core.managers;
     let local_name: LocalName = Arc::new(move || nodes.local().ok().map(|view| view.display_name));
     let meters = ManagerMeters {
@@ -122,6 +182,9 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     };
     let metrics: Arc<Metrics> =
         Metrics::setup(&core.settings, core.database.clone(), Arc::new(meters), core.clock.clone());
+    if let Some(source) = services.get::<Arc<panel_fleet_central::metrics_source::FleetMetricsSource>>() {
+        metrics.set_source(Some(source.clone()));
+    }
     services.insert(metrics);
     Ok(services)
 }
@@ -147,7 +210,7 @@ fn bridge_probe(core: &Arc<Core>) -> Option<panel_protocols::telemt::BridgeProbe
 /// `tick(force=True)` before serving (WP7), then the loops `pusher` (WP12), `enforcer` (WP7) and
 /// `metrics` (WP13, only when `PANEL_METRICS_ENABLED`), registered in that order.
 pub fn register_lifespan(state: &AppState) {
-    // (pusher: WP12) — the enforcer's pre-serve tick and loop (WP7).
+    crate::routes::fleet_central::register_lifespan(state);
     crate::routes::clients::register_lifespan(state);
     // `metrics`: `collector.run_forever()` when metrics are on (no startup work of its own).
     if let Some(collector) = state.service::<Arc<Metrics>>().collector() {

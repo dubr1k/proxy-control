@@ -44,7 +44,7 @@ services:
       start_period: 15s
 
 secrets:
-  # The admin API key of the panel (`python -m panel.cli api-key-create --name mcp --scope admin`).
+  # The admin API key of the panel (`panel cli api-key-create --name mcp --scope admin`).
   mcp-panel-key:
     file: ./secrets/mcp-panel-key
   # The bearer token MCP clients present; regenerate it and `docker compose up -d mcp` to rotate.

@@ -627,6 +627,7 @@
     "journals/interrupted/resumed/plan.json": "bb6f625e3f29860026ef57bf0abc619f1781134e3581dd0ac69efaad90a410fd",
     "journals/interrupted/resumed/report.json": "1338b9626aa90b93d93bc48883599cf2d90dbe173e1774ab695646652cbfbe61",
     "journals/interrupted/resumed/state.json": "f88f22e5bd45ca319ca46c742967905fbd381b4c32d9aca1a02005e11f21991a",
+    "journals/interrupted/version-agent.service": "04d5448ff213652e981ce7fdce53c310a2fea673933babd026359c94cf6ef08b",
     "journals/lock.json": "fa230a2b0b54c5d4a51fb80c3bbd559c2322860475a121c99eaffef8f81a8c38",
     "journals/repaired/modes.json": "c52ef1d059ea9c7d368bfd6ab22f443b6efa2fd4a97ab7d62cb52253e36f8167",
     "journals/repaired/ownership.json": "511974ce2eb48edccad309593ae4f6e10631b00426ea1c99bc623509ebf4f238",

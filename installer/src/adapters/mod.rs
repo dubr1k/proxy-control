@@ -18,9 +18,16 @@ use pc_host::runner::HostRunner;
 use crate::adapter::Adapter;
 use crate::error::Error;
 
+pub mod mcp;
+mod services;
+pub mod version_agent;
+pub mod warp;
+
 /// The worked example of the crate documentation (tests only, never registered).
 #[cfg(test)]
 pub(crate) mod example;
+#[cfg(test)]
+mod services_tests;
 
 pub mod certificates;
 pub mod core;
@@ -65,14 +72,21 @@ pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
         Arc::new(firewall::FirewallAdapter::new(context)),
         Arc::new(nginx::NginxAdapter::new(context)),
         Arc::new(core::CoreAdapter::new(context)),
+        Arc::new(warp::WarpAdapter::new(context)),
         Arc::new(naive::NaiveAdapter::new(context)),
         Arc::new(mieru::MieruAdapter::new(context)),
+        Arc::new(mcp::McpAdapter::new(context)),
+        Arc::new(version_agent::VersionAgentAdapter::new(context)),
     ]
 }
 
-/// `installer.adapters.mcp.mcp_handoff(root, config)`: the MCP address and bearer for the
-/// root-only report handoff (`report` with `domains.mcp`). Host WP5b replaces the body.
+/// The MCP address and bearer for the root-only report handoff.
 pub fn mcp_handoff(context: &AdapterContext, config: &InstallerConfig) -> Result<BTreeMap<String, String>, Error> {
-    let _ = (context, config);
-    Err(Error::other("McpError", "the MCP adapter is not available in this build yet"))
+    let Some(domain) = &config.domains.mcp else {
+        return Ok(BTreeMap::new());
+    };
+    Ok(BTreeMap::from([
+        ("mcp_url".into(), format!("https://{domain}/mcp")),
+        ("mcp_token".into(), mcp::McpAdapter::new(context).read_token()?),
+    ]))
 }
