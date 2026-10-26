@@ -156,6 +156,8 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     services.insert(relays);
     services.insert(routing);
     services.insert(lanes);
+    // The subscriptions over the clients domain, its generation hook and `POST /api/clients`'s issuer (WP9).
+    crate::routes::subscriptions_admin::wire(core, &mut services);
     services.insert(runtime);
     services.insert(node);
     // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13, `app.py:252`):

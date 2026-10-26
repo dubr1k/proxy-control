@@ -1,0 +1,73 @@
+{
+  "outbounds": [
+    {
+      "type": "naive",
+      "tag": "AMS · Naive [52a7c6b8]",
+      "server": "naive.example.com",
+      "server_port": 443,
+      "username": "bob",
+      "password": "naive-pass-01",
+      "tls": {
+        "enabled": true,
+        "server_name": "naive.example.com"
+      }
+    },
+    {
+      "type": "mieru",
+      "tag": "FRA · Mieru [6ba65fd8] · TCP 8443",
+      "server": "mieru.example.com",
+      "server_port": 8443,
+      "transport": "TCP",
+      "username": "carol",
+      "password": "mieru-pass-01"
+    },
+    {
+      "type": "trusttunnel",
+      "tag": "TT · TrustTunnel [afbcdb56]",
+      "server": "gate.example.com",
+      "server_port": 443,
+      "username": "trusted",
+      "password": "tt-pass-CANARY-01",
+      "quic": false,
+      "tls": {
+        "enabled": true,
+        "server_name": "gate.example.com"
+      }
+    },
+    {
+      "type": "trusttunnel",
+      "tag": "Phone",
+      "server": "gate.example.com",
+      "server_port": 443,
+      "username": "selfsigned",
+      "password": "tt-pass-CANARY-01",
+      "quic": false,
+      "tls": {
+        "enabled": true,
+        "server_name": "gate.example.com",
+        "insecure": true
+      }
+    }
+  ],
+  "proxy_control": {
+    "generation": 3,
+    "client": "throne",
+    "unsupported": [
+      {
+        "protocol": "mtproxy",
+        "runtime_username": "alice",
+        "reason": "no MTProto import path"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "dave",
+        "reason": "no stored credential"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "frank",
+        "reason": "the sing-box mieru outbound has no field for a port range"
+      }
+    ]
+  }
+}
