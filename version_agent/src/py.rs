@@ -1,0 +1,263 @@
+//! The few Python string and number semantics the agent's parsers and JSON rely on: `str.strip`,
+//! `str.split()`, `str.splitlines`, `round(x, n)`, `int(str)`, truthiness of JSON values and
+//! the compact `json.dumps(…, sort_keys=True)` of the HTTP bodies.
+
+use pc_host::json::{dumps, Options};
+use serde_json::Value;
+
+/// `str.isspace()` for one character (the set `str.strip()`/`str.split()` use).
+pub fn is_space(c: char) -> bool {
+    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
+}
+
+/// `str.strip()`.
+pub fn strip(text: &str) -> &str {
+    text.trim_matches(is_space)
+}
+
+/// `str.split()` without arguments: runs of whitespace separate, no empty fields.
+pub fn split(text: &str) -> Vec<&str> {
+    text.split(is_space).filter(|part| !part.is_empty()).collect()
+}
+
+/// `str.splitlines()`: `\n`, `\r`, `\r\n`, `\v`, `\f`, `\x1c`–`\x1e`, `\x85`, U+2028, U+2029.
+pub fn splitlines(text: &str) -> Vec<&str> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((index, c)) = chars.next() {
+        let breaks = matches!(
+            c,
+            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{1c}' | '\u{1d}' | '\u{1e}' | '\u{85}' | '\u{2028}' | '\u{2029}'
+        );
+        if !breaks {
+            continue;
+        }
+        lines.push(&text[start..index]);
+        let mut end = index + c.len_utf8();
+        if c == '\r' {
+            if let Some(&(next, '\n')) = chars.peek() {
+                chars.next();
+                end = next + 1;
+            }
+        }
+        start = end;
+    }
+    if start < text.len() {
+        lines.push(&text[start..]);
+    }
+    lines
+}
+
+/// A non-empty run of ASCII digits (`str.isdigit()` restricted to ASCII; DIFFERENCES).
+pub fn is_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// `int(text)` for base 10: surrounding whitespace, an optional sign, ASCII digits with single
+/// underscores between them. `None` where Python raises `ValueError` (and beyond `i64`).
+pub fn int(text: &str) -> Option<i64> {
+    let text = strip(text);
+    let (negative, body) = match text.as_bytes().first() {
+        Some(b'-') => (true, &text[1..]),
+        Some(b'+') => (false, &text[1..]),
+        _ => (false, text),
+    };
+    if body.is_empty() || body.starts_with('_') || body.ends_with('_') || body.contains("__") {
+        return None;
+    }
+    let digits: String = body.chars().filter(|&c| c != '_').collect();
+    if !is_digits(&digits) {
+        return None;
+    }
+    let value: i64 = digits.parse().ok()?;
+    Some(if negative { -value } else { value })
+}
+
+/// `round(value, ndigits)`: the decimal nearest to the exact binary value, ties to even, read
+/// back as a float. (`f64::round` rounds ties away from zero and works on the binary value.)
+pub fn round(value: f64, ndigits: usize) -> f64 {
+    if !value.is_finite() {
+        return value;
+    }
+    // 1074 fractional digits print every finite f64 exactly.
+    let exact = format!("{:.1074}", value.abs());
+    let (whole, fraction) = exact.split_once('.').unwrap_or((exact.as_str(), ""));
+    let mut digits: Vec<u8> = whole.bytes().chain(fraction.bytes().take(ndigits)).collect();
+    let rest = fraction.as_bytes().get(ndigits..).unwrap_or(&[]);
+    let round_up = match rest.first() {
+        Some(&d) if d > b'5' => true,
+        Some(&b'5') => rest[1..].iter().any(|&d| d != b'0') || digits.last().is_some_and(|d| (d - b'0') % 2 == 1),
+        _ => false,
+    };
+    if round_up {
+        let mut index = digits.len();
+        loop {
+            if index == 0 {
+                digits.insert(0, b'1');
+                break;
+            }
+            index -= 1;
+            if digits[index] == b'9' {
+                digits[index] = b'0';
+            } else {
+                digits[index] += 1;
+                break;
+            }
+        }
+    }
+    let split_at = digits.len() - ndigits;
+    let text = format!(
+        "{}.{}0",
+        std::str::from_utf8(&digits[..split_at]).unwrap_or("0"),
+        std::str::from_utf8(&digits[split_at..]).unwrap_or("")
+    );
+    let magnitude: f64 = text.parse().unwrap_or(0.0);
+    if value.is_sign_negative() {
+        -magnitude
+    } else {
+        magnitude
+    }
+}
+
+/// `round(value, ndigits)` as a JSON float.
+pub fn round_json(value: f64, ndigits: usize) -> Value {
+    Value::from(round(value, ndigits))
+}
+
+/// `bool(value)` of a JSON value.
+pub fn truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(flag) => *flag,
+        Value::Number(number) => number.as_f64().is_some_and(|n| n != 0.0),
+        Value::String(text) => !text.is_empty(),
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(map) => !map.is_empty(),
+    }
+}
+
+/// `isinstance(value, int)` (a bool counts) as an `i64`.
+pub fn as_int(value: &Value) -> Option<i64> {
+    match value {
+        Value::Bool(flag) => Some(i64::from(*flag)),
+        Value::Number(number) => {
+            number.as_i64().or_else(|| number.as_u64().map(|n| i64::try_from(n).unwrap_or(i64::MAX)))
+        }
+        _ => None,
+    }
+}
+
+/// `type(value) is int` (a bool does not count).
+pub fn as_strict_int(value: &Value) -> Option<i64> {
+    match value {
+        Value::Number(_) => as_int(value),
+        _ => None,
+    }
+}
+
+/// `value == 1` in Python for a JSON value (`True` and `1.0` are equal to `1`).
+pub fn equals_one(value: &Value) -> bool {
+    match value {
+        Value::Bool(flag) => *flag,
+        Value::Number(number) => number.as_f64() == Some(1.0) && (number.is_f64() || number.as_i64() == Some(1)),
+        _ => false,
+    }
+}
+
+/// `str(value)` of a JSON scalar the way the upstream parsers use it (`str(x or "")`): `None`
+/// for a list or an object (whose `repr` never passes a version check).
+pub fn scalar_text(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => Some(String::new()),
+        Value::Bool(true) => Some("True".into()),
+        Value::Bool(false) => Some(String::new()),
+        Value::Number(number) => {
+            if let Some(int) = number.as_i64() {
+                Some(if int == 0 { String::new() } else { int.to_string() })
+            } else if let Some(int) = number.as_u64() {
+                Some(int.to_string())
+            } else {
+                let float = number.as_f64().unwrap_or(0.0);
+                Some(if float == 0.0 { String::new() } else { pc_host::json::float_repr(float) })
+            }
+        }
+        Value::String(text) => Some(text.clone()),
+        Value::Array(_) | Value::Object(_) => None,
+    }
+}
+
+const BODY: Options = Options { indent: None, separators: Some((",", ":")), sort_keys: true, ensure_ascii: true };
+
+/// `json.dumps(value, separators=(",", ":"), sort_keys=True)`: every HTTP body of the agent.
+pub fn body(value: &Value) -> Vec<u8> {
+    dumps(value, &BODY).into_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn round_matches_python_round() {
+        let golden: Value = serde_json::from_str(include_str!("../../tests/fixtures/host-golden/vectors/round.json"))
+            .expect("round vectors");
+        let mut checked = 0;
+        for case in golden.as_array().unwrap() {
+            let Some(ndigits) = case["ndigits"].as_u64() else { continue };
+            let input: f64 = case["input_repr"].as_str().unwrap().parse().unwrap();
+            let got = round(input, ndigits as usize);
+            assert_eq!(pc_host::json::float_repr(got), case["json"].as_str().unwrap(), "round({input}, {ndigits})");
+            checked += 1;
+        }
+        assert!(checked >= 20);
+        assert_eq!(round(0.25, 1), 0.2);
+        assert_eq!(round(0.35, 1), 0.3);
+        assert_eq!(round(99.96, 1), 100.0);
+        assert_eq!(round(-1.25, 1), -1.2);
+        assert!(round(-0.04, 1).is_sign_negative());
+    }
+
+    #[test]
+    fn strings_split_like_python() {
+        assert_eq!(strip("\u{1c} a b \t"), "a b");
+        assert_eq!(split("  a  b\u{1f}c "), vec!["a", "b", "c"]);
+        assert_eq!(splitlines("a\r\nb\rc\n\nd\u{2028}e"), vec!["a", "b", "c", "", "d", "e"]);
+        assert_eq!(splitlines("a\n"), vec!["a"]);
+        assert!(splitlines("").is_empty());
+    }
+
+    #[test]
+    fn int_parses_like_python_int() {
+        assert_eq!(int(" 10001\n"), Some(10001));
+        assert_eq!(int("+5"), Some(5));
+        assert_eq!(int("-5"), Some(-5));
+        assert_eq!(int("1_000"), Some(1000));
+        for bad in ["", "_1", "1_", "1__0", "0x10", "1.0", "abc", "- 1"] {
+            assert_eq!(int(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn truthiness_and_int_checks() {
+        assert!(!truthy(&json!(0)) && !truthy(&json!("")) && !truthy(&json!([])) && !truthy(&json!(null)));
+        assert!(truthy(&json!("false")) && truthy(&json!(0.5)));
+        assert_eq!(as_int(&json!(true)), Some(1));
+        assert_eq!(as_strict_int(&json!(true)), None);
+        assert_eq!(as_int(&json!(1.0)), None);
+        assert!(equals_one(&json!(1)) && equals_one(&json!(1.0)) && equals_one(&json!(true)));
+        assert!(!equals_one(&json!(2)) && !equals_one(&json!("1")));
+        assert_eq!(scalar_text(&json!(5)).as_deref(), Some("5"));
+        assert_eq!(scalar_text(&json!(true)).as_deref(), Some("True"));
+        assert_eq!(scalar_text(&json!(0)).as_deref(), Some(""));
+        assert_eq!(scalar_text(&json!(1.5)).as_deref(), Some("1.5"));
+        assert_eq!(scalar_text(&json!([1])), None);
+    }
+
+    #[test]
+    fn bodies_are_compact_sorted_ascii() {
+        let expected = [&br#"{"a":""#[..], b"\\", b"u00fc", br#"","b":1,"c":1.0}"#].concat();
+        assert_eq!(body(&json!({"b": 1, "a": "\u{fc}", "c": 1.0})), expected);
+    }
+}
