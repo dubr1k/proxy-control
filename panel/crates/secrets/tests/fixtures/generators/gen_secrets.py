@@ -9,7 +9,7 @@ Run as root on the lab host, from the repository root, with the panel's Python e
 Writes (every key below is test material made up here — no real secret):
 - `keyring/*.json`: keyring files written by `Keyring.save` (byte-exact output of `to_json`);
 - `keyring-cases.json`: files `Keyring.load` accepts or refuses, with the result or message;
-- `golden.sqlite3` + `golden-keyring.json` + `secret-versions.json`: a migrated database whose
+- `golden.db` + `golden-keyring.json` + `secret-versions.json`: a migrated database whose
   `secret_versions` rows were written by `SecretStore.store` and a partial `rewrap` after a
   rotation (rows under two keys), the keyring that decrypts them, and every row with its AAD and
   plaintext;
@@ -340,7 +340,7 @@ def golden_database(out: Path) -> None:
             raw.execute("PRAGMA journal_mode=DELETE")
         with sqlite3.connect(path) as raw:
             raw.execute("VACUUM")
-        shutil.copyfile(path, out / "golden.sqlite3")
+        shutil.copyfile(path, out / "golden.db")
     keyring_path = out / "golden-keyring.json"
     if keyring_path.exists():
         keyring_path.unlink()

@@ -15,3 +15,10 @@ publish = false
 lto = true
 codegen-units = 1
 strip = true
+
+# argon2id with m=64 MiB is unbearably slow unoptimised; tests hash many times.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

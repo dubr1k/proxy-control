@@ -1,5 +1,5 @@
 //! The secret store against a database the Python panel's secret store wrote
-//! (`fixtures/golden.sqlite3`, its keyring `fixtures/golden-keyring.json` and every row in
+//! (`fixtures/golden.db`, its keyring `fixtures/golden-keyring.json` and every row in
 //! `fixtures/secret-versions.json`), plus the ported `panel/tests/test_secrets_store.py`.
 
 mod common;
@@ -67,7 +67,7 @@ fn golden_rows() -> (Vec<GoldenRow>, BTreeMap<String, u64>) {
 /// A private copy of the golden database and keyring.
 fn golden(dir: &TempDir) -> (Database, std::path::PathBuf) {
     let path = dir.join("panel.sqlite3");
-    std::fs::copy(common::fixture_path("golden.sqlite3"), &path).unwrap();
+    std::fs::copy(common::fixture_path("golden.db"), &path).unwrap();
     let database = Database::open(&path).unwrap();
     // The Python-migrated file is accepted as is (nothing to apply).
     assert!(panel_core::migrations::apply_migrations(&database).unwrap().is_empty());
