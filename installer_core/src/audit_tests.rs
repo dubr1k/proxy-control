@@ -34,7 +34,11 @@ fn config_with(host_mode: HostMode, profile: Profile, mode: ThreeXuiMode) -> Ins
         acme_email: "admin@example.com".into(),
         initial_user: "owner".into(),
         domains,
-        mieru: profile.includes_mieru().then(|| MieruConfig { tcp_ports: vec![4567], udp_ports: vec![4567], lane_slots: 0 }),
+        mieru: profile.includes_mieru().then(|| MieruConfig {
+            tcp_ports: vec![4567],
+            udp_ports: vec![4567],
+            lane_slots: 0,
+        }),
         three_xui,
         firewall: FirewallConfig { manage_ufw: host_mode == HostMode::Fresh },
         egress: None,
@@ -77,7 +81,12 @@ impl Scripted {
 }
 
 impl AuditExecutor for Scripted {
-    fn execute(&self, argv: &[&str], _limits: Bounded, c_locale: bool) -> std::result::Result<BoundedOutput, BoundedError> {
+    fn execute(
+        &self,
+        argv: &[&str],
+        _limits: Bounded,
+        c_locale: bool,
+    ) -> std::result::Result<BoundedOutput, BoundedError> {
         let command: Vec<String> = argv.iter().map(|part| part.to_string()).collect();
         if self.missing.contains(&argv[0]) {
             return Err(BoundedError::Unavailable);
@@ -93,9 +102,12 @@ impl AuditExecutor for Scripted {
 struct Records(BTreeMap<String, (Vec<String>, Vec<String>)>);
 
 impl Resolver for Records {
-    fn getaddrinfo(&self, absolute_name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
+    fn getaddrinfo(&self, absolute_name: &str) -> ResolveResult {
         let (a, aaaa) = self.0.get(absolute_name.trim_end_matches('.')).cloned().unwrap_or_default();
-        Ok(a.into_iter().map(|address| (Family::Inet, address)).chain(aaaa.into_iter().map(|address| (Family::Inet6, address))).collect())
+        Ok(a.into_iter()
+            .map(|address| (Family::Inet, address))
+            .chain(aaaa.into_iter().map(|address| (Family::Inet6, address)))
+            .collect())
     }
 }
 
@@ -104,7 +116,10 @@ fn records(domains: &[String], a: &[&str], aaaa: &[&str]) -> Records {
         domains
             .iter()
             .map(|domain| {
-                (domain.clone(), (a.iter().map(|s| s.to_string()).collect(), aaaa.iter().map(|s| s.to_string()).collect()))
+                (
+                    domain.clone(),
+                    (a.iter().map(|s| s.to_string()).collect(), aaaa.iter().map(|s| s.to_string()).collect()),
+                )
             })
             .collect(),
     )
@@ -167,7 +182,8 @@ fn host_responses(domains: &[String], caa: &str, xray: Option<&Value>) -> Respon
     }
     match xray {
         None => {
-            responses.insert(argv(&["test", "-f", "/usr/local/x-ui/bin/config.json"]), (1, String::new(), String::new()));
+            responses
+                .insert(argv(&["test", "-f", "/usr/local/x-ui/bin/config.json"]), (1, String::new(), String::new()));
         }
         Some(xray) => {
             responses.insert(argv(&["test", "-f", "/usr/local/x-ui/bin/config.json"]), ok(""));
@@ -261,9 +277,17 @@ fn audit_error_redacts_headers_passwords_tokens_uuid_keys_and_panel_paths() {
          panelPath=/hidden-panel {environment_secret}"
     );
     let message = redactor.safe_audit_error(&text);
-    for secret in
-        ["abc", "cookie-secret", "hunter2", "tok-value", "deadbeef", "priv-key", "/hidden-panel", "short-secret", environment_secret]
-    {
+    for secret in [
+        "abc",
+        "cookie-secret",
+        "hunter2",
+        "tok-value",
+        "deadbeef",
+        "priv-key",
+        "/hidden-panel",
+        "short-secret",
+        environment_secret,
+    ] {
         assert!(!message.contains(secret), "{message}");
     }
     assert!(message.starts_with("audit observation failed"));
@@ -303,7 +327,8 @@ fn audit_uses_authoritative_ufw_ipv6_mode_not_observed_rules() {
         let domains = selected.required_domains();
         let mut responses = host_responses(&domains, LETSENCRYPT, None);
         responses.insert(argv(&UFW_IPV6_CONFIG_COMMAND), response);
-        responses.insert(argv(&["ufw", "status", "verbose"]), ok("Status: active\n22/tcp (v6) ALLOW IN Anywhere (v6)\n"));
+        responses
+            .insert(argv(&["ufw", "status", "verbose"]), ok("Status: active\n22/tcp (v6) ALLOW IN Anywhere (v6)\n"));
         let executor = Scripted::new(responses);
         let audit = run_audit(&selected, &executor, &records(&domains, &[HOST_V4], &[HOST_V6])).unwrap();
         assert_eq!(audit.facts.ownership["ufw"]["ipv6_enabled"], expected);
@@ -370,9 +395,17 @@ fn three_xui_facts_whitelist_only_non_secret_inbound_fields() {
         json!([{"listen": "127.0.0.1", "port": 10443, "protocol": "vless",
                 "reality_server_names": ["reality.example.com"], "tag": "vless-in", "transport_security": "reality"}])
     );
-    for forbidden in
-        ["deadbeef", "hunter2", "private-material", "0123456789abcdef", "hidden-panel-path", "panel-token", "cookie-secret", "clients", "shortIds"]
-    {
+    for forbidden in [
+        "deadbeef",
+        "hunter2",
+        "private-material",
+        "0123456789abcdef",
+        "hidden-panel-path",
+        "panel-token",
+        "cookie-secret",
+        "clients",
+        "shortIds",
+    ] {
         assert!(!encoded.contains(forbidden), "{forbidden}");
     }
 }
@@ -406,8 +439,8 @@ fn audit_uses_only_read_only_commands_and_coexist_never_inspects_firewall_mutabl
     let (audit, executor) = scripted_audit(&selected, LETSENCRYPT, &[HOST_V6], None);
     assert_eq!(audit.facts.ownership["ufw"]["mode"], json!("read_only"));
     let forbidden = [
-        "add", "allow", "apply", "create", "delete", "disable", "enable", "install", "reload", "remove", "restart", "set",
-        "start", "stop", "write",
+        "add", "allow", "apply", "create", "delete", "disable", "enable", "install", "reload", "remove", "restart",
+        "set", "start", "stop", "write",
     ];
     for command in executor.calls() {
         assert!(!command.iter().any(|part| forbidden.contains(&lower(part).as_str())), "{command:?}");
@@ -473,15 +506,15 @@ fn failed_optional_observations_are_explicitly_unknown() {
 struct Failing;
 
 impl Resolver for Failing {
-    fn getaddrinfo(&self, _name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
-        Err(())
+    fn getaddrinfo(&self, _name: &str) -> ResolveResult {
+        Err(ResolveError)
     }
 }
 
 struct Stalled;
 
 impl Resolver for Stalled {
-    fn getaddrinfo(&self, _name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
+    fn getaddrinfo(&self, _name: &str) -> ResolveResult {
         std::thread::sleep(Duration::from_secs(2));
         Ok(Vec::new())
     }
@@ -544,7 +577,7 @@ fn c_locale_commands_run_with_lc_all_c_and_without_language() {
 struct Absolute;
 
 impl Resolver for Absolute {
-    fn getaddrinfo(&self, name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
+    fn getaddrinfo(&self, name: &str) -> ResolveResult {
         assert_eq!(name, "panel.example.com.");
         Ok(vec![(Family::Inet, HOST_V4.into())])
     }
@@ -553,7 +586,7 @@ impl Resolver for Absolute {
 struct Oversized;
 
 impl Resolver for Oversized {
-    fn getaddrinfo(&self, name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
+    fn getaddrinfo(&self, name: &str) -> ResolveResult {
         assert!(name.ends_with('.'));
         let mut answers = vec![(Family::Inet6, HOST_V6.to_string()); 256];
         answers.push((Family::Inet6, FOREIGN_V6.into()));
@@ -579,7 +612,8 @@ fn failed_caa_query_is_not_treated_as_empty_rrset() {
     let domains = selected.required_domains();
     let mut responses = host_responses(&domains, LETSENCRYPT, None);
     responses.insert(argv(&["dig", "+short", "CAA", &domains[0]]), (9, String::new(), "query failed".into()));
-    let message = expect_error(run_audit(&selected, &Scripted::new(responses), &records(&domains, &[HOST_V4], &[HOST_V6])));
+    let message =
+        expect_error(run_audit(&selected, &Scripted::new(responses), &records(&domains, &[HOST_V4], &[HOST_V6])));
     assert_eq!(message, "CAA query failed");
 }
 
@@ -698,7 +732,8 @@ fn certificate_wildcard_san_covers_exactly_one_label() {
             argv(&["openssl", "x509", "-in", &path, "-noout", "-dates", "-ext", "subjectAltName"]),
             ok("X509v3 Subject Alternative Name:\n    DNS:*.example.com\n"),
         );
-        let audit = run_audit(&selected, &Scripted::new(responses), &records(&domains, &[HOST_V4], &[HOST_V6])).unwrap();
+        let audit =
+            run_audit(&selected, &Scripted::new(responses), &records(&domains, &[HOST_V4], &[HOST_V6])).unwrap();
         assert_eq!(audit.facts.topology["certificates"][domain]["covers_domain"], json!(covered));
     }
 }
@@ -840,7 +875,10 @@ fn redaction_counts_every_category() {
         redactor.sanitize_error("-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY----- abcd"),
         "audit observation failed [REDACTED] [REDACTED]"
     );
-    assert_eq!(redactor.sanitize_error("sessionid = \"a b\" token:'x'"), "audit observation failed [REDACTED] [REDACTED]");
+    assert_eq!(
+        redactor.sanitize_error("sessionid = \"a b\" token:'x'"),
+        "audit observation failed [REDACTED] [REDACTED]"
+    );
     assert_eq!(redactor.safe_audit_error("command failed with exit status -9"), "command failed with exit status -9");
     assert_eq!(redactor.safe_audit_error("DNS resolution failed"), "DNS resolution failed");
     assert!(!redactor.safe_text("x-abcd-y", 64));

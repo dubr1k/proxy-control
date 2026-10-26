@@ -284,20 +284,15 @@ fn recorded_plans_come_out_of_the_cli_byte_for_byte() {
 }
 
 #[test]
-fn a_missing_audit_or_adapter_is_blocked() {
+fn a_missing_adapter_is_blocked() {
     let host = Host::new("cli-missing");
     let core = core_toml();
     let core = core.to_str().unwrap();
-    let ran = run_with(&["--root", host.root(), "plan", "--config", core], &Services::system);
-    assert_eq!((ran.code, ran.stdout.as_str()), (2, ""));
-    assert_eq!(ran.stderr, "BLOCKED: the host audit is not available in this build yet\n");
     let fixture = Fixture { facts: test_facts(), ..Fixture::default() };
     for command in [&["plan", "--config", core][..], &["install", "--config", core, "--accept-plan", &"0".repeat(64)]] {
         let ran = fixture.run(&host, command);
         assert_eq!((ran.code, ran.stderr.as_str()), (2, "BLOCKED: adapter is unavailable: packages\n"));
     }
-    let ran = fixture.run(&host, &["wizard"]);
-    assert_eq!(ran.stderr, "BLOCKED: the interactive wizard is not available in this build yet\n");
     // A recorded installation: the engine refuses before touching the journal.
     host.install_journal(&golden().join("installs/core/journal"));
     let before = read(&host.journal().join("state.json"));
@@ -307,6 +302,38 @@ fn a_missing_audit_or_adapter_is_blocked() {
         assert_eq!(ran.stderr, "BLOCKED: adapter is unavailable: packages\n", "{command:?}");
     }
     assert_eq!(read(&host.journal().join("state.json")), before);
+}
+
+#[test]
+fn audit_failure_is_blocked_without_a_traceback() {
+    assert_eq!(system_audit(None).unwrap().stable_dict(), AuditFacts::default().stable_dict());
+    let host = Host::new("cli-audit-error");
+    let fixture = Fixture::default();
+    let compose = |root: &Path| {
+        let mut services = fixture.compose(&host, root)?;
+        services.audit = Box::new(|_| Err(Error::other("AuditError", "DNS resolution failed")));
+        Ok(services)
+    };
+    let ran = run_with(&["--root", host.root(), "plan", "--config", core_toml().to_str().unwrap()], &compose);
+    assert_eq!(ran.code, 2);
+    assert!(ran.stdout.is_empty());
+    assert_eq!(ran.stderr, "BLOCKED: DNS resolution failed\n");
+}
+
+#[test]
+fn wizard_reads_preliminary_facts_from_the_composed_audit() {
+    let host = Host::new("cli-wizard-initial-audit");
+    let mut services = Fixture::default().compose(&host, &host.root).unwrap();
+    let mut facts = AuditFacts::default();
+    facts.listeners.insert("tcp".into(), json!([12345]));
+    facts.ownership.insert("installer".into(), json!({"present": true}));
+    let expected = facts.clone();
+    services.audit = Box::new(move |config| {
+        assert!(config.is_none(), "the initial wizard audit has no configuration");
+        Ok(facts.clone())
+    });
+    let mut engine = CliWizardEngine { services: &services };
+    assert_eq!(engine.initial_facts().unwrap().stable_dict(), expected.stable_dict());
 }
 
 #[test]

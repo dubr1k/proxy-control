@@ -112,9 +112,25 @@ fn mismatched_passwords_are_rejected_and_asked_again() {
     let output = temp.join("mismatch.toml");
     let (transcript, _, _) = scripted(
         &[
-            "", "coexist", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-            "admin@example.com", "owner", "first-attempt-password", "second-attempt-password", "short", "short",
-            "settled-panel-password", "settled-panel-password", "save",
+            "",
+            "coexist",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "first-attempt-password",
+            "second-attempt-password",
+            "short",
+            "short",
+            "settled-panel-password",
+            "settled-panel-password",
+            "save",
         ],
         &output,
         Locale::Ru,
@@ -131,8 +147,21 @@ fn typed_panel_password_is_saved_privately_and_never_in_the_config() {
     let output = temp.join("typed.toml");
     let (_, written, _) = scripted(
         &[
-            "", "coexist", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-            "admin@example.com", "owner", "correct-horse-battery", "correct-horse-battery", "save",
+            "",
+            "coexist",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "correct-horse-battery",
+            "correct-horse-battery",
+            "save",
         ],
         &output,
         Locale::Ru,
@@ -151,8 +180,20 @@ fn blank_passwords_leave_no_credentials_file_behind() {
     let output = temp.join("generated.toml");
     scripted(
         &[
-            "", "coexist", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-            "admin@example.com", "owner", "", "save",
+            "",
+            "coexist",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "save",
         ],
         &output,
         Locale::Ru,
@@ -167,10 +208,30 @@ fn warp_domains_take_geosite_lists_and_refuse_a_blank_answer() {
     let output = temp.join("warp.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core", "managed-new", "panel.example.com", "relay.example.com", "", "",
-            "xui.example.com", "vless.example.com", "xhttp.example.com", "hy2.example.com", "yes", "",
-            "geosite:openai, domain:Claude.AI, chatgpt.com", "", "", "admin@example.com", "owner", "",
-            "xuiadmin", "", "yes", "save",
+            "",
+            "fresh",
+            "core",
+            "managed-new",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "xui.example.com",
+            "vless.example.com",
+            "xhttp.example.com",
+            "hy2.example.com",
+            "yes",
+            "",
+            "geosite:openai, domain:Claude.AI, chatgpt.com",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "xuiadmin",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::En,
@@ -190,8 +251,23 @@ fn wizard_offers_the_router_on_a_trusttunnel_only_node() {
     let output = temp.join("tt-router.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "yes",
-            "gate.example.com", "yes", "admin@example.com", "owner", "", "yes", "save",
+            "",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "yes",
+            "gate.example.com",
+            "yes",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::Ru,
@@ -208,17 +284,43 @@ fn enter_takes_the_explained_defaults_and_the_example_mieru_ports() {
     let output = temp.join("defaults.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "", "", "", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-            "mieru.example.com", "", "", "no", "no", "", "", "admin@example.com", "owner", "", "yes", "save",
+            "",
+            "",
+            "",
+            "",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "edge.example.com",
+            "mieru.example.com",
+            "",
+            "",
+            "no",
+            "no",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::En,
         &temp.0,
     );
-    for line in ["fresh   — a clean server", "full       — the panel, MTProxy", "managed-new — the installer sets up its own 3x-ui"] {
+    for line in [
+        "fresh   — a clean server",
+        "full       — the panel, MTProxy",
+        "managed-new — the installer sets up its own 3x-ui",
+    ] {
         assert!(transcript.contains(line), "{line}");
     }
-    assert_eq!((config.host_mode, config.profile, config.three_xui.mode), (HostMode::Fresh, Profile::Full, ThreeXuiMode::None));
+    assert_eq!(
+        (config.host_mode, config.profile, config.three_xui.mode),
+        (HostMode::Fresh, Profile::Full, ThreeXuiMode::None)
+    );
     let mieru = config.mieru.unwrap();
     assert_eq!((mieru.tcp_ports, mieru.udp_ports), (vec![46001], vec![46001]));
     let review = transcript.split("Configuration review").nth(1).unwrap();
@@ -243,21 +345,66 @@ fn wizard_offers_the_router_whenever_a_service_could_feed_it() {
     let temp = TempDir::new();
     let output = temp.join("router.toml");
     let answers = [
-        "", "fresh", "full", "none", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-        "mieru.example.com", "46001", "46001", "yes", "yes", "yes", "no", "yes", "", "",
-        "admin@example.com", "owner", "", "yes", "save",
+        "",
+        "fresh",
+        "full",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",
+        "",
+        "edge.example.com",
+        "mieru.example.com",
+        "46001",
+        "46001",
+        "yes",
+        "yes",
+        "yes",
+        "no",
+        "yes",
+        "",
+        "",
+        "admin@example.com",
+        "owner",
+        "",
+        "yes",
+        "save",
     ];
     let (transcript, written, config) = scripted(&answers, &output, Locale::Ru, &temp.0);
-    assert!(written.contains("router = true") && written.contains("naive = \"router\"") && written.contains("mieru = \"warp\""));
+    assert!(
+        written.contains("router = true")
+            && written.contains("naive = \"router\"")
+            && written.contains("mieru = \"warp\"")
+    );
     assert!(transcript.contains("Xray-router") && transcript.contains("скачивается сам"));
     assert!(!transcript.contains("Направлять весь трафик NaiveProxy через WARP"));
     let egress = config.egress.unwrap();
     assert_eq!((egress.naive, egress.mieru), (EgressChoice::Router, EgressChoice::Warp));
 
     let without = [
-        "", "fresh", "full", "none", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-        "mieru.example.com", "46001", "46001", "yes", "no", "yes", "yes", "", "",
-        "admin@example.com", "owner", "", "yes", "save",
+        "",
+        "fresh",
+        "full",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",
+        "",
+        "edge.example.com",
+        "mieru.example.com",
+        "46001",
+        "46001",
+        "yes",
+        "no",
+        "yes",
+        "yes",
+        "",
+        "",
+        "admin@example.com",
+        "owner",
+        "",
+        "yes",
+        "save",
     ];
     let (transcript, written, _) = scripted(&without, &output, Locale::Ru, &temp.0);
     assert!(transcript.contains("Направлять весь трафик NaiveProxy через WARP"));
@@ -265,8 +412,23 @@ fn wizard_offers_the_router_whenever_a_service_could_feed_it() {
 
     let core = temp.join("core.toml");
     let (transcript, _, _) = scripted(
-        &["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-          "admin@example.com", "owner", "", "yes", "save"],
+        &[
+            "",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
+        ],
         &core,
         Locale::Ru,
         &temp.0,
@@ -280,15 +442,37 @@ fn wizard_writes_an_explicit_egress_section_per_service() {
     let output = temp.join("egress.toml");
     let (transcript, written, config) = scripted(
         &[
-            "", "fresh", "full", "none", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-            "mieru.example.com", "46001", "46001", "yes", "no", "no", "yes", "", "",
-            "admin@example.com", "owner", "", "yes", "save",
+            "",
+            "fresh",
+            "full",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "edge.example.com",
+            "mieru.example.com",
+            "46001",
+            "46001",
+            "yes",
+            "no",
+            "no",
+            "yes",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::Ru,
         &temp.0,
     );
-    assert!(written.contains("[egress]") && written.contains("naive = \"direct\"") && written.contains("mieru = \"warp\""));
+    assert!(
+        written.contains("[egress]") && written.contains("naive = \"direct\"") && written.contains("mieru = \"warp\"")
+    );
     assert!(transcript.contains("Направлять весь трафик NaiveProxy через WARP"));
     let egress = config.egress.unwrap();
     assert!(egress.warp);
@@ -302,9 +486,29 @@ fn existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain() {
     let output = temp.join("existing.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "coexist", "core", "existing", "panel.example.com", "relay.example.com", "", "", "", "",
-            "vless.example.com", "", "", "", "admin@example.com", "owner", "", "back", "", "edit",
-            "three_xui.vless_tcp_domain", "tcp2.example.com", "save",
+            "",
+            "coexist",
+            "core",
+            "existing",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "vless.example.com",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "back",
+            "",
+            "edit",
+            "three_xui.vless_tcp_domain",
+            "tcp2.example.com",
+            "save",
         ],
         &output,
         Locale::En,
@@ -325,9 +529,26 @@ fn review_edit_and_back_change_typed_fields_before_save() {
     let output = temp.join("edited.toml");
     let (_, _, config) = scripted(
         &[
-            "en", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-            "admin@example.com", "owner", "", "no", "edit", "domains.panel", "new-panel.example.com", "back",
-            "yes", "save",
+            "en",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "no",
+            "edit",
+            "domains.panel",
+            "new-panel.example.com",
+            "back",
+            "yes",
+            "save",
         ],
         &output,
         Locale::En,
@@ -343,9 +564,28 @@ fn invalid_configuration_says_why() {
     let output = temp.join("conflict.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core-mieru", "none", "panel.example.com", "relay.example.com", "", "",
-            "mieru.example.com", "8443", "8443", "no", "no", "", "", "admin@example.com", "owner", "",
-            "yes", "mieru.tcp_ports", "46001", "save",
+            "",
+            "fresh",
+            "core-mieru",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "mieru.example.com",
+            "8443",
+            "8443",
+            "no",
+            "no",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "mieru.tcp_ports",
+            "46001",
+            "save",
         ],
         &output,
         Locale::En,
@@ -361,12 +601,8 @@ fn wizard_offers_amneziawg_with_versions_and_a_public_name() {
     let temp = TempDir::new();
     let output = temp.join("awg.toml");
     let root = awg_root(&temp.0);
-    let (transcript, written, config) = scripted(
-        &core_answers(&["yes", "3.1, 1.5", "vpn.example.com", ""]),
-        &output,
-        Locale::En,
-        &root,
-    );
+    let (transcript, written, config) =
+        scripted(&core_answers(&["yes", "3.1, 1.5", "vpn.example.com", ""]), &output, Locale::En, &root);
     let awg = config.amneziawg.unwrap();
     assert_eq!(awg.versions, vec!["1.5", "3.1"]);
     assert_eq!(awg.host, "vpn.example.com");
@@ -405,12 +641,8 @@ fn amneziawg_answers_are_validated_with_localized_feedback() {
     assert_eq!(awg.host, "198.51.100.4");
 
     let ru_output = temp.join("awg-bad-ru.toml");
-    let (transcript, _, config) = scripted(
-        &core_answers(&["да", "9", "1.5", "x_y", "", ""]),
-        &ru_output,
-        Locale::Ru,
-        &root,
-    );
+    let (transcript, _, config) =
+        scripted(&core_answers(&["да", "9", "1.5", "x_y", "", ""]), &ru_output, Locale::Ru, &root);
     assert!(transcript.contains("Введите одну или несколько версий из 1.5, 2.0, 3.1"));
     assert!(transcript.contains("Введите DNS-имя или IPv4-адрес."));
     assert!(transcript.contains("новый домен не нужен"));
@@ -424,8 +656,26 @@ fn review_can_edit_amneziawg() {
     let root = awg_root(&temp.0);
     let (_, _, config) = scripted(
         &[
-            "", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", "",
-            "admin@example.com", "owner", "", "yes", "edit", "amneziawg", "yes", "2.0", "vpn.example.com", "",
+            "",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "no",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "edit",
+            "amneziawg",
+            "yes",
+            "2.0",
+            "vpn.example.com",
+            "",
             "save",
         ],
         &output,
@@ -444,9 +694,31 @@ fn amneziawg_port_that_collides_is_reported_by_the_review_loop() {
     let root = awg_root(&temp.0);
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core-mieru", "none", "panel.example.com", "relay.example.com", "", "",
-            "mieru.example.com", "51820", "46001", "no", "no", "yes", "", "", "51820,23457,23458", "",
-            "admin@example.com", "owner", "", "yes", "mieru.tcp_ports", "46001", "save",
+            "",
+            "fresh",
+            "core-mieru",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "mieru.example.com",
+            "51820",
+            "46001",
+            "no",
+            "no",
+            "yes",
+            "",
+            "",
+            "51820,23457,23458",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "mieru.tcp_ports",
+            "46001",
+            "save",
         ],
         &output,
         Locale::En,
@@ -479,23 +751,13 @@ fn typed_amneziawg_port_list_overrides_the_default() {
     let temp = TempDir::new();
     let root = awg_root(&temp.0);
     let output = temp.join("t.toml");
-    let (_, _, config) = scripted(
-        &core_answers(&["yes", "", "", "23456, 24567,25678"]),
-        &output,
-        Locale::En,
-        &root,
-    );
+    let (_, _, config) = scripted(&core_answers(&["yes", "", "", "23456, 24567,25678"]), &output, Locale::En, &root);
     assert_eq!(
         config.amneziawg.unwrap().port_map(),
         vec![("1.5".to_string(), 23456), ("2.0".to_string(), 24567), ("3.1".to_string(), 25678)]
     );
     let output = temp.join("o.toml");
-    let (_, _, config) = scripted(
-        &core_answers(&["yes", "3.1,1.5", "", "30001,30002"]),
-        &output,
-        Locale::En,
-        &root,
-    );
+    let (_, _, config) = scripted(&core_answers(&["yes", "3.1,1.5", "", "30001,30002"]), &output, Locale::En, &root);
     assert_eq!(config.amneziawg.unwrap().port_map(), vec![("1.5".to_string(), 30001), ("3.1".to_string(), 30002)]);
 }
 
@@ -506,7 +768,14 @@ fn bad_amneziawg_port_input_asks_again_in_both_languages() {
     let output = temp.join("bad.toml");
     let (transcript, _, config) = scripted(
         &core_answers(&[
-            "yes", "", "", "23456,24567", "1,2,3", "23456,23456,25678", "70000,24567,25678", "a,b,c",
+            "yes",
+            "",
+            "",
+            "23456,24567",
+            "1,2,3",
+            "23456,23456,25678",
+            "70000,24567,25678",
+            "a,b,c",
             "23456,24567,25678",
         ]),
         &output,
@@ -520,12 +789,7 @@ fn bad_amneziawg_port_input_asks_again_in_both_languages() {
     assert_eq!(config.amneziawg.unwrap().ports, vec![23456, 24567, 25678]);
 
     let output = temp.join("bad-ru.toml");
-    let (transcript, _, config) = scripted(
-        &core_answers(&["да", "2.0", "", "x", ""]),
-        &output,
-        Locale::Ru,
-        &root,
-    );
+    let (transcript, _, config) = scripted(&core_answers(&["да", "2.0", "", "x", ""]), &output, Locale::Ru, &root);
     assert!(transcript.contains("Введите разные номера портов от 1024 до 65535 через запятую, всего: 1"));
     assert!(transcript.contains("UDP-порты AmneziaWG для версий 2.0"));
     assert_eq!(config.amneziawg.unwrap().ports.len(), 1);
@@ -538,9 +802,30 @@ fn editing_amneziawg_in_the_review_keeps_the_earlier_ports_as_the_default() {
     let output = temp.join("e.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "yes", "", "",
-            "23456,24567,25678", "", "admin@example.com", "owner", "", "yes", "edit", "amneziawg", "yes", "",
-            "", "", "save",
+            "",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "yes",
+            "",
+            "",
+            "23456,24567,25678",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "edit",
+            "amneziawg",
+            "yes",
+            "",
+            "",
+            "",
+            "save",
         ],
         &output,
         Locale::En,
@@ -554,7 +839,8 @@ fn editing_amneziawg_in_the_review_keeps_the_earlier_ports_as_the_default() {
 fn wizard_offers_trusttunnel_with_its_own_domain_and_the_honest_hint() {
     let temp = TempDir::new();
     let output = temp.join("tt.toml");
-    let (transcript, written, config) = scripted(&tt_answers(&["yes", "Gate.Example.org."]), &output, Locale::En, &temp.0);
+    let (transcript, written, config) =
+        scripted(&tt_answers(&["yes", "Gate.Example.org."]), &output, Locale::En, &temp.0);
     let trusttunnel = config.trusttunnel.unwrap();
     assert_eq!(trusttunnel.hostname, "gate.example.org");
     assert_eq!(trusttunnel.listen_port, 4453);
@@ -571,7 +857,8 @@ fn trusttunnel_hint_is_honest_in_russian_too() {
     let temp = TempDir::new();
     let output = temp.join("tt-ru.toml");
     let (transcript, _, config) = scripted(&tt_answers(&["да", "gate.example.org"]), &output, Locale::Ru, &temp.0);
-    for text in ["A-запись на этот сервер", "только DNS", "CDN", "TCP/443", "правило UDP не добавляются"] {
+    for text in ["A-запись на этот сервер", "только DNS", "CDN", "TCP/443", "правило UDP не добавляются"]
+    {
         assert!(transcript.contains(text), "{text}");
     }
     assert_eq!(config.trusttunnel.unwrap().hostname, "gate.example.org");
@@ -591,20 +878,11 @@ fn declining_trusttunnel_writes_no_section_and_no_domain() {
 fn bad_trusttunnel_domain_is_asked_again_with_localized_feedback() {
     let temp = TempDir::new();
     let output = temp.join("bad.toml");
-    let (transcript, _, _) = scripted(
-        &tt_answers(&["yes", "not a domain", "gate.example.org"]),
-        &output,
-        Locale::En,
-        &temp.0,
-    );
+    let (transcript, _, _) =
+        scripted(&tt_answers(&["yes", "not a domain", "gate.example.org"]), &output, Locale::En, &temp.0);
     assert_eq!(transcript.matches("Enter a fully-qualified domain name.").count(), 1);
     let output = temp.join("bad-ru.toml");
-    let (transcript, _, _) = scripted(
-        &tt_answers(&["да", "x_y", "gate.example.org"]),
-        &output,
-        Locale::Ru,
-        &temp.0,
-    );
+    let (transcript, _, _) = scripted(&tt_answers(&["да", "x_y", "gate.example.org"]), &output, Locale::Ru, &temp.0);
     assert_eq!(transcript.matches("Введите полное доменное имя.").count(), 1);
 }
 
@@ -614,9 +892,30 @@ fn review_can_add_trusttunnel_and_a_duplicate_name_sends_the_operator_back() {
     let output = temp.join("tt-edit.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", "no",
-            "admin@example.com", "owner", "", "yes", "edit", "trusttunnel", "yes", "panel.example.com", "no",
-            "trusttunnel", "yes", "gate.example.org", "no", "save",
+            "",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "no",
+            "no",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "edit",
+            "trusttunnel",
+            "yes",
+            "panel.example.com",
+            "no",
+            "trusttunnel",
+            "yes",
+            "gate.example.org",
+            "no",
+            "save",
         ],
         &output,
         Locale::En,
@@ -651,16 +950,39 @@ fn russian_full_wizard_exports_same_config_as_toml() {
     let output = temp.join("proxy-control.toml");
     let (transcript, _, config) = scripted(
         &[
-            "", "fresh", "full", "existing", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-            "mieru.example.com", "46001", "46001", "vless.example.com", "xhttp.example.com", "no", "no", "", "",
-            "admin@example.com", "owner", "", "yes", "save",
+            "",
+            "fresh",
+            "full",
+            "existing",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "edge.example.com",
+            "mieru.example.com",
+            "46001",
+            "46001",
+            "vless.example.com",
+            "xhttp.example.com",
+            "no",
+            "no",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::Ru,
         &temp.0,
     );
     assert!(transcript.contains("Ключи и пароли, оставленные пустыми, создаются при установке"));
-    assert_eq!((config.host_mode, config.profile, config.three_xui.mode), (HostMode::Fresh, Profile::Full, ThreeXuiMode::Existing));
+    assert_eq!(
+        (config.host_mode, config.profile, config.three_xui.mode),
+        (HostMode::Fresh, Profile::Full, ThreeXuiMode::Existing)
+    );
     assert_eq!(
         config.canonical_dict()["domains"],
         json!({
@@ -676,16 +998,40 @@ fn russian_invalid_prompt_feedback_is_localized_in_pty() {
     let output = temp.join("localized.toml");
     let (transcript, _, _) = scripted(
         &[
-            "", "bogus", "fresh", "core-mieru", "none", "not a domain", "panel.example.com", "relay.example.com",
-            "", "", "mieru.example.com", "abc", "46001", "70000", "46001", "no", "no", "", "",
-            "admin@example.com", "owner", "", "maybe", "yes", "save",
+            "",
+            "bogus",
+            "fresh",
+            "core-mieru",
+            "none",
+            "not a domain",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "mieru.example.com",
+            "abc",
+            "46001",
+            "70000",
+            "46001",
+            "no",
+            "no",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "maybe",
+            "yes",
+            "save",
         ],
         &output,
         Locale::Ru,
         &temp.0,
     );
     for text in [
-        "Выберите одно из: fresh/coexist.", "Введите полное доменное имя.", "Введите один или несколько портов через запятую.",
+        "Выберите одно из: fresh/coexist.",
+        "Введите полное доменное имя.",
+        "Введите один или несколько портов через запятую.",
         "Введите да или нет.",
     ] {
         assert!(transcript.contains(text), "{text}");
@@ -701,9 +1047,29 @@ fn russian_saved_toml_parses_to_the_wizard_result() {
     let output = temp.join("saved.toml");
     let (_, _, config) = scripted(
         &[
-            "", "fresh", "full", "existing", "panel.example.com", "relay.example.com", "", "", "edge.example.com",
-            "mieru.example.com", "46001", "46001", "vless.example.com", "xhttp.example.com", "no", "no", "", "",
-            "admin@example.com", "owner", "", "yes", "save",
+            "",
+            "fresh",
+            "full",
+            "existing",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "edge.example.com",
+            "mieru.example.com",
+            "46001",
+            "46001",
+            "vless.example.com",
+            "xhttp.example.com",
+            "no",
+            "no",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save",
         ],
         &output,
         Locale::Ru,
@@ -718,8 +1084,21 @@ fn wizard_writes_the_subscription_domain_when_one_is_given() {
     let output = temp.join("with-subscription.toml");
     let (transcript, written, config) = scripted(
         &[
-            "en", "fresh", "core", "none", "panel.example.com", "relay.example.com", "sub.example.com", "", "", "",
-            "admin@example.com", "owner", "", "yes", "save-config",
+            "en",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "sub.example.com",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save-config",
         ],
         &output,
         Locale::En,
@@ -736,8 +1115,21 @@ fn wizard_writes_the_mcp_domain_when_one_is_given() {
     let output = temp.join("with-mcp.toml");
     let (transcript, written, config) = scripted(
         &[
-            "en", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "mcp.example.com", "", "",
-            "admin@example.com", "owner", "", "yes", "save-config",
+            "en",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "mcp.example.com",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "yes",
+            "save-config",
         ],
         &output,
         Locale::En,
@@ -755,8 +1147,20 @@ fn english_locale_can_be_selected_explicitly() {
     let output = temp.join("proxy-control.toml");
     let (transcript, _, config) = scripted(
         &[
-            "en", "coexist", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "",
-            "admin@example.com", "owner", "", "save-config",
+            "en",
+            "coexist",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",
+            "",
+            "",
+            "",
+            "admin@example.com",
+            "owner",
+            "",
+            "save-config",
         ],
         &output,
         Locale::Ru,
@@ -768,14 +1172,26 @@ fn english_locale_can_be_selected_explicitly() {
     assert_eq!(config.domains.subscription, None);
 }
 
-fn plain_answers<'a>(language: Option<&'a str>) -> Vec<&'a str> {
+fn plain_answers(language: Option<&str>) -> Vec<&str> {
     let mut answers = Vec::new();
     if let Some(language) = language {
         answers.push(language);
     }
     answers.extend([
-        "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", "",
-        "admin@example.com", "owner", "", "yes", "save",
+        "fresh",
+        "core",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",
+        "",
+        "no",
+        "",
+        "admin@example.com",
+        "owner",
+        "",
+        "yes",
+        "save",
     ]);
     answers
 }
@@ -857,7 +1273,9 @@ fn installer_audit_fact_alone_also_shows_the_notice() {
     opts.language_fixed = true;
     let mut wizard = Wizard::new(opts);
     assert_eq!(wizard.run(&mut io, &facts), Err(Stop::Quit));
-    assert!(String::from_utf8(io.into_output()).unwrap().contains("Proxy Control is already installed on this server. To update it"));
+    assert!(String::from_utf8(io.into_output())
+        .unwrap()
+        .contains("Proxy Control is already installed on this server. To update it"));
 }
 
 #[test]
@@ -872,8 +1290,26 @@ fn profile_help_points_at_the_separate_awg_and_tt_questions() {
 fn awg_tt_answers(language: &str) -> Vec<&'static str> {
     let language = if language == "ru" { "ru" } else { "en" };
     vec![
-        language, "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "yes", "", "", "",
-        "yes", "gate.example.org", "no", "admin@example.com", "owner", "", "yes", "save",
+        language,
+        "fresh",
+        "core",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",
+        "",
+        "yes",
+        "",
+        "",
+        "",
+        "yes",
+        "gate.example.org",
+        "no",
+        "admin@example.com",
+        "owner",
+        "",
+        "yes",
+        "save",
     ]
 }
 
@@ -898,7 +1334,11 @@ fn review_shows_labels_instead_of_raw_keys() {
         let root = awg_root(&temp.0);
         let (transcript, _, _) = scripted(&awg_tt_answers(locale.value()), &temp.join("v.toml"), locale, &root);
         let review = transcript
-            .split(if locale == Locale::En { "Configuration review" } else { "Проверка конфигурации" })
+            .split(if locale == Locale::En {
+                "Configuration review"
+            } else {
+                "Проверка конфигурации"
+            })
             .nth(1)
             .unwrap()
             .split(if locale == Locale::En { "Action" } else { "Действие" })

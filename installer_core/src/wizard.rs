@@ -9,13 +9,14 @@
 //!   newline; without a terminal it reads silently.
 //! - [`Wizard`] is `TerminalWizard`: [`Wizard::run`] returns the configuration on `apply`,
 //!   [`Stop::Saved`] after `save`, [`Stop::Quit`] for every way out.
-//! - [`run_wizard_command`] is `cli._wizard`: the run, then the plan through the
-//!   [`WizardEngine`] callback the `installer` binary provides, the summary, the digest prompt,
-//!   staged credentials around the apply, and the status.
+//! - [`run_wizard_command`] is `cli._wizard`: preliminary facts through
+//!   [`WizardEngine::initial_facts`] (with local installation detection merged in), the questions,
+//!   the audited plan, summary and digest prompt, staged credentials around apply, and the status.
 //!
 //! Differences from Python (DIFFERENCES.md):
 //! - Ctrl-C (and SIGTERM/SIGHUP/SIGQUIT) during a hidden password prompt restores the terminal's
-//!   echo before the signal takes its usual course (Python restored it in a `finally`).
+//!   echo before the signal takes its usual course (Python restored it in a `finally`). All
+//!   prompts terminate on Ctrl-C rather than invoking the command runner's flag-only handler.
 //! - `save` writes the configuration atomically (temporary file, `fsync`, `rename`) with the mode
 //!   Python's `write_text` gave it (the existing file's, else `0666 & ~umask`); a missing parent
 //!   directory is still an error (host inventory §12 #4).
@@ -34,9 +35,14 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use serde_json::{json, Map, Value};
 
 use crate::awg_ports::{bound_ports, machine_id, pick_ports};
-use crate::cli::{blocked_line, confirmation_matches, installed_version, plan_summary_lines, StatusView};
+use crate::cli::{
+    blocked_line, blocked_message, bounded_text, confirmation_matches, installed_version, plan_summary_lines,
+    StatusView,
+};
 use crate::config::{normalize_domain, parse_config, render_config, safe_name, ConfigError};
-use crate::credentials::{discard_staged_credentials, stage_operator_credentials, write_credentials, OperatorCredentials};
+use crate::credentials::{
+    discard_staged_credentials, stage_operator_credentials, write_credentials, OperatorCredentials,
+};
 use crate::i18n::{locale_from_environment, parse_locale, text, try_text, Locale};
 use crate::model::{
     AmneziaWgConfig, DomainConfig, EgressChoice, EgressConfig, FirewallConfig, HostMode, InstallerConfig, MieruConfig,
@@ -162,10 +168,11 @@ impl<R: BufRead, W: Write> TerminalIO<R, W> {
     /// `read_line(prompt, echo=…, strip=…)`.
     pub fn read_line(&mut self, prompt: &str, echo: bool, strip_answer: bool) -> Step<String> {
         self.put(prompt);
-        let hidden = if echo { None } else { self.echo_fd.and_then(EchoGuard::hide) };
+        let guard = self.echo_fd.map(|fd| EchoGuard::begin(fd, !echo));
+        let hidden = guard.as_ref().is_some_and(|guard| guard.fd >= 0);
         let value = self.read_raw();
-        if let Some(guard) = hidden {
-            drop(guard);
+        drop(guard);
+        if hidden {
             self.write("");
         }
         let value = value.map_err(|err| Stop::Error(err.to_string()))?;
@@ -180,7 +187,12 @@ impl<R: BufRead, W: Write> TerminalIO<R, W> {
     }
 
     /// `choose_enum(prompt, choices, default=…)`: the chosen value.
-    pub fn choose(&mut self, prompt: &str, choices: &[&'static str], default: Option<&'static str>) -> Step<&'static str> {
+    pub fn choose(
+        &mut self,
+        prompt: &str,
+        choices: &[&'static str],
+        default: Option<&'static str>,
+    ) -> Step<&'static str> {
         let values = choices.join("/");
         let suffix = default.map(|value| format!(" [{value}]")).unwrap_or_default();
         loop {
@@ -223,7 +235,8 @@ impl<R: BufRead, W: Write> TerminalIO<R, W> {
             match validator(&raw) {
                 Ok(value) => return Ok(value),
                 Err(Refusal::Message(key, values)) => {
-                    let values: Vec<(&str, &str)> = values.iter().map(|(name, value)| (*name, value.as_str())).collect();
+                    let values: Vec<(&str, &str)> =
+                        values.iter().map(|(name, value)| (*name, value.as_str())).collect();
                     self.feedback(key, &values);
                 }
                 Err(Refusal::Generic) => self.feedback("invalid_value", &[]),
@@ -332,35 +345,38 @@ extern "C" fn restore_echo_and_reraise(signal: libc::c_int) {
             libc::tcsetattr(fd, libc::TCSADRAIN, (*std::ptr::addr_of!(SAVED_TERMIOS)).as_ptr());
         }
         let previous = &*(*std::ptr::addr_of!(PREVIOUS_ACTIONS)).as_ptr();
-        if let Some(index) = RESTORED_SIGNALS.iter().position(|candidate| *candidate == signal) {
+        if signal == libc::SIGINT {
+            // The CLI's runner handler only sets a flag (and restarts blocking reads).
+            // At a prompt no command is running: restore the terminal and terminate normally.
+            libc::signal(signal, libc::SIG_DFL);
+        } else if let Some(index) = RESTORED_SIGNALS.iter().position(|candidate| *candidate == signal) {
             libc::sigaction(signal, &previous[index], std::ptr::null_mut());
         }
         libc::raise(signal);
     }
 }
 
-/// Echo off for one hidden prompt; dropping it restores the terminal and the signal actions.
+/// A prompt's signal actions and optional hidden echo, restored when the read finishes.
 struct EchoGuard {
     fd: RawFd,
 }
 
 impl EchoGuard {
-    /// `tcgetattr` + clear `ECHO` with `TCSADRAIN`; `None` when `fd` is not a terminal.
-    fn hide(fd: RawFd) -> Option<EchoGuard> {
+    /// Install prompt signal handling, clearing `ECHO` only for hidden input on a terminal.
+    fn begin(fd: RawFd, hidden: bool) -> EchoGuard {
         // SAFETY: plain termios and sigaction calls on our own descriptor and statics; the
-        // statics are written before the handler that reads them is installed.
+        // statics are written before the handler that reads them is installed. A CLI has one
+        // prompt at a time; stream-only tests never install this process-wide guard.
         unsafe {
             let mut saved: libc::termios = std::mem::zeroed();
-            if libc::tcgetattr(fd, &mut saved) != 0 {
-                return None;
-            }
+            let echo_fd = if hidden && libc::tcgetattr(fd, &mut saved) == 0 { fd } else { -1 };
             (*std::ptr::addr_of_mut!(SAVED_TERMIOS)).write(saved);
             let mut previous: [libc::sigaction; 4] = std::mem::zeroed();
             for (index, signal) in RESTORED_SIGNALS.iter().enumerate() {
                 libc::sigaction(*signal, std::ptr::null(), &mut previous[index]);
             }
             (*std::ptr::addr_of_mut!(PREVIOUS_ACTIONS)).write(previous);
-            HIDDEN_FD.store(fd, Ordering::SeqCst);
+            HIDDEN_FD.store(echo_fd, Ordering::SeqCst);
             let mut action: libc::sigaction = std::mem::zeroed();
             action.sa_sigaction = restore_echo_and_reraise as *const () as usize;
             libc::sigemptyset(&mut action.sa_mask);
@@ -369,19 +385,18 @@ impl EchoGuard {
             }
             let mut hidden = saved;
             hidden.c_lflag &= !libc::ECHO;
-            if libc::tcsetattr(fd, libc::TCSADRAIN, &hidden) != 0 {
-                let guard = EchoGuard { fd };
-                drop(guard);
-                return None;
+            if echo_fd >= 0 && libc::tcsetattr(fd, libc::TCSADRAIN, &hidden) != 0 {
+                HIDDEN_FD.store(-1, Ordering::SeqCst);
+                return EchoGuard { fd: -1 };
             }
+            EchoGuard { fd: echo_fd }
         }
-        Some(EchoGuard { fd })
     }
 }
 
 impl Drop for EchoGuard {
     fn drop(&mut self) {
-        // SAFETY: restoring what `hide` saved; the handler is removed first.
+        // SAFETY: restoring what `begin` saved; the handler is removed first.
         unsafe {
             let previous = *(*std::ptr::addr_of!(PREVIOUS_ACTIONS)).as_ptr();
             for (index, signal) in RESTORED_SIGNALS.iter().enumerate() {
@@ -420,7 +435,9 @@ pub fn awg_ports(count: usize) -> impl Fn(&str) -> Result<String, Refusal> {
     move |value: &str| {
         let fail = || Refusal::Message("invalid_awg_ports", vec![("count", count.to_string())]);
         let parts: Vec<&str> = value.split(',').map(strip).collect();
-        if parts.len() != count || !parts.iter().all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit())) {
+        if parts.len() != count
+            || !parts.iter().all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        {
             return Err(fail());
         }
         let ports: Vec<u128> = parts.iter().map(|part| part.parse().unwrap_or(u128::MAX)).collect();
@@ -450,7 +467,8 @@ pub fn awg_host(value: &str) -> Result<String, Refusal> {
 pub fn warp_selector(value: &str) -> Result<String, Refusal> {
     let normalized = lower(strip(value));
     if let Some(name) = normalized.strip_prefix("geosite:") {
-        let ok = !name.is_empty() && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-');
+        let ok = !name.is_empty()
+            && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-');
         if !ok || name.contains('\n') {
             return refuse("invalid_domains");
         }
@@ -513,7 +531,11 @@ pub fn pinned_version(tree: &Path, name: &str) -> String {
         .ok()
         .and_then(|data| serde_json::from_slice::<Value>(&data).ok());
     let found = document.as_ref().and_then(|document| document.get("artifacts")?.as_array()).and_then(|artifacts| {
-        artifacts.iter().find(|artifact| artifact.get("name").and_then(Value::as_str) == Some(name))?.get("version").cloned()
+        artifacts
+            .iter()
+            .find(|artifact| artifact.get("name").and_then(Value::as_str) == Some(name))?
+            .get("version")
+            .cloned()
     });
     match found {
         Some(Value::String(version)) => version,
@@ -629,8 +651,11 @@ impl Values {
 
     /// `_egress_choice(values, service)`.
     fn egress_choice(&self, service: &str) -> EgressChoice {
-        let (router, warp) =
-            if service == "naive" { (self.router_naive, self.warp_naive) } else { (self.router_mieru, self.warp_mieru) };
+        let (router, warp) = if service == "naive" {
+            (self.router_naive, self.warp_naive)
+        } else {
+            (self.router_mieru, self.warp_mieru)
+        };
         if router.unwrap_or(false) {
             EgressChoice::Router
         } else if warp.unwrap_or(false) {
@@ -672,7 +697,12 @@ impl Wizard {
     pub fn new(options: WizardOptions) -> Wizard {
         let locale = options.locale;
         let language_fixed = options.language_fixed && locale.is_some();
-        Wizard { options: WizardOptions { language_fixed, ..options }, locale, listeners: Map::new(), credentials: None }
+        Wizard {
+            options: WizardOptions { language_fixed, ..options },
+            locale,
+            listeners: Map::new(),
+            credentials: None,
+        }
     }
 
     fn locale(&self) -> Locale {
@@ -684,7 +714,11 @@ impl Wizard {
     }
 
     /// `run(facts)`: the configuration to apply, or how the wizard stopped.
-    pub fn run<R: BufRead, W: Write>(&mut self, io: &mut TerminalIO<R, W>, facts: &AuditFacts) -> Step<InstallerConfig> {
+    pub fn run<R: BufRead, W: Write>(
+        &mut self,
+        io: &mut TerminalIO<R, W>,
+        facts: &AuditFacts,
+    ) -> Step<InstallerConfig> {
         self.listeners = facts.listeners.clone();
         let default_locale =
             self.locale.unwrap_or_else(|| locale_from_environment(self.options.environment_locale.as_deref()));
@@ -692,7 +726,8 @@ impl Wizard {
         if self.options.language_fixed {
             self.locale = Some(default_locale);
         } else {
-            let selected = io.choose(&text(default_locale, "language", &[]), &["en", "ru"], Some(default_locale.value()))?;
+            let selected =
+                io.choose(&text(default_locale, "language", &[]), &["en", "ru"], Some(default_locale.value()))?;
             self.locale = Some(parse_locale(Some(selected), Locale::En).map_err(Stop::Error)?);
         }
         io.set_locale(self.locale());
@@ -709,8 +744,7 @@ impl Wizard {
                 }
             };
             self.review(io, &config);
-            let action =
-                io.choose(&self.text("action"), &["apply", "back", "edit", "save", "quit"], Some("apply"))?;
+            let action = io.choose(&self.text("action"), &["apply", "back", "edit", "save", "quit"], Some("apply"))?;
             match action {
                 "apply" => {
                     self.credentials = chosen_credentials(&values)?;
@@ -764,12 +798,13 @@ impl Wizard {
             _ => HostMode::Coexist,
         };
         io.write(&self.text("profile_help"));
-        let profile = match io.choose(&self.text("profile"), &["core", "core-naive", "core-mieru", "full"], Some("full"))? {
-            "core" => Profile::Core,
-            "core-naive" => Profile::CoreNaive,
-            "core-mieru" => Profile::CoreMieru,
-            _ => Profile::Full,
-        };
+        let profile =
+            match io.choose(&self.text("profile"), &["core", "core-naive", "core-mieru", "full"], Some("full"))? {
+                "core" => Profile::Core,
+                "core-naive" => Profile::CoreNaive,
+                "core-mieru" => Profile::CoreMieru,
+                _ => Profile::Full,
+            };
         io.write(&self.text("three_xui_mode_help"));
         let offered: &[&'static str] =
             if host_mode == HostMode::Fresh { &["none", "existing", "managed-new"] } else { &["none", "existing"] };
@@ -860,7 +895,12 @@ impl Wizard {
     }
 
     /// `_password`: asked twice without echo; a blank answer keeps it generated.
-    fn password<R: BufRead, W: Write>(&self, io: &mut TerminalIO<R, W>, prompt: &str, repeat: &str) -> Step<Option<String>> {
+    fn password<R: BufRead, W: Write>(
+        &self,
+        io: &mut TerminalIO<R, W>,
+        prompt: &str,
+        repeat: &str,
+    ) -> Step<Option<String>> {
         loop {
             let first = io.read_line(&format!("{}: ", self.text(prompt)), false, true)?;
             if first.is_empty() {
@@ -916,7 +956,11 @@ impl Wizard {
         text(self.locale(), "router", &[("version", &self.options.xray_version)])
     }
 
-    fn trusttunnel_router_choice<R: BufRead, W: Write>(&self, io: &mut TerminalIO<R, W>, values: &mut Values) -> Step<()> {
+    fn trusttunnel_router_choice<R: BufRead, W: Write>(
+        &self,
+        io: &mut TerminalIO<R, W>,
+        values: &mut Values,
+    ) -> Step<()> {
         if values.profile.includes_naive() || values.profile.includes_mieru() {
             return Ok(());
         }
@@ -939,13 +983,8 @@ impl Wizard {
             .into_iter()
             .filter(|(version, _)| versions.contains(version))
             .collect();
-        let mut taken: std::collections::BTreeSet<i64> = values
-            .mieru_tcp
-            .iter()
-            .chain(values.mieru_udp.iter())
-            .flatten()
-            .map(|port| i64::from(*port))
-            .collect();
+        let mut taken: std::collections::BTreeSet<i64> =
+            values.mieru_tcp.iter().chain(values.mieru_udp.iter()).flatten().map(|port| i64::from(*port)).collect();
         taken.extend(bound_ports(&self.listeners));
         let config_error = |err: ConfigError| Stop::Error(err.0);
         let identity = machine_id(&self.options.root).map_err(config_error)?;
@@ -960,7 +999,11 @@ impl Wizard {
         let validator = awg_ports(versions.len());
         let value = io.validated(&prompt, &validator, Some(&default.join(",")), false)?;
         values.awg_port_map = Some(
-            versions.iter().cloned().zip(value.split(',').map(|port| port.parse::<u16>().expect("validated"))).collect(),
+            versions
+                .iter()
+                .cloned()
+                .zip(value.split(',').map(|port| port.parse::<u16>().expect("validated")))
+                .collect(),
         );
         Ok(value)
     }
@@ -1143,11 +1186,15 @@ impl Wizard {
             fields.extend([EDIT_MIERU, EDIT_MIERU_TCP, EDIT_MIERU_UDP]);
         }
         match values.xui_mode {
-            ThreeXuiMode::ManagedNew => fields.extend([EDIT_XUI_PANEL, EDIT_XUI_TCP, EDIT_XUI_XHTTP, EDIT_XUI_HYSTERIA]),
+            ThreeXuiMode::ManagedNew => {
+                fields.extend([EDIT_XUI_PANEL, EDIT_XUI_TCP, EDIT_XUI_XHTTP, EDIT_XUI_HYSTERIA])
+            }
             ThreeXuiMode::Existing => fields.extend([EDIT_XUI_TCP, EDIT_XUI_XHTTP]),
             ThreeXuiMode::None => {}
         }
-        if values.xui_mode == ThreeXuiMode::ManagedNew || values.profile.includes_naive() || values.profile.includes_mieru()
+        if values.xui_mode == ThreeXuiMode::ManagedNew
+            || values.profile.includes_naive()
+            || values.profile.includes_mieru()
         {
             fields.push(EDIT_WARP);
         }
@@ -1163,14 +1210,20 @@ impl Wizard {
         self.prompt_field(io, values, field)
     }
 
-    fn prompt_field<R: BufRead, W: Write>(&self, io: &mut TerminalIO<R, W>, values: &mut Values, field: &str) -> Step<()> {
+    fn prompt_field<R: BufRead, W: Write>(
+        &self,
+        io: &mut TerminalIO<R, W>,
+        values: &mut Values,
+        field: &str,
+    ) -> Step<()> {
         let existing = values.xui_mode == ThreeXuiMode::Existing;
-        let domain_field = |io: &mut TerminalIO<R, W>, slot: &mut Option<String>, message: &str, optional_answer: bool| {
-            let default = optional(slot);
-            let answer = io.validated(&self.text(message), &domain, default.as_deref(), optional_answer)?;
-            *slot = Some(answer);
-            Ok::<(), Stop>(())
-        };
+        let domain_field =
+            |io: &mut TerminalIO<R, W>, slot: &mut Option<String>, message: &str, optional_answer: bool| {
+                let default = optional(slot);
+                let answer = io.validated(&self.text(message), &domain, default.as_deref(), optional_answer)?;
+                *slot = Some(answer);
+                Ok::<(), Stop>(())
+            };
         match field {
             EDIT_PANEL => {
                 let mut slot = Some(values.panel.clone());
@@ -1308,7 +1361,11 @@ fn save_config(path: &Path, rendered: &str) -> Step<()> {
     let error = |err: std::io::Error| Stop::Error(crate::pystr::os_error_message(&err, &shown));
     let parent = pc_host::fs::py_parent(path);
     if !parent.is_dir() {
-        return Err(error(std::io::Error::from_raw_os_error(if parent.exists() { libc::ENOTDIR } else { libc::ENOENT })));
+        return Err(error(std::io::Error::from_raw_os_error(if parent.exists() {
+            libc::ENOTDIR
+        } else {
+            libc::ENOENT
+        })));
     }
     let mode = match std::fs::metadata(path) {
         Ok(metadata) if metadata.is_dir() => return Err(error(std::io::Error::from_raw_os_error(libc::EISDIR))),
@@ -1330,12 +1387,16 @@ pub enum EngineError {
     Blocked(String),
     /// The operator interrupted the audit or the installation (exit 130).
     Interrupted,
+    /// Another `BaseException` (exit 1): the journal is left for `resume`.
+    Fatal { class: String, message: String },
 }
 
 /// What the wizard needs from the installer binary: the audit, the planner and the engine
 /// (`CliServices.audit/plan/engine`). The binary implements it with the real audit, adapters and
 /// `TransactionEngine`; tests replay recorded plans.
 pub trait WizardEngine {
+    /// `services.audit(None)`: preliminary ownership/listener facts before any questions.
+    fn initial_facts(&mut self) -> Result<AuditFacts, EngineError>;
     /// `services.audit(config)` → `services.plan(config, facts)` → `_validate_plan(config, facts,
     /// plan)`: the plan whose digest the operator confirms.
     fn plan(&mut self, config: &InstallerConfig) -> Result<InstallPlan, EngineError>;
@@ -1375,6 +1436,11 @@ pub fn run_wizard_command<R: BufRead, W: Write>(
         let _ = stderr.flush();
         2
     };
+    let fatal = |stderr: &mut dyn Write, class: &str, message: &str| {
+        let _ = writeln!(stderr, "{}", bounded_text(&blocked_message(message, class)));
+        let _ = stderr.flush();
+        1
+    };
     let mut wizard = Wizard::new(WizardOptions {
         locale: command.lang,
         language_fixed: command.lang.is_some(),
@@ -1383,7 +1449,12 @@ pub fn run_wizard_command<R: BufRead, W: Write>(
         environment_locale: command.environment_locale.clone(),
         xray_version: command.xray_version.clone(),
     });
-    let mut facts = AuditFacts::default();
+    let mut facts = match engine.initial_facts() {
+        Ok(facts) => facts,
+        Err(EngineError::Blocked(message)) => return blocked(stderr, &message),
+        Err(EngineError::Interrupted) => return 130,
+        Err(EngineError::Fatal { class, message }) => return fatal(stderr, &class, &message),
+    };
     if let Some(version) = installed_version(&command.root) {
         facts.ownership.insert("installed".into(), json!({"version": version}));
     }
@@ -1402,6 +1473,7 @@ pub fn run_wizard_command<R: BufRead, W: Write>(
         Ok(plan) => plan,
         Err(EngineError::Blocked(message)) => return blocked(stderr, &message),
         Err(EngineError::Interrupted) => return 130,
+        Err(EngineError::Fatal { class, message }) => return fatal(stderr, &class, &message),
     };
     for line in plan_summary_lines(&plan) {
         io.write(&line);
@@ -1432,6 +1504,7 @@ pub fn run_wizard_command<R: BufRead, W: Write>(
         Ok(state) => state,
         Err(EngineError::Blocked(message)) => return blocked(stderr, &message),
         Err(EngineError::Interrupted) => return 130,
+        Err(EngineError::Fatal { class, message }) => return fatal(stderr, &class, &message),
     };
     if let Err(err) = discarded {
         return blocked(stderr, &err.0);

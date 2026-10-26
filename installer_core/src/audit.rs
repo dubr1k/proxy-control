@@ -173,7 +173,12 @@ pub fn hard_stops(facts: &AuditFacts) -> Vec<HardStop> {
 /// text output decoded with replacement. `c_locale` asks for `LC_ALL=C` (locale-dependent
 /// parsers).
 pub trait AuditExecutor {
-    fn execute(&self, argv: &[&str], limits: Bounded, c_locale: bool) -> std::result::Result<BoundedOutput, BoundedError>;
+    fn execute(
+        &self,
+        argv: &[&str],
+        limits: Bounded,
+        c_locale: bool,
+    ) -> std::result::Result<BoundedOutput, BoundedError>;
 }
 
 /// An address family of a resolver answer.
@@ -183,11 +188,18 @@ pub enum Family {
     Inet6,
 }
 
+/// A resolver failure; its raw message must not enter the operator's audit error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolveError;
+
+/// One bounded DNS lookup result.
+pub type ResolveResult = std::result::Result<Vec<(Family, String)>, ResolveError>;
+
 /// `socket.getaddrinfo(name, 443, type=SOCK_STREAM)`: the answers' families and raw address
 /// texts (an IPv6 one may carry `%scope`), or `Err` for a resolver error. It runs in a forked
 /// child (`_bounded_resolve`).
 pub trait Resolver {
-    fn getaddrinfo(&self, absolute_name: &str) -> std::result::Result<Vec<(Family, String)>, ()>;
+    fn getaddrinfo(&self, absolute_name: &str) -> ResolveResult;
 }
 
 /// The real host: [`SystemRunner`] for ordinary commands, a C-locale variant of the same
@@ -196,7 +208,12 @@ pub trait Resolver {
 pub struct SystemExecutor;
 
 impl AuditExecutor for SystemExecutor {
-    fn execute(&self, argv: &[&str], limits: Bounded, c_locale: bool) -> std::result::Result<BoundedOutput, BoundedError> {
+    fn execute(
+        &self,
+        argv: &[&str],
+        limits: Bounded,
+        c_locale: bool,
+    ) -> std::result::Result<BoundedOutput, BoundedError> {
         if c_locale {
             c_locale_bounded(argv, limits)
         } else {
@@ -210,8 +227,8 @@ impl AuditExecutor for SystemExecutor {
 pub struct SystemResolver;
 
 impl Resolver for SystemResolver {
-    fn getaddrinfo(&self, absolute_name: &str) -> std::result::Result<Vec<(Family, String)>, ()> {
-        let name = std::ffi::CString::new(absolute_name).map_err(|_| ())?;
+    fn getaddrinfo(&self, absolute_name: &str) -> ResolveResult {
+        let name = std::ffi::CString::new(absolute_name).map_err(|_| ResolveError)?;
         let service = std::ffi::CString::new("443").expect("no NUL");
         // SAFETY: zeroed addrinfo is a valid "no hints" value; the fields set are plain ints.
         let mut hints: libc::addrinfo = unsafe { std::mem::zeroed() };
@@ -221,7 +238,7 @@ impl Resolver for SystemResolver {
         // SAFETY: valid C strings, hints and out-pointer; the list is freed below.
         let rc = unsafe { libc::getaddrinfo(name.as_ptr(), service.as_ptr(), &hints, &mut result) };
         if rc != 0 {
-            return Err(());
+            return Err(ResolveError);
         }
         let mut answers = Vec::new();
         let mut cursor = result;
@@ -746,7 +763,8 @@ fn sort_key(value: &Value) -> String {
 
 /// `parse_ufw_ipv6_config(text)`: exactly one `IPV6=yes|no` assignment.
 pub fn parse_ufw_ipv6_config(text: &str) -> Option<bool> {
-    let assignments: Vec<&str> = splitlines(text, false).into_iter().map(strip).filter(|line| !line.is_empty()).collect();
+    let assignments: Vec<&str> =
+        splitlines(text, false).into_iter().map(strip).filter(|line| !line.is_empty()).collect();
     match assignments.as_slice() {
         ["IPV6=yes"] => Some(true),
         ["IPV6=no"] => Some(false),
@@ -877,8 +895,11 @@ fn parse_listener_lines(text: &str) -> Listeners {
 
 fn listeners_value(listeners: &Listeners) -> Map<String, Value> {
     let ports: BTreeSet<u32> = listeners.tcp.union(&listeners.udp).copied().collect();
-    let owners: Map<String, Value> =
-        listeners.owners.iter().map(|(port, names)| (port.to_string(), json!(names.iter().collect::<Vec<_>>()))).collect();
+    let owners: Map<String, Value> = listeners
+        .owners
+        .iter()
+        .map(|(port, names)| (port.to_string(), json!(names.iter().collect::<Vec<_>>())))
+        .collect();
     let mut map = Map::new();
     map.insert("owners".into(), Value::Object(owners));
     map.insert("ports".into(), json!(ports.iter().collect::<Vec<_>>()));
@@ -887,8 +908,11 @@ fn listeners_value(listeners: &Listeners) -> Map<String, Value> {
     map
 }
 
+/// Listening ports and their process owners, sorted for deterministic plan facts.
+pub type ListenerInventory = (BTreeSet<u32>, BTreeMap<u32, Vec<String>>);
+
 /// `listener_inventory(runner)`: every listening port and the processes that hold each.
-pub fn listener_inventory(runner: &CommandRunner<'_>) -> Result<(BTreeSet<u32>, BTreeMap<u32, Vec<String>>)> {
+pub fn listener_inventory(runner: &CommandRunner<'_>) -> Result<ListenerInventory> {
     let parsed = parse_listener_lines(&required_capture(runner, &["ss", "-H", "-lntup"], false)?);
     let ports = parsed.tcp.union(&parsed.udp).copied().collect();
     let owners = parsed.owners.into_iter().map(|(port, names)| (port, names.into_iter().collect())).collect();
@@ -903,7 +927,8 @@ fn parse_ssh_socket_ports(text: &str) -> Vec<u32> {
             continue;
         }
         if let Some(head) = line.strip_suffix(" (Stream)") {
-            let digits = ["0.0.0.0:", "[::]:", "*:"].iter().find_map(|prefix| head.strip_prefix(prefix)).unwrap_or(head);
+            let digits =
+                ["0.0.0.0:", "[::]:", "*:"].iter().find_map(|prefix| head.strip_prefix(prefix)).unwrap_or(head);
             let shaped = (1..=5).contains(&digits.len())
                 && digits.bytes().all(|b| b.is_ascii_digit())
                 && !digits.starts_with('0');
@@ -914,10 +939,7 @@ fn parse_ssh_socket_ports(text: &str) -> Vec<u32> {
                     continue;
                 }
             }
-            if head.starts_with('/')
-                && head.len() > 1
-                && !head.chars().any(|c| matches!(c, '\0' | '\r' | '\n' | ' '))
-            {
+            if head.starts_with('/') && head.len() > 1 && !head.chars().any(|c| matches!(c, '\0' | '\r' | '\n' | ' ')) {
                 continue;
             }
         }
@@ -947,7 +969,11 @@ fn nginx_sections(text: &str, redactor: &Redactor) -> Vec<(String, String)> {
     let mut current = 0;
     for line in splitlines(text, true) {
         let marker = line.strip_prefix("# configuration file ").and_then(|rest| {
-            let body = rest.strip_suffix("\r\n").or_else(|| rest.strip_suffix('\n')).or_else(|| rest.strip_suffix('\r')).unwrap_or(rest);
+            let body = rest
+                .strip_suffix("\r\n")
+                .or_else(|| rest.strip_suffix('\n'))
+                .or_else(|| rest.strip_suffix('\r'))
+                .unwrap_or(rest);
             let path = body.strip_suffix(':')?;
             (path.starts_with('/') && path.len() > 1 && !path.contains([':', '\r', '\n'])).then_some(path)
         });
@@ -1001,7 +1027,8 @@ pub fn parse_nginx_observation(text: &str, redactor: &Redactor) -> Result<Value>
         .into_iter()
         .map(|(domain, backends)| (domain, json!(backends.into_iter().next().expect("one backend"))))
         .collect();
-    let duplicates: Vec<&String> = route_counts.iter().filter(|(_, count)| **count > 1).map(|(domain, _)| domain).collect();
+    let duplicates: Vec<&String> =
+        route_counts.iter().filter(|(_, count)| **count > 1).map(|(domain, _)| domain).collect();
     let map_files: Map<String, Value> = files.into_iter().map(|(file, count)| (file, json!(count))).collect();
     Ok(json!({
         "available": true,
@@ -1141,7 +1168,11 @@ struct CaaState {
     queries: u32,
 }
 
-fn applicable_caa(domain: &str, runner: &CommandRunner<'_>, state: &mut CaaState) -> Result<(Vec<Value>, Option<String>)> {
+fn applicable_caa(
+    domain: &str,
+    runner: &CommandRunner<'_>,
+    state: &mut CaaState,
+) -> Result<(Vec<Value>, Option<String>)> {
     let mut current = domain.to_string();
     let mut visited = BTreeSet::new();
     while visited.insert(current.clone()) {
@@ -1236,11 +1267,8 @@ fn san_covers(name: &str, domain: &str) -> bool {
 
 fn certificate_fact(domain: &str, runner: &CommandRunner<'_>) -> Result<Value> {
     let path = format!("/etc/letsencrypt/live/{domain}/fullchain.pem");
-    let result = required_run(
-        runner,
-        &["openssl", "x509", "-in", &path, "-noout", "-dates", "-ext", "subjectAltName"],
-        false,
-    )?;
+    let result =
+        required_run(runner, &["openssl", "x509", "-in", &path, "-noout", "-dates", "-ext", "subjectAltName"], false)?;
     if result.returncode != 0 {
         return Ok(json!({"covers_domain": false, "present": false}));
     }
@@ -1303,7 +1331,9 @@ fn version_fact(result: Option<&BoundedOutput>, observation: &str, bare: bool) -
     if bare {
         // `^\s*(\d+(?:\.\d+){1,3})\s*$`: `$` is the end or the end before a final newline.
         let start = skip_space(&chars, 0);
-        if let Some(end) = version_ends(&chars, start).into_iter().find(|end| chars[*end..].iter().all(|c| is_space(*c))) {
+        if let Some(end) =
+            version_ends(&chars, start).into_iter().find(|end| chars[*end..].iter().all(|c| is_space(*c)))
+        {
             found = Some(chars[start..end].iter().collect());
         }
     } else {
@@ -1400,7 +1430,10 @@ fn required_run(runner: &CommandRunner<'_>, argv: &[&str], c_locale: bool) -> Re
 fn required_capture(runner: &CommandRunner<'_>, argv: &[&str], c_locale: bool) -> Result<String> {
     let result = required_run(runner, argv, c_locale)?;
     if result.returncode != 0 {
-        return Err(AuditError::failed(format!("required audit command failed with exit status {}", result.returncode)));
+        return Err(AuditError::failed(format!(
+            "required audit command failed with exit status {}",
+            result.returncode
+        )));
     }
     Ok(result.stdout)
 }
@@ -1410,7 +1443,11 @@ fn required_json(runner: &CommandRunner<'_>, argv: &[&str]) -> Result<Value> {
     pc_host::json::loads(text.as_bytes()).map_err(|_| AuditError::failed("command returned malformed JSON"))
 }
 
-fn optional_run(runner: &CommandRunner<'_>, argv: &[&str], c_locale: bool) -> Result<(Option<BoundedOutput>, &'static str)> {
+fn optional_run(
+    runner: &CommandRunner<'_>,
+    argv: &[&str],
+    c_locale: bool,
+) -> Result<(Option<BoundedOutput>, &'static str)> {
     match runner.execute(argv, None, c_locale) {
         Err(AuditError::Unavailable) => Ok((None, "unavailable")),
         Err(AuditError::Interrupted) => Err(AuditError::Interrupted),
@@ -1470,16 +1507,15 @@ fn audit(config: &InstallerConfig, runner: &CommandRunner<'_>) -> Result<Audit> 
     }
 
     let machine = required_capture(runner, &["uname", "-m"], false)?;
-    let architecture = SAFE_ARCHITECTURES
-        .iter()
-        .find(|(name, _)| *name == strip(&machine))
-        .map_or("unknown", |(_, value)| *value);
+    let architecture =
+        SAFE_ARCHITECTURES.iter().find(|(name, _)| *name == strip(&machine)).map_or("unknown", |(_, value)| *value);
     let disks = parse_disks(&required_capture(runner, &["df", "-Pk"], false)?, redactor);
     let (available_memory, total_memory) = parse_memory(&required_capture(runner, &["free", "-b"], true)?);
     let addresses = parse_addresses(&required_json(runner, &["ip", "-j", "address"])?);
     let local_addresses: BTreeSet<String> =
         addresses.iter().filter_map(|item| item["address"].as_str()).map(str::to_string).collect();
-    let mut listeners = listeners_value(&parse_listener_lines(&required_capture(runner, &["ss", "-H", "-lntup"], false)?));
+    let mut listeners =
+        listeners_value(&parse_listener_lines(&required_capture(runner, &["ss", "-H", "-lntup"], false)?));
     let (ssh_socket, _) = optional_run(
         runner,
         &["systemctl", "show", "ssh.socket", "--property=Listen", "--value", "--no-pager"],
@@ -1497,17 +1533,17 @@ fn audit(config: &InstallerConfig, runner: &CommandRunner<'_>) -> Result<Audit> 
     };
     let (docker, docker_observation) = optional_run(runner, &["docker", "--version"], false)?;
     let (compose, compose_observation) = optional_run(runner, &["docker", "compose", "version", "--short"], false)?;
-    let (systemd, systemd_observation) = optional_run(
-        runner,
-        &["systemctl", "list-unit-files", "--type=service", "--no-legend", "--no-pager"],
-        false,
-    )?;
+    let (systemd, systemd_observation) =
+        optional_run(runner, &["systemctl", "list-unit-files", "--type=service", "--no-legend", "--no-pager"], false)?;
     let (ufw, ufw_observation) = optional_run(runner, &["ufw", "status", "verbose"], true)?;
     let (ufw_config, _) = optional_run(runner, &UFW_IPV6_CONFIG_COMMAND, false)?;
 
     let xray_present = required_run(runner, &["test", "-f", XRAY_CONFIG], false)?.returncode == 0;
-    let inbounds =
-        if xray_present { parse_xray_inbounds(&required_json(runner, &["cat", XRAY_CONFIG])?, redactor) } else { Vec::new() };
+    let inbounds = if xray_present {
+        parse_xray_inbounds(&required_json(runner, &["cat", XRAY_CONFIG])?, redactor)
+    } else {
+        Vec::new()
+    };
     let installer_present = required_run(runner, &["test", "-f", INSTALLER_STATE], false)?.returncode == 0;
 
     let mut dns = Map::new();
@@ -1633,13 +1669,14 @@ fn c_locale_bounded(argv: &[&str], limits: Bounded) -> std::result::Result<Bound
             Ok(())
         });
     }
-    let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            BoundedError::Unavailable
-        } else {
-            BoundedError::CouldNotExecute
-        }
-    })?;
+    let mut child =
+        command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                BoundedError::Unavailable
+            } else {
+                BoundedError::CouldNotExecute
+            }
+        })?;
     let kill = |child: &mut std::process::Child| {
         // SAFETY: plain syscall on the child's own process group.
         unsafe {

@@ -51,7 +51,8 @@ pub fn parse_locale(value: Option<&str>, default: Locale) -> Result<Locale, Stri
     if ["ru", "rus", "russian", "русский"].contains(&normalized.as_str()) || normalized.starts_with("ru_") {
         return Ok(Locale::Ru);
     }
-    if ["en", "eng", "english", "английский"].contains(&normalized.as_str()) || normalized.starts_with("en_") {
+    if ["en", "eng", "english", "английский"].contains(&normalized.as_str()) || normalized.starts_with("en_")
+    {
         return Ok(Locale::En);
     }
     Err("language must be en or ru".into())

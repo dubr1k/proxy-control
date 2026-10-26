@@ -553,7 +553,12 @@ fn tokenize(text: &str) -> Result<Vec<Token>> {
         while index < chars.len() && !" \t\r\n{};#'\"".contains(chars[index]) {
             index += 1;
         }
-        tokens.push(Token { value: chars[start..index].iter().collect(), source_file: source_file.clone(), start, end: index });
+        tokens.push(Token {
+            value: chars[start..index].iter().collect(),
+            source_file: source_file.clone(),
+            start,
+            end: index,
+        });
     }
     if depth != 0 {
         return fail("unbalanced Nginx configuration block");
@@ -581,7 +586,11 @@ fn parse_map(tokens: &[Token], start: usize) -> Result<Option<(NginxMap, usize)>
             ";" if depth == 1 => {
                 if current.len() >= 2 {
                     let value: Vec<&str> = current[1..].iter().map(|item| item.value.as_str()).collect();
-                    routes.push(MapRoute { key: current[0].value.clone(), value: value.join(" "), start: current[0].start });
+                    routes.push(MapRoute {
+                        key: current[0].value.clone(),
+                        value: value.join(" "),
+                        start: current[0].start,
+                    });
                 }
                 current.clear();
             }
@@ -751,10 +760,7 @@ mod tests {
         let target = select_route_target(&topology, 443).unwrap();
         assert_eq!(target.source_file, "/etc/nginx/stream.d/routes.conf");
         assert_eq!(target.routes[0], ("a.example.com".into(), "127.0.0.1:8443".into()));
-        assert_eq!(
-            select_route_target(&topology, 8443).unwrap_err().0,
-            "no effective stream listener on port 8443"
-        );
+        assert_eq!(select_route_target(&topology, 8443).unwrap_err().0, "no effective stream listener on port 8443");
     }
 
     #[test]
@@ -766,10 +772,7 @@ mod tests {
             parse_effective_nginx("a {\n# configuration file /x:\n}").unwrap_err().0,
             "Nginx source marker is embedded within a configuration block"
         );
-        assert_eq!(
-            parse_file_nginx("map $a $b { x y }").unwrap_err().0,
-            "unterminated directive in Nginx map"
-        );
+        assert_eq!(parse_file_nginx("map $a $b { x y }").unwrap_err().0, "unterminated directive in Nginx map");
         assert_eq!(normalize_include_pattern("/../x").unwrap_err().0, "Nginx include escapes its prefix");
     }
 

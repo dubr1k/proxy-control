@@ -10,21 +10,23 @@
 //! | `resume`, `repair`, `uninstall` | the engine |
 //! | `reconcile-panel-update` | the panel archive's ownership handoff ([`PanelOwnershipHandoff`], legacy mode) |
 //! | `verify-release` | [`installer_core::verify_release`] |
-//! | `wizard` | not yet (host WP4) |
+//! | `wizard` | the translated terminal wizard, real audit/plan, digest confirmation and credentialed apply |
 //!
 //! Every refusal prints `BLOCKED: <bounded, redacted message>` on stderr with exit 2. A fatal
 //! stop (an interrupt, an unconfirmed process kill: Python's `BaseException`) prints its
 //! message with exit 130 (interrupt) or 1 and leaves the journal for `resume`.
 //!
-//! The audit is host WP4's: until it lands, [`Services::system`] refuses to audit a
-//! configuration (`plan` and `install` stop there), and the adapter registry is empty until the
-//! adapter packages register themselves ([`crate::adapters::registry`]).
+//! [`Services::system`] uses the real read-only audit. Adapter availability is determined by the
+//! packages registered in [`crate::adapters::registry`].
 
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use installer_core::audit::{
+    audit_host, AuditError, CommandRunner as AuditCommandRunner, SystemExecutor, SystemResolver,
+};
 use installer_core::awg_ports::resolve_awg_ports;
 use installer_core::cli::{
     blocked_line, blocked_message, bounded_text, check_accepted_digest, check_archive_digest, is_full_digest,
@@ -33,10 +35,14 @@ use installer_core::cli::{
 };
 use installer_core::config::load_config;
 use installer_core::credentials::{discard_staged_credentials, stage_credentials};
+use installer_core::i18n::{environment_locale_value, parse_locale, Locale};
 use installer_core::model::InstallerConfig;
 use installer_core::planner::{adapters_for, AuditFacts, Evidence, InstallPlan};
 use installer_core::report::{
     evidence_from_checkpoint, operator_notes, AcceptanceReport, CredentialHandoff, ReportWriter,
+};
+use installer_core::wizard::{
+    pinned_version, run_wizard_command, EngineError as WizardEngineError, TerminalIO, WizardCommand, WizardEngine,
 };
 use pc_host::archive::{PanelArchive, PANEL_SYNC, PROJECT_DIR};
 use pc_host::runner::{HostRunner, SystemRunner, QUERY_TIMEOUT};
@@ -54,7 +60,7 @@ use crate::store::TransactionStore;
 /// `_LEGACY_STATE`: the runtime-v2 (`scripts/proxyctl.py`) journal.
 const LEGACY_STATE: &str = "var/lib/proxy-control/runtime.json";
 
-/// The audit: `None` asks for the preliminary (empty) facts the wizard starts from.
+/// The audit: `None` asks for preliminary facts before the wizard starts.
 pub type Audit = Box<dyn Fn(Option<&InstallerConfig>) -> Result<AuditFacts, Error>>;
 /// The MCP report handoff (`adapters.mcp.mcp_handoff`).
 pub type McpHandoff = Box<dyn Fn(&AdapterContext, &InstallerConfig) -> Result<BTreeMap<String, String>, Error>>;
@@ -73,7 +79,7 @@ impl Services {
     /// the engine with the whole adapter registry.
     pub fn system(root: &Path) -> Result<Services, Error> {
         let context = AdapterContext { root: root.to_path_buf(), tree: release_tree(), runner: Arc::new(SystemRunner) };
-        Services::with_context(context, Box::new(not_ported_audit), Box::new(adapters::mcp_handoff))
+        Services::with_context(context, Box::new(system_audit), Box::new(adapters::mcp_handoff))
     }
 
     /// Services over `context` with every adapter of [`adapters::registry`] registered.
@@ -94,13 +100,16 @@ impl Services {
     }
 }
 
-/// The audit until host WP4: the preliminary facts are empty (as in Python); auditing a
-/// configuration is refused.
-fn not_ported_audit(config: Option<&InstallerConfig>) -> Result<AuditFacts, Error> {
-    match config {
-        None => Ok(AuditFacts::default()),
-        Some(_) => Err(Error::other("AuditError", "the host audit is not available in this build yet")),
-    }
+/// The real read-only audit; the wizard's preliminary facts are empty, as in Python.
+fn system_audit(config: Option<&InstallerConfig>) -> Result<AuditFacts, Error> {
+    let Some(config) = config else { return Ok(AuditFacts::default()) };
+    let executor = SystemExecutor;
+    let resolver = SystemResolver;
+    let runner = AuditCommandRunner::new(&executor, &resolver);
+    audit_host(config, &runner).map(|audit| audit.facts).map_err(|err| match err {
+        AuditError::Interrupted => Error::fatal("KeyboardInterrupt", "command interrupted"),
+        other => Error::other(other.python_class_name(), other.message()),
+    })
 }
 
 /// The release tree of the running binary: `<tree>/installer/bin/linux-amd64/<binary>`.
@@ -205,7 +214,17 @@ pub fn run(
         let _ = stderr.write_all(err.as_bytes());
         return status;
     }
+    if matches!(&args.command, Command::Wizard { .. }) {
+        return match compose(&args.root).map_err(Failure::from) {
+            Ok(services) => wizard(&args, &services, stdout, stderr),
+            Err(failure) => finish(Err(failure), stdout, stderr),
+        };
+    }
     let outcome = compose(&args.root).map_err(Failure::from).and_then(|services| dispatch(&args, &services));
+    finish(outcome, stdout, stderr)
+}
+
+fn finish(outcome: Outcome, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
     match outcome {
         Ok(text) => {
             let _ = stdout.write_all(text.as_bytes());
@@ -228,11 +247,62 @@ pub fn run(
     }
 }
 
+struct CliWizardEngine<'a> {
+    services: &'a Services,
+}
+
+fn wizard_error(err: Error) -> WizardEngineError {
+    if err.is_fatal() {
+        if err.python_class_name() == "KeyboardInterrupt" {
+            WizardEngineError::Interrupted
+        } else {
+            WizardEngineError::Fatal { class: err.python_class_name().into(), message: err.message() }
+        }
+    } else {
+        WizardEngineError::Blocked(blocked_message(&err.message(), err.python_class_name()))
+    }
+}
+
+impl WizardEngine for CliWizardEngine<'_> {
+    fn initial_facts(&mut self) -> Result<AuditFacts, WizardEngineError> {
+        (self.services.audit)(None).map_err(wizard_error)
+    }
+
+    fn plan(&mut self, config: &InstallerConfig) -> Result<InstallPlan, WizardEngineError> {
+        let facts = (self.services.audit)(Some(config)).map_err(wizard_error)?;
+        let resolved = resolve_awg_ports(config, self.services.root(), Some(&facts.listeners), None)
+            .map_err(|err| WizardEngineError::Blocked(err.0))?;
+        let plan = plan(&resolved, &facts, self.services).map_err(wizard_error)?;
+        validate_plan(&resolved, &facts, &plan).map_err(|err| WizardEngineError::Blocked(err.0))?;
+        Ok(plan)
+    }
+
+    fn apply(&mut self, plan: &InstallPlan) -> Result<StatusView, WizardEngineError> {
+        let state = self.services.engine.apply(plan, &plan.digest()).map_err(wizard_error)?;
+        StatusView::from_state(&state.to_value())
+            .ok_or_else(|| WizardEngineError::Blocked("transaction state is invalid".into()))
+    }
+}
+
+fn wizard(args: &Args, services: &Services, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
+    let Command::Wizard { lang, config_output, json } = &args.command else { unreachable!("wizard only") };
+    let lang = lang.as_deref().and_then(|value| parse_locale(Some(value), Locale::En).ok());
+    let command = WizardCommand {
+        root: args.root.clone(),
+        lang,
+        config_output: config_output.clone(),
+        json: *json,
+        environment_locale: environment_locale_value(),
+        xray_version: pinned_version(&services.context.tree, "xray"),
+    };
+    let mut engine = CliWizardEngine { services };
+    let mut io = TerminalIO::new(std::io::stdin().lock(), stdout).with_echo_fd(0);
+    run_wizard_command(&mut io, stderr, &command, &mut engine)
+}
+
 fn dispatch(args: &Args, services: &Services) -> Outcome {
     match &args.command {
-        Command::Wizard { .. } => {
-            Err(Failure::Blocked("the interactive wizard is not available in this build yet".into()))
-        }
+        Command::Wizard { .. } => unreachable!("handled with the terminal streams"),
         Command::Plan { config, json } => {
             let (_config, plan) = plan_from_path(config, services)?;
             Ok(if *json { render_plan_json(&plan) } else { render_plan_text(&plan) })

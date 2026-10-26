@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use installer_core::audit::{audit_host, AuditExecutor, CommandRunner, Family, Resolver};
+use installer_core::audit::{audit_host, AuditExecutor, CommandRunner, Family, ResolveResult, Resolver};
 use installer_core::config::load_config;
 use pc_host::runner::{Bounded, BoundedError, BoundedOutput};
 use serde_json::Value;
@@ -28,7 +28,8 @@ impl AuditExecutor for Replay {
     fn execute(&self, argv: &[&str], _limits: Bounded, _c_locale: bool) -> Result<BoundedOutput, BoundedError> {
         let mut next = self.next.lock().unwrap();
         let recorded = self.commands.get(*next).unwrap_or_else(|| panic!("unrecorded command {argv:?}"));
-        let expected: Vec<&str> = recorded["argv"].as_array().unwrap().iter().map(|part| part.as_str().unwrap()).collect();
+        let expected: Vec<&str> =
+            recorded["argv"].as_array().unwrap().iter().map(|part| part.as_str().unwrap()).collect();
         assert_eq!(argv, expected.as_slice(), "command #{} differs", *next);
         *next += 1;
         Ok(BoundedOutput {
@@ -45,7 +46,7 @@ struct SimResolver {
 }
 
 impl Resolver for SimResolver {
-    fn getaddrinfo(&self, _name: &str) -> Result<Vec<(Family, String)>, ()> {
+    fn getaddrinfo(&self, _name: &str) -> ResolveResult {
         Ok(self
             .a
             .iter()
