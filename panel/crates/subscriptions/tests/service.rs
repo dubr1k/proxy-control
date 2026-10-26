@@ -317,6 +317,31 @@ fn resolve_artifacts_reveals_only_what_will_be_rendered() {
 }
 
 #[test]
+fn a_pending_credential_version_is_not_rendered() {
+    let world = World::new("pending-credential-render");
+    let client_id = world.client();
+    let grant = world.seed(&client_id, Protocol::Naive, "alice", None);
+    let secret = grant.secret_ref.as_ref().unwrap();
+    let secret = panel_secrets::secrets_store::SecretRef::new(secret.secret_id.clone(), secret.version);
+    world.env.database.transaction(|db| world.env.secrets.transition(db, &secret, "pending")).unwrap();
+    let (subscription, _) = world.subscriptions.create(&client_id, &ctx()).unwrap();
+    let hosts = FixedHosts(HashMap::from([("naive".into(), "naive.example.com".into())]));
+    let artifacts = || {
+        let manifest = world.subscriptions.effective_manifest(&subscription, world.env.clock.now()).unwrap();
+        world
+            .env
+            .database
+            .with_connection(|db| resolve_artifacts(&manifest, &world.env.secrets, &world.env.adapters, db, &hosts))
+            .unwrap()
+    };
+    assert!(artifacts().is_empty(), "a pending secret is not usable on the node yet");
+    world.env.database.transaction(|db| world.env.secrets.transition(db, &secret, "active")).unwrap();
+    let published = artifacts();
+    assert_eq!(published.len(), 1);
+    assert!(published[&grant.id].iter().any(|item| item.value.contains("caller-supplied-password-01")));
+}
+
+#[test]
 fn generation_change_emits_inside_the_transaction_or_not_at_all() {
     let world = World::new("event-generation");
     let client_id = world.seeded_client();

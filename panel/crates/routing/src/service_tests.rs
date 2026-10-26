@@ -1149,3 +1149,5 @@ async fn attach_and_detach_record_the_pass_through_the_node_now_runs() {
     );
     stand.service.delete("local", "naive", LANE_SERVICE, &context()).unwrap();
 }
+
+mod remote_regressions;

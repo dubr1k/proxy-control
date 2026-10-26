@@ -1,0 +1,879 @@
+{
+  "scope": "Meaningful central Fleet behavior equivalence, not a 1:1 assertion-count claim. Native source paths name the test function; compiler module paths may include pusher::native_regressions. HTTP rows are retained consumer tests, not claims of verification by this worker.",
+  "entries": [
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_identity_sends_bearer_and_parses_json",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::pin_match_accepts_and_mismatch_sends_no_http"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_status_codes_map_to_typed_errors",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::statuses_invalid_reports_and_large_bodies_are_typed"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_push_returns_status_and_typed_response",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::reports_and_request_payloads_follow_the_wire_contract"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_url_validation_refuses_http_query_and_private_hosts",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::panel_urls_are_normalized_and_refused_like_python"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_node_clients_share_one_tls_context_per_mode",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::client_scope_reuses_one_tls_connection_for_identity_status_and_inventory",
+        "panel/crates/fleet-central/src/client.rs::tests::verify_accepts_trusted_leaf_but_rejects_the_wrong_hostname"
+      ],
+      "note": "Private Python SSL-context pointer identity is not a Rust contract; retained consumer guarantees are pooled TLS connection reuse and verified trusted/hostname/untrusted peer behavior."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_pin_mode_requires_a_fingerprint",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::panel_urls_are_normalized_and_refused_like_python"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_nodereject_exposes_status_code_and_detail_when_present",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::statuses_invalid_reports_and_large_bodies_are_typed"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_nodereject_tolerates_a_body_without_code_or_json",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::statuses_invalid_reports_and_large_bodies_are_typed"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_observed_defaults_to_idle_shape",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::reports_and_request_payloads_follow_the_wire_contract"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_capture_sends_bounded_resource_list_and_returns_body_verbatim",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::reports_and_request_payloads_follow_the_wire_contract"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_update_version_posts_component_version_and_expected_current",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::reports_and_request_payloads_follow_the_wire_contract"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_unlink_posts_and_returns_dict",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::remaining_node_operations_preserve_methods_queries_bodies_and_json_objects"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_status_and_inventory_use_expected_paths",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::client_scope_reuses_one_tls_connection_for_identity_status_and_inventory"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_api_key_never_appears_in_the_unreachable_exception",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::metrics_deadline_bounds_the_read_and_transport_error_never_exposes_key"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_fingerprint_matches_the_real_leaf_certificate",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::fingerprint_reads_the_real_leaf_der"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_pinned_transport_accepts_matching_and_rejects_mismatched_pin",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::pin_match_accepts_and_mismatch_sends_no_http",
+        "panel/crates/fleet-central/src/client.rs::tests::pin_mismatch_never_sends_generation_credentials_or_bearer"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_dns_private_addresses_are_refused_before_connect",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::private_dns_is_rejected_before_tcp_in_both_tls_modes",
+        "panel/crates/fleet-central/src/client.rs::tests::address_policy_rejects_the_entire_answer"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_dns_is_checked_again_for_each_connection_and_only_numeric_ip_is_dialed",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::resolver_is_rechecked_for_each_connection_and_keeps_original_host_and_sni"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_explicit_private_opt_in_reaches_loopback",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::pin_match_accepts_and_mismatch_sends_no_http"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_fingerprint_dns_private_answer_is_refused_before_connect",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::private_dns_is_rejected_before_tcp_in_both_tls_modes"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_dns_timeout_is_bounded_and_typed",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::dns_and_fingerprint_resolution_deadlines_are_bounded_and_typed"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_public_ipv6_failure_falls_back_to_validated_ipv4",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::validated_ipv6_connect_failure_falls_back_to_numeric_ipv4"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_redirect_never_sends_the_bearer_key_to_another_origin",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::redirects_do_not_forward_bearer_to_a_second_origin"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_explicit_client_scope_reuses_http_client_and_closes_once",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::client_scope_reuses_one_tls_connection_for_identity_status_and_inventory",
+        "panel/crates/fleet-central/src/native_tests.rs::remote_grant_push_activates_only_remote_escrow_and_reuses_one_scoped_client"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_client.py::test_client_scope_closes_after_transport_failure",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::offline_early_return_drops_client_and_pending_grant_recovers_without_duplicate_apply"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_private_address_policy_survives_link_and_client_recreation",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::private_address_opt_in_survives_stored_link_and_client_recreation"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_test_and_add_link_a_panel_by_url_and_key",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::link_probe_is_read_only_and_add_commits_encrypted_key_node_and_audit"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_wrong_key_and_foreign_master_are_refused",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::linking_refuses_bad_key_foreign_master_self_duplicates_and_invalid_url"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_delete_refuses_while_grants_exist_and_unlinks_the_node",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::delete_refuses_provisioned_and_pending_deleted_grants_before_any_unlink"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_delete_releases_imported_grants_instead_of_refusing",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::unlink_releases_imported_users_revokes_secrets_and_refusal_preserves_everything"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_heartbeat_transitions_emit_events",
+      "targets": [
+        "panel/crates/fleet-central/src/links.rs::tests::heartbeat_records_good_reports_and_only_transition_events"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_add_writes_node_link_key_and_audit_together_and_the_view_is_secret_free",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::link_probe_is_read_only_and_add_commits_encrypted_key_node_and_audit"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_add_refuses_a_second_link_to_the_same_panel_and_a_bad_url",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::linking_refuses_bad_key_foreign_master_self_duplicates_and_invalid_url"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_client_for_reveals_the_key_and_reaches_the_node",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::link_probe_is_read_only_and_add_commits_encrypted_key_node_and_audit"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_update_rotates_the_key_and_revokes_the_old_version",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::key_rotation_revokes_previous_key_and_invalid_changes_roll_back_together"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_update_validates_url_and_pin_mode_before_writing",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::key_rotation_revokes_previous_key_and_invalid_changes_roll_back_together"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_set_enabled_pauses_and_resumes_with_audit",
+      "targets": [
+        "panel/crates/fleet-central/src/links.rs::tests::pause_resume_use_events_compatible_audits"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_delete_removes_the_link_key_and_audits_even_when_the_node_is_unreachable",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::forced_unlink_with_unconfirmed_deletion_finishes_operations_and_scrubs_failure"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_delete_tells_the_node_to_forget_its_master",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::delete_refuses_provisioned_and_pending_deleted_grants_before_any_unlink",
+        "panel/crates/fleet/tests/node.rs::owner_unlinks_and_the_users_become_local"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_heartbeat_records_identity_status_and_errors",
+      "targets": [
+        "panel/crates/fleet-central/src/links.rs::tests::heartbeat_records_good_reports_and_only_transition_events"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_a_grant_change_publishes_a_generation_for_the_linked_node_in_the_same_transaction",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::publishing_and_grant_change_commit_or_roll_back_as_one_transaction"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_a_panel_cannot_link_itself",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::linking_refuses_bad_key_foreign_master_self_duplicates_and_invalid_url"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_links.py::test_delete_of_a_node_with_large_generations_needs_no_temp_directory",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::deleting_large_generations_cascades_with_memory_temp_store"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_compile_is_pure_and_secret_free",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::generations_are_pure_secret_free_content_deduplicated_and_restart_durable"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_publish_skips_when_nothing_changed_and_bumps_otherwise",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::generations_are_pure_secret_free_content_deduplicated_and_restart_durable"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_content_digest_ignores_numbering_and_time_but_not_resources",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::generations_are_pure_secret_free_content_deduplicated_and_restart_durable"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_compile_omits_grants_the_node_already_confirmed_gone_but_keeps_pending_deletions",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::compile_keeps_pending_deletions_and_omits_confirmed_missing"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_compile_leaves_mtproxy_expiration_out_of_the_options",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::compile_leaves_mtproxy_expiration_out_and_retains_applicable_options"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_publish_records_an_empty_generation_for_a_node_without_grants",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::empty_publish_is_durable_and_older_ack_never_clears_newer_dirty_intent"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_observed_round_trips_and_a_converged_report_clears_config_dirty",
+      "targets": [
+        "panel/crates/fleet-central/src/generations.rs::tests::observed_acknowledgement_and_relay_follow_node_reports"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_generations.py::test_a_converged_report_for_an_older_generation_keeps_the_link_dirty",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::empty_publish_is_durable_and_older_ack_never_clears_newer_dirty_intent"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_remote_grant_is_pushed_applied_and_activated",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::remote_grant_push_activates_only_remote_escrow_and_reuses_one_scoped_client"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_sync_reuses_one_http_client_for_heartbeat_inventory_and_push",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::remote_grant_push_activates_only_remote_escrow_and_reuses_one_scoped_client"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_sync_closes_scoped_http_client_on_offline_early_return",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::offline_early_return_drops_client_and_pending_grant_recovers_without_duplicate_apply"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_offline_node_keeps_the_grant_pending_and_converges_later",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::offline_early_return_drops_client_and_pending_grant_recovers_without_duplicate_apply"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_disable_rotate_and_delete_publish_new_generations",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::disable_rotate_and_delete_deliver_successive_generations"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_paused_link_is_skipped",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::paused_tick_skips_node_but_manual_probe_only_heartbeats"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_heartbeat_events_carry_the_node_id_and_fire_only_on_transitions",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::offline_early_return_drops_client_and_pending_grant_recovers_without_duplicate_apply"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_refused_key_marks_the_node_offline_without_leaking_it",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::offline_early_return_drops_client_and_pending_grant_recovers_without_duplicate_apply"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_slow_apply_is_followed_by_observed_polling_not_a_second_push",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::applying_poll_captures_manager_form_before_activation_without_second_push"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_stale_generation_is_republished_above_what_the_node_holds",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::stale_generation_and_digest_conflict_republish_above_node_number"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_manager_chosen_credential_is_escrowed_under_the_version_the_document_named",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::old_or_applying_report_never_escrows_or_confirms_rotated_version"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_failed_resource_is_reported_on_the_step_and_re_pushed_with_backoff",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::failed_resources_back_off_exponentially_cap_and_new_generation_resets_slot"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_backoff_is_capped_at_ten_minutes",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::failed_resources_back_off_exponentially_cap_and_new_generation_resets_slot"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_new_generation_resets_the_backoff",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::failed_resources_back_off_exponentially_cap_and_new_generation_resets_slot"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_rejected_push_is_retried_with_backoff_not_every_tick",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::rejected_push_redacts_detail_and_retries_only_after_backoff"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_one_broken_node_does_not_stall_the_others",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::one_invalid_node_report_does_not_stall_a_healthy_nodes_delivery"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_sync_node_is_serialised_per_node",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::sync_node_is_serialised_and_overlapping_ticks_visit_all_nodes"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_run_forever_ticks_on_its_interval_and_stops",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::run_forever_recovers_after_failed_tick_and_stops_without_cancelling_work"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_the_app_starts_the_loop_in_the_background_and_stops_it_on_shutdown",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::run_forever_recovers_after_failed_tick_and_stops_without_cancelling_work"
+      ],
+      "note": "Private Python Task identity/cancelled/done wiring assertions intentionally retired; native loop exercises work, failed tick recovery and orderly stop; full app process lifetime is exercised by the HTTP harness."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_overlapping_ticks_share_a_global_concurrency_limit_and_visit_every_node",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::sync_node_is_serialised_and_overlapping_ticks_visit_all_nodes"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_learned_options_the_model_refuses_are_logged_and_never_stored",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::refused_learned_options_remain_observable_but_do_not_poison_grants"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_lost_push_reply_still_escrows_telemts_reframed_credential",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::lost_push_reply_replays_generation_and_escrows_reframed_credential_after_restart"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_202_poll_captures_telemts_reframed_credential_before_activating_it",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::applying_poll_captures_manager_form_before_activation_without_second_push"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_deletion_confirmed_after_a_202_is_still_reported_and_purged",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::deletion_report_after_202_purges_tombstone_and_frees_name_for_regrant"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_capture_after_a_202_is_batched_to_the_nodes_cap_and_never_marks_the_node_offline",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::capture_is_batched_and_partial_failure_keeps_only_unanswered_manager_secrets_pending"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_an_applying_report_is_provisional_and_never_activates_a_pre_rotation_secret",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::old_or_applying_report_never_escrows_or_confirms_rotated_version"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_failed_capture_after_a_converged_report_keeps_the_version_pending_until_captured",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::failed_capture_timeout_or_500_keeps_manager_version_pending_and_node_online"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_null_capture_withholds_the_manager_origin_grant_and_confirms_the_caller_origin_one",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::null_capture_withholds_only_manager_origin_and_repeated_failure_backs_off"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_auto_import_adopts_the_nodes_own_users_on_the_heartbeat",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::auto_import_is_inventory_idempotent_switchable_and_reuses_existing_client_names"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_auto_import_can_be_switched_off_per_link_and_on_again",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::auto_import_is_inventory_idempotent_switchable_and_reuses_existing_client_names"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_auto_import_joins_one_name_into_one_client_across_nodes",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::auto_import_joins_a_name_across_linked_nodes"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_pusher.py::test_a_manual_import_after_auto_import_is_idempotent_even_once_the_node_calls_the_account_central",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::imported_missing_credential_is_captured_after_202_and_import_replay_is_idempotent"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_429_or_5xx_heartbeat_answer_is_not_offline",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::refused_heartbeat_is_not_offline_and_cannot_deliver_until_recovered"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_bare_gateway_5xx_is_offline",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::bare_gateway_404_and_oversized_heartbeat_are_offline_once"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_404_heartbeat_answer_is_still_offline",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::bare_gateway_404_and_oversized_heartbeat_are_offline_once"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_refusing_node_does_not_get_a_push_until_it_answers_again",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::refused_heartbeat_is_not_offline_and_cannot_deliver_until_recovered"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_an_oversized_heartbeat_body_is_refused_before_it_is_parsed",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::bare_gateway_404_and_oversized_heartbeat_are_offline_once"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_late_report_about_an_older_generation_never_escrows",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::old_or_applying_report_never_escrows_or_confirms_rotated_version"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_escrowing_the_same_plaintext_again_does_not_rewrite_the_version",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::same_credential_replay_preserves_nonce_and_pending_activation_in_place"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_escrow_of_an_unchanged_pending_value_activates_it_in_place",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::same_credential_replay_preserves_nonce_and_pending_activation_in_place"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_repeatedly_uncaptured_credential_defers_the_push_and_names_the_reason",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::null_capture_withholds_only_manager_origin_and_repeated_failure_backs_off"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_update_without_a_secret_store_is_a_409_with_a_code",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::link_update_without_keyring_is_atomic_secret_error"
+      ],
+      "note": "Native atomic SecretError plus retained HTTP 409/code contract in panel/tests/test_fleet_v2_central_routes.py."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_probe_of_a_paused_link_only_heartbeats",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::paused_tick_skips_node_but_manual_probe_only_heartbeats"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_force_delete_removes_a_node_with_an_unconfirmed_deletion",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::forced_unlink_with_unconfirmed_deletion_finishes_operations_and_scrubs_failure"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_delete_with_imported_and_provisioned_grants_is_refused_and_keeps_the_imported_credential",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::unlink_releases_imported_users_revokes_secrets_and_refusal_preserves_everything"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_unlink_audit_names_the_class_of_the_swallowed_error",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::unlink_rejection_is_audited_without_remote_detail_or_credentials"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_a_pending_credential_version_is_not_rendered",
+      "targets": [
+        "panel/crates/subscriptions/tests/service.rs::a_pending_credential_version_is_not_rendered"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_an_imported_grant_without_a_credential_is_captured_after_a_202",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::imported_missing_credential_is_captured_after_202_and_import_replay_is_idempotent"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_telemt_client_batches_inventory_reads_until_access_changes",
+      "targets": [
+        "panel/crates/managers/tests/clients.rs::telemt_client_batches_inventory_reads_until_access_changes"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_reconcile_reads_the_telemt_inventory_once_per_pass",
+      "targets": [
+        "panel/crates/fleet/tests/reconcile_batching.rs::reconcile_reads_the_telemt_inventory_once_per_pass"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_node_view_exposes_one_disabled_flag",
+      "targets": [
+        "panel/crates/nodes/tests/lifecycle.rs::a_linked_panel_is_paused_not_disabled"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_post_merge.py::test_set_disabled_without_the_link_service_still_pauses_the_link",
+      "targets": [
+        "panel/crates/nodes/tests/lifecycle.rs::a_linked_panel_is_paused_not_disabled"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_node_without_the_capability_is_unsupported_and_never_called",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::missing_capability_or_link_is_unsupported_without_calling_a_client"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_node_whose_link_is_not_online_is_unavailable_without_a_call",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::offline_link_is_unavailable_without_calling_a_client"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_remote_entries_carry_the_registry_id_and_name_and_a_3s_timeout",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_entries_use_registry_identity_and_three_second_timeout"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_nodes_own_stale_status_is_passed_through",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::node_supplied_stale_status_and_age_are_preserved"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_404_from_the_node_means_unsupported",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_404_is_unsupported"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_answer_is_cached_for_two_seconds_per_node",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_answers_are_cached_per_node_for_two_seconds"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_concurrent_callers_share_one_request",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::concurrent_identical_live_calls_share_one_request"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_caller_that_leaves_does_not_cancel_the_shared_request",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::cancelling_one_caller_does_not_cancel_the_shared_request"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_at_most_eight_node_calls_run_at_once",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_fan_out_caps_node_calls_at_eight"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_slow_node_does_not_hold_the_others_back_within_the_budget",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_many_budget_leaves_slow_call_running_to_fill_cache"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_late_node_with_a_recent_good_sample_goes_out_as_stale",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_many_budget_returns_recent_good_sample_as_stale"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_failing_node_keeps_its_last_good_sample_as_stale_for_120_seconds",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::last_good_sample_expires_after_120_seconds"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_node_that_never_answered_is_unavailable",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::node_without_a_good_sample_is_unavailable_on_failure"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_node_slower_than_the_call_timeout_is_cut_off",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_call_slower_than_its_timeout_is_cut_off"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_history_and_summary_are_fetched_from_the_node_and_tagged",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::history_and_summary_are_tagged_and_map_node_errors"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_concurrent_identical_history_requests_share_one_call",
+      "targets": [
+        "panel/crates/fleet-central/tests/metrics_source.rs::concurrent_identical_history_calls_share_one_request"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_client_calls_the_three_meter_routes_with_a_shorter_timeout",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::reports_and_request_payloads_follow_the_wire_contract",
+        "panel/crates/fleet-central/src/client.rs::tests::remaining_node_operations_preserve_methods_queries_bodies_and_json_objects",
+        "panel/crates/fleet-central/src/client.rs::tests::metrics_deadline_bounds_the_read_and_transport_error_never_exposes_key",
+        "panel/crates/fleet-central/tests/metrics_source.rs::live_entries_use_registry_identity_and_three_second_timeout"
+      ]
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_node_meter_routes_need_a_node_sync_key",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_node_meter_routes_need_a_node_sync_key"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_node_live_entry_is_the_collectors_latest",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_node_live_entry_is_the_collectors_latest"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_node_history_and_summary_match_the_local_routes",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_node_history_and_summary_match_the_local_routes"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_node_validates_its_parameters",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_node_validates_its_parameters"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_before_the_first_sample_the_node_says_it_is_warming_up",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_before_the_first_sample_the_node_says_it_is_warming_up"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_a_node_with_metrics_off_answers_404_and_does_not_advertise_them",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_a_node_with_metrics_off_answers_404_and_does_not_advertise_them"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_identity_advertises_metrics_v1",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_identity_advertises_metrics_v1"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_status_reports_amneziawg_traffic",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_status_reports_amneziawg_traffic"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_all_includes_the_linked_node_once_it_is_online",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_all_includes_the_linked_node_once_it_is_online"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_the_all_stream_carries_the_remote_node_each_tick",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_the_all_stream_carries_the_remote_node_each_tick"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_metrics_fleet.py::test_summary_compare_has_a_row_per_node_sorted_by_traffic",
+      "targets": [
+        "panel/tests/test_metrics_fleet.py::test_summary_compare_has_a_row_per_node_sorted_by_traffic"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_fingerprint_private_address_requires_explicit_opt_in",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::private_dns_is_rejected_before_tcp_in_both_tls_modes",
+        "panel/crates/fleet-central/src/client.rs::tests::pin_match_accepts_and_mismatch_sends_no_http"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_fingerprint_request_deadline_also_bounds_slow_system_dns",
+      "targets": [
+        "panel/crates/fleet-central/src/client.rs::tests::fingerprint_deadline_bounds_slow_system_resolution_and_discards_late_answer"
+      ]
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_test_link_import_and_list",
+      "targets": [
+        "panel/tests/test_fleet_v2_central_routes.py::test_test_link_import_and_list"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_pause_probe_update_and_delete",
+      "targets": [
+        "panel/tests/test_fleet_v2_central_routes.py::test_pause_probe_update_and_delete"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_link_rejects_bad_key_private_url_and_self",
+      "targets": [
+        "panel/tests/test_fleet_v2_central_routes.py::test_link_rejects_bad_key_private_url_and_self"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_fleet_v2_central_routes.py::test_node_version_update_is_relayed_to_the_node_and_audited_on_both_sides",
+      "targets": [
+        "panel/tests/test_fleet_v2_central_routes.py::test_node_version_update_is_relayed_to_the_node_and_audited_on_both_sides"
+      ],
+      "note": "Retained HTTP contract, outside this crate's native checks."
+    },
+    {
+      "python": "panel/tests/test_access_enforcement.py::test_stale_option_drift_report_cannot_confirm_a_new_suspension",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::stale_option_drift_report_cannot_confirm_a_new_suspension"
+      ]
+    },
+    {
+      "python": "panel/tests/test_access_enforcement.py::test_drift_report_does_not_infer_node_runtime_from_central_clock",
+      "targets": [
+        "panel/crates/fleet-central/src/native_tests.rs::drift_report_does_not_infer_runtime_from_the_centrals_clock"
+      ]
+    }
+  ],
+  "additional_native_faults": [
+    "panel/crates/fleet-central/src/native_tests.rs::failed_link_insert_rolls_back_key_node_and_audit_together",
+    "panel/crates/fleet-central/src/native_tests.rs::absorption_failure_rolls_back_credentials_operation_grant_report_and_ack",
+    "panel/crates/fleet-central/src/native_tests.rs::import_capture_failure_and_mid_transaction_failure_leave_no_partial_clients_or_secrets",
+    "panel/crates/fleet-central/src/native_tests.rs::concurrent_publishers_deduplicate_content_under_immediate_transactions",
+    "panel/crates/fleet-central/src/native_tests.rs::resync_does_not_replace_newer_publication_or_renumber_below_current",
+    "panel/crates/fleet-central/src/native_tests.rs::report_for_previous_credential_reference_cannot_resurrect_retiring_version",
+    "panel/crates/fleet-central/src/native_tests.rs::stale_option_drift_report_cannot_confirm_a_new_suspension",
+    "panel/crates/fleet-central/src/native_tests.rs::drift_report_does_not_infer_runtime_from_the_centrals_clock",
+    "panel/crates/fleet-central/tests/metrics_source.rs::completed_shared_future_is_retired_before_immediate_same_key_reentry",
+    "panel/crates/fleet-central/tests/metrics_source.rs::failed_history_and_summary_do_not_poison_the_next_shared_future",
+    "panel/crates/fleet-central/tests/metrics_source.rs::history_deduplication_distinguishes_series_range_and_point_count"
+  ]
+}

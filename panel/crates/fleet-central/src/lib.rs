@@ -20,3 +20,9 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> CentralResult<T> + S
         .await
         .map_err(|error| CentralError::Internal(format!("fleet database task failed: {error}")))?
 }
+
+#[cfg(test)]
+mod native_fixture;
+
+#[cfg(test)]
+mod routing_coverage;
