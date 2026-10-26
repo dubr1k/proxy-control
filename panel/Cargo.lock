@@ -1017,9 +1017,11 @@ dependencies = [
  "panel-clients",
  "panel-core",
  "panel-fleet",
+ "panel-managers",
  "panel-metrics",
  "panel-model",
  "panel-nodes",
+ "panel-protocols",
  "panel-routing",
  "panel-secrets",
  "rcgen",
@@ -1083,6 +1085,18 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower",
+]
+
+[[package]]
+name = "panel-pages"
+version = "0.1.0"
+dependencies = [
+ "panel-core",
+ "panel-managers",
+ "panel-model",
+ "panel-protocols",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -1168,6 +1182,7 @@ dependencies = [
  "panel-metrics",
  "panel-model",
  "panel-nodes",
+ "panel-pages",
  "panel-protocols",
  "panel-routing",
  "panel-secrets",

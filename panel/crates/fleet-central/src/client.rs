@@ -629,6 +629,18 @@ fn fingerprint_addresses(
     allow_private: bool,
     deadline: Instant,
 ) -> Result<Vec<SocketAddr>, NodeError> {
+    fingerprint_addresses_with_resolver(host, port, allow_private, deadline, |host, port| {
+        (host.as_str(), port).to_socket_addrs().map(|addresses| addresses.collect())
+    })
+}
+
+fn fingerprint_addresses_with_resolver(
+    host: &str,
+    port: u16,
+    allow_private: bool,
+    deadline: Instant,
+    resolve: impl FnOnce(String, u16) -> std::io::Result<Vec<SocketAddr>> + Send + 'static,
+) -> Result<Vec<SocketAddr>, NodeError> {
     if let Ok(address) = host.parse::<IpAddr>() {
         return checked_addresses([SocketAddr::new(address, port)], allow_private)
             .map_err(|_| NodeError::Unreachable("ConnectError".into()));
@@ -643,7 +655,7 @@ fn fingerprint_addresses(
     std::thread::Builder::new()
         .name("node-fingerprint-dns".into())
         .spawn(move || {
-            let result = (host.as_str(), port).to_socket_addrs().map(|addresses| addresses.collect::<Vec<_>>());
+            let result = resolve(host, port);
             let _ = sender.send(result);
         })
         .map_err(|_| NodeError::Unreachable("ConnectError".into()))?;
@@ -757,7 +769,13 @@ mod tests {
 
     impl Reply {
         fn json(status: u16, body: Value) -> Self {
-            Self { status, body: body.to_string().into_bytes(), extra_headers: String::new(), keep_alive: false, delay: Duration::ZERO }
+            Self {
+                status,
+                body: body.to_string().into_bytes(),
+                extra_headers: String::new(),
+                keep_alive: false,
+                delay: Duration::ZERO,
+            }
         }
 
         fn bytes(status: u16, body: Vec<u8>) -> Self {
@@ -826,7 +844,9 @@ mod tests {
                         server_requests.lock().unwrap().push(request);
                         let Some(reply) = replies.get(answered) else { break };
                         answered += 1;
-                        if !reply.delay.is_zero() { std::thread::sleep(reply.delay); }
+                        if !reply.delay.is_zero() {
+                            std::thread::sleep(reply.delay);
+                        }
                         let head = format!(
                             "HTTP/1.1 {} OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: {}\r\n{}\r\n",
                             reply.status,
@@ -834,7 +854,13 @@ mod tests {
                             if reply.keep_alive { "keep-alive" } else { "close" },
                             reply.extra_headers,
                         );
-                        if tls.write_all(head.as_bytes()).and_then(|()| tls.write_all(&reply.body)).and_then(|()| tls.flush()).is_err() || !reply.keep_alive {
+                        if tls
+                            .write_all(head.as_bytes())
+                            .and_then(|()| tls.write_all(&reply.body))
+                            .and_then(|()| tls.flush())
+                            .is_err()
+                            || !reply.keep_alive
+                        {
                             break;
                         }
                     }

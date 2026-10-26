@@ -701,7 +701,8 @@ async fn failed_history_and_summary_do_not_poison_the_next_shared_future() {
         NodeError::Rejected { status: 503, code: Some("warming_up".into()), detail: "private".into() },
     ] {
         harness.node("berlin").set_failure(error.clone());
-        let expected = if matches!(error, NodeError::Rejected { status: 404, .. }) { "unsupported" } else { "unavailable" };
+        let expected =
+            if matches!(error, NodeError::Rejected { status: 404, .. }) { "unsupported" } else { "unavailable" };
         assert_eq!(history(&harness, "berlin", &["host.cpu"], "6h", 60).await["status"], expected);
         assert_eq!(summary(&harness, "berlin", "6h").await["status"], expected);
         lock(&harness.node("berlin").state).failure = None;
@@ -714,11 +715,16 @@ async fn failed_history_and_summary_do_not_poison_the_next_shared_future() {
 #[tokio::test]
 async fn history_deduplication_distinguishes_series_range_and_point_count() {
     let harness = Harness::new(vec![("berlin", FakeNode::new().delayed(Duration::from_millis(20)))]);
-    let cpu = vec!["host.cpu".to_owned()]; let memory = vec!["host.mem".to_owned()];
-    let (a,b,c,d) = tokio::join!(
-        harness.source.history("berlin",&cpu,"1h",60),harness.source.history("berlin",&memory,"1h",60),
-        harness.source.history("berlin",&cpu,"6h",60),harness.source.history("berlin",&cpu,"1h",120),
+    let cpu = vec!["host.cpu".to_owned()];
+    let memory = vec!["host.mem".to_owned()];
+    let (a, b, c, d) = tokio::join!(
+        harness.source.history("berlin", &cpu, "1h", 60),
+        harness.source.history("berlin", &memory, "1h", 60),
+        harness.source.history("berlin", &cpu, "6h", 60),
+        harness.source.history("berlin", &cpu, "1h", 120),
     );
-    for answer in [a,b,c,d] { assert_eq!(answer.unwrap()["status"],"ok"); }
+    for answer in [a, b, c, d] {
+        assert_eq!(answer.unwrap()["status"], "ok");
+    }
     assert_eq!(harness.node("berlin").calls(), 4);
 }
