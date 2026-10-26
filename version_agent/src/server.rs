@@ -164,8 +164,11 @@ impl Routes {
 
     fn get(&self, request: &Request) -> Response {
         match request.target.as_str() {
-            // `implementation` tells the 4.0 installer that the agent was migrated (§9.4).
-            "/v1/health" => reply(200, &json!({"status": "ok", "implementation": "rust"})),
+            // The installer verifies both native implementation and release before migration.
+            "/v1/health" => reply(
+                200,
+                &json!({"status": "ok", "implementation": "rust", "version": include_str!("../../VERSION").trim()}),
+            ),
             // Read-only telemetry: no input, no command.
             "/v1/host" => reply(200, &(self.host)()),
             "/v1/metrics" => {
