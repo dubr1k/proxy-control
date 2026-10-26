@@ -916,12 +916,10 @@ impl VersionAgent {
             let mut state = self.load_state()?;
             let mut panel = Self::component_state(&state, "panel");
             if let Some(pending) = panel.get("pending_rebuild") {
-                let left: Vec<Value> = match pending {
-                    Value::Array(items) => {
-                        items.iter().filter(|n| !n.as_str().is_some_and(|n| names.contains(&n))).cloned().collect()
-                    }
-                    _ => Vec::new(),
-                };
+                let left: Vec<Value> = pending_list(Some(pending))
+                    .into_iter()
+                    .filter(|n| !n.as_str().is_some_and(|n| names.contains(&n)))
+                    .collect();
                 panel.insert("pending_rebuild".into(), Value::Array(left));
                 let components = state.entry("components").or_insert_with(|| json!({}));
                 if let Some(components) = components.as_object_mut() {
