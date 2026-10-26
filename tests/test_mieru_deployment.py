@@ -238,10 +238,10 @@ def test_prepare_fresh_state_allows_fixed_container_identity_to_write(tmp_path):
             "--mount",
             f"type=bind,src={state_dir},dst=/state",
             "--entrypoint",
-            "python",
+            "sh",
             "mtproxy-mieru-manager:latest",
             "-c",
-            "from pathlib import Path; Path('/state/probe').touch()",
+            "touch /state/probe",
         ],
         text=True,
         capture_output=True,
@@ -596,9 +596,9 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
     mount = f"type=bind,src={token},dst=/run/secrets/mieru-manager-token,readonly"
     unreadable = subprocess.run(
         [
-            "docker", "run", "--rm", "--entrypoint", "python", "--mount", mount,
+            "docker", "run", "--rm", "--entrypoint", "sh", "--mount", mount,
             "mtproxy-mieru-manager:latest", "-c",
-            "from pathlib import Path; Path('/run/secrets/mieru-manager-token').read_bytes()",
+            "cat /run/secrets/mieru-manager-token > /dev/null",
         ],
         capture_output=True,
         check=False,
@@ -607,9 +607,10 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
     assert run_token_preparer("prepare", token).returncode == 0
     readable = subprocess.run(
         [
-            "docker", "run", "--rm", "--entrypoint", "python", "--mount", mount,
+            "docker", "run", "--rm", "--entrypoint", "sh", "--mount", mount,
             "mtproxy-mieru-manager:latest", "-c",
-            "from pathlib import Path; assert len(Path('/run/secrets/mieru-manager-token').read_bytes()) == 32",
+            # 4.0: the Rust image has no Python; the shell of its Debian base reads the token.
+            'test "$(wc -c < /run/secrets/mieru-manager-token)" -eq 32',
         ],
         capture_output=True,
         check=False,
