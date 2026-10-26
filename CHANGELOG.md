@@ -5,6 +5,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## [Unreleased]
 
 ### Changed
+- The Rust panel routing engine preserves policy preview/apply/rollback, custom exits, per-grant lanes, relays, chains and destination explanations. Escaped protocol-manager errors retain their HTTP status and protocol-specific response; actual runtime crashes remain HTTP 500.
+- The Rust panel's Fleet v2 central keeps the existing link/import/generation API, encrypted node-key escrow, heartbeat delivery, routing readback and linked-node metrics. HTTPS uses system CA/hostname verification or a leaf-DER SHA-256 pin checked before sending credentials; every DNS answer is checked in full before connecting, with private networks requiring explicit opt-in.
 - The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
 - Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
 - The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.

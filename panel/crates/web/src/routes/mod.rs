@@ -38,6 +38,7 @@ pub mod amneziawg;
 pub mod api_keys;
 pub mod auth;
 pub mod clients;
+pub mod fleet_central;
 pub mod fleet_node;
 mod gather;
 pub mod metrics;
@@ -46,6 +47,7 @@ pub mod naive;
 pub mod nodes;
 pub mod openapi;
 pub mod readiness;
+pub mod routing;
 pub mod subscriptions;
 pub mod subscriptions_admin;
 pub mod telemt;
@@ -61,7 +63,7 @@ pub fn all() -> Routes {
         .merge(auth::routes())
         .merge(api_keys::routes())
         .merge(fleet_node::routes())
-        // 4: fleet v2 central routes (WP12b)
+        .merge(fleet_central::routes())
         .merge(versions::routes())
         .merge(openapi::routes())
         .merge(telemt::routes())
@@ -74,6 +76,7 @@ pub fn all() -> Routes {
         .merge(subscriptions_admin::routes())
         .merge(subscriptions::routes())
         // 17: routing (WP10)
+        .merge(routing::routes())
         .merge(metrics::routes());
     #[cfg(feature = "test-hooks")]
     let routes = routes.merge(test_hooks::routes());

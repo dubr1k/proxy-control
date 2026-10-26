@@ -1,0 +1,27 @@
+[package]
+name = "panel-routing"
+description = "Routing of the Proxy Control panel: the policy compiler (native per protocol and the Xray-router intent with lanes, chains and custom exits), the policy store, preview/apply/rollback/history/explain, attach/detach, relays, lanes, custom exits, presets and geodata."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_routing"
+
+[dependencies]
+base64 = "0.22"
+panel-clients = { path = "../clients" }
+panel-core = { path = "../core" }
+panel-model = { path = "../model" }
+panel-nodes = { path = "../nodes" }
+panel-protocols = { path = "../protocols" }
+panel-secrets = { path = "../secrets" }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+
+[dev-dependencies]
+indexmap = "2"
+panel-managers = { path = "../managers" }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
