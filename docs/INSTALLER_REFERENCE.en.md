@@ -387,6 +387,12 @@ Each action is applied through a durable journal: prepare, apply, verify. An
 interrupted step is resumable, and every adapter's inverse restores what it
 found.
 
+The native installer embeds the pinned 3x-ui API contract; it does not load test fixtures
+from the installed release tree. First-run credential rotation runs through the installer's
+private bootstrap command inside a network namespace, with the payload on stdin. Managed
+panel HTTPS authenticates the installed leaf certificate before sending credentials.
+The Xray-router checks both numeric and named UID/GID ownership before applying identity 10006.
+
 ## Acceptance per protocol
 
 A healthy process is not a protocol test. The installer accepts a generation
