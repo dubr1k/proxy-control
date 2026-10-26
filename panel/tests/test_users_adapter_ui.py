@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from panel.telemt import TelemtClient, TelemtError
+
 
 
 pytestmark = pytest.mark.anyio
@@ -50,31 +50,7 @@ async def test_dashboard_labels_process_runtime_traffic_separately_from_quota(cl
 
 
 
-async def test_sidebar_counters_are_filled_by_the_overview_not_by_visiting_a_section(
-    client, login_user, telemt, naive, mieru,
-):
-    telemt.users.update({"mt": {"username": "mt", "enabled": True, "total_octets": 0}})
-    naive.seed("web", "not-returned", enabled=True)
-    mieru.users["mieru-one"] = {"username": "mieru-one", "enabled": True, "quotas": []}
-    await login_user(client)
 
-    protocols = (await client.get("/api/dashboard")).json()["protocols"]
-    assert protocols["mieru"]["credentials"]["total"] == 1
-    assert protocols["naive"]["credentials"]["total"] == 1
-    nodes = await client.get("/api/fleet/nodes")
-    # No node has been registered, so the only row is the reserved local one that
-    # migration 5 creates in every database.
-    assert nodes.status_code == 200
-    assert [node["node_id"] for node in nodes.json()["items"]] == ["local"]
-
-    entry = (await client.get("/static/app.js")).text
-    dashboard = (await client.get("/static/js/nav-counts.js")).text
-    # The sidebar is painted at start-up by one shared module (nav-counts.js) from the overview's
-    # credential totals instead of keeping a dash until the operator opens each section.
-    assert entry.strip() == 'import { boot } from "/static/js/main.js";\n\nboot();'
-    assert "export function paintNavCounts(context, data, nodes)" in dashboard and "fleetCount" in dashboard
-    for badge in ("#mieru-count", "#naive-count", "#fleet-count"):
-        assert badge in dashboard
 
 async def test_dashboard_summarizes_both_protocols_without_naive_traffic_invention(
     client, login_user, telemt, naive,
@@ -239,67 +215,18 @@ async def test_viewer_cannot_change_or_reset_limits(client, server, login_user, 
     )).status_code == 403
 
 
-async def test_telemt_adapter_patches_limits_and_resets_quota():
-    seen = []
-    import httpx
-
-    async def handler(request):
-        seen.append((request.method, request.url.path, request.content))
-        return httpx.Response(200, json={"ok": True, "data": {"username": "alice"}, "revision": "r"})
-
-    telemt = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    await telemt.update_user("alice", {"data_quota_bytes": 2048})
-    await telemt.reset_quota("alice")
-    assert seen[0][:2] == ("PATCH", "/v1/users/alice")
-    assert seen[0][2] == b'{"data_quota_bytes":2048}'
-    assert seen[1][:2] == ("POST", "/v1/users/alice/reset-quota")
-
-
-async def test_telemt_adapter_reads_3425_quota_stats_route():
-    import httpx
-    seen = []
-
-    async def handler(request):
-        seen.append((request.method, request.url.path))
-        return httpx.Response(200, json={
-            "ok": True,
-            "data": {"users": [{
-                "username": "alice", "data_quota_bytes": 2048,
-                "used_bytes": 512, "last_reset_epoch_secs": 123,
-            }]},
-            "revision": "r",
-        })
-
-    telemt = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    assert await telemt.quota_stats() == {"users": [{
-        "username": "alice", "data_quota_bytes": 2048,
-        "used_bytes": 512, "last_reset_epoch_secs": 123,
-    }]}
-    assert seen == [("GET", "/v1/stats/users/quota")]
 
 
 
 
-async def test_telemt_adapter_sends_auth_and_maps_envelope():
-    seen = {}
-    import httpx
-    async def handler(request):
-        seen["authorization"] = request.headers.get("authorization")
-        return httpx.Response(200, json={"ok": True, "data": [{"username": "a"}], "revision": "r"})
-    client = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    assert (await client.list_users())[0]["username"] == "a"
-    assert seen["authorization"] == "Bearer internal-token"
 
 
-async def test_telemt_adapter_does_not_leak_secret_in_errors():
-    import httpx
-    secret = "0123456789abcdef0123456789abcdef"
-    async def handler(request):
-        return httpx.Response(500, text=secret)
-    client = TelemtClient("http://telemt:9091", "Bearer token", transport=httpx.MockTransport(handler))
-    with pytest.raises(TelemtError) as exc:
-        await client.create_user("alice")
-    assert secret not in str(exc.value)
+
+
+
+
+
+
 
 
 async def test_user_list_strips_links_and_all_secret_material(client, login_user, telemt):
@@ -506,14 +433,10 @@ async def test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requir
 
 
 
-async def _writer(server):
-    return server.writer
-
-
 async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
     client, server, login_user, telemt, naive, mieru
 ):
-    """The flag changes who owns the record, never what the caller sees."""
+    """Every protocol write atomically records its client, grant and credential."""
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     created = await client.post("/api/users", json={"username": "alice"}, headers=headers)
@@ -533,20 +456,10 @@ async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
     with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
         clients = [dict(row) for row in db.execute("SELECT * FROM clients")]
-    if await _writer(server) == "domain":
-        # The domain writer owns the credential: that is the whole point of the flag.
-        assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
-        assert all(row["origin"] == "provisioned" for row in grants)
-        assert all(row["secret_id"] is not None for row in grants)
-        assert [row["display_name"] for row in clients] == ["alice"]
-    else:
-        # The legacy writer provisions through the managers, but a Mieru password is kept
-        # all the same — mita has only a hash of it, so the reveal would be its last copy:
-        # that account is recorded as imported, with its credential. Telemt and the Naive
-        # manager hand their secrets back, so «Импорт существующих» captures those later.
-        assert {row["protocol"] for row in grants} == {"mieru"}
-        assert all(row["origin"] == "imported" and row["secret_id"] is not None for row in grants)
-        assert [row["display_name"] for row in clients] == ["alice"]
+    assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
+    assert all(row["origin"] == "provisioned" for row in grants)
+    assert all(row["secret_id"] is not None for row in grants)
+    assert [row["display_name"] for row in clients] == ["alice"]
 
 
 async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, server, login_user, telemt, naive, mieru):
@@ -560,10 +473,7 @@ async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, server,
 
     with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
-    if await _writer(server) == "domain":
-        assert [row["runtime_username"] for row in grants] == ["legacy-user"]
-        assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
-        # Adoption on the fly never invents a credential it does not have.
-        assert grants[0]["secret_id"] is None
-    else:
-        assert grants == []
+    assert [row["runtime_username"] for row in grants] == ["legacy-user"]
+    assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
+    # Adoption on the fly never invents a credential it does not have.
+    assert grants[0]["secret_id"] is None

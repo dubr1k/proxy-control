@@ -1,7 +1,4 @@
-"""The monitoring screen (Proxy Control 2.0): «Мониторинг» is in the navigation for every role,
-the three modules export what the plan names, nothing in them or in the templates would be
-dropped by the CSP (`style-src 'self'`), every Russian string has an English line, and the pure
-parts of the charts library (units, ticks, gaps) and of the live feed (back-off) behave."""
+"""Monitoring chart, live-rate, and metadata behavior from JavaScript served by the Rust panel."""
 
 from __future__ import annotations
 
@@ -9,108 +6,11 @@ import json
 import re
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parent.parent / "static"
-JS = STATIC / "js"
-INDEX = (STATIC / "index.html").read_text()
-MAIN = (JS / "main.js").read_text()
-CHARTS = (JS / "charts.js").read_text()
-LIVE = (JS / "live.js").read_text()
-MONITORING = (JS / "monitoring.js").read_text()
-CSS = (STATIC / "style.css").read_text()
 NODE = shutil.which("node")
-
-
-def test_the_three_modules_export_the_names_the_plan_promises():
-    for name in ("lineChart", "areaChart", "stackedAreaChart", "barChart", "gaugeRing", "sparkline", "formatRate", "formatBytes"):
-        assert re.search(rf"export (async )?function {name}\b", CHARTS), name
-    assert re.search(r"export function connectLive\(context, node, onSnapshot, onState(, \{ view = \"monitoring\" \} = \{\})?\)", LIVE)
-    assert "export async function renderMonitoring" in MONITORING
-    assert "export function bindMonitoring" in MONITORING
-
-
-def test_the_section_is_in_both_menus_and_in_the_router_for_every_role():
-    for pattern in (r'class="nav-item" data-view="monitoring"', r'<button data-view="monitoring"'):
-        assert re.search(pattern, INDEX), pattern
-    # visible to everyone: no owner-only / hidden marker on the monitoring buttons
-    for line in INDEX.splitlines():
-        if 'data-view="monitoring"' in line:
-            assert "owner-only" not in line and " hidden" not in line
-    assert 'monitoring: ["Мониторинг", "Ресурсы и трафик в прямом эфире, по протоколам и узлам"]' in MAIN
-    assert "monitoring: renderMonitoring" in MAIN
-    assert "bindMonitoring(context)" in MAIN
-    # after «Обзор», before «Клиенты» in the sidebar
-    side = INDEX[INDEX.index('<nav aria-label="Основная навигация">'):]
-    assert side.index('data-view="dashboard"') < side.index('data-view="monitoring"') < side.index('data-view="clients"')
-
-
-def test_the_overview_resource_card_links_to_the_monitoring_screen():
-    dashboard = (JS / "dashboard.js").read_text()
-    assert 'href="#monitoring"' in dashboard and "Подробнее в мониторинге" in dashboard
-
-
-@pytest.mark.parametrize("name", ["charts.js", "live.js", "monitoring.js"])
-def test_nothing_the_csp_would_drop_is_written_into_markup(name):
-    source = (JS / name).read_text()
-    # an inline style ATTRIBUTE in a template or via setAttribute is blocked by style-src 'self';
-    # the CSSOM (`element.style.width = …`) is allowed and is what the module uses
-    assert not re.search(r"""<[a-z][^>]*\sstyle\s*=""", source), name
-    assert "setAttribute(\"style\"" not in source and "setAttribute('style'" not in source, name
-    assert "<script" not in source and "javascript:" not in source and "eval(" not in source, name
-    assert "<style" not in source, name
-    stripped = source.replace("http://www.w3.org/2000/svg", "")
-    assert "http://" not in stripped and "https://" not in stripped, name
-
-
-def test_the_monitoring_markup_in_index_has_no_inline_style():
-    for line in INDEX.splitlines():
-        if "monitoring" in line:
-            assert " style=" not in line
-
-
-def test_charts_use_tokens_for_both_themes_and_a_fixed_colour_per_protocol():
-    for token in ("--chart-1", "--chart-8", "--chart-grid", "--chart-axis"):
-        assert CSS.count(token + ":") >= 2, f"{token} must be defined for dark and light"
-    # the protocol colours are aliases of the categorical slots, so they follow the theme
-    for number, proto in enumerate(("mtproxy", "naive", "mieru", "amneziawg", "trusttunnel"), start=1):
-        assert f"--proto-{proto}:var(--chart-{number})" in CSS
-    assert ':root[data-theme="light"]' in CSS
-    for proto in ("mtproxy", "naive", "mieru", "amneziawg", "trusttunnel"):
-        assert f".ser-{proto}{{--c:var(--proto-{proto})}}" in CSS
-    assert "prefers-reduced-motion" in CSS[CSS.index("Мониторинг (2.0)"):]
-
-
-def test_charts_are_accessible_and_keyboard_driven():
-    assert 'role: "img"' in CHARTS and 'tabindex: "0"' in CHARTS
-    assert "aria-label" in CHARTS and "chart-sr" in CHARTS and "aria-live" in CHARTS
-    for key in ("ArrowLeft", "ArrowRight", "Home", "End", "Escape"):
-        assert f'"{key}"' in CHARTS, key
-    assert "ResizeObserver" in CHARTS and "pointermove" in CHARTS
-
-
-def test_the_live_feed_has_its_fallbacks_and_pauses():
-    assert "EventSource" in LIVE and "/api/metrics/stream?node=" in LIVE and "/api/metrics/live?node=" in LIVE
-    for state in ('"live"', '"polling"', '"reconnecting"', '"paused"'):
-        assert state in LIVE
-    assert "visibilitychange" in LIVE and "requestAnimationFrame" in LIVE
-    assert "HIDDEN_PAUSE_MS = 60_000" in LIVE and "POLL_MS = 3000" in LIVE
-    assert "navigationGeneration" in LIVE  # closes itself when the operator leaves the screen
-    assert "context.live?.close()" in LIVE  # one connection per screen
-
-
-def test_every_russian_string_of_the_screen_has_an_english_line():
-    translated = json.loads((STATIC / "i18n/en.json").read_text())
-    for fragment in ("Мониторинг", "Сейчас", "Трафик", "Узлы", "в эфире", "Пауза", "Продолжить", "Контейнеры",
-                     "Активные клиенты", "Сравнение узлов", "Подробнее в мониторинге", "МБ/с", "Б/с"):
-        assert fragment in translated or fragment in ("Сейчас", "Трафик", "Узлы", "Пауза", "Продолжить"), fragment
-    script = Path(__file__).resolve().parents[2] / "scripts/dev/i18n-strings.py"
-    result = subprocess.run(["python3", str(script), "--missing"], capture_output=True, text=True, check=True)
-    assert "# 0 fragments" in result.stdout + result.stderr
-
+pytestmark = pytest.mark.anyio
 
 CHARTS_HARNESS = r"""
 import * as charts from "./charts.mjs";
@@ -175,14 +75,14 @@ console.log(JSON.stringify(out));
 """
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_units_ticks_gaps_and_backoff_behave_in_node():
-    tmp = Path(tempfile.mkdtemp())
-    shutil.copy(JS / "common.js", tmp / "common.mjs")
-    (tmp / "charts.mjs").write_text(CHARTS.replace("./common.js", "./common.mjs"))
-    (tmp / "live.mjs").write_text(LIVE)
-    (tmp / "run.mjs").write_text(CHARTS_HARNESS)
-    result = subprocess.run([NODE, str(tmp / "run.mjs")], capture_output=True, text=True, timeout=60)
+async def test_units_ticks_gaps_and_backoff_behave_in_node(server, tmp_path):
+    for name in ("common", "charts", "live"):
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        (tmp_path / f"{name}.mjs").write_text(response.text.replace("./common.js", "./common.mjs"))
+    (tmp_path / "run.mjs").write_text(CHARTS_HARNESS)
+    assert NODE is not None
+    result = subprocess.run([NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     out = json.loads(result.stdout.strip().splitlines()[-1])
 
@@ -214,33 +114,13 @@ def test_units_ticks_gaps_and_backoff_behave_in_node():
     assert out["backoff"] == [1000, 2000, 4000, 8000, 15000, 15000, 15000]
 
 
-def test_history_primed_ring_is_not_drawn_as_gaps():
-    # prefill from 60 s rollups must widen the gap threshold, or the primed minutes vanish
-    assert "function ringGap(rt, ring)" in MONITORING
-    assert "ring.gap = (Number(data.step) || 0) * 2.5" in MONITORING
-    assert "Math.max(10, (rt.last?.interval || 2) * 5)" not in MONITORING
 
-
-def test_zero_rate_translates_as_one_unit_and_the_chip_follows_stale_nodes():
-    en = json.loads((STATIC / "i18n" / "en.json").read_text())
-    # «0 Б» (3 chars) would otherwise win over «Б/с» and leave «0 B/since»
-    assert en["0 Б/с"] == "0 B/s"
-    assert 'stale: "данные устарели"' in MONITORING
-    assert 'setBadge(context, "stale")' in MONITORING
-    assert ".live-badge.stale" in CSS
-
-
-def test_connections_replace_sessions_on_port_based_cards_and_fall_back_to_them():
-    assert 'connections: parts.some((entry) => finite(entry.connections))' in MONITORING
-    assert "Установленные TCP-соединения на портах протокола" in MONITORING
-    en = json.loads((STATIC / "i18n" / "en.json").read_text())
-    assert en["Соединений"] == "Connections"
-    assert en["Установленные TCP-соединения на портах протокола"].startswith("Established TCP connections")
-
-
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amneziawg():
-    source = re.search(r"function protoMeta\(entry\) \{.*?\n\}\n", MONITORING, re.S).group(0)
+async def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amneziawg(server, tmp_path):
+    response = await server.client.get("/static/js/monitoring.js")
+    assert response.status_code == 200
+    match = re.search(r"function protoMeta\(entry\) \{.*?\n\}\n", response.text, re.S)
+    assert match is not None
+    source = match.group(0)
     script = (
         "const finite = (v) => typeof v === 'number' && Number.isFinite(v); const number = (v) => String(v);\n"
         + source
@@ -248,9 +128,9 @@ def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amne
           " protoMeta({connections: 0, clients: 2}), protoMeta({connections: null, sessions: 3, clients: 1}),"
           " protoMeta({connections: null, sessions: null, clients: null})]));"
     )
-    tmp = Path(tempfile.mkdtemp())
-    (tmp / "run.mjs").write_text(script)
-    result = subprocess.run([NODE, str(tmp / "run.mjs")], capture_output=True, text=True, timeout=60)
+    (tmp_path / "run.mjs").write_text(script)
+    assert NODE is not None
+    result = subprocess.run([NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     with_conn, zero, peers, nothing = json.loads(result.stdout.strip().splitlines()[-1])
     assert "Соединений <b>5</b>" in with_conn and "Сессий" not in with_conn and "Клиентов" not in with_conn

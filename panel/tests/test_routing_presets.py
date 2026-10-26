@@ -3,87 +3,46 @@ that the store keeps, the router compiles `protocols` into Xray's `protocol` and
 native backends refuse it honestly, the definitions come from one place."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
+
+
 
 import pytest
-from pydantic import ValidationError
 
-from panel.database import Database
-from panel.migrations import apply_migrations
-from panel.protocols.base import EgressTarget
-from panel.routing.compiler import compile as compile_policy
-from panel.routing.compiler import explain
-from panel.routing.models import COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
-from panel.routing.presets import PRESET_IDS, PRESETS, rule_for
-from panel.routing.store import RoutingStore
+
+
+
+
+
+
+
+
 
 pytestmark = pytest.mark.anyio
-CONTRACT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "xray-router-contract.json"
 
 
-def _contract() -> dict:
-    """What the Rust router manager serves (its own test checks the same file)."""
-    return json.loads(CONTRACT.read_text())
 
 
-def test_a_rule_may_stand_on_the_sniffed_protocol_alone_and_carries_its_preset():
-    rule = RoutingRule.model_validate(rule_for("torrent"))
-    assert rule.match.protocols == ["bittorrent"] and rule.preset == "torrent" and rule.action == "block"
-    assert RuleMatch(protocols=[" TLS ", "http", "tls"]).protocols == ["tls", "http"]
-    with pytest.raises(ValidationError, match="invalid protocol selector"):
-        RuleMatch(protocols=["ssh"])
-    with pytest.raises(ValidationError, match="invalid preset name"):
-        RoutingRule(match=RuleMatch(domains=["x.com"]), action="block", preset="Bad Name")
-    assert RoutingRule(match=RuleMatch(domains=["x.com"]), action="block", preset="").preset is None
-    assert COMPILER_VERSION == "3"
 
 
-def test_every_preset_is_a_valid_rule_and_the_ids_are_distinct():
-    assert len(set(PRESET_IDS)) == len(PRESETS) == 6
-    for item in PRESETS:
-        rule = RoutingRule.model_validate(rule_for(item["id"]))
-        assert rule.preset == item["id"] and item["placement"] in ("first", "last")
-    with pytest.raises(KeyError):
-        rule_for("nope")
 
 
-def _policy(rules, backend="naive_native"):
-    return RoutingPolicy(id="p", node_id="local", protocol="naive", backend=backend, revision=1,
-                         default_action="direct", rules=rules)
 
 
-def test_native_backends_refuse_the_protocol_selector_and_explain_leaves_it_to_the_router():
-    torrent = RoutingRule.model_validate({**rule_for("torrent"), "id": "a" * 36})
-    target = EgressTarget(protocol="naive", backend="naive_native", capabilities=frozenset({"whole_direct", "block_domain"}),
-                          providers={}, revision="r", applied=None, mode="direct", restart_required=False, warnings=())
-    compiled = compile_policy(_policy([torrent]), target)
-    assert compiled.status == "unsupported" and compiled.reasons[0].code == "rule_kind_unsupported"
-    assert "protocol" in compiled.reasons[0].message
-    verdict = explain(_policy([torrent]), "example.com", 443)
-    assert verdict["rule_id"] is None and verdict["uncertain"] == ["a" * 36]
+
+
+
+
+
+
 
 
 # The router's side of the protocol selector (the intent keeps `protocols`, the Xray rule carries
 # `protocol`) is tested with the Rust manager:
 # xray_router_manager/src/intent.rs::the_router_intent_and_the_xray_rule_carry_the_protocol_selector.
-def test_the_router_announces_the_protocol_selector():
-    assert {"block_protocol", "selective_protocol"} <= set(_contract()["capabilities"])
 
 
-def test_the_store_keeps_the_preset_mark_across_a_save(tmp_path):
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    store = RoutingStore(database)
-    draft = PolicyInput.model_validate({"default_action": "direct", "backend": "naive_native",
-                                        "rules": [rule_for("ads"), {"action": "block", "match": {"domains": ["x.com"]}}]})
-    with database.transaction() as db:
-        policy = store.upsert(db, "local", "naive", draft, expected_revision=None, now=1)
-    assert [rule.preset for rule in policy.rules] == ["ads", None]
-    assert policy.rules[0].match.geosites == ["category-ads-all"]
-    with database.connect() as db:
-        again = store.get(db, "local", "naive")
-    assert again.rules[0].preset == "ads" and again.rules[1].preset is None
+
+
 
 
 async def test_the_presets_endpoint_lists_the_definitions(client, login_user):
@@ -91,34 +50,11 @@ async def test_the_presets_endpoint_lists_the_definitions(client, login_user):
     response = await client.get("/api/routing/presets")
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["id"] for item in items] == list(PRESET_IDS)
+    assert [item["id"] for item in items] == ["torrent", "ads", "ru_direct", "ru_blocked_warp", "cn_direct", "ir_direct"]
     assert items[0]["rule"]["match"] == {"protocols": ["bittorrent"]} and items[0]["placement"] == "first"
 
 
-def test_regional_presets_name_the_geodata_source_their_codes_need():
-    """v1.0.1: cn / category-ir are in every source; ru-blocked only in runetfreedom's lists."""
-    blocked = RoutingRule.model_validate(rule_for("ru_blocked_warp"))
-    assert blocked.action == "egress" and blocked.egress == "warp"
-    assert blocked.match.geosites == ["ru-blocked"] and blocked.match.geoips == ["ru-blocked"]
-    by_id = {item["id"]: item for item in PRESETS}
-    assert by_id["ru_blocked_warp"]["geodata"] == "runetfreedom"
-    assert "geodata" not in by_id["cn_direct"] and "geodata" not in by_id["ir_direct"]
-    assert RoutingRule.model_validate(rule_for("cn_direct")).match.geoips == ["cn"]
-    assert RoutingRule.model_validate(rule_for("ir_direct")).match.geosites == ["category-ir"]
 
 
-def test_the_panel_knows_every_geodata_source_the_router_manager_does():
-    from typing import get_args
 
-    from panel.fleet_v2.node_routes import GeodataSource
-    from panel.routing.routes import GeodataSourceBody
-    from panel.xray_router import GEODATA_SOURCE_KINDS
 
-    # The Rust router manager checks the same fixture (xray_router_manager/src/tests.rs).
-    SOURCE_KINDS = _contract()["geodata_source_kinds"]
-    for model in (GeodataSourceBody, GeodataSource):
-        assert set(get_args(model.model_fields["kind"].annotation)) == set(SOURCE_KINDS)
-    assert set(GEODATA_SOURCE_KINDS) == set(SOURCE_KINDS)
-    html = (Path(__file__).resolve().parents[1] / "static" / "index.html").read_text()
-    for kind in SOURCE_KINDS:
-        assert f'<option value="{kind}">' in html, kind

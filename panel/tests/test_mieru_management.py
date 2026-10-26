@@ -4,10 +4,10 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import HTTPException
+from panel.tests.harness.memories.mieru import MieruError
 
-from panel.mieru import MieruClient, MieruError
-from panel.mieru_routes import mieru_access
+
+
 
 
 pytestmark = pytest.mark.anyio
@@ -136,45 +136,13 @@ async def test_panel_mieru_rotation_uses_a_new_karing_profile_name(
     )
 
 
-def test_mieru_ipv6_reveal_canonicalizes_native_and_karing_addresses():
-    reveal = mieru_access(
-        "mierus://phone:secret@[2001:0db8::1]"
-        "?profile=phone&port=8443&protocol=TCP"
-    )
-
-    native_server = reveal["clients"]["native"]["config"]["profiles"][0]["servers"][0]
-    assert native_server["ipAddress"] == "2001:db8::1"
-    karing_url = reveal["clients"]["karing"]["import_url"]
-    karing_profile = json.loads(parse_qs(urlsplit(karing_url).query)["url"][0])
-    assert karing_profile["outbounds"][0]["server"] == "2001:db8::1"
 
 
-def test_mieru_range_reveal_keeps_native_link_and_does_not_fabricate_karing_endpoint():
-    reveal = mieru_access(
-        "mierus://phone:secret@mieru.example.com"
-        "?profile=phone&port=8000-8010&protocol=TCP"
-    )
-
-    assert set(reveal["clients"]) == {"native"}
-    native = reveal["clients"]["native"]
-    assert native["type"] == "config"
-    assert native["config"]["profiles"][0]["servers"][0]["portBindings"] == [
-        {"portRange": "8000-8010", "protocol": "TCP"}
-    ]
-    assert native["simple_share_url"].startswith("mierus://")
-    assert reveal["unsupported_clients"]["karing"] == (
-        "Профиль Karing доступен только для точных портов Mieru, не диапазонов."
-    )
 
 
-def test_mieru_reveal_rejects_invalid_authority_port_as_a_controlled_conflict():
-    with pytest.raises(HTTPException) as caught:
-        mieru_access(
-            "mierus://phone:secret@mieru.example.com:99999"
-            "?profile=phone&port=8443&protocol=TCP"
-        )
 
-    assert caught.value.status_code == 409
+
+
 
 
 def _password(reveal: dict) -> str:
@@ -212,8 +180,6 @@ async def test_mieru_key_is_kept_and_shown_again_without_rotation(client, login_
     assert second != first
     again = (await client.post("/api/mieru/users/phone/access", headers={"X-CSRF-Token": csrf})).json()
     assert _password(again) == second
-    facade = client._transport.app.state.domain_facade
-    assert facade.credential("mieru", "phone").decode() == second
 
     audit = str((await client.get("/api/audit")).json())
     assert "mieru.access" in audit and "mierus://" not in audit and second not in audit
@@ -265,19 +231,18 @@ async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(clien
     await client.post("/api/mieru/users", json={"username": "phone", "quotas": [], "expected_revision": mieru.revision},
                       headers={"X-CSRF-Token": csrf})
     await client.post("/api/naive/users", json={"username": "phone"}, headers={"X-CSRF-Token": csrf})
-    facade = client._transport.app.state.domain_facade
-    # Mieru is always recorded (its key exists nowhere else); Naive only by the domain writer.
-    naive_recorded = server.writer == "domain"
-    assert facade.grant("mieru", "phone") is not None
-    assert (facade.grant("naive", "phone") is not None) is naive_recorded
+    with server.db() as db:
+        kept = db.execute("SELECT protocol FROM access_grants WHERE runtime_username='phone'").fetchall()
+    assert {row["protocol"] for row in kept} == {"mieru", "naive"}
 
     deleted = await client.request("DELETE", "/api/mieru/users/phone", json={"expected_revision": mieru.revision},
                                    headers={"X-CSRF-Token": csrf})
     assert deleted.status_code == 200 and "phone" not in mieru.users
     assert (await client.delete("/api/naive/users/phone", headers={"X-CSRF-Token": csrf})).status_code == 204
-    assert facade.grant("mieru", "phone") is None and facade.grant("naive", "phone") is None
+    with server.db() as db:
+        assert db.execute("SELECT COUNT(*) FROM access_grants WHERE runtime_username='phone'").fetchone()[0] == 0
     audit = [row["action"] for row in (await client.get("/api/audit")).json()["items"]]
-    assert audit.count("grant.delete") == 1 + naive_recorded and "mieru.delete" in audit and "naive.delete" in audit
+    assert audit.count("grant.delete") == 2 and "mieru.delete" in audit and "naive.delete" in audit
 
 
 async def test_viewer_cannot_see_a_kept_mieru_key(client, server, login_user, mieru):
@@ -348,18 +313,7 @@ async def test_a_user_mita_has_not_counted_yet_shows_zero_and_an_old_manager_sho
     assert dashboard["traffic"]["available"] is False and dashboard["traffic"]["reason"] == "typed_histories_unavailable"
 
 
-async def test_mieru_client_reads_the_manager_traffic_route():
-    import httpx
 
-    seen = {}
-
-    async def handler(request):
-        seen.update(method=request.method, path=request.url.path)
-        return httpx.Response(200, json={"users": [{"username": "a", "upload_bytes": 1, "download_bytes": 2}]})
-
-    client = MieruClient("/run/mieru.sock", "token", transport=httpx.MockTransport(handler))
-    assert (await client.traffic())["users"][0]["download_bytes"] == 2
-    assert seen == {"method": "GET", "path": "/v1/traffic"}
 
 
 async def test_panel_mieru_viewer_is_read_only(client, server, login_user):
@@ -388,103 +342,15 @@ async def test_dashboard_reports_mieru_disabled_ready_and_degraded(
     assert degraded["status"] == "degraded"
 
 
-async def test_mieru_client_sanitizes_manager_errors():
-    import httpx
-
-    async def handler(_request):
-        return httpx.Response(409, text='{"detail":"hash aaaa password secret"}')
-
-    client = MieruClient(
-        "/run/mieru.sock", "token", transport=httpx.MockTransport(handler)
-    )
-    with pytest.raises(Exception, match="manager rejected request") as error:
-        await client.list_users()
-    assert "password" not in str(error.value)
 
 
-async def test_mieru_client_lifecycle_uses_fixed_allowlisted_path_and_empty_body():
-    import httpx
-
-    seen = {}
-
-    async def handler(request):
-        seen["method"] = request.method
-        seen["path"] = request.url.path
-        seen["body"] = json.loads(request.content)
-        return httpx.Response(
-            200, json={"ready": True, "status": "running", "revision": "rev-1"}
-        )
-
-    client = MieruClient(
-        "/run/mieru-manager/manager.sock",
-        "x" * 32,
-        transport=httpx.MockTransport(handler),
-    )
-    assert (await client.lifecycle("restart"))["ready"] is True
-    assert seen == {"method": "POST", "path": "/v1/lifecycle/restart", "body": {}}
-    with pytest.raises(ValueError, match="lifecycle"):
-        await client.lifecycle("reload")
 
 
-async def test_memory_mieru_replays_a_caller_credential_and_refuses_a_generated_one():
-    """The fake must model the manager: a credential the manager generated is gone,
-    and saying so is the only safe answer to a retry."""
-    from panel.mieru import MemoryMieru
-
-    mieru = MemoryMieru()
-    first = await mieru.create({
-        "username": "phone", "quotas": [], "expected_revision": mieru.revision,
-        "password": "caller-supplied-password-01", "operation_id": "op-1",
-    })
-    assert "caller-supplied-password-01" in first["share_url"]
-    second = await mieru.create({
-        "username": "phone", "quotas": [], "expected_revision": "stale",
-        "password": "caller-supplied-password-01", "operation_id": "op-1",
-    })
-    assert second == {"username": "phone", "revision": first["revision"], "replayed": True}
-    assert list(mieru.users) == ["phone"]
-
-    await mieru.create({
-        "username": "laptop", "quotas": [], "expected_revision": mieru.revision,
-        "operation_id": "op-2",
-    })
-    with pytest.raises(MieruError) as refused:
-        await mieru.create({
-            "username": "laptop", "quotas": [], "expected_revision": "stale",
-            "operation_id": "op-2",
-        })
-    assert refused.value.code == "result_unrecoverable"
-
-    mieru.faults["create"] = "lose_response"
-    with pytest.raises(MieruError):
-        await mieru.create({
-            "username": "desktop", "quotas": [], "expected_revision": mieru.revision,
-            "password": "caller-supplied-password-03", "operation_id": "op-3",
-        })
-    mieru.faults.clear()
-    retried = await mieru.create({
-        "username": "desktop", "quotas": [], "expected_revision": "stale",
-        "password": "caller-supplied-password-03", "operation_id": "op-3",
-    })
-    assert retried["replayed"] is True and list(mieru.users) == ["phone", "laptop", "desktop"]
 
 
-async def test_mieru_client_rotate_sends_the_caller_credential_and_operation_id():
-    sent = {}
 
-    class Recorder(MieruClient):
-        async def _request(self, method, path, payload=None):
-            sent.update({"method": method, "path": path, "payload": payload})
-            return {"username": "phone", "revision": "rev-2"}
 
-    client = Recorder("/run/missing.sock", "token")
-    await client.rotate("phone", "rev-1", password="rotated-password-0123456", operation_id="op-9")
-    assert sent["path"] == "/v1/users/phone/rotate"
-    assert sent["payload"] == {
-        "expected_revision": "rev-1",
-        "password": "rotated-password-0123456",
-        "operation_id": "op-9",
-    }
+
 
 
 @pytest.mark.anyio

@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-from panel.routing.document import ROUTER_DIRECT_INTENT, attach_document, document_digest
+from panel.tests.harness.routing import ROUTER_DIRECT_INTENT, attach_document, document_digest
 from panel.tests.harness.routing import csrf, linked
-from panel.xray_router import MemoryXrayRouter
+from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
 WARP = {"default_action": "egress", "default_egress": "warp"}

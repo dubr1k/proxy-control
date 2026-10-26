@@ -97,6 +97,7 @@ pub struct FakeAdapter {
     pub discovers: AtomicUsize,
     applied: Mutex<HashSet<String>>,
     pub template: Mutex<Map<String, Value>>,
+    pub after_create: Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
 
 impl FakeAdapter {
@@ -116,6 +117,7 @@ impl FakeAdapter {
             discovers: AtomicUsize::new(0),
             applied: Mutex::new(HashSet::new()),
             template: Mutex::new(Map::new()),
+            after_create: Mutex::new(None),
         })
     }
 
@@ -242,6 +244,10 @@ impl ProtocolAdapter for FakeAdapter {
             users.insert(name.clone(), FakeUser { password: password.clone(), enabled: true });
             self.applied.lock().unwrap().insert(operation_id.to_string());
             drop(users);
+            let after_create = self.after_create.lock().unwrap().take();
+            if let Some(callback) = after_create {
+                callback();
+            }
             if self.take_fault("create") == Some(Fault::LoseResponse) {
                 return Err(Self::lost());
             }

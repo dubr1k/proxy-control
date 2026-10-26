@@ -90,6 +90,23 @@ fn download_label(label: &str) -> &str {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::download_label;
+    use crate::apps::APPS;
+
+    #[test]
+    fn every_catalogue_download_label_has_an_english_translation() {
+        for app in APPS {
+            for (label, _) in app.downloads {
+                let english = download_label(label);
+                assert_ne!(english, *label, "{}: {label}", app.id);
+                assert!(english.is_ascii(), "{}: {label}", app.id);
+            }
+        }
+    }
+}
+
 /// `PLATFORM_NAMES`.
 fn platform_name(key: &str) -> Pair {
     match key {

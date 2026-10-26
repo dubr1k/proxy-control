@@ -306,6 +306,36 @@ async fn options_drift_when_the_adapter_cannot_apply_a_pushed_option() {
 }
 
 #[tokio::test]
+async fn option_drift_never_overrides_a_suspended_resources_disabled_runtime() {
+    let node = world();
+    accept(&node, push(1, vec![enabled("mtproxy", "dave")], json!({"grant:dave:1": "0".repeat(32)}))).await;
+    apply(&node, 1).await;
+    let drifted = resource("mtproxy", "dave", "disabled", 1, Some(json!({"expiration": 999})), "caller");
+    accept(&node, push(2, vec![drifted], json!({}))).await;
+    let (observed, _) = apply(&node, 2).await;
+    assert_eq!(node.runtime.telemt.state().users["dave"]["enabled"], false);
+    assert_eq!(observed.resources[0].state.as_str(), "disabled");
+}
+
+#[tokio::test]
+async fn converged_generation_rechecks_validity_without_a_new_central_generation() {
+    let node = world();
+    let mut timed = enabled("naive", "alice");
+    timed["valid_from"] = json!(1_800_000_001);
+    timed["valid_until"] = json!(1_800_000_002);
+    accept(&node, push(1, vec![timed], json!({"grant:alice:1": "pw"}))).await;
+    apply(&node, 1).await;
+    assert_eq!(node.runtime.naive.state().users["alice"]["enabled"], false);
+    node.clock.set(1_800_000_001.0);
+    node.node.reconciler().run_pending().await.unwrap();
+    assert_eq!(node.runtime.naive.state().users["alice"]["enabled"], true);
+    node.clock.set(1_800_000_002.0);
+    node.node.reconciler().run_pending().await.unwrap();
+    assert_eq!(node.runtime.naive.state().users["alice"]["enabled"], false);
+    assert_eq!(support::table(&node.database, "SELECT generation FROM managed_generations")[0]["generation"], 1);
+}
+
+#[tokio::test]
 async fn run_pending_re_applies_a_generation_that_never_converged() {
     let node = world();
     accept(&node, push(1, vec![enabled("naive", "alice")], json!({"grant:alice:1": "pw"}))).await;

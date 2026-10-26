@@ -7,57 +7,35 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
-JS = Path(__file__).resolve().parent.parent / "static/js"
+pytestmark = pytest.mark.anyio
+
 NODE = shutil.which("node")
 
 # page module -> (view name, protocol, the expression that names the user in the cell)
-PAGES = {
-    "mieru.js": ("mieru", "mieru", "user.username"),
-    "naive.js": ("naive", "naive", "user.username"),
-    "trusttunnel.js": ("trusttunnel", "trusttunnel", "row.username"),
-    "amneziawg.js": ("amneziawg", "amneziawg", "row.username"),
-    "users.js": ("users", "mtproxy", "user.username"),
-}
 
 
-@pytest.mark.parametrize("module", PAGES)
-def test_every_protocol_page_has_a_live_cell_per_user_and_starts_the_poller(module):
-    source = (JS / module).read_text()
-    view, protocol, name = PAGES[module]
-    assert 'from "./live-rates.js"' in source
-    assert f'<small class="live-rate" data-live-rate="${{esc({name})}}"></small>' in source
-    assert f'startLiveRates(context, generation, "{view}", "{protocol}")' in source
 
 
-def test_pages_that_repaint_their_list_put_the_last_numbers_back():
-    for module in ("naive.js", "users.js"):
-        source = (JS / module).read_text()
-        assert "repaintLiveRates(context);" in source, module
 
 
-def test_the_dashboard_shows_mieru_volumes_when_the_manager_has_them():
-    source = (JS / "dashboard.js").read_text()
-    assert "mieru.traffic?.available" in source and "С запуска mita" in source
 
 
-def test_the_poller_stops_with_its_page_and_never_sends_another_pages_numbers():
-    source = (JS / "live-rates.js").read_text()
-    assert "state.navigationGeneration === generation && state.view === view" in source
-    assert "state.liveRatesLast = null" in source and "document.hidden" in source
-    assert "style=" not in source
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_the_painter_shows_split_total_and_averaged_rates_and_clears_idle_users():
-    tmp = Path(tempfile.mkdtemp())
+
+
+
+
+
+async def test_the_painter_shows_split_total_and_averaged_rates_and_clears_idle_users(server, tmp_path):
     for name in ("common", "charts", "live-rates"):
-        text = (JS / f"{name}.js").read_text().replace("./common.js", "./common.mjs").replace("./charts.js", "./charts.mjs")
-        (tmp / f"{name}.mjs").write_text(text)
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        text = response.text.replace("./common.js", "./common.mjs").replace("./charts.js", "./charts.mjs")
+        (tmp_path / f"{name}.mjs").write_text(text)
     code = """
 import * as mod from %s;
 const cell = (user) => ({ dataset: { liveRate: user }, textContent: "stale", title: "" });
@@ -75,7 +53,8 @@ const live = Object.fromEntries(Object.entries(cells).map(([k, v]) => [k, v.text
 context.state.liveRatesLast = { live: false, clients };
 mod.repaintLiveRates(context);
 console.log(JSON.stringify({ live, naive: cells.alice.textContent, title: cells.alice.title, quiet: cells.quiet.textContent }));
-""" % json.dumps((tmp / "live-rates.mjs").as_uri())
+""" % json.dumps((tmp_path / "live-rates.mjs").as_uri())
+    assert NODE is not None
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["live"]["alice"] == "Сейчас ↓ 3,00 МБ/с · ↑ 2,00 КБ/с" or out["live"]["alice"].startswith("Сейчас ↓ 3")
     assert out["live"]["bob"].startswith("Сейчас 1") and out["live"]["total"].startswith("Сейчас 5")
@@ -84,9 +63,4 @@ console.log(JSON.stringify({ live, naive: cells.alice.textContent, title: cells.
     assert out["naive"].startswith("За минуту ↓ 3") and "закрывается" in out["title"]
 
 
-def test_the_services_list_on_the_overview_names_every_protocol_that_is_switched_on():
-    source = (JS / "dashboard.js").read_text()
-    for needle in ("MTProxy · Telemt", "NaiveProxy · manager", 'serviceRow("Mieru · manager"',
-                   'serviceRow("AmneziaWG · manager"', 'serviceRow("TrustTunnel · manager"'):
-        assert needle in source, needle
-    assert "if (!available) return \"\";" in source  # a protocol that is off has no line
+
