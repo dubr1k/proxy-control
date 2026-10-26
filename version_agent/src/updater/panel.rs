@@ -23,8 +23,8 @@ use crate::service::{optional_overlay, VersionAgent, PANEL_MANAGERS};
 use crate::upstream::compare_versions;
 
 use super::{
-    argv, chained, compose_command, compose_up, copy2, is_symlink, override_exists, refuse, run, run_compose,
-    stamp, state_dir, Failure, HostUpdater, Step, AGENT_RESTART, MAX_ARTIFACT,
+    argv, chained, compose_command, compose_up, copy2, is_symlink, override_exists, refuse, run, run_compose, stamp,
+    state_dir, Failure, HostUpdater, Step, AGENT_RESTART, MAX_ARTIFACT,
 };
 
 /// The panel database files snapshotted before the new generation starts.
@@ -55,9 +55,10 @@ pub fn update_panel_async(
             return Err(AgentError::conflict("panel update is already running"));
         }
         if status == Some("rollback_failed") {
-            return Err(
-                UpdateError::rollback_failed("panel has an unverified rollback; operator recovery is required").into()
-            );
+            return Err(UpdateError::rollback_failed(
+                "panel has an unverified rollback; operator recovery is required",
+            )
+            .into());
         }
         if let Some(expected) = expected {
             if current.as_deref() != Some(expected) {
@@ -446,13 +447,13 @@ fn copy_db_file(updater: &HostUpdater, source: &Path, target: &Path) -> Step<()>
 fn chown(path: &Path, uid: u32, gid: u32) -> Step<()> {
     match std::os::unix::fs::chown(path, Some(uid), Some(gid)) {
         Ok(()) => Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => Err(Failure::Update(
-            UpdateError::new("panel database copy could not keep its owner").caused_by(Cause {
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            Err(Failure::Update(UpdateError::new("panel database copy could not keep its owner").caused_by(Cause {
                 class: "PermissionError".into(),
                 message: super::os_message(&err),
                 stderr: None,
-            }),
-        )),
+            })))
+        }
         Err(err) => Err(err.into()),
     }
 }
@@ -535,8 +536,18 @@ fn sync_and_restart_panel_locked(
     let _ = fs::remove_dir_all(&backups.tree);
     fs::create_dir_all(&backups.tree)?;
     let mut progress = Progress::default();
-    let outcome =
-        swap(updater, agent, entry, staging, compose_dir, &present, &backups, &running_image, &mut progress, &mut handoff);
+    let outcome = swap(
+        updater,
+        agent,
+        entry,
+        staging,
+        compose_dir,
+        &present,
+        &backups,
+        &running_image,
+        &mut progress,
+        &mut handoff,
+    );
     let Err(exc) = outcome else { return Ok((pending, agent_changed)) };
     let restore = (|| -> Step<()> {
         restore_panel(updater, agent, compose_dir, &present, &backups, &progress)?;
@@ -556,10 +567,12 @@ fn sync_and_restart_panel_locked(
         return Err(Failure::Update(chained(chained(error, &rollback_exc), &exc)));
     }
     if exc.class() == OWNERSHIP_RECOVERY_FAILED {
-        let error = UpdateError::rollback_failed("panel filesystem was restored but installer ownership recovery failed");
+        let error =
+            UpdateError::rollback_failed("panel filesystem was restored but installer ownership recovery failed");
         return Err(Failure::Update(chained(error, &exc)));
     }
-    let error = UpdateError::rolled_back(format!("panel update failed ({exc}); previous generation was restored and verified"));
+    let error =
+        UpdateError::rolled_back(format!("panel update failed ({exc}); previous generation was restored and verified"));
     Err(Failure::Update(chained(error, &exc)))
 }
 

@@ -16,7 +16,8 @@ use crate::testutil::TempDir;
 use crate::updater::xray::XRAY_STATUS_COMMAND;
 use crate::updater::{compose_command, override_with};
 
-const TELEMT_IMAGE: &str = "ghcr.io/example/telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const TELEMT_IMAGE: &str =
+    "ghcr.io/example/telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const BINARY: &[u8] = b"verified-runtime-binary\n";
 const PINNED_CADDY: &str = "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=";
 const CHECKER: &str = "/usr/local/libexec/check-naive-caddy-build";
@@ -206,8 +207,10 @@ fn mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_manage
     config.compose_files = vec!["compose.yaml".into(), "compose.mieru.yaml".into()];
     config.binary_paths = components(&[("mita", &target)]);
     config.service_names = names(&[("mita", "mita")]);
-    config.consumer_overlays =
-        BTreeMap::from([("mita".to_string(), (overlay.clone(), "MIERU_MITA_SHA256".to_string(), "mieru-manager".to_string()))]);
+    config.consumer_overlays = BTreeMap::from([(
+        "mita".to_string(),
+        (overlay.clone(), "MIERU_MITA_SHA256".to_string(), "mieru-manager".to_string()),
+    )]);
     let host = Host::new(|c: &Command| {
         if starts(&c.argv, &["systemctl", "list-units", "--plain"]) {
             return Ok("mita@1.service loaded active running\n".into());
@@ -217,13 +220,20 @@ fn mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_manage
     let agent = agent_with(config, &host, serving(BINARY.to_vec()));
     agent.update("mita", "3.35.0", None).unwrap();
     let written = text(&overlay);
-    assert!(written.contains(&format!("MIERU_MITA_SHA256={}", sha(BINARY))) && written.contains("MIERU_PUBLIC_HOST=m.example.com"));
+    assert!(
+        written.contains(&format!("MIERU_MITA_SHA256={}", sha(BINARY)))
+            && written.contains("MIERU_PUBLIC_HOST=m.example.com")
+    );
     let position = |key: &str| written.find(key).unwrap();
     assert!(position("MIERU_PUBLIC_HOST") < position("MIERU_MITA_SHA256"));
     assert!(position("MIERU_MITA_SHA256") < position("MIERU_LANE_SLOTS"));
     assert!(!written.contains(&"0".repeat(64)));
     let argvs = host.argvs();
-    for expected in [&["systemctl", "restart", "mita"][..], &["systemctl", "restart", "mita@1"], &["systemctl", "is-active", "mita@1"]] {
+    for expected in [
+        &["systemctl", "restart", "mita"][..],
+        &["systemctl", "restart", "mita@1"],
+        &["systemctl", "is-active", "mita@1"],
+    ] {
         assert!(argvs.iter().any(|a| is(a, expected)), "{expected:?}");
     }
     let ups: Vec<&Vec<String>> =
@@ -260,8 +270,10 @@ fn mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_back() {
     config.compose_files = vec!["compose.yaml".into()];
     config.binary_paths = components(&[("mita", &target)]);
     config.service_names = names(&[("mita", "mita")]);
-    config.consumer_overlays =
-        BTreeMap::from([("mita".to_string(), (overlay.clone(), "MIERU_MITA_SHA256".to_string(), "mieru-manager".to_string()))]);
+    config.consumer_overlays = BTreeMap::from([(
+        "mita".to_string(),
+        (overlay.clone(), "MIERU_MITA_SHA256".to_string(), "mieru-manager".to_string()),
+    )]);
     let ups = Arc::new(Mutex::new(Vec::new()));
     let (seen, watched) = (ups.clone(), overlay.clone());
     let host = Host::new(move |c: &Command| {
@@ -414,7 +426,10 @@ fn naive_build_writes_a_pinned_dockerfile_builds_extracts_and_installs() {
     assert_eq!(build.timeout.as_secs(), 900);
     assert!(commands.iter().any(|c| is(&c.argv, &["docker", "rm", "0123456789abcdef"])));
     let create = commands.iter().find(|c| starts(&c.argv, &["docker", "create"])).unwrap();
-    assert_eq!(create.argv, ["docker", "create", "--entrypoint", "/caddy", "proxy-control/caddy-naive:agent", "version"]);
+    assert_eq!(
+        create.argv,
+        ["docker", "create", "--entrypoint", "/caddy", "proxy-control/caddy-naive:agent", "version"]
+    );
     assert_eq!(read(&target), BINARY);
     assert_eq!(text(&pin).trim(), "v2.12.0 h1:newbuildhash=");
     assert!(commands
@@ -508,7 +523,14 @@ fn xray_fixture(dir: &TempDir, overlay_text: &str) -> (PathBuf, PathBuf, Vec<u8>
     (bin_dir, overlay, payload)
 }
 
-fn xray_config(dir: &TempDir, state: &Path, bin_dir: &Path, overlay: &Path, files: &[&str], router: bool) -> AgentConfig {
+fn xray_config(
+    dir: &TempDir,
+    state: &Path,
+    bin_dir: &Path,
+    overlay: &Path,
+    files: &[&str],
+    router: bool,
+) -> AgentConfig {
     let mut config = AgentConfig::new(dir.join("catalog.json"), state);
     config.compose_dir = Some(dir.path().to_path_buf());
     config.compose_files = files.iter().map(|f| f.to_string()).collect();
@@ -531,12 +553,22 @@ fn xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_versio
     let (bin_dir, overlay, payload) = xray_fixture(&dir, &overlay_text);
     dir.write(".env", "PANEL_DOMAIN=p.example.com\n");
     let status = xray_status_argv();
-    let host = Host::new(move |c: &Command| Ok(if c.argv == status { xray_status("26.4.1", "idle") } else { String::new() }));
-    let config =
-        xray_config(&dir, &dir.join("state.json"), &bin_dir, &overlay, &["compose.yaml", "compose.xray-router.yaml"], true);
+    let host =
+        Host::new(move |c: &Command| Ok(if c.argv == status { xray_status("26.4.1", "idle") } else { String::new() }));
+    let config = xray_config(
+        &dir,
+        &dir.join("state.json"),
+        &bin_dir,
+        &overlay,
+        &["compose.yaml", "compose.xray-router.yaml"],
+        true,
+    );
     let agent = agent_with(config, &host, serving(payload.clone()));
     assert_eq!(agent.update("xray", "26.4.1", None).unwrap()["changed"], true);
-    assert_eq!((read(&bin_dir.join("xray")), read(&bin_dir.join("geosite.dat"))), (b"xray-new".to_vec(), b"geosite".to_vec()));
+    assert_eq!(
+        (read(&bin_dir.join("xray")), read(&bin_dir.join("geosite.dat"))),
+        (b"xray-new".to_vec(), b"geosite".to_vec())
+    );
     assert_eq!((mode(&bin_dir.join("xray")), mode(&bin_dir.join("geoip.dat"))), (0o755, 0o644));
     assert!(!bin_dir.join("README.md").exists());
     let written = text(&overlay);
@@ -553,10 +585,11 @@ fn xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_versio
     let position = |argv: &Vec<String>| argvs.iter().position(|a| a == argv).unwrap();
     assert!(position(ups[0]) < position(&xray_status_argv()));
     let state = &state_json(&dir.join("state.json"))["components"]["xray"];
-    let expected: Map<String, Value> = [("xray", &b"xray-new"[..]), ("geoip.dat", b"geoip"), ("geosite.dat", b"geosite")]
-        .iter()
-        .map(|(name, data)| (name.to_string(), json!(sha(data))))
-        .collect();
+    let expected: Map<String, Value> =
+        [("xray", &b"xray-new"[..]), ("geoip.dat", b"geoip"), ("geosite.dat", b"geosite")]
+            .iter()
+            .map(|(name, data)| (name.to_string(), json!(sha(data))))
+            .collect();
     assert_eq!(state["members"], Value::Object(expected));
     assert_eq!((&state["version"], &state["sha256"]), (&json!("26.4.1"), &json!(sha(&payload))));
     assert_eq!(read(&dir.join("backups/xray.previous/xray")), b"old-xray");
@@ -593,7 +626,10 @@ fn compose_commands_carry_the_mcp_overlay_and_the_panel_sync_ships_its_file() {
     }
     config.compose_files = vec![];
     let agent = agent_with(config, &Host::answering(""), no_download());
-    assert_eq!(compose_command(&agent, &["up"], false, false).unwrap_err().message(), "Compose deployment is not configured");
+    assert_eq!(
+        compose_command(&agent, &["up"], false, false).unwrap_err().message(),
+        "Compose deployment is not configured"
+    );
 }
 
 #[test]
@@ -634,8 +670,9 @@ fn xray_rollback_that_does_not_reach_idle_is_reported_as_unverified() {
     let (bin_dir, overlay, payload) = xray_fixture(&dir, &format!("XRAY_ROUTER_XRAY_SHA256={}\n", "0".repeat(64)));
     dir.write("state.json", &json!({"schema": 2, "components": {"xray": {"version": "26.3.27"}}}).to_string());
     let status = xray_status_argv();
-    let host =
-        Host::new(move |c: &Command| Ok(if c.argv == status { xray_status("26.3.27", "broken") } else { String::new() }));
+    let host = Host::new(move |c: &Command| {
+        Ok(if c.argv == status { xray_status("26.3.27", "broken") } else { String::new() })
+    });
     let config = xray_config(&dir, &dir.join("state.json"), &bin_dir, &overlay, &["compose.yaml"], true);
     let agent = agent_with(config, &host, serving(payload));
     let error = update_error(agent.update("xray", "26.4.1", Some("26.3.27")));
@@ -738,7 +775,8 @@ fn telemt_rollback_verifies_restored_image_and_health() {
     let host = Host::new(move |c: &Command| {
         if starts(&c.argv, &["docker", "compose", "--project-name"]) && has(&c.argv, "up") {
             let configured = std::fs::read_to_string(&watched).unwrap_or_default();
-            *current.lock().unwrap() = if configured.contains(TELEMT_IMAGE) { TELEMT_IMAGE.into() } else { old_image.clone() };
+            *current.lock().unwrap() =
+                if configured.contains(TELEMT_IMAGE) { TELEMT_IMAGE.into() } else { old_image.clone() };
             return Ok("ok\n".into());
         }
         if has(&c.argv, "{{.Config.Image}}") {
@@ -756,7 +794,10 @@ fn telemt_rollback_verifies_restored_image_and_health() {
     assert_eq!(error.state, UpdateState::RolledBack);
     assert!(error.message.contains("restored and verified"));
     assert_eq!(text(&override_file), old_override);
-    assert_eq!(*reads.lock().unwrap(), [TELEMT_IMAGE.to_string(), format!("ghcr.io/example/telemt@sha256:{}", "b".repeat(64))]);
+    assert_eq!(
+        *reads.lock().unwrap(),
+        [TELEMT_IMAGE.to_string(), format!("ghcr.io/example/telemt@sha256:{}", "b".repeat(64))]
+    );
     assert_eq!(state_json(&dir.join("state.json"))["components"]["telemt"]["version"], "3.4.24");
 }
 
@@ -790,7 +831,12 @@ struct BuildHost {
 }
 
 /// `_build_agent(tmp_path, downloader=…, fail_on=…, previous_override=…)`.
-fn build_agent(dir: &TempDir, updater: HostUpdater, fail_on: Option<&'static str>, previous: Option<&str>) -> BuildHost {
+fn build_agent(
+    dir: &TempDir,
+    updater: HostUpdater,
+    fail_on: Option<&'static str>,
+    previous: Option<&str>,
+) -> BuildHost {
     let entry = json!({"version": "3.5.14", "kind": "build", "base_image": build_base(), "url": BUILD_URL, "sha256": sha(BUILD_BINARY)});
     write(&dir.join("catalog.json"), json!({"schema": 1, "components": {"telemt": [entry]}}).to_string().as_bytes());
     let state = dir.join("agent/state.json");
@@ -806,7 +852,11 @@ fn build_agent(dir: &TempDir, updater: HostUpdater, fail_on: Option<&'static str
         let argv = &c.argv;
         let current = || {
             let text = std::fs::read_to_string(&watched).unwrap_or_default();
-            if text.contains(&build_tag()) { build_tag() } else { "proxy-control-telemt:3.5.9-aaaaaaaaaaaa".to_string() }
+            if text.contains(&build_tag()) {
+                build_tag()
+            } else {
+                "proxy-control-telemt:3.5.9-aaaaaaaaaaaa".to_string()
+            }
         };
         if starts(argv, &["docker", "build"]) {
             let directory = PathBuf::from(argv.last().unwrap());
@@ -824,10 +874,15 @@ fn build_agent(dir: &TempDir, updater: HostUpdater, fail_on: Option<&'static str
             return Ok(current());
         }
         if has(argv, "{{.State.Health.Status}}") {
-            return Ok(if fail_on == Some("health") && current() == build_tag() { "unhealthy" } else { "healthy" }.into());
+            return Ok(
+                if fail_on == Some("health") && current() == build_tag() { "unhealthy" } else { "healthy" }.into()
+            );
         }
         if starts(argv, &["docker", "image", "ls"]) {
-            return Ok(format!("{}\nproxy-control-telemt:3.5.9-aaaaaaaaaaaa\nproxy-control-telemt:3.5.7-bbbbbbbbbbbb\n", build_tag()));
+            return Ok(format!(
+                "{}\nproxy-control-telemt:3.5.9-aaaaaaaaaaaa\nproxy-control-telemt:3.5.7-bbbbbbbbbbbb\n",
+                build_tag()
+            ));
         }
         Ok("ok\n".into())
     });
@@ -861,7 +916,10 @@ fn telemt_build_update_builds_the_local_image_and_never_pulls() {
     assert!(!argvs.iter().any(|a| has(a, "pull")));
     assert!(argvs.iter().any(|a| has(a, "up") && has(a, "mtproxy")));
     let saved = &state_json(&run.state)["components"]["telemt"];
-    assert_eq!((&saved["version"], &saved["kind"], &saved["base_image"]), (&json!("3.5.14"), &json!("build"), &json!(build_base())));
+    assert_eq!(
+        (&saved["version"], &saved["kind"], &saved["base_image"]),
+        (&json!("3.5.14"), &json!("build"), &json!(build_base()))
+    );
     // Only the image now in use and the previous generation survive (best effort).
     let removed: Vec<&String> =
         argvs.iter().filter(|a| starts(a, &["docker", "image", "rm"])).map(|a| a.last().unwrap()).collect();
@@ -930,7 +988,8 @@ fn telemt_build_failure_without_a_previous_override_removes_it() {
 
 #[test]
 fn the_override_keeps_every_other_block_and_replaces_one() {
-    let text = "# Generated by proxy-control version-agent; do not edit manually.\nservices:\n  mtproxy:\n    image: x\n\
+    let text =
+        "# Generated by proxy-control version-agent; do not edit manually.\nservices:\n  mtproxy:\n    image: x\n\
                 \n  awg-manager:\n    build:\n      args:\n        AWG_GO_VERSION: \"1\"\nnot indented\n";
     let lines = ["    image: y".to_string()];
     assert_eq!(
@@ -944,7 +1003,10 @@ fn the_override_keeps_every_other_block_and_replaces_one() {
         "# Generated by proxy-control version-agent; do not edit manually.\nservices:\n  mtproxy:\n    image: x\n  \
          awg-manager:\n    build:\n"
     );
-    assert_eq!(override_with("", "mtproxy", &lines), format!("{}services:\n  mtproxy:\n    image: y\n", crate::updater::OVERRIDE_HEADER));
+    assert_eq!(
+        override_with("", "mtproxy", &lines),
+        format!("{}services:\n  mtproxy:\n    image: y\n", crate::updater::OVERRIDE_HEADER)
+    );
     // A repeated header starts its block over (Python's dict assignment).
     assert_eq!(
         override_with("  a:\n    one\n  b:\n    two\n  a:\n    three\n", "c", &[]),
@@ -1000,11 +1062,14 @@ fn manager_host(dir: &TempDir, fail_build: bool, env_version: Option<&'static st
                 return Err(runtime_error("build failed"));
             }
             let text = std::fs::read_to_string(&override_file).unwrap();
-            let value = |key: &str| text.split(&format!("{key}: \"")).nth(1).map(|rest| rest.split('"').next().unwrap().to_string());
+            let value = |key: &str| {
+                text.split(&format!("{key}: \"")).nth(1).map(|rest| rest.split('"').next().unwrap().to_string())
+            };
             let mut versions = versions.lock().unwrap();
             if has(argv, "awg-manager") {
                 if let Some(version) = value("AWG_GO_VERSION") {
-                    versions.insert("proxy-control-awg-manager".into(), env_version.map(String::from).unwrap_or(version));
+                    versions
+                        .insert("proxy-control-awg-manager".into(), env_version.map(String::from).unwrap_or(version));
                 }
             }
             if has(argv, "trusttunnel-manager") {
@@ -1027,7 +1092,8 @@ fn manager_agent(dir: &TempDir, host: &ManagerHost, sleeps: Option<Arc<Mutex<Vec
     write(&dir.join("catalog.json"), catalog.to_string().as_bytes());
     let mut config = AgentConfig::new(dir.join("catalog.json"), dir.join("state.json"));
     config.compose_dir = Some(host.compose.clone());
-    config.compose_files = ["compose.yaml", "compose.amneziawg.yaml", "compose.trusttunnel.yaml"].map(String::from).to_vec();
+    config.compose_files =
+        ["compose.yaml", "compose.amneziawg.yaml", "compose.trusttunnel.yaml"].map(String::from).to_vec();
     config.manager_health_timeout = 4.0;
     let mut updater = no_download();
     if let Some(sleeps) = sleeps {
@@ -1061,7 +1127,10 @@ fn an_update_rebuilds_the_manager_with_build_args_and_keeps_the_other_overrides(
     let commands = host.host.commands();
     let builds: Vec<&Command> =
         commands.iter().filter(|c| starts(&c.argv, &["docker", "compose"]) && has(&c.argv, "--build")).collect();
-    assert_eq!(builds.iter().map(|c| c.argv.last().unwrap().as_str()).collect::<Vec<_>>(), ["awg-manager", "trusttunnel-manager"]);
+    assert_eq!(
+        builds.iter().map(|c| c.argv.last().unwrap().as_str()).collect::<Vec<_>>(),
+        ["awg-manager", "trusttunnel-manager"]
+    );
     for build in &builds {
         assert!(has(&build.argv, "--project-name") && has(&build.argv, "proxy_panel_by_dubr1k"));
         assert!(has(&build.argv, &path_text(&override_file)));
@@ -1070,7 +1139,10 @@ fn an_update_rebuilds_the_manager_with_build_args_and_keeps_the_other_overrides(
     let tags: Vec<&Command> = commands.iter().filter(|c| starts(&c.argv, &["docker", "tag"])).collect();
     assert!(tags[0].argv[3].starts_with("proxy_panel_by_dubr1k-awg-manager:rollback-"));
     let listed = agent.list_versions(true).unwrap()["components"].clone();
-    assert_eq!((&listed["amneziawg"]["current"], &listed["trusttunnel"]["current"]), (&json!("3.1.20260828"), &json!("1.2.0")));
+    assert_eq!(
+        (&listed["amneziawg"]["current"], &listed["trusttunnel"]["current"]),
+        (&json!("3.1.20260828"), &json!("1.2.0"))
+    );
 }
 
 #[test]
@@ -1078,15 +1150,22 @@ fn a_failed_build_restores_the_override_and_the_image_and_proves_the_old_version
     let dir = TempDir::new("manager-failed");
     let host = manager_host(&dir, true, None);
     let override_file = host.compose.join("version-overrides/compose.versions.yaml");
-    write(&override_file, b"# Generated by proxy-control version-agent; do not edit manually.\nservices:\n  mtproxy:\n    image: x\n");
+    write(
+        &override_file,
+        b"# Generated by proxy-control version-agent; do not edit manually.\nservices:\n  mtproxy:\n    image: x\n",
+    );
     let before = read(&override_file);
     let agent = manager_agent(&dir, &host, None);
     let error = update_error(agent.update("amneziawg", "3.1.20260828", Some("3.1.20260814")));
     assert_eq!(error.state, UpdateState::RolledBack);
     assert_eq!(read(&override_file), before);
     let commands = host.host.commands();
-    assert!(commands.iter().any(|c| starts(&c.argv, &["docker", "tag"]) && c.argv.last().unwrap() == "proxy_panel_by_dubr1k-awg-manager:latest"));
-    let restore = commands.iter().find(|c| starts(&c.argv, &["docker", "compose"]) && has(&c.argv, "--no-build")).unwrap();
+    assert!(commands
+        .iter()
+        .any(|c| starts(&c.argv, &["docker", "tag"])
+            && c.argv.last().unwrap() == "proxy_panel_by_dubr1k-awg-manager:latest"));
+    let restore =
+        commands.iter().find(|c| starts(&c.argv, &["docker", "compose"]) && has(&c.argv, "--no-build")).unwrap();
     assert_eq!(restore.timeout.as_secs(), 300);
 }
 
@@ -1097,7 +1176,10 @@ fn a_rebuild_that_reports_another_version_is_rolled_back() {
     let agent = manager_agent(&dir, &host, None);
     let error = update_error(agent.update("amneziawg", "3.1.20260828", Some("3.1.20260814")));
     assert_eq!(error.state, UpdateState::RolledBack);
-    assert!(error.causes.iter().any(|c| c.message == "awg-manager reports 3.1.20260812 after the rebuild"), "{error:?}");
+    assert!(
+        error.causes.iter().any(|c| c.message == "awg-manager reports 3.1.20260812 after the rebuild"),
+        "{error:?}"
+    );
     // There was no override before.
     assert!(!host.compose.join("version-overrides/compose.versions.yaml").exists());
 }

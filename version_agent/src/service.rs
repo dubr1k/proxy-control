@@ -4,7 +4,7 @@
 //!
 //! What an update *does* per component (downloads, builds, restarts, rollbacks, the panel's
 //! self-update and the manager rebuild) is behind [`Updater`]: [`crate::updater::HostUpdater`]
-//! by default; [`NotPorted`] (refuses with the Python error shape) remains for tests.
+//! by default.
 
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
@@ -280,35 +280,6 @@ pub trait Updater: Send + Sync {
     /// Waits for the background workers (a panel update, a manager rebuild) when the agent stops,
     /// so a stop does not cut a panel update mid-sync (Python died with the worker).
     fn wait_idle(&self) {}
-}
-
-/// A stand-in that refuses every update as `update_failed`; a rebuild with nothing to rebuild
-/// answers the managers' state, as Python does.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NotPorted;
-
-pub const NOT_PORTED: &str = "updates are not available in this build of the version-agent";
-
-impl Updater for NotPorted {
-    fn apply(&self, _: &Arc<VersionAgent>, _: &str, _: &CatalogEntry, _: Option<&str>) -> Result<Applied, UpdateError> {
-        Err(UpdateError::new(NOT_PORTED))
-    }
-
-    fn update_panel(&self, _: &Arc<VersionAgent>, _: &str, _: Option<&str>) -> Result<Value, AgentError> {
-        Err(AgentError::update(NOT_PORTED))
-    }
-
-    fn rebuild_managers(&self, agent: &Arc<VersionAgent>) -> Result<Value, AgentError> {
-        let services = {
-            let _lock = agent.lock()?;
-            let state = agent.load_state()?;
-            agent.rebuild_preflight(&state)?
-        };
-        if services.is_empty() {
-            return agent.managers_state();
-        }
-        Err(AgentError::update(format!("manager rebuild failed: {NOT_PORTED}")))
-    }
 }
 
 /// The agent lock (`state.json.lock`, `flock(LOCK_EX)`): held while the guard lives.

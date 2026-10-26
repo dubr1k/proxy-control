@@ -34,6 +34,8 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 [dev-dependencies]
 # The tests read raw HTTP answers off the socket (already in the graph through pc_common).
 httparse = "1"
+# Real WAL writer/integrity coverage for panel rollback; not linked into the host binary.
+rusqlite = { version = "0.41", features = ["bundled"] }
 
 [profile.release]
 lto = true

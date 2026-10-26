@@ -72,9 +72,11 @@ fn simulated_host(work: &Path, state: Arc<Mutex<Simulated>>) -> Host {
             return Ok("healthy".into());
         }
         if starts(argv, &["docker", "exec"]) && argv.join(" ").contains("--status") {
-            return Ok(json!({"xray_version": format!("Xray {} (Xray, Penetrates Everything.) Custom", host.xray_version),
+            return Ok(
+                json!({"xray_version": format!("Xray {} (Xray, Penetrates Everything.) Custom", host.xray_version),
                              "phase": "idle", "running": {"generation": 2}})
-            .to_string());
+                .to_string(),
+            );
         }
         if starts(argv, &["docker", "inspect"]) && argv.join(" ").contains("com.docker.compose.project") {
             return Ok("proxy_panel_by_dubr1k".into());
@@ -101,7 +103,10 @@ fn work_tree(work: &Path) {
     set_mode(&work.join("bin/mita"), 0o755);
     set_mode(&work.join("bin/caddy"), 0o755);
     for name in ["xray", "geoip.dat", "geosite.dat"] {
-        write(&work.join("xray-router").join(name), &installed(&format!("usr/local/lib/proxy-control/xray-router/{name}")));
+        write(
+            &work.join("xray-router").join(name),
+            &installed(&format!("usr/local/lib/proxy-control/xray-router/{name}")),
+        );
     }
     write(&work.join("caddy-naive.pin"), &installed("etc/proxy-control/caddy-naive.pin"));
     let xray_archive = golden_bytes("agent/updates/downloads/Xray-linux-64.zip");
@@ -122,8 +127,9 @@ fn golden_agent(work: &Path, host: &Host) -> Arc<VersionAgent> {
     let mut config = AgentConfig::new(work.join("versions.json"), work.join("state/state.json"));
     let project = work.join("project");
     config.compose_dir = Some(project.clone());
-    config.compose_files =
-        ["compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml"].map(String::from).to_vec();
+    config.compose_files = ["compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml"]
+        .map(String::from)
+        .to_vec();
     config.binary_paths = [("naive", work.join("bin/caddy")), ("mita", work.join("bin/mita"))]
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
@@ -175,7 +181,11 @@ fn the_recorded_updates_are_reproduced_byte_for_byte() {
     let dir = TempDir::new("golden-updates");
     let work = dir.join("agent");
     work_tree(&work);
-    let state = Arc::new(Mutex::new(Simulated { calls: Vec::new(), fail_restart: Vec::new(), xray_version: "26.10.17".into() }));
+    let state = Arc::new(Mutex::new(Simulated {
+        calls: Vec::new(),
+        fail_restart: Vec::new(),
+        xray_version: "26.10.17".into(),
+    }));
     let host = simulated_host(&work, state.clone());
     let agent = golden_agent(&work, &host);
     let steps = golden_json("agent/updates/steps.json");

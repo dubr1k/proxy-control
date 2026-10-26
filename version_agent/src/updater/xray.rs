@@ -160,4 +160,3 @@ pub fn update_xray(
     }
     Ok(digests)
 }
-

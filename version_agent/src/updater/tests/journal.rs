@@ -116,7 +116,13 @@ impl Adapter for FakeCore {
         Ok(checkpoint)
     }
 
-    fn rollback(&self, action: &Action, checkpoint: CheckpointData, purge: bool, _: RollbackTarget) -> Result<Evidence, Error> {
+    fn rollback(
+        &self,
+        action: &Action,
+        checkpoint: CheckpointData,
+        purge: bool,
+        _: RollbackTarget,
+    ) -> Result<Evidence, Error> {
         remove_owned(&self.root, &checkpoint, purge);
         ok(action, "core files removed")
     }
@@ -191,7 +197,13 @@ impl Adapter for FakeAgent {
         Ok(checkpoint)
     }
 
-    fn rollback(&self, action: &Action, checkpoint: CheckpointData, purge: bool, _: RollbackTarget) -> Result<Evidence, Error> {
+    fn rollback(
+        &self,
+        action: &Action,
+        checkpoint: CheckpointData,
+        purge: bool,
+        _: RollbackTarget,
+    ) -> Result<Evidence, Error> {
         remove_owned(&self.root, &checkpoint, purge);
         ok(action, "agent removed")
     }

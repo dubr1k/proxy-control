@@ -47,8 +47,14 @@ pub const MAX_ARTIFACT: u64 = 256 * 1024 * 1024;
 pub const TELEMT_BINARY_MAX: u64 = 64 * 1024 * 1024;
 /// The agent's own restart after its tree changed (`AGENT_RESTART`): systemd restarts the unit five
 /// seconds later, after the worker recorded its verdict.
-pub const AGENT_RESTART: [&str; 6] =
-    ["systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart", "systemctl", "restart", "version-agent"];
+pub const AGENT_RESTART: [&str; 6] = [
+    "systemd-run",
+    "--on-active=5",
+    "--unit=proxy-control-version-agent-restart",
+    "systemctl",
+    "restart",
+    "version-agent",
+];
 
 /// Downloads an approved artifact: `(url, maximum bytes)` → the bytes (`_download`).
 pub type Downloader = Arc<dyn Fn(&str, u64) -> Result<Vec<u8>, DownloadError> + Send + Sync>;
@@ -94,8 +100,11 @@ impl Failure {
     pub fn links(&self) -> Vec<Cause> {
         match self {
             Failure::Update(error) => {
-                let mut links =
-                    vec![Cause { class: error.state.class_name().into(), message: error.message.clone(), stderr: None }];
+                let mut links = vec![Cause {
+                    class: error.state.class_name().into(),
+                    message: error.message.clone(),
+                    stderr: None,
+                }];
                 links.extend(error.causes.iter().cloned());
                 links
             }
@@ -312,7 +321,12 @@ impl Updater for HostUpdater {
         outcome.map(|()| applied).map_err(|failure| failure.into_update(|| format!("{component} update failed")))
     }
 
-    fn update_panel(&self, agent: &Arc<VersionAgent>, version: &str, expected: Option<&str>) -> Result<Value, AgentError> {
+    fn update_panel(
+        &self,
+        agent: &Arc<VersionAgent>,
+        version: &str,
+        expected: Option<&str>,
+    ) -> Result<Value, AgentError> {
         panel::update_panel_async(self, agent, version, expected)
     }
 
@@ -379,7 +393,12 @@ fn display(path: &Path) -> String {
 }
 
 /// `_compose_command(*args, include_override=…, env_files=…)`.
-pub fn compose_command(agent: &VersionAgent, args: &[&str], include_override: bool, with_env: bool) -> Step<Vec<String>> {
+pub fn compose_command(
+    agent: &VersionAgent,
+    args: &[&str],
+    include_override: bool,
+    with_env: bool,
+) -> Step<Vec<String>> {
     let dir = match &agent.config.compose_dir {
         Some(dir) if !agent.config.compose_files.is_empty() => dir.clone(),
         _ => return Err(refuse("Compose deployment is not configured")),

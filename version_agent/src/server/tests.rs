@@ -22,6 +22,45 @@ struct FakeAgent {
     checked: Mutex<usize>,
     check_failure: Option<AgentError>,
     acked: Mutex<Vec<Value>>,
+    update_gate: Option<Arc<UpdateGate>>,
+}
+
+struct UpdateGate {
+    entered: (Mutex<bool>, std::sync::Condvar),
+    release: (Mutex<bool>, std::sync::Condvar),
+    finished: Mutex<bool>,
+}
+
+impl UpdateGate {
+    fn new() -> Self {
+        UpdateGate {
+            entered: (Mutex::new(false), std::sync::Condvar::new()),
+            release: (Mutex::new(false), std::sync::Condvar::new()),
+            finished: Mutex::new(false),
+        }
+    }
+
+    fn enter(&self) {
+        *self.entered.0.lock().unwrap() = true;
+        self.entered.1.notify_all();
+        let mut release = self.release.0.lock().unwrap();
+        while !*release {
+            release = self.release.1.wait(release).unwrap();
+        }
+        *self.finished.lock().unwrap() = true;
+    }
+
+    fn wait_entered(&self) {
+        let mut entered = self.entered.0.lock().unwrap();
+        while !*entered {
+            entered = self.entered.1.wait(entered).unwrap();
+        }
+    }
+
+    fn release(&self) {
+        *self.release.0.lock().unwrap() = true;
+        self.release.1.notify_all();
+    }
 }
 
 impl Api for FakeAgent {
@@ -31,6 +70,9 @@ impl Api for FakeAgent {
 
     fn update(&self, component: &str, version: &str, expected: Option<&str>) -> Result<Value, AgentError> {
         self.calls.lock().unwrap().push((component.into(), version.into(), expected.map(String::from)));
+        if let Some(gate) = &self.update_gate {
+            gate.enter();
+        }
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
         }
@@ -79,7 +121,12 @@ impl Drop for Running {
 }
 
 fn routes(api: Option<Arc<dyn Api>>) -> Routes {
-    Routes { api, host: Arc::new(|| json!({"cpu": null, "memory": null, "swap": null, "disk": null})), metrics: None }
+    Routes {
+        api,
+        host: Arc::new(|| json!({"cpu": null, "memory": null, "swap": null, "disk": null})),
+        metrics: None,
+        activity: Arc::new(RequestActivity::default()),
+    }
 }
 
 fn start(routes: Routes) -> Running {
@@ -185,6 +232,47 @@ fn unix_socket_server_answers_a_panel_update_as_accepted_and_async() {
         *agent.calls.lock().unwrap(),
         [("panel".to_string(), "0.11.0-beta.1".to_string(), Some("0.10.0-beta.1".to_string()))]
     );
+}
+
+fn shutdown_drains_an_accepted_update(component: &str) {
+    let gate = Arc::new(UpdateGate::new());
+    let agent = Arc::new(FakeAgent { update_gate: Some(gate.clone()), ..FakeAgent::default() });
+    let routes = routes(Some(agent));
+    let activity = routes.activity.clone();
+    let running = start(routes);
+    let socket = running.socket.clone();
+    let component = component.to_string();
+    let request = std::thread::spawn(move || {
+        let body =
+            serde_json::to_vec(&json!({"component": component, "version": "new", "expected_current": "old"})).unwrap();
+        post(&socket, "/v1/update", &body)
+    });
+    gate.wait_entered();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    let draining = std::thread::spawn(move || {
+        started_tx.send(()).unwrap();
+        activity.stop_and_wait();
+        done_tx.send(()).unwrap();
+    });
+    started_rx.recv().unwrap();
+    assert!(done_rx.recv_timeout(Duration::from_millis(50)).is_err());
+    gate.release();
+    assert_eq!(request.join().unwrap().status, 200);
+    done_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+    draining.join().unwrap();
+    assert!(*gate.finished.lock().unwrap());
+    assert_eq!(get(&running.socket, "/v1/health").status, 503);
+}
+
+#[test]
+fn shutdown_drains_a_component_update_before_exit() {
+    shutdown_drains_an_accepted_update("mita");
+}
+
+#[test]
+fn shutdown_drains_panel_worker_registration_before_exit() {
+    shutdown_drains_an_accepted_update("panel");
 }
 
 #[test]
@@ -373,6 +461,7 @@ fn host_endpoint_is_read_only_and_rejects_writes() {
         api: None,
         host: Arc::new(|| crate::host::HostReader::default().host_metrics()),
         metrics: None,
+        activity: Arc::new(RequestActivity::default()),
     });
     let answer = get(&running.socket, "/v1/host");
     assert_eq!(answer.status, 200);

@@ -33,9 +33,15 @@ pub fn fetch_binary(updater: &HostUpdater, component: &str, entry: &CatalogEntry
 
 /// `_run_binary_config_checks`: the build checker (`CADDY_BIN`, `EXPECTED_CADDY_VERSION`) and, for
 /// naive, `caddy adapt --validate` of the managed Caddyfile.
-pub fn run_config_checks(agent: &VersionAgent, component: &str, binary: &Path, runtime_version: Option<&str>) -> Step<()> {
+pub fn run_config_checks(
+    agent: &VersionAgent,
+    component: &str,
+    binary: &Path,
+    runtime_version: Option<&str>,
+) -> Step<()> {
     if let Some(checker) = agent.config.checkers.get(component).filter(|c| !c.as_os_str().is_empty()) {
-        let mut command = Command::new(&[checker.to_string_lossy().into_owned()]).env("CADDY_BIN", binary.to_string_lossy());
+        let mut command =
+            Command::new(&[checker.to_string_lossy().into_owned()]).env("CADDY_BIN", binary.to_string_lossy());
         if let Some(version) = runtime_version.filter(|v| !v.is_empty()) {
             command = command.env("EXPECTED_CADDY_VERSION", version);
         }
@@ -155,7 +161,8 @@ pub fn update_binary(
     if (payload.is_none() && !complete) || (payload.is_some() && !matches!(entry.kind.as_str(), "binary" | "build")) {
         return Err(refuse("binary catalog entry is incomplete"));
     }
-    let (Some(target), Some(service)) = (agent.config.binary_paths.get(component), agent.config.service_names.get(component))
+    let (Some(target), Some(service)) =
+        (agent.config.binary_paths.get(component), agent.config.service_names.get(component))
     else {
         return Err(refuse(format!("{component} runtime is not configured")));
     };
@@ -262,7 +269,8 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
         return Err(refuse("naive build entry is incomplete"));
     };
     let field = |key: &str| build.get(key).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-    let (builder, caddy_version, commit) = (field("builder_image"), field("caddy_version"), field("forwardproxy_commit"));
+    let (builder, caddy_version, commit) =
+        (field("builder_image"), field("caddy_version"), field("forwardproxy_commit"));
     let directory = &agent.config.caddy_build_dir;
     fs::create_dir_all(directory)?;
     chmod(directory, 0o700)?;
@@ -277,11 +285,13 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
     );
     atomic_write(&dockerfile, text.as_bytes(), 0o600)?;
     let image = agent.config.caddy_image.clone();
-    let (dockerfile_arg, directory_arg) = (dockerfile.to_string_lossy().into_owned(), directory.to_string_lossy().into_owned());
+    let (dockerfile_arg, directory_arg) =
+        (dockerfile.to_string_lossy().into_owned(), directory.to_string_lossy().into_owned());
     run(agent, &argv(&["docker", "build", "-f", &dockerfile_arg, "-t", &image, &directory_arg]), 900)?;
     let container = run(agent, &argv(&["docker", "create", "--entrypoint", "/caddy", &image, "version"]), 60)?;
     let container = crate::py::strip(&container).to_string();
-    let id_ok = (12..=64).contains(&container.len()) && container.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    let id_ok =
+        (12..=64).contains(&container.len()) && container.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
     if !id_ok {
         return Err(refuse("caddy build produced no container"));
     }

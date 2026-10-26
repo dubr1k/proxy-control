@@ -35,5 +35,5 @@ pub mod upstream;
 mod testutil;
 
 pub use errors::{AgentError, CatalogError, UpdateError, UpdateState};
-pub use service::{AgentConfig, Applied, NotPorted, Updater, VersionAgent};
+pub use service::{AgentConfig, Applied, Updater, VersionAgent};
 pub use updater::HostUpdater;

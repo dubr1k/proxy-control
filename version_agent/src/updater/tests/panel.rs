@@ -22,8 +22,14 @@ const PANEL_URL: &str =
 const PANEL_EXEC: [&str; 5] = ["docker", "exec", "proxy-control-panel", "cat", "/app/VERSION"];
 const ROUTER_OVERLAY: &str = "services:\n  xray-router:\n    image: x\n  xray-router-ingress:\n    image: x\n";
 const OLD: &str = "2020-01-01T00:00:00.123456789Z";
-const RESTART: [&str; 6] =
-    ["systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart", "systemctl", "restart", "version-agent"];
+const RESTART: [&str; 6] = [
+    "systemd-run",
+    "--on-active=5",
+    "--unit=proxy-control-version-agent-restart",
+    "systemctl",
+    "restart",
+    "version-agent",
+];
 
 fn panel_image_id() -> String {
     format!("sha256:{}", "a".repeat(64))
@@ -216,7 +222,11 @@ impl PanelHost {
 
     /// `host.agent(payload, **extra)`: the catalog of the Python tests, the panel candidate from
     /// the upstream cache (its digest is the payload's), synchronous.
-    pub fn agent(&self, payload: Vec<u8>, configure: impl FnOnce(&mut AgentConfig)) -> (Arc<VersionAgent>, HostUpdater) {
+    pub fn agent(
+        &self,
+        payload: Vec<u8>,
+        configure: impl FnOnce(&mut AgentConfig),
+    ) -> (Arc<VersionAgent>, HostUpdater) {
         let digest = sha(&payload);
         self.set(|state| state.payload = payload);
         write(&self.dir.join("catalog.json"), br#"{"schema": 1, "components": {}}"#);
@@ -302,7 +312,10 @@ fn answer(argv: &[String], state: &mut State, compose: &Path, volume: &Path) -> 
         return Ok(String::new());
     }
     // _PanelHost
-    if starts(argv, &["docker", "inspect", "--format"]) && last == "proxy-control-panel" && argv[3].contains("com.docker.compose.project") {
+    if starts(argv, &["docker", "inspect", "--format"])
+        && last == "proxy-control-panel"
+        && argv[3].contains("com.docker.compose.project")
+    {
         return Ok(state.project.clone());
     }
     state.commands.push(owned);
@@ -428,8 +441,9 @@ fn direct_panel_update_allows_declared_running_mcp() {
     let dir = TempDir::new("panel-mcp");
     let host = PanelHost::new(dir.path());
     host.set(|state| state.running_services = vec!["mcp".into()]);
-    let (agent, _) =
-        host.agent(default_archive(), |config| config.compose_files = vec!["compose.yaml".into(), "compose.mcp.yaml".into()]);
+    let (agent, _) = host.agent(default_archive(), |config| {
+        config.compose_files = vec!["compose.yaml".into(), "compose.mcp.yaml".into()]
+    });
     assert_eq!(update_panel(&agent).unwrap()["changed"], true);
 }
 
@@ -479,7 +493,8 @@ fn panel_update_refuses_an_unreadable_installer_journal_before_mutation() {
     // Python refused an installer module loaded from elsewhere than the project; the compiled-in
     // handoff refuses a journal its strict reader does not accept (two-generation rule).
     let dir = TempDir::new("panel-journal");
-    let host = PanelHost::with_layout(dir.path(), journal::host(dir.path(), PROJECT), dir.join("opt/proxy-control"), true);
+    let host =
+        PanelHost::with_layout(dir.path(), journal::host(dir.path(), PROJECT), dir.join("opt/proxy-control"), true);
     write(&dir.join("var/lib/proxy-control/installer/state.json"), b"{}");
     let (agent, _) = host.agent(default_archive(), |config| config.installer_root = Some(dir.path().to_path_buf()));
     let error = update_error(update_panel(&agent));
@@ -526,7 +541,10 @@ fn panel_update_rebases_active_core_for_repair_and_uninstall() {
     let updated = engine.store().read_state().unwrap();
     assert_eq!(updated.plan_digest, old.plan_digest);
     let core = updated.checkpoint("core.runtime").unwrap();
-    assert_eq!(core.data["ownership"]["/opt/mtproxy-shared443/VERSION"]["sha256"], json!(sha(format!("{NEW_PANEL}\n").as_bytes())));
+    assert_eq!(
+        core.data["ownership"]["/opt/mtproxy-shared443/VERSION"]["sha256"],
+        json!(sha(format!("{NEW_PANEL}\n").as_bytes()))
+    );
     assert!(core.ownership.contains_key("/opt/mtproxy-shared443/scripts/tool.sh"));
     assert_eq!(engine.repair().unwrap().status, installer::journal::Status::Active);
     assert_eq!(engine.uninstall(false).unwrap().status, installer::journal::Status::Uninstalled);
@@ -640,11 +658,19 @@ fn panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies() {
     assert_eq!(build[..4], ["docker", "compose", "--project-name", "proxy_panel_by_dubr1k"]);
     assert!(has(build, "--env-file"));
     assert_eq!(tail(build, 2), ["build", "panel"]);
-    assert!(commands.iter().any(|c| is(c, &["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "proxy_panel_by_dubr1k_panel-data"])));
+    assert!(commands
+        .iter()
+        .any(|c| is(c, &["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "proxy_panel_by_dubr1k_panel-data"])));
     assert!(is(commands.last().unwrap(), &RESTART));
     let state = panel_state(dir.path());
-    assert_eq!((&state["version"], &state["status"], &state["previous_version"]), (&json!(NEW_PANEL), &json!("ready"), &json!(OLD_PANEL)));
-    assert_eq!((&state["kind"], &state["url"], &state["pending_rebuild"]), (&json!("release"), &json!(PANEL_URL), &json!(["naive_manager"])));
+    assert_eq!(
+        (&state["version"], &state["status"], &state["previous_version"]),
+        (&json!(NEW_PANEL), &json!("ready"), &json!(OLD_PANEL))
+    );
+    assert_eq!(
+        (&state["kind"], &state["url"], &state["pending_rebuild"]),
+        (&json!("release"), &json!(PANEL_URL), &json!(["naive_manager"]))
+    );
     // heal=false: this host has no naive overlay, so the self-healing listing would drop it.
     let listed = agent.list_versions(false).unwrap()["components"]["panel"].clone();
     assert_eq!((&listed["current"], &listed["status"]), (&json!(NEW_PANEL), &json!("ready")));
@@ -653,7 +679,8 @@ fn panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies() {
     // Python's timeouts: tag 60, build 900, stop 180, up 300, the restart 30.
     let timeouts: Vec<(Vec<String>, u64)> =
         host.host.commands().into_iter().map(|c| (c.argv.clone(), c.timeout.as_secs())).collect();
-    let timeout_of = |pick: &dyn Fn(&[String]) -> bool| timeouts.iter().find(|(a, _)| pick(a)).map(|(_, t)| *t).unwrap();
+    let timeout_of =
+        |pick: &dyn Fn(&[String]) -> bool| timeouts.iter().find(|(a, _)| pick(a)).map(|(_, t)| *t).unwrap();
     assert_eq!(timeout_of(&|a| starts(a, &["docker", "tag"])), 60);
     assert_eq!(timeout_of(&|a| has(a, "build")), 900);
     assert_eq!(timeout_of(&|a| has(a, "stop")), 180);
@@ -710,7 +737,10 @@ fn a_changed_agent_binary_restarts_the_agent() {
     update_panel(&agent).unwrap();
     assert_eq!(read(&binary), b"\x7fELF new agent");
     assert_eq!(mode(&binary), 0o755);
-    assert_eq!(read(&dir.join("backups/panel.previous/version_agent/bin/linux-amd64/proxy-control-version-agent")), b"\x7fELF old agent");
+    assert_eq!(
+        read(&dir.join("backups/panel.previous/version_agent/bin/linux-amd64/proxy-control-version-agent")),
+        b"\x7fELF old agent"
+    );
     assert!(is(host.commands().last().unwrap(), &RESTART));
 }
 
@@ -760,8 +790,13 @@ fn a_host_not_moved_to_the_new_project_is_updated_in_its_old_one() {
     assert!(tag[3].starts_with("mtproxy-panel:rollback-"));
     let build = commands.iter().find(|c| has(c, "build")).unwrap();
     assert_eq!(build[..4], ["docker", "compose", "--project-name", "mtproxy"]);
-    assert!(commands.iter().any(|c| is(c, &["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "mtproxy_panel-data"])));
-    assert_eq!((agent.panel_image(), agent.panel_volume()), ("mtproxy-panel".to_string(), "mtproxy_panel-data".to_string()));
+    assert!(commands
+        .iter()
+        .any(|c| is(c, &["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "mtproxy_panel-data"])));
+    assert_eq!(
+        (agent.panel_image(), agent.panel_volume()),
+        ("mtproxy-panel".to_string(), "mtproxy_panel-data".to_string())
+    );
     host.set(|state| state.project = "proxy_panel_by_dubr1k".into()); // moved while the agent runs
     assert_eq!(agent.panel_image(), "proxy_panel_by_dubr1k-panel");
     assert_eq!(agent.panel_volume(), "proxy_panel_by_dubr1k_panel-data");
@@ -821,7 +856,8 @@ fn panel_rollback_that_does_not_verify_is_reported_and_blocks_further_updates() 
 
 #[test]
 fn panel_preflight_refuses_an_unsafe_archive_before_touching_anything() {
-    let tar_with = |extra: (&str, &[u8])| release_tar(&[("proxy-control/VERSION", b"x\n", 0o644), (extra.0, extra.1, 0o644)]);
+    let tar_with =
+        |extra: (&str, &[u8])| release_tar(&[("proxy-control/VERSION", b"x\n", 0o644), (extra.0, extra.1, 0o644)]);
     let cases: Vec<Vec<u8>> = vec![
         tar_with(("proxy-control/../etc/cron.d/x", b"* * * * * root id\n")),
         tar_with(("/etc/passwd", b"root::0:0\n")),
@@ -891,7 +927,10 @@ fn other_updates_wait_for_a_running_panel_update() {
     let catalog = json!({"schema": 1, "components": {"telemt": [{"version": "3.4.25", "kind": "image",
         "image": format!("ghcr.io/example/telemt@sha256:{}", "a".repeat(64))}]}});
     write(&dir.join("catalog.json"), catalog.to_string().as_bytes());
-    for panel in [json!({"version": OLD_PANEL, "status": "updating"}), json!({"version": OLD_PANEL, "status": "ready", "rebuilding_managers": now()})] {
+    for panel in [
+        json!({"version": OLD_PANEL, "status": "updating"}),
+        json!({"version": OLD_PANEL, "status": "ready", "rebuilding_managers": now()}),
+    ] {
         write_panel(dir.path(), panel);
         let error = agent.update("telemt", "3.4.25", None).unwrap_err();
         assert_eq!(error, AgentError::conflict("panel update or manager rebuild is already running"));
@@ -979,8 +1018,9 @@ fn the_tree_hash_skips_bytecode_and_symlinks_and_orders_like_os_walk() {
 // --- tests/test_version_agent_managers.py (the rebuild after a panel update) --------------------
 
 fn manager_files(config: &mut AgentConfig) {
-    config.compose_files =
-        ["compose.yaml", "compose.naive.yaml", "compose.xray-router.yaml", "compose.mcp.yaml"].map(String::from).to_vec();
+    config.compose_files = ["compose.yaml", "compose.naive.yaml", "compose.xray-router.yaml", "compose.mcp.yaml"]
+        .map(String::from)
+        .to_vec();
 }
 
 #[test]
@@ -1003,15 +1043,23 @@ fn successful_panel_update_rebuilds_managers_in_one_compose_call_before_the_agen
     assert!(has(builds[0], "--env-file") && has(builds[0], "up"));
     let tags: std::collections::BTreeSet<String> = commands
         .iter()
-        .filter(|c| starts(c, &["docker", "tag"]) && c[3].starts_with("proxy_panel_by_dubr1k-") && !c[3].starts_with("proxy_panel_by_dubr1k-panel"))
+        .filter(|c| {
+            starts(c, &["docker", "tag"])
+                && c[3].starts_with("proxy_panel_by_dubr1k-")
+                && !c[3].starts_with("proxy_panel_by_dubr1k-panel")
+        })
         .map(|c| c[3].split(':').next().unwrap().to_string())
         .collect();
     assert_eq!(
         tags,
-        ["proxy_panel_by_dubr1k-naive-manager", "proxy_panel_by_dubr1k-xray-router", "proxy_panel_by_dubr1k-xray-router-ingress"]
-            .map(String::from)
-            .into_iter()
-            .collect()
+        [
+            "proxy_panel_by_dubr1k-naive-manager",
+            "proxy_panel_by_dubr1k-xray-router",
+            "proxy_panel_by_dubr1k-xray-router-ingress"
+        ]
+        .map(String::from)
+        .into_iter()
+        .collect()
     );
     let panel = panel_state(dir.path());
     assert_eq!((&panel["status"], &panel["pending_rebuild"]), (&json!("ready"), &json!([])));
@@ -1034,7 +1082,9 @@ fn failed_manager_rebuild_keeps_the_panel_pending_and_records_the_error() {
     assert!(panel["rebuild_error"].as_str().unwrap().contains("build failed"));
     assert!(panel.get("rebuilding_managers").is_none());
     let commands = host.commands();
-    assert!(commands.iter().any(|c| starts(c, &["docker", "tag"]) && c.last().unwrap() == "proxy_panel_by_dubr1k-naive-manager:latest"));
+    assert!(commands
+        .iter()
+        .any(|c| starts(c, &["docker", "tag"]) && c.last().unwrap() == "proxy_panel_by_dubr1k-naive-manager:latest"));
     assert_eq!(commands.last().unwrap()[0], "systemd-run");
 }
 
@@ -1081,8 +1131,14 @@ fn manual_rebuild_rebuilds_the_pending_managers_and_ack_is_idempotent() {
     let mut panel = panel_state(dir.path());
     panel["pending_rebuild"] = json!(["naive_manager", "mcp_server", "docker"]);
     write_panel(dir.path(), panel);
-    assert_eq!(agent.ack_managers(&json!(["mcp_server"])).unwrap()["pending_rebuild"], json!(["naive_manager", "docker"]));
-    assert_eq!(agent.ack_managers(&json!(["mcp_server"])).unwrap()["pending_rebuild"], json!(["naive_manager", "docker"]));
+    assert_eq!(
+        agent.ack_managers(&json!(["mcp_server"])).unwrap()["pending_rebuild"],
+        json!(["naive_manager", "docker"])
+    );
+    assert_eq!(
+        agent.ack_managers(&json!(["mcp_server"])).unwrap()["pending_rebuild"],
+        json!(["naive_manager", "docker"])
+    );
     let mut panel = panel_state(dir.path());
     panel["status"] = json!("updating");
     write_panel(dir.path(), panel.clone());
@@ -1105,13 +1161,38 @@ fn a_background_rebuild_answers_first_and_records_its_verdict() {
         manager_files(config);
         config.auto_rebuild_managers = false;
     });
+    let gate = Arc::new((Mutex::new((false, false)), std::sync::Condvar::new()));
+    let blocked = gate.clone();
+    host.set(|state| {
+        state.intercept = Some(Box::new(move |argv, _| {
+            if starts(argv, &["docker", "compose"]) && has(argv, "--build") {
+                let (lock, wake) = &*blocked;
+                let mut state = lock.lock().unwrap();
+                state.0 = true;
+                wake.notify_all();
+                while !state.1 {
+                    state = wake.wait(state).unwrap();
+                }
+            }
+            None
+        }))
+    });
     update_panel(&agent).unwrap();
     let mut owned = VersionAgent::new(AgentConfig { synchronous: false, ..agent.config.clone() });
     owned.runner = agent.runner.clone();
     owned.updater = Arc::new(updater.clone());
     let agent = Arc::new(owned);
     let answered = agent.rebuild_managers().unwrap();
+    let (lock, wake) = &*gate;
+    let mut state = lock.lock().unwrap();
+    while !state.0 {
+        state = wake.wait(state).unwrap();
+    }
     assert_eq!(answered["pending_rebuild"], json!(["naive_manager"]));
+    assert_eq!(answered["rebuilding"], json!(true));
+    state.1 = true;
+    wake.notify_all();
+    drop(state);
     join(&updater);
     let panel = panel_state(dir.path());
     assert_eq!(panel["pending_rebuild"], json!([]));
@@ -1121,7 +1202,10 @@ fn a_background_rebuild_answers_first_and_records_its_verdict() {
 // --- tests/test_version_agent_update_safety.py -------------------------------------------------
 
 fn mcp_archive() -> Vec<u8> {
-    release_tar(&[("proxy-control/VERSION", NEW_PANEL.as_bytes(), 0o644), ("proxy-control/mcp_server/server.py", b"new mcp", 0o644)])
+    release_tar(&[
+        ("proxy-control/VERSION", NEW_PANEL.as_bytes(), 0o644),
+        ("proxy-control/mcp_server/server.py", b"new mcp", 0o644),
+    ])
 }
 
 #[test]
@@ -1138,34 +1222,41 @@ fn mcp_source_is_updated_and_reported_for_rebuild() {
 }
 
 #[test]
-fn rollback_quiesces_the_database_writer_and_restores_the_files() {
-    // Python ran a real SQLite writer; here the writer is the fake host's flag over the same
-    // files: it holds the volume until a stop, and the new generation writes then fails.
+fn rollback_quiesces_real_sqlite_writer_and_restores_integrity() {
     let dir = TempDir::new("safety-writer");
     let host = PanelHost::new(dir.path());
-    std::fs::remove_file(host.volume.join("panel.sqlite3-wal")).unwrap();
-    write(&host.volume.join("panel.sqlite3"), b"previous");
+    for entry in std::fs::read_dir(&host.volume).unwrap() {
+        std::fs::remove_file(entry.unwrap().path()).unwrap();
+    }
+    let database = host.volume.join("panel.sqlite3");
+    let connection = rusqlite::Connection::open(&database).unwrap();
+    assert_eq!(connection.query_row("PRAGMA journal_mode=WAL", [], |row| row.get::<_, String>(0)).unwrap(), "wal");
+    connection.execute("CREATE TABLE records (value TEXT)", []).unwrap();
+    connection.execute("INSERT INTO records VALUES ('previous')", []).unwrap();
+    let writer = Arc::new(Mutex::new(Some(connection)));
     let (agent, _) = host.agent(default_archive(), |config| {
         config.compose_files = vec!["compose.yaml".into(), "compose.fleet-central.yaml".into()];
     });
-    let (compose, volume) = (host.compose.clone(), host.volume.clone());
-    let writer = Arc::new(Mutex::new(true));
+    let compose = host.compose.clone();
     let stops = Arc::new(Mutex::new(Vec::new()));
     let (active, stopped) = (writer.clone(), stops.clone());
+    let running_database = database.clone();
     host.set(|state| {
         state.intercept = Some(Box::new(move |argv, state| {
             if starts(argv, &["docker", "compose"]) && has(argv, "stop") {
                 stopped.lock().unwrap().push(argv.to_vec());
-                *active.lock().unwrap() = false;
+                active.lock().unwrap().take();
             }
             if starts(argv, &["docker", "ps"]) {
                 state.commands.push(argv.to_vec());
-                return Some(Ok(if *active.lock().unwrap() { "writer".into() } else { String::new() }));
+                return Some(Ok(if active.lock().unwrap().is_some() { "writer".into() } else { String::new() }));
             }
-            let new_generation = std::fs::read_to_string(compose.join("VERSION")).unwrap_or_default().trim() == NEW_PANEL;
+            let new_generation =
+                std::fs::read_to_string(compose.join("VERSION")).unwrap_or_default().trim() == NEW_PANEL;
             if starts(argv, &["docker", "compose"]) && has(argv, "up") && new_generation {
-                *active.lock().unwrap() = true;
-                std::fs::write(volume.join("panel.sqlite3"), b"previous+new generation").unwrap();
+                let connection = rusqlite::Connection::open(&running_database).unwrap();
+                connection.execute("INSERT INTO records VALUES ('new generation')", []).unwrap();
+                *active.lock().unwrap() = Some(connection);
                 state.commands.push(argv.to_vec());
                 return Some(Err(runtime_error("health check failed with SQLite writer still running")));
             }
@@ -1177,7 +1268,13 @@ fn rollback_quiesces_the_database_writer_and_restores_the_files() {
     let stops = stops.lock().unwrap();
     assert_eq!(stops.len(), 2);
     assert!(stops.iter().all(|c| tail(c, 2) == ["panel", "fleet-ingress"]));
-    assert_eq!(read(&host.volume.join("panel.sqlite3")), b"previous");
+    drop(stops);
+    assert!(writer.lock().unwrap().is_none());
+    let restored = rusqlite::Connection::open(&database).unwrap();
+    assert_eq!(restored.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0)).unwrap(), "ok");
+    let mut rows = restored.prepare("SELECT value FROM records").unwrap();
+    let values = rows.query_map([], |row| row.get::<_, String>(0)).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(values, ["previous"]);
 }
 
 #[test]

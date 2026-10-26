@@ -135,7 +135,11 @@ pub fn update_manager(
 /// one Compose call (same env files, overlays and version override as the panel build). A failure
 /// restores the saved images, leaves the list and is recorded as `rebuild_error`; it never rolls
 /// the healthy panel back.
-pub fn rebuild_managers(updater: &HostUpdater, agent: &Arc<VersionAgent>, background: bool) -> Result<Value, AgentError> {
+pub fn rebuild_managers(
+    updater: &HostUpdater,
+    agent: &Arc<VersionAgent>,
+    background: bool,
+) -> Result<Value, AgentError> {
     let services = {
         let _lock = agent.lock()?;
         let mut state = agent.load_state()?;
@@ -242,4 +246,3 @@ pub fn rebuild_services(updater: &HostUpdater, agent: &VersionAgent, services: &
     }
     Ok(())
 }
-
