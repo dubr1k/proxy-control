@@ -48,52 +48,50 @@ async def test_local_geodata_view_settings_update_restore_and_audit(client, serv
     assert (await client.post("/api/routing/geodata/reboot", headers=_csrf(client))).status_code == 422
 
 
-async def test_geodata_is_owner_only_to_change_and_needs_a_router(client, login_user, router):
+async def test_geodata_is_owner_only_to_change_and_needs_a_router(client, server, login_user, router, panel_server):
     await login_user(client)
-    app = client._transport.app
-    app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await client.post("/api/auth/logout", headers=_csrf(client))
     client.cookies.clear()
     await login_user(client, "reader", "viewer correct horse battery")
     assert (await client.get("/api/routing/geodata")).status_code == 200
     assert (await client.post("/api/routing/geodata/update", headers=_csrf(client))).status_code == 403
     assert (await client.put("/api/routing/geodata/settings", headers=_csrf(client), json={"auto_update": True})).status_code == 403
-    app.state.routing.router = None
-    missing = await client.get("/api/routing/geodata")
-    assert missing.status_code == 404 and missing.json()["code"] == "router_unavailable"
-    assert (await client.get("/api/routing/geodata?node=nope")).status_code == 404
+    without = panel_server(name="without-router")
+    without.create_admin("owner", "correct horse battery staple", "owner")
+    async with without.http() as http:
+        await login_user(http)
+        missing = await http.get("/api/routing/geodata")
+        assert missing.status_code == 404 and missing.json()["code"] == "router_unavailable"
+        assert (await http.get("/api/routing/geodata?node=nope")).status_code == 404
 
 
-async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair_factory, monkeypatch):
+async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair_factory, login_user):
+    from panel.tests.harness.routing import csrf, linked
+
     fake = MemoryXrayRouter()
     node, central, plaintext = pair_factory(node={"router": fake})
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
-                                            actor=ACTOR, ip="x", auto_import=False)
-    await central.tick("pusher")  # the heartbeat records the node's capabilities, geodata.v1 among them
-    view = await central.state.routing.geodata(node_id, "view")
-    assert view["source"]["kind"] == "xray"
-    saved = await central.state.routing.geodata(node_id, "settings", {"source": {"kind": "loyalsoldier"}, "auto_update": True},
-                                                actor=ACTOR, ip="x")
-    assert saved["source"]["kind"] == "loyalsoldier"
-    updated = await central.state.routing.geodata(node_id, "update", actor=ACTOR, ip="x")
-    assert updated["changed"] is True and fake.calls[-1] == ("geodata_update",)
-    codes = await central.state.routing.geodata(node_id, "codes")
-    assert codes["codes"]["geoip"] == ["cn", "ru"]
-    with central.state.database.connect() as db:
-        rows = [row["action"] for row in db.execute("SELECT action FROM audit_log")]
-    assert "routing.geodata.settings" in rows and "routing.geodata.update" in rows
-    with node.state.database.connect() as db:
-        node_rows = [row["action"] for row in db.execute("SELECT action FROM audit_log")]
-    assert "fleet.geodata.settings" in node_rows and "fleet.geodata.update" in node_rows
-    # The manager's refusal travels back with its code and the operator's status.
-    fake.fail_next = "geodata_rejected"
-    from panel.routing.service import RoutingError
-    with pytest.raises(RoutingError) as refused:
-        await central.state.routing.geodata(node_id, "update", actor=ACTOR, ip="x")
-    assert refused.value.status == 422 and refused.value.code == "geodata_rejected"
+    async with linked(central, plaintext, login_user) as (client, node_id):
+        view = await client.get("/api/routing/geodata", params={"node": node_id})
+        assert view.status_code == 200 and view.json()["source"]["kind"] == "xray", view.text
+        saved = await client.put("/api/routing/geodata/settings", params={"node": node_id}, headers=csrf(client),
+                                 json={"source": {"kind": "loyalsoldier"}, "auto_update": True})
+        assert saved.status_code == 200 and saved.json()["source"]["kind"] == "loyalsoldier", saved.text
+        updated = await client.post("/api/routing/geodata/update", params={"node": node_id}, headers=csrf(client))
+        assert updated.status_code == 200 and updated.json()["changed"] is True, updated.text
+        assert fake.calls[-1] == ("geodata_update",)
+        codes = await client.get("/api/routing/geodata/codes", params={"node": node_id})
+        assert codes.json()["codes"]["geoip"] == ["cn", "ru"]
+        actions = [row["action"] for row in central.audits()]
+        assert "routing.geodata.settings" in actions and "routing.geodata.update" in actions
+        actions = [row["action"] for row in node.audits()]
+        assert "fleet.geodata.settings" in actions and "fleet.geodata.update" in actions
+        fake.fail_next = "geodata_rejected"
+        refused = await client.post("/api/routing/geodata/update", params={"node": node_id}, headers=csrf(client))
+        assert refused.status_code == 422 and refused.json()["code"] == "geodata_rejected", refused.text
 
 
-async def test_node_geodata_and_exit_routes_answer_the_central_key(client, server, login_user, router):
+async def test_node_geodata_and_exit_routes_answer_the_central_key(client, server, login_user, router, panel_server):
     """The node side of v0.8 under the node-sync key: geodata view/codes/settings/actions and
     the exit probe — audited as `fleet.*`, refused without the key, 404 without a router."""
     await login_user(client)
@@ -120,6 +118,8 @@ async def test_node_geodata_and_exit_routes_answer_the_central_key(client, serve
     actions = [row["action"] for row in server.audits()]
     for action in ("fleet.geodata.settings", "fleet.geodata.update", "fleet.exit.test"):
         assert action in actions, action
-    client._transport.app.state.router = None
-    missing = await client.get("/api/fleet/v2/geodata", headers=headers)
-    assert missing.status_code == 404 and missing.json()["code"] == "router_unavailable"
+    without = panel_server(name="without-node-router")
+    key = without.create_api_key("central", "node-sync")
+    async with without.http() as http:
+        missing = await http.get("/api/fleet/v2/geodata", headers={"Authorization": f"Bearer {key}"})
+        assert missing.status_code == 404 and missing.json()["code"] == "router_unavailable"

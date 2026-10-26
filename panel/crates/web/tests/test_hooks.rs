@@ -59,7 +59,8 @@ fn tick_settle_and_bridge_hooks() {
     // The access enforcer (WP7) is registered by the wiring and ticks an empty panel.
     assert_eq!(client.send(&panel, "POST", "/__test/tick/enforcer", &[], Some(r#"{"force": true}"#)).status, 200);
     assert_eq!(*recorder.options.lock().unwrap(), vec![json!({"force": true}), json!({})]);
-    assert_eq!(client.send(&panel, "POST", "/__test/tick/pusher", &[], None).status, 404, "not registered here");
+    // The fleet pusher (WP12b) is registered by the wiring and ticks an empty link set.
+    assert_eq!(client.send(&panel, "POST", "/__test/tick/pusher", &[], None).status, 200);
     assert_eq!(client.send(&panel, "POST", "/__test/tick/bogus", &[], None).json(), json!({"detail": "unknown loop"}));
 
     let done = Arc::new(AtomicUsize::new(0));
