@@ -16,11 +16,8 @@ pub fn disabled() -> Value {
 /// The MTProxy card and the runtime total (`traffic.runtime_total_octets`).
 pub fn mtproxy(health: &Value, connections: &Value, active_ips: &Value, items: &Value) -> PageResult<(Value, Value)> {
     let rows = dict_items(items)?;
-    let total: i128 = rows
-        .iter()
-        .filter_map(|item| py::non_negative_int(item.get("total_octets")))
-        .filter_map(py::integer)
-        .sum();
+    let total: i128 =
+        rows.iter().filter_map(|item| py::non_negative_int(item.get("total_octets"))).filter_map(py::integer).sum();
     let active = rows.iter().filter(|item| !py::is_false(item.get("enabled"))).count();
     let disabled = rows.iter().filter(|item| py::is_false(item.get("enabled"))).count();
     let ready = py::is_true(py::dict(health)?.get("ready"));
@@ -167,7 +164,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_mtproxy_card_counts_like_python() {
+    fn dashboard_summarizes_both_protocols_without_naive_traffic_invention() {
         let items = json!([
             {"username": "mt-on", "enabled": true, "total_octets": 1024},
             {"username": "mt-off", "enabled": false, "total_octets": 2048},
@@ -182,6 +179,52 @@ mod tests {
                    "runtime": {"traffic_octets": 3072, "current_connections": 0, "active_ips": 0}})
         );
         assert!(mtproxy(&json!([]), &json!({}), &json!([]), &items).is_err());
+
+        let naive = naive(
+            "naive.example.com",
+            &json!({"ready": true}),
+            &json!([{"enabled": true}, {"enabled": false}]),
+            &json!({"source": "caddy_connect_access_log"}),
+        )
+        .unwrap();
+        assert_eq!(
+            naive,
+            json!({
+                "available": true, "status": "ready", "ready": true, "host": "naive.example.com",
+                "credentials": {"active": 1, "disabled": 1, "total": 2},
+                "traffic": {"available": true, "source": "caddy_connect_access_log"},
+            })
+        );
+    }
+
+    #[test]
+    fn dashboard_stays_available_when_enabled_naive_manager_is_degraded() {
+        assert_eq!(
+            naive_degraded("naive.example.com"),
+            json!({
+                "available": true, "status": "degraded", "ready": false, "host": "naive.example.com",
+                "credentials": {"available": false},
+                "traffic": {"available": false, "reason": "manager_unavailable"},
+            })
+        );
+    }
+
+    #[test]
+    fn dashboard_reports_mieru_disabled_ready_and_degraded() {
+        assert_eq!(disabled(), json!({"available": false, "status": "disabled"}));
+        let empty = crate::mieru::traffic_map(&json!({"users": []})).unwrap();
+        let ready = mieru(&json!({"ready": true, "revision": "rev-1"}), &json!([]), Some(&empty)).unwrap();
+        assert_eq!(ready["status"], "ready");
+        assert_eq!(
+            ready["traffic"],
+            json!({"available": true, "label": "application bytes", "since": "mita_start",
+                   "upload_bytes": 0, "download_bytes": 0})
+        );
+        assert_eq!(mieru_degraded()["status"], "degraded");
+        assert_eq!(
+            mieru(&json!({"ready": true}), &json!([]), None).unwrap()["traffic"]["reason"],
+            "typed_histories_unavailable"
+        );
     }
 
     #[test]

@@ -183,10 +183,9 @@ pub fn account_name(text: &str) -> bool {
 /// `TypeError`, anything else compares with `==`.
 pub fn member<'a>(value: Option<&'a Value>, choices: &[&str]) -> PageResult<Option<&'a Value>> {
     match value {
-        Some(Value::Array(_)) | Some(Value::Object(_)) => Err(Fault::crash(format!(
-            "TypeError: unhashable type: '{}'",
-            type_name(value.unwrap_or(&Value::Null))
-        ))),
+        Some(Value::Array(_)) | Some(Value::Object(_)) => {
+            Err(Fault::crash(format!("TypeError: unhashable type: '{}'", type_name(value.unwrap_or(&Value::Null)))))
+        }
         Some(Value::String(text)) if choices.contains(&text.as_str()) => Ok(value),
         _ => Ok(None),
     }

@@ -32,7 +32,7 @@ use panel_managers::ManagerError;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Fault {
     /// `raise HTTPException(status, detail)`.
-    Api(ApiError),
+    Api(Box<ApiError>),
     /// `raise NaiveError(...)`/`MieruError(...)` in the route itself: the app's handler answers.
     Manager(ManagerError),
     /// An exception Python did not handle (`AttributeError`, `TypeError`, …): a bare 500.
@@ -42,7 +42,7 @@ pub enum Fault {
 impl Fault {
     /// `HTTPException(status, detail)`.
     pub fn detail(status: u16, detail: impl Into<String>) -> Self {
-        Fault::Api(ApiError::detail(status, detail))
+        Fault::Api(Box::new(ApiError::detail(status, detail)))
     }
 
     /// An unhandled exception with Python's class name and message.
@@ -65,7 +65,7 @@ impl std::error::Error for Fault {}
 
 impl From<ApiError> for Fault {
     fn from(error: ApiError) -> Self {
-        Fault::Api(error)
+        Fault::Api(Box::new(error))
     }
 }
 

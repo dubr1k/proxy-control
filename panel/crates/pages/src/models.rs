@@ -24,7 +24,8 @@ fn naive_username(text: &str) -> bool {
 /// `^[A-Za-z0-9_.:-]{1,128}$`.
 fn revision(text: &str) -> bool {
     let count = text.chars().count();
-    (1..=128).contains(&count) && text.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | ':' | '-'))
+    (1..=128).contains(&count)
+        && text.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | ':' | '-'))
 }
 
 /// `^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$`.
@@ -117,12 +118,8 @@ impl Model for UserLimits {
         let rate_limit_down_bps = count(&mut fields, cx, "rate_limit_down_bps", 1_000_000_000_000);
         let max_tcp_conns = count(&mut fields, cx, "max_tcp_conns", 100_000);
         let max_unique_ips = count(&mut fields, cx, "max_unique_ips", 100_000);
-        let expiration_rfc3339 = fields.optional(
-            cx,
-            "expiration_rfc3339",
-            || None,
-            |value, loc, cx| nullable(value, loc, cx, expiration),
-        );
+        let expiration_rfc3339 =
+            fields.optional(cx, "expiration_rfc3339", || None, |value, loc, cx| nullable(value, loc, cx, expiration));
         fields.finish(cx, Extra::Ignore).then_some(())?;
         let mut limits = Self {
             data_quota_bytes: data_quota_bytes?,
@@ -387,9 +384,10 @@ mod tests {
         let error = UserCreate::validate_body(&json!({"username": "bad user"})).unwrap_err();
         assert_eq!(error.issues[0].msg, "Value error, invalid username");
         assert_eq!(kinds::<NaiveUserCreate>(json!({"username": "bad user"})), ["string_pattern_mismatch"]);
-        assert_eq!(kinds::<MieruUserCreate>(json!({"username": "caf\u{e9}", "expected_revision": "r"})), [
-            "value_error"
-        ]);
+        assert_eq!(
+            kinds::<MieruUserCreate>(json!({"username": "caf\u{e9}", "expected_revision": "r"})),
+            ["value_error"]
+        );
     }
 
     #[test]
@@ -414,7 +412,8 @@ mod tests {
         assert_eq!(kinds::<MieruQuotaUpdate>(json!({"expected_revision": "r", "quotas": many})), ["too_long"]);
         assert_eq!(kinds::<MieruRevision>(json!({"expected_revision": "bad revision"})), ["string_pattern_mismatch"]);
         assert_eq!(kinds::<MieruQuotaUpdate>(json!({"expected_revision": "r"})), ["missing"]);
-        let created = MieruUserCreate::validate_body(&json!({"username": "phone", "expected_revision": "rev-1"})).unwrap();
+        let created =
+            MieruUserCreate::validate_body(&json!({"username": "phone", "expected_revision": "rev-1"})).unwrap();
         assert!(created.quotas.is_empty() && !created.allow_private_ip);
         assert_eq!(kinds::<VersionUpdate>(json!({"version": "-1"})), ["string_pattern_mismatch"]);
         let update = VersionUpdate::validate_body(&json!({"version": "3.4.25", "expected_current": null})).unwrap();

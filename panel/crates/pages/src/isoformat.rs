@@ -1,8 +1,8 @@
 //! `datetime.fromisoformat(text)` of CPython 3.13 (`Modules/_datetimemodule.c`), reduced to what
 //! the `UserLimits.expiration_rfc3339` validator asks: does the text parse, and does it carry an
 //! offset. A line-for-line port of the C parser — it works on the UTF-8 bytes with a trailing NUL,
-//! as the C code does, so its corner cases (the separator may be any byte, `HHMM` without colons,
-//! ISO week dates, `24:00` as the next midnight, a fraction of any length) are Python's.
+//! as the C code does, so its corner cases (the separator may be any Unicode character, `HHMM`
+//! without colons, ISO week dates, a fraction of any length) are Python's.
 //!
 //! Checked against `tests/fixtures/fromisoformat.json`, recorded from Python 3.13.5.
 
@@ -50,33 +50,15 @@ pub fn fromisoformat(text: &str) -> Result<Parsed, Invalid> {
     let bytes = Bytes(text.as_bytes());
     let len = text.len();
     let separator = find_separator(&bytes, len).ok_or(Invalid)?;
-    let (mut year, mut month, mut day) = parse_date(&bytes, separator).ok_or(Invalid)?;
+    let (year, month, day) = parse_date(&bytes, separator).ok_or(Invalid)?;
     let mut time = Time::default();
     let mut aware = false;
     if len > separator {
-        // Skip the separator (any byte); the time runs to the end of the string.
-        let found = parse_time(&bytes, separator + 1, len).ok_or(Invalid)?;
+        // Skip one Unicode character; the time runs to the end of the string.
+        let separator_len = text[separator..].chars().next().ok_or(Invalid)?.len_utf8();
+        let found = parse_time(&bytes, separator + separator_len, len).ok_or(Invalid)?;
         aware = found.1;
         time = found.0;
-    }
-    // 3.13: `24:00` is midnight of the next day; any other moment at hour 24 is refused.
-    if time.hour == 24 && month <= 12 {
-        let in_month = days_in_month(year, month);
-        if day <= in_month {
-            if time.minute != 0 || time.second != 0 || time.microsecond != 0 {
-                return Err(Invalid);
-            }
-            time.hour = 0;
-            day += 1;
-            if day > in_month {
-                day = 1;
-                month += 1;
-                if month > 12 {
-                    month = 1;
-                    year += 1;
-                }
-            }
-        }
     }
     // `new_datetime`'s range checks.
     let valid = (1..=9999).contains(&year)
@@ -184,6 +166,7 @@ fn parse_hh_mm_ss_ff(bytes: &Bytes<'_>, start: usize, end: usize, time: &mut Tim
     *time = Time::default();
     let mut position = start;
     let mut has_separator = true;
+    let mut fractional_component = 2;
     for index in 0..3 {
         let mut value = 0;
         position = bytes.digits(position, 2, &mut value).ok_or(())?;
@@ -200,14 +183,13 @@ fn parse_hh_mm_ss_ff(bytes: &Bytes<'_>, start: usize, end: usize, time: &mut Tim
         if position >= end {
             return Ok(c != 0);
         } else if has_separator && c == b':' {
-            if index == 2 {
-                return Err(()); // malformed microsecond separator
-            }
-            continue;
-        } else if c == b'.' || c == b',' {
             if index < 2 {
-                return Err(()); // decimal mark on hour or minute
+                continue;
             }
+            // Python also accepts a colon as the seconds' decimal mark.
+            break;
+        } else if c == b'.' || c == b',' {
+            fractional_component = index;
             break;
         } else if !has_separator {
             position -= 1;
@@ -226,7 +208,20 @@ fn parse_hh_mm_ss_ff(bytes: &Bytes<'_>, start: usize, end: usize, time: &mut Tim
         // loop above never ran (`position >= end` returned first).
         microsecond *= CORRECTION.get(to_parse.wrapping_sub(1)).copied().unwrap_or(1);
     }
-    time.microsecond = microsecond;
+    match fractional_component {
+        0 => {
+            let within_hour = microsecond * 3_600;
+            time.minute = within_hour / 60_000_000;
+            time.second = (within_hour / 1_000_000) % 60;
+            time.microsecond = within_hour % 1_000_000;
+        }
+        1 => {
+            let within_minute = microsecond * 60;
+            time.second = within_minute / 1_000_000;
+            time.microsecond = within_minute % 1_000_000;
+        }
+        _ => time.microsecond = microsecond,
+    }
     while bytes.at(position).is_ascii_digit() {
         position += 1;
     }
@@ -257,12 +252,10 @@ fn parse_time(bytes: &Bytes<'_>, start: usize, end: usize) -> Option<(Time, bool
     }
     let mut offset = Time::default();
     let rest = parse_hh_mm_ss_ff(bytes, tz_position + 1, end, &mut offset);
-    // `check_time_args` on the offset's fields.
-    let in_range = (0..=23).contains(&offset.hour)
-        && (0..=59).contains(&offset.minute)
-        && (0..=59).contains(&offset.second)
-        && (0..=999_999).contains(&offset.microsecond);
-    if !in_range {
+    // `tzinfo_from_isoformat_results` constructs a timedelta first: minutes/seconds
+    // may overflow their clock ranges, provided the normalized offset stays below 24h.
+    let seconds = offset.hour * 3_600 + offset.minute * 60 + offset.second;
+    if seconds >= 86_400 {
         return None;
     }
     match rest {
@@ -362,6 +355,24 @@ fn iso_to_ymd(iso_year: i64, iso_week: i64, iso_day: i64) -> Option<(i64, i64, i
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn matches_python_3135_goldens() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/fromisoformat.json")).unwrap();
+        let cases = fixture.as_array().unwrap();
+        assert!(!cases.is_empty());
+        for case in cases {
+            let text = case["text"].as_str().unwrap();
+            let expected = match case["result"].as_str().unwrap() {
+                "aware" => Ok(Parsed::Aware),
+                "naive" => Ok(Parsed::Naive),
+                "invalid" => Err(Invalid),
+                result => panic!("unknown result {result:?} for {text:?}"),
+            };
+            assert_eq!(fromisoformat(text), expected, "Python golden for {text:?}");
+        }
+    }
 
     #[test]
     fn rfc3339_forms_parse() {

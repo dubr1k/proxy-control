@@ -70,8 +70,8 @@ pub fn safe_user(data: &Value, quota: Option<&Value>) -> Value {
 }
 
 /// `_safe_usage(data, extra)`: byte totals plus the percentage (clamped, one decimal), or `None`.
-fn safe_usage(data: Option<&Value>, extra: &[&str]) -> Option<Map<String, Value>> {
-    let data = as_dict(data)?;
+fn safe_usage(data: Option<&Map<String, Value>>, extra: &[&str]) -> Option<Map<String, Value>> {
+    let data = data?;
     let mut result = Map::new();
     for key in ["total_bytes", "available_bytes", "used_bytes"].iter().chain(extra) {
         if let Some(value) = non_negative_int(data.get(*key)) {
@@ -98,8 +98,7 @@ pub fn safe_host(data: &Value) -> Value {
     };
     let empty = Map::new();
     let cpu_raw = as_dict(data.get("cpu")).unwrap_or(&empty);
-    let cpu_value = Value::Object(cpu_raw.clone());
-    let mut cpu = safe_usage(Some(&cpu_value), &["cores"]).unwrap_or_default();
+    let mut cpu = safe_usage(Some(cpu_raw), &["cores"]).unwrap_or_default();
     if let Some(Value::Array(load)) = cpu_raw.get("load_average") {
         let numbers: Vec<f64> = load.iter().filter_map(|value| py::number(Some(value))).collect();
         if load.len() == 3 && numbers.len() == 3 && numbers.iter().all(|value| *value >= 0.0) {
@@ -110,10 +109,10 @@ pub fn safe_host(data: &Value) -> Value {
     json!({
         "available": true,
         "cpu": if cpu.is_empty() { Value::Null } else { Value::Object(cpu) },
-        "memory": usage_value(safe_usage(data.get("memory"), &[])),
+        "memory": usage_value(safe_usage(as_dict(data.get("memory")), &[])),
         // An agent older than v1.0 has no swap section: null, and the card says nothing.
-        "swap": usage_value(safe_usage(data.get("swap"), &[])),
-        "disk": usage_value(safe_usage(data.get("disk"), &[])),
+        "swap": usage_value(safe_usage(as_dict(data.get("swap")), &[])),
+        "disk": usage_value(safe_usage(as_dict(data.get("disk")), &[])),
     })
 }
 
@@ -278,6 +277,48 @@ pub fn proxy_link(value: &Value) -> PageResult<String> {
     }
 }
 
+/// The first row whose `username` matches, with Python's iteration and `.get` failures intact.
+/// Used after domain creation and by `/access`, where a missing row becomes `None` / 404.
+pub fn find_user(items: &Value, username: &str) -> PageResult<Option<Value>> {
+    let username = Value::String(username.to_string());
+    let matches = |candidate: &Value| -> PageResult<bool> {
+        let row = py::dict(candidate)?;
+        Ok(row.get("username").is_some_and(|found| py::eq(found, &username)))
+    };
+    match items {
+        Value::Array(rows) => {
+            for candidate in rows {
+                if matches(candidate)? {
+                    return Ok(Some(candidate.clone()));
+                }
+            }
+        }
+        Value::Object(rows) => {
+            for key in rows.keys() {
+                let candidate = Value::String(key.clone());
+                if matches(&candidate)? {
+                    return Ok(Some(candidate));
+                }
+            }
+        }
+        Value::String(text) => {
+            for ch in text.chars() {
+                let candidate = Value::String(ch.to_string());
+                if matches(&candidate)? {
+                    return Ok(Some(candidate));
+                }
+            }
+        }
+        other => {
+            return Err(Fault::crash(format!(
+                "TypeError: '{}' object is not iterable",
+                panel_model::pyrepr::type_name(other)
+            )))
+        }
+    }
+    Ok(None)
+}
+
 /// `POST /api/users/{username}/access`: the link and QR of the user row, 409 without a valid link.
 pub fn user_access(username: &str, selected: &Value) -> PageResult<Value> {
     let access = secret_reveal(selected)?;
@@ -295,7 +336,7 @@ mod tests {
     const LINK: &str = "tg://proxy?server=proxy.example.com&port=443&secret=ee0123456789abcdef0123456789abcdef";
 
     #[test]
-    fn user_rows_keep_only_the_allow_list() {
+    fn user_api_allowlist_drops_unknown_and_nested_future_secret_fields() {
         let row = json!({
             "username": "alice", "enabled": true, "total_octets": 12, "current_connections": 2,
             "links": {"tls": [LINK]}, "secret": "x", "future": {"secret": "y"}, "max_tcp_conns": null,
@@ -316,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn host_telemetry_is_mapped_section_by_section() {
+    fn overview_reports_host_resources_from_the_agent() {
         let host = safe_host(&json!({
             "cpu": {"used_percent": 12.5, "cores": 4, "load_average": [0.5, 0.4, 0.3], "secret_field": "never"},
             "memory": {"total_bytes": 10, "used_percent": 27.35},
@@ -342,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn only_canonical_telegram_links_pass() {
+    fn access_returns_sanitized_conflict_for_malformed_upstream_url() {
         assert_eq!(proxy_link(&json!(LINK)).unwrap(), LINK);
         let https = "https://t.me/proxy?server=1.2.3.4&port=1&secret=ee0123456789abcdef0123456789abcdef";
         assert!(proxy_link(&json!(https)).is_ok());
@@ -366,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn reveals_carry_a_qr_only_for_a_valid_link() {
+    fn created_and_rotated_reveals_carry_the_qr_the_access_dialog_requires() {
         let created = json!({"user": {"links": {"tls": [LINK]}}, "secret": "0123456789abcdef0123456789abcdef"});
         let reveal = secret_reveal(&created).unwrap();
         assert_eq!(reveal["link"], LINK);
@@ -379,8 +420,29 @@ mod tests {
     }
 
     #[test]
-    fn quota_resets_keep_three_fields() {
+    fn limit_and_reset_responses_use_allowlists() {
+        let changed =
+            safe_user(&json!({"username": "alice", "enabled": false, "future": {"secret": "operation-secret"}}), None);
+        assert_eq!(changed, json!({"username": "alice", "enabled": false}));
         let reset = safe_quota_reset(&json!({"username": "a", "used_bytes": 0, "last_reset_epoch_secs": 5, "x": 1}));
         assert_eq!(reset, json!({"username": "a", "used_bytes": 0, "last_reset_epoch_secs": 5}));
+    }
+
+    #[test]
+    fn host_resources_report_a_reason_when_the_agent_is_silent() {
+        assert_eq!(host_unavailable(), json!({"available": false, "reason": "version_agent_unavailable"}));
+    }
+
+    #[test]
+    fn admin_can_reopen_share_link_and_qr_without_exposing_it_in_lists_or_audit() {
+        let row = json!({"username": "alice", "enabled": true, "links": {"tls": [LINK]}});
+        assert_eq!(find_user(&json!([row.clone()]), "alice").unwrap(), Some(row.clone()));
+        assert_eq!(find_user(&json!([]), "alice").unwrap(), None);
+        let first = user_access("alice", &row).unwrap();
+        let second = user_access("alice", &row).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first["link"], LINK);
+        assert!(first["qr"].as_str().unwrap().starts_with("data:image/svg+xml;base64,"));
+        assert_eq!(safe_user(&row, None), json!({"username": "alice", "enabled": true}));
     }
 }

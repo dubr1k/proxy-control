@@ -34,16 +34,23 @@
 
 use crate::http::router::Routes;
 
+pub mod amneziawg;
 pub mod api_keys;
 pub mod auth;
 pub mod clients;
 pub mod fleet_node;
+mod gather;
 pub mod metrics;
+pub mod mieru;
+pub mod naive;
 pub mod nodes;
 pub mod openapi;
 pub mod readiness;
+pub mod telemt;
 #[cfg(feature = "test-hooks")]
 pub mod test_hooks;
+pub mod trusttunnel;
+pub mod versions;
 
 /// The whole route table.
 pub fn all() -> Routes {
@@ -53,9 +60,13 @@ pub fn all() -> Routes {
         .merge(api_keys::routes())
         .merge(fleet_node::routes())
         // 4: fleet v2 central routes (WP12b)
-        // 5: version routes (WP8)
+        .merge(versions::routes())
         .merge(openapi::routes())
-        // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
+        .merge(telemt::routes())
+        .merge(naive::routes())
+        .merge(mieru::routes())
+        .merge(amneziawg::routes())
+        .merge(trusttunnel::routes())
         .merge(nodes::routes())
         .merge(clients::routes())
         // 15-16: subscriptions (WP9); 17: routing (WP10)

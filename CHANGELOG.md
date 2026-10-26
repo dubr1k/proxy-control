@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+- The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.
+
+### Fixed
+- Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
+
+
 ## [3.3.0] - 2026-10-25
 
 ### Added
