@@ -243,7 +243,7 @@ async def test_expired_reveal_refuses_after_creating_another_password_bearing_re
         json={"username": "second"},
         headers={"X-CSRF-Token": csrf},
     )
-    assert second.status_code == 200
+    assert second.status_code == 201
     assert (await client.get("/api/reveal/" + first_token)).status_code == 410
     assert (await client.get("/api/reveal/" + second.json()["reveal_token"])).status_code == 200
 
