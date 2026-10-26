@@ -1,0 +1,9 @@
+panel/tests/test_protocol_adapter_contract.py
+panel/tests/test_egress_adapters.py
+panel/tests/test_telemt_caller_secret.py
+panel/tests/test_mtproxy_routing.py
+panel/tests/test_trusttunnel.py
+panel/tests/test_amneziawg.py
+panel/tests/test_routing_trusttunnel.py
+panel/tests/test_routing_amneziawg.py
+panel/tests/test_xray_router_client.py

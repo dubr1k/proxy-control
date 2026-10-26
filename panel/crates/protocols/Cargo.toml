@@ -1,0 +1,26 @@
+[package]
+name = "panel-protocols"
+description = "The panel's protocol adapters (Telemt, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, the Xray-router) over the manager clients, the links and configs they render, the tt:// deep link and the QR codes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_protocols"
+
+[dependencies]
+base64 = "0.22"
+getrandom = "0.3"
+panel-core = { path = "../core" }
+panel-managers = { path = "../managers" }
+panel-model = { path = "../model" }
+# Only the QR primitives (bit stream, Reed-Solomon, canvas): no image or SVG renderer.
+qrcode = { version = "0.14", default-features = false }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+x25519-dalek = { version = "2", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
