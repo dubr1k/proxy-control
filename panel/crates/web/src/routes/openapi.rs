@@ -1,10 +1,9 @@
-//! `panel/openapi_routes.py`: the API schema for the MCP server, owners and admins only. FastAPI's
-//! public `/openapi.json`, `/docs` and `/redoc` stay off.
+//! The API schema for the MCP server, owners and admins only. Public `/openapi.json`, `/docs`
+//! and `/redoc` stay off.
 //!
-//! The document is the exact bytes the Python panel served (`openapi/panel-openapi.json`,
-//! recorded by `tests/fixtures/record_goldens.py`): the MCP server generates its tools from it,
-//! so names, parameters and body schemas must not move. A route change edits that file by hand;
-//! `tests/openapi_routes.rs` keeps the route set and the document's operations equal.
+//! The checked-in `openapi/panel-openapi.json` fixes the MCP tool names, parameters and body
+//! schemas. Retired Fleet v1 operations are absent. Route changes update that document;
+//! `tests/openapi_routes.rs` keeps its operation set equal to the router's.
 
 use axum::extract::State;
 

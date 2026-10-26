@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import json
 import os
@@ -15,6 +16,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PANEL_IMAGE = os.environ.get("PANEL_TEST_IMAGE", "mtproxy-panel:latest")
 STATE_PREPARER = ROOT / "scripts" / "prepare-mieru-state.sh"
 TOKEN_PREPARER = ROOT / "scripts" / "prepare-mieru-token.sh"
 TOKEN_PREPARER_HELPER = ROOT / "scripts" / "prepare_mieru_token.py"
@@ -650,6 +652,7 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
         "--cap-add", "SETUID", "--security-opt", "no-new-privileges:true",
         "-e", "PANEL_SUPPLEMENTARY_GROUPS=10005",
         "-e", "MIERU_ENABLED=true",
+        "-e", "PANEL_METRICS_ENABLED=false",
         "-e", "TELEMT_API_TOKEN_SOURCE=/run/secrets/telemt-api-token",
         "-e", "MIERU_MANAGER_TOKEN_SOURCE=/run/secrets/mieru-manager-token",
         "--mount", f"type=bind,src={telemt},dst=/run/secrets/telemt-api-token,readonly",
@@ -658,7 +661,7 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
         "--mount", f"type=bind,src={mieru_run},dst=/run/mieru-manager,readonly",
         "--mount", f"type=bind,src={accounting},dst=/probe/accounting,readonly",
         "--mount", f"type=bind,src={mieru_state},dst=/probe/mieru-state,readonly",
-        "mtproxy-panel:latest",
+        PANEL_IMAGE,
     ]
     try:
         started = subprocess.run(command, capture_output=True, check=False)
@@ -682,14 +685,32 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
             check=True,
         )
         assert staged.stdout.strip() == "10001:101:400"
-        client = "import socket,sys;s=socket.socket(socket.AF_UNIX);s.connect(sys.argv[1])"
-        for path in ("/run/naive-manager/manager.sock", "/run/mieru-manager/manager.sock"):
-            connected = subprocess.run(
-                ["docker", "exec", name, "setpriv", "--reuid=10001", "--regid=101", "--groups", "10005", "python", "-c", client, path],
-                capture_output=True,
-                check=False,
-            )
-            assert connected.returncode == 0, connected.stderr.decode()
+
+        def answer_probe(listener):
+            listener.settimeout(10)
+            connection, _ = listener.accept()
+            with connection:
+                request = connection.recv(4096)
+                connection.sendall(b"HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n")
+                return request
+
+        for listener, path in (
+            (naive_socket, "/run/naive-manager/manager.sock"),
+            (mieru_socket, "/run/mieru-manager/manager.sock"),
+        ):
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                received = executor.submit(answer_probe, listener)
+                connected = subprocess.run(
+                    [
+                        "docker", "exec", "-e", f"PANEL_LISTEN=unix:{path}", name,
+                        "setpriv", "--reuid=10001", "--regid=101", "--groups", "10005",
+                        "/usr/local/bin/panel", "healthcheck",
+                    ],
+                    capture_output=True,
+                    check=False,
+                )
+                assert connected.returncode == 0, connected.stderr.decode()
+                assert received.result(timeout=10).startswith(b"GET /healthz HTTP/1.0\r\n")
         for path in ("/probe/accounting", "/probe/mieru-state"):
             denied = subprocess.run(
                 ["docker", "exec", name, "setpriv", "--reuid=10001", "--regid=101", "--groups", "10005", "test", "-r", path],

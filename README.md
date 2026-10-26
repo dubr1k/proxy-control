@@ -782,7 +782,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 
 | Dockerfile | Образ | База |
 |---|---|---|
-| `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
+| `panel/Dockerfile` | API и интерфейс панели (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | Xray-router: служба управления (Rust) и мост MTProxy (Go) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
@@ -799,19 +799,13 @@ Telemt и сверх образа — из бинарника релиза `tele
 
 Каждая база закреплена по контрольной сумме.
 
-### Зависимости Python
+### Зависимости
 
-Панель (`panel/requirements.txt`): `fastapi`, `starlette`, `annotated-doc`,
-`opentelemetry-api`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
-`typing_extensions`, `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`,
-`MarkupSafe`, `argon2-cffi`, `argon2-cffi-bindings`, `cryptography`, `cffi`, `pycparser`,
-`uvicorn`, `click`, `qrcode`.
+Зависимости панели и служб управления закреплены в их `Cargo.lock`; образ панели не содержит
+интерпретатора Python. Административные команды выполняет бинарник `panel cli`.
 
-Разработка (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`, `iniconfig`,
-`packaging`, `pluggy`, `Pygments`, `ruff`.
-
-Все версии закреплены точно. Установщик и службы управления NaiveProxy и Mieru используют
-только стандартную библиотеку Python.
+Python используется инструментами сборки, разработки и лабораторного стенда, а не процессом
+панели. Зависимости стенда закреплены в `panel/requirements-dev.txt`.
 
 ## Документация
 
@@ -883,6 +877,6 @@ Proxy Control опирается на работу авторов и сопро�
 | Nginx | Маршрутизация по SNI на общем порту 443 | [nginx.org](https://nginx.org/) |
 | Certbot и Let's Encrypt | Выпуск и продление сертификатов | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
 | Docker и Compose | Изолированное выполнение служб | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
-| Библиотеки Python | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography, qrcode | [зависимости](panel/requirements.txt) |
+| Библиотеки Rust | Tokio, Hyper, Axum, rusqlite, rustls, Argon2, AES-GCM, qrcode | [зависимости панели](panel/Cargo.lock) |
 
 Спасибо всем разработчикам, сопровождающим и участникам этих проектов.

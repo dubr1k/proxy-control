@@ -31,7 +31,7 @@ remote() {
 }
 
 ensure_venv='test -x .venv/bin/python || python3 -m venv .venv; .venv/bin/pip install -q -r panel/requirements-dev.txt'
-build_images='docker build -q -f panel/Dockerfile -t mtproxy-panel:latest panel >/dev/null && docker build -q -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest . >/dev/null && docker build -q -f xray_router_manager/Dockerfile -t mtproxy-xray-router:latest . >/dev/null'
+build_images='docker build -q -f panel/Dockerfile -t mtproxy-panel:latest . >/dev/null && docker build -q -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest . >/dev/null && docker build -q -f xray_router_manager/Dockerfile -t mtproxy-xray-router:latest . >/dev/null'
 
 case $LEVEL in
   quick)

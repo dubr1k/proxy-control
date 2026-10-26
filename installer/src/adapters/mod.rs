@@ -25,6 +25,11 @@ pub(crate) mod example;
 mod router_host;
 #[cfg(test)]
 mod router_tests;
+pub mod certificates;
+pub mod core;
+pub mod firewall;
+pub mod nginx;
+pub mod packages;
 pub mod three_xui;
 pub mod xray_router;
 
@@ -50,7 +55,15 @@ impl std::fmt::Debug for AdapterContext {
 /// Every known adapter, registered with the engine up front: `resume`, `repair` and `uninstall`
 /// run without composing a plan, so every adapter a stored plan may name must be there.
 pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
-    vec![Arc::new(three_xui::ThreeXuiAdapter::new(context)), Arc::new(xray_router::XrayRouterAdapter::new(context))]
+    vec![
+        Arc::new(packages::PackagesAdapter::new(context)),
+        Arc::new(certificates::CertificatePlan::new(context)),
+        Arc::new(firewall::FirewallAdapter::new(context)),
+        Arc::new(nginx::NginxAdapter::new(context)),
+        Arc::new(core::CoreAdapter::new(context)),
+        Arc::new(three_xui::ThreeXuiAdapter::new(context)),
+        Arc::new(xray_router::XrayRouterAdapter::new(context)),
+    ]
 }
 
 /// `installer.adapters.mcp.mcp_handoff(root, config)`: the MCP address and bearer for the

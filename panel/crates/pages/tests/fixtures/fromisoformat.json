@@ -1,0 +1,450 @@
+[
+ {
+  "text": "",
+  "result": "invalid"
+ },
+ {
+  "text": "2027",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01",
+  "result": "naive"
+ },
+ {
+  "text": "20270101",
+  "result": "naive"
+ },
+ {
+  "text": "2027-1-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-1-01",
+  "result": "invalid"
+ },
+ {
+  "text": "0001-01-01",
+  "result": "naive"
+ },
+ {
+  "text": "9999-12-31",
+  "result": "naive"
+ },
+ {
+  "text": "0000-01-01",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-00-01",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-13-01",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-32",
+  "result": "invalid"
+ },
+ {
+  "text": "2028-02-29",
+  "result": "naive"
+ },
+ {
+  "text": "2027-02-29",
+  "result": "invalid"
+ },
+ {
+  "text": "1900-02-29",
+  "result": "invalid"
+ },
+ {
+  "text": "2000-02-29",
+  "result": "naive"
+ },
+ {
+  "text": "2027-W01-1",
+  "result": "naive"
+ },
+ {
+  "text": "2027W011",
+  "result": "naive"
+ },
+ {
+  "text": "2027-W01",
+  "result": "naive"
+ },
+ {
+  "text": "2027W01",
+  "result": "naive"
+ },
+ {
+  "text": "2020-W53-7",
+  "result": "naive"
+ },
+ {
+  "text": "2021-W53-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2015-W53-7",
+  "result": "naive"
+ },
+ {
+  "text": "2014-W53-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-W00-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-W54-1",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-W01-0",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-W01-8",
+  "result": "invalid"
+ },
+ {
+  "text": "9999-W52-7",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01 00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01X00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\u00e900:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\ud83e\udd8000:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\u000000:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "20270101T102030",
+  "result": "naive"
+ },
+ {
+  "text": "20270101T1020",
+  "result": "naive"
+ },
+ {
+  "text": "20270101T10",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10:20",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T102030",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10:20:30.123456",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10:20:30,123456",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10:20:30.123456789123",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10:20:30.",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T10:20.5",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10.5",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T10::20",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T10:20:30:40",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T24:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T24:00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-12-31T24:00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "9999-12-31T24:00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T24:00:01",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T24:01",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T25:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T23:60",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T23:59:60",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00Z",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00-00:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+05:30",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00-02:15:30",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+02:15:30.123456",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+0200",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+02",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+021530",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+021530.123456",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+24:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23:60",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23:59:60",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00junk",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00Zjunk",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00ZZ",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00++00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+-00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+0:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:0",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00:00.123456789",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00.",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00-",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01TT00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01\n00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\r00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\t00:00:00",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01T00:00:00\n",
+  "result": "invalid"
+ },
+ {
+  "text": " 2027-01-01T00:00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00 ",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00\u0000",
+  "result": "naive"
+ },
+ {
+  "text": "2027-01-01\u000000:00:00+00:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-W01-1T00:00+01:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027W011T0000+0100",
+  "result": "aware"
+ },
+ {
+  "text": "2027W01T00:00+01:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-W01T00:00+01:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-W01-1T24:00+01:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:60",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00-00:60",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00:60",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+22:99:99",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23:59:60",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+24:00:00",
+  "result": "invalid"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00.5",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00.5",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23.99",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23:59.99",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+23:59:59.999999",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00\u0000+00:00",
+  "result": "aware"
+ },
+ {
+  "text": "2027-01-01T00:00:00+00:00\u0000junk",
+  "result": "invalid"
+ }
+]

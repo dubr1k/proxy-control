@@ -32,7 +32,7 @@ Claude Code / Desktop ──https://<mcp-domain>/mcp (Bearer mcp-token)──> n
 The installer sets the server up when the wizard is given an **MCP domain** (the eleventh
 domain, after the subscription one; `domains.mcp` in the configuration,
 [INSTALLER_REFERENCE](INSTALLER_REFERENCE.en.md)). It issues the panel key
-(`python -m panel.cli api-key-create --name mcp --scope admin`), writes the secrets
+(`panel cli api-key-create --name mcp --scope admin`), writes the secrets
 `secrets/mcp-panel-key` and `secrets/mcp-token` (0600) and `.env.mcp` (`MCP_DOMAIN`,
 `MCP_PANEL_HOST`), adds the vhost on the SNI router and brings up the `compose.mcp.yaml`
 overlay. The token and the address `https://<domain>/mcp` land in the root-only install handoff.
@@ -40,12 +40,17 @@ overlay. The token and the address `https://<domain>/mcp` land in the root-only 
 By hand (the panel is installed, the domain points at the host):
 
 ```bash
-cd /opt/proxy-control            # the project directory
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > secrets/mcp-token
-docker compose exec -T panel python -m panel.cli api-key-create --name mcp --scope admin \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["plaintext"])' > secrets/mcp-panel-key
-chmod 0600 secrets/mcp-token secrets/mcp-panel-key
-printf 'MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=panel.example.com\n' > .env.mcp
+cd /opt/mtproxy-shared443         # the project directory
+(
+  set -e
+  set -o pipefail
+  umask 077
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > secrets/mcp-token
+  docker compose exec -T panel panel cli api-key-create --name mcp --scope admin \
+    | awk -F '"' '{for(i=2;i<NF;i+=2) if($i=="plaintext"){print $(i+2); found=1}} END{if(!found) exit 1}' > secrets/mcp-panel-key
+  chmod 0600 secrets/mcp-token secrets/mcp-panel-key
+) &&
+printf 'MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=panel.example.com\n' > .env.mcp &&
 docker compose --env-file .env --env-file .env.mcp -f compose.yaml -f compose.mcp.yaml up -d --build --wait mcp
 ```
 

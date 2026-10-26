@@ -30,6 +30,7 @@ panel-metrics = { path = "../metrics", features = ["managers"] }
 panel-nodes = { path = "../nodes" }
 panel-protocols = { path = "../protocols" }
 panel-subscriptions = { path = "../subscriptions" }
+panel-pages = { path = "../pages" }
 # Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette
 # first-match semantics, exact headers and bodies).
 axum = { version = "0.8", default-features = false }

@@ -443,56 +443,6 @@ class DeployCliTests(unittest.TestCase):
             "/run/proxy-control/version-agent.sock",
         )
 
-    def test_panel_healthcheck_sends_configured_allowed_host(self):
-        env = {
-            **os.environ,
-            "MTPROXY_DOMAIN": "proxy.lab.test",
-            "MTPROXY_COVER_ROOT": "/tmp",
-            "PANEL_ALLOWED_HOSTS": "panel.lab.test",
-            "PANEL_HEALTHCHECK_HOST": "panel.lab.test",
-        }
-        rendered = subprocess.run(
-            ["docker", "compose", "config", "--format", "json"],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-        )
-        self.assertEqual(rendered.returncode, 0, rendered.stderr)
-        panel = json.loads(rendered.stdout)["services"]["panel"]
-        self.assertEqual(panel["environment"]["PANEL_HEALTHCHECK_HOST"], "panel.lab.test")
-        command = panel["healthcheck"]["test"]
-        self.assertEqual(command[:3], ["CMD", "/bin/bash", "-ec"])
-        self.assertIn("/dev/tcp/127.0.0.1/8787", command[3])
-        self.assertIn("PANEL_HEALTHCHECK_HOST", command[3])
-        self.assertIn("GET /healthz HTTP/1.0", command[3])
-        self.assertIn("read -r -t 5 protocol status_code", command[3])
-        self.assertIn('"$$status_code" == 200', command[3])
-        self.assertNotIn("*' 200 '*", command[3])
-        self.assertNotIn("python", command[3])
-        self.assertEqual(panel["healthcheck"]["timeout"], "10s")
-        self.assertEqual(panel["healthcheck"]["start_period"], "2m0s")
-
-    def test_panel_healthcheck_default_host_is_allowed(self):
-        env = {
-            **os.environ,
-            "MTPROXY_DOMAIN": "proxy.lab.test",
-            "MTPROXY_COVER_ROOT": "/tmp",
-        }
-        rendered = subprocess.run(
-            ["docker", "compose", "config", "--format", "json"],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-        )
-        self.assertEqual(rendered.returncode, 0, rendered.stderr)
-        panel = json.loads(rendered.stdout)["services"]["panel"]
-        self.assertIn(
-            panel["environment"]["PANEL_HEALTHCHECK_HOST"],
-            panel["environment"]["PANEL_ALLOWED_HOSTS"].split(","),
-        )
-
     def test_render_is_idempotent_and_preserves_existing_secrets(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -511,22 +461,6 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(secret_file.read_text(), before)
             self.assertEqual(master_key.read_text(), key_before)
 
-    def test_nodes_view_exposes_lifecycle_actions_and_hides_raw_transport_in_advanced(self):
-        javascript = (ROOT / "panel/static/js/nodes.js").read_text()
-        html = (ROOT / "panel/static/index.html").read_text()
-        main = (ROOT / "panel/static/js/main.js").read_text()
-        self.assertIn('data-node-action="revoke-all"', javascript)
-        self.assertIn('class="advanced-drawer"', javascript)
-        self.assertIn("/api/nodes/${encodeURIComponent(nodeId)}/certificates/revoke-all", javascript)
-        self.assertIn('id="node-modal"', html)
-        self.assertIn("fleet: renderNodes", main)
-        # The raw Telemt v1 command form is reachable only from the drawer.
-        self.assertNotIn("fleet-command-form", javascript)
-        self.assertIn("nodeDetail", javascript)
-        # The local card carries manager health instead of certificates, and no drawer.
-        self.assertIn('class="node-services"', javascript)
-        self.assertIn('node.kind === "local" ? servicesBlock(node) : certificates', javascript)
-        self.assertIn(".node-services{grid-area:detail", (ROOT / "panel/static/style.css").read_text())
 
     def test_clients_view_imports_read_only_and_never_merges_by_name(self):
         javascript = (ROOT / "panel/static/js/clients.js").read_text()

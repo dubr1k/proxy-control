@@ -104,7 +104,15 @@ pub fn start_with(extra: &[(&str, &str)], tweak: impl FnOnce(&mut Settings)) -> 
 pub fn exchange(socket: &Path, raw: &[u8]) -> Vec<u8> {
     let mut stream = UnixStream::connect(socket).unwrap();
     stream.set_read_timeout(Some(std::time::Duration::from_secs(30))).unwrap();
-    stream.write_all(raw).unwrap();
+    if let Err(error) = stream.write_all(raw) {
+        // A declared body-limit refusal can close the connection before the client has sent the
+        // entire body. The response (still parsed and checked by the caller), not write_all, is
+        // the HTTP verdict. Other I/O failures are not valid early refusals.
+        assert!(
+            matches!(error.kind(), std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset),
+            "sending raw HTTP request: {error}"
+        );
+    }
     let mut out = Vec::new();
     let _ = stream.read_to_end(&mut out);
     out

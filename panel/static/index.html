@@ -378,18 +378,6 @@
     </form>
   </dialog>
 
-  <dialog id="node-modal" class="sheet">
-    <form method="dialog" id="node-form">
-      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Зарегистрировать узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">После регистрации панель покажет шаги enrollment. Приватный ключ узла никогда не покидает сам узел.</p>
-      <label>ID узла<input id="node-id" pattern="[a-z0-9](?:[a-z0-9.\-]{0,62}[a-z0-9])?" maxlength="64" autocomplete="off" placeholder="например, edge-02" required><small>Строчные латинские буквы, цифры, точка и дефис</small></label>
-      <label>Отображаемое имя<input id="node-name" maxlength="128" autocomplete="off" placeholder="например, Frankfurt edge" required></label>
-      <div class="form-error" id="node-error" role="alert"></div>
-      <div id="node-checklist"></div>
-      <footer><button class="secondary" value="cancel" formnovalidate>Закрыть</button><button class="primary" id="create-node" type="button">Зарегистрировать</button></footer>
-    </form>
-  </dialog>
-
   <dialog id="node-rename-modal" class="sheet">
     <form method="dialog" id="node-rename-form">
       <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Переименовать узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
@@ -397,17 +385,6 @@
       <label>Отображаемое имя<input id="node-rename-name" maxlength="128" autocomplete="off" required><small>ID узла не меняется: к нему привязаны сертификаты и доступы</small></label>
       <div class="form-error" id="node-rename-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="save-node-name" type="button">Сохранить</button></footer>
-    </form>
-  </dialog>
-
-  <dialog id="node-revoke-modal" class="sheet">
-    <form method="dialog" id="node-revoke-form">
-      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Отозвать все сертификаты</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Узел <b id="node-revoke-name"></b> перестанет проходить аутентификацию, пока ему не выпустят и не привяжут новый сертификат.</p>
-      <input id="node-revoke-id" type="hidden">
-      <label>Повторите ID узла<input id="node-revoke-confirm" maxlength="64" autocomplete="off" required></label>
-      <div class="form-error" id="node-revoke-error" role="alert"></div>
-      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="danger" id="confirm-node-revoke" type="button">Отозвать</button></footer>
     </form>
   </dialog>
 

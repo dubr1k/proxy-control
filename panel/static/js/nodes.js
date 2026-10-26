@@ -1,5 +1,4 @@
 import { bytes, cssEscape, date, esc, icon, number, query, queryAll, versionOptions } from "./common.js";
-import { nodeDetail, refreshCommands, updateCommandFieldsAfterRender } from "./fleet.js";
 import { routingSummary } from "./routing.js";
 import { isCurrent } from "./state.js";
 
@@ -95,7 +94,6 @@ function actions(context, node) {
   return `<div class="node-actions">
     <button class="secondary" data-node-action="rename">Переименовать</button>
     ${toggle}
-    <button class="danger ghost" data-node-action="revoke-all">Отозвать все сертификаты</button>
   </div>`;
 }
 
@@ -109,7 +107,7 @@ function routingLine(context, node) {
   return ["Маршрутизация", routingSummary(items)];
 }
 
-function nodeCard(context, node, expanded) {
+function nodeCard(context, node) {
   if (node.transport === "panel" && node.link) return linkedCard(context, node, context.state.nodeTab[node.node_id] || "overview");
   const [tone, label] = ENROLLMENT[node.enrollment_state] || ["blocked", node.enrollment_state];
   const inventory = node.inventory || {};
@@ -137,7 +135,6 @@ function nodeCard(context, node, expanded) {
     ${facts(summary)}
     ${node.kind === "local" ? servicesBlock(node) : certificates}
     ${node.kind === "local" ? localLinkBlock(context, node) : actions(context, node)}
-    ${node.kind === "local" ? "" : `<div class="advanced-drawer"><button class="ghost" data-node-action="advanced" aria-expanded="${expanded ? "true" : "false"}">Advanced: транспорт v1</button>${expanded ? `<div class="advanced-body">${nodeDetail(context, context.state.fleet.find((item) => item.node_id === node.node_id), context.state.fleetCommands)}</div>` : ""}</div>`}
   </article>`;
 }
 
@@ -316,9 +313,8 @@ async function loadInventories(context) {
 }
 
 export async function renderNodes(context, generation) {
-  const [data, transport, routing, versions] = await Promise.all([
+  const [data, routing, versions] = await Promise.all([
     context.api("/api/nodes"),
-    context.api("/api/fleet/nodes"),
     // The routing line is a courtesy: a panel whose routing targets cannot be read still lists its nodes.
     context.api("/api/routing/targets").catch(() => ({ items: [] })),
     // Свои версии — такая же любезность: без version-agent строка скажет, что версий нет.
@@ -327,42 +323,19 @@ export async function renderNodes(context, generation) {
   if (!isCurrent(context.state, generation, "fleet")) return;
   context.state.versions = versions || { enabled: false, components: {} };
   context.state.nodes = data.items || [];
-  context.state.fleet = transport.items || [];
   context.state.routingTargets = routing.items || [];
   const count = query("#fleet-count", context.root);
   if (count) count.textContent = context.state.nodes.length;
-  const expanded = context.state.fleetSelection;
-  if (expanded && context.state.nodes.some((node) => node.node_id === expanded && node.kind !== "local")) {
-    const commands = await refreshCommands(context, expanded, generation);
-    if (commands === null) return;
-  }
   // A linked panel's users are read only for an open «Пользователи» tab (spec §7).
   const inventories = await loadInventories(context);
   if (!isCurrent(context.state, generation, "fleet")) return;
   context.state.nodeInventory = inventories;
-  const owner = context.state.me?.role === "owner";
   context.ui.view.innerHTML = `<div class="security-note">Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.</div>
-    ${owner ? `<details class="node-advanced"><summary>Дополнительно</summary>
-      <p class="form-hint">Узлы старого типа (v1) подключаются сами: исходящим mTLS long-poll, идентичность привязана к сертификату. Здесь же — регистрация такого узла, а его raw-команды Telemt v1 — на карточке такого узла, под кнопкой «Advanced: транспорт v1».</p>
-      <button class="secondary" data-node-action="register-v1">Зарегистрировать узел v1 (mTLS-агент)</button></details>` : ""}
     <section class="node-list">${context.state.nodes.length
-      ? context.state.nodes.map((node) => nodeCard(context, node, node.node_id === expanded)).join("")
+      ? context.state.nodes.map((node) => nodeCard(context, node)).join("")
       : '<div class="empty-state"><span>◇</span><h3>Узлов пока нет</h3><p>Нажмите «Добавить узел» и введите адрес панели узла и её ключ. Ключ узел создаёт у себя в разделе «Узлы».</p></div>'}</section>`;
-  // The v1 command form hides fields per operation, so it needs one pass after render.
-  if (expanded) updateCommandFieldsAfterRender(context);
 }
 
-function checklist(steps) {
-  return `<ol class="enrollment-checklist">${steps.map((step) => `<li><code>${esc(step)}</code></li>`).join("")}</ol>`;
-}
-
-export function openNodeModal(context) {
-  const form = query("#node-form", context.root);
-  form.reset();
-  query("#node-error", context.root).textContent = "";
-  query("#node-checklist", context.root).innerHTML = "";
-  context.ui.openModal("#node-modal", "#node-id");
-}
 
 // One dialog for both linking a panel and editing the link: in edit mode the key field
 // left blank means "не менять", and the probe/import step is not offered.
@@ -588,49 +561,6 @@ export function bindNodes(context) {
   query("#center-key-modal", root)?.addEventListener("close", () => {
     query("#center-key", root).value = "";
   });
-  query("#create-node", root)?.addEventListener("click", async ({ currentTarget: button }) => {
-    const form = query("#node-form", root);
-    const error = query("#node-error", root);
-    if (!form.reportValidity()) return;
-    error.textContent = "";
-    try {
-      ui.setBusy(button, true, "Регистрируем…");
-      const body = await api("/api/nodes", {
-        method: "POST",
-        body: JSON.stringify({
-          node_id: query("#node-id", root).value,
-          display_name: query("#node-name", root).value.trim(),
-        }),
-      });
-      // The dialog stays open: the operator still has to run the enrollment steps.
-      query("#node-checklist", root).innerHTML = checklist(body.enrollment_checklist || []);
-      ui.toast("Узел зарегистрирован; выполните enrollment");
-      await context.navigate("fleet");
-    } catch (exception) {
-      error.textContent = exception.message;
-    } finally {
-      ui.setBusy(button, false);
-    }
-  });
-  query("#confirm-node-revoke", root)?.addEventListener("click", async ({ currentTarget: button }) => {
-    const error = query("#node-revoke-error", root);
-    const nodeId = query("#node-revoke-id", root).value;
-    error.textContent = "";
-    try {
-      ui.setBusy(button, true, "Отзываем…");
-      const result = await api(`/api/nodes/${encodeURIComponent(nodeId)}/certificates/revoke-all`, {
-        method: "POST",
-        body: JSON.stringify({ confirm: query("#node-revoke-confirm", root).value.trim() }),
-      });
-      query("#node-revoke-modal", root).close();
-      ui.toast(`Отозвано сертификатов: ${result.revoked}`);
-      await context.navigate("fleet");
-    } catch (exception) {
-      error.textContent = exception.message;
-    } finally {
-      ui.setBusy(button, false);
-    }
-  });
   query("#save-node-name", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#node-rename-form", root);
     const error = query("#node-rename-error", root);
@@ -679,16 +609,6 @@ async function lifecycle(context, nodeId, action) {
       query("#node-rename-name", context.root).value = node.display_name;
       query("#node-rename-error", context.root).textContent = "";
       context.ui.openModal("#node-rename-modal", "#node-rename-name");
-      return;
-    }
-    if (action === "revoke-all") {
-      // Typed confirmation lives in its own dialog: the operator repeats the node id,
-      // so an accidental click cannot cut a node off the transport.
-      query("#node-revoke-id", context.root).value = nodeId;
-      query("#node-revoke-confirm", context.root).value = "";
-      query("#node-revoke-name", context.root).textContent = `${node.display_name} (${nodeId})`;
-      query("#node-revoke-error", context.root).textContent = "";
-      context.ui.openModal("#node-revoke-modal", "#node-revoke-confirm");
       return;
     }
     {
@@ -814,19 +734,9 @@ export function handleNodesClick(context, button) {
     void createCenterKey(context, button);
     return true;
   }
-  if (action === "register-v1") {
-    openNodeModal(context);
-    return true;
-  }
   const card = button.closest("[data-node-id]");
   if (!card) return false;
   const nodeId = card.dataset.nodeId;
-  if (action === "advanced") {
-    context.state.fleetSelection = context.state.fleetSelection === nodeId ? "" : nodeId;
-    context.state.fleetCommands = [];
-    void context.navigate("fleet");
-    return true;
-  }
   if (action.startsWith("tab-")) {
     const tab = action.slice(4);
     if (TABS.some(([key]) => key === tab)) {

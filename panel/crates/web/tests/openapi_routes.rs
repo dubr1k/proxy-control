@@ -31,27 +31,9 @@ fn router_operations() -> BTreeSet<(String, String)> {
 }
 
 #[test]
-fn document_is_the_recorded_python_one() {
-    let document: Value = serde_json::from_slice(panel_web::routes::openapi::DOCUMENT).unwrap();
-    assert_eq!(document["info"]["title"], "Proxy Control API");
-    assert_eq!(document_operations().len(), 143, "inventory §2.1: 143 operations on 127 paths");
-}
-
-#[test]
 fn every_router_operation_is_documented() {
     let extra: Vec<_> = router_operations().difference(&document_operations()).cloned().collect();
     assert!(extra.is_empty(), "routes missing from the OpenAPI document: {extra:?}");
-}
-
-#[test]
-fn operations_still_missing_from_the_router() {
-    let missing: Vec<_> = document_operations().difference(&router_operations()).cloned().collect();
-    // The list shrinks as WP7–WP13 land; it is printed for the integrator.
-    eprintln!("{} of {} documented operations are not routed yet:", missing.len(), document_operations().len());
-    for (method, path) in &missing {
-        eprintln!("  {method} {path}");
-    }
-    assert!(!missing.contains(&("GET".to_string(), "/api/openapi.json".to_string())));
 }
 
 #[test]
