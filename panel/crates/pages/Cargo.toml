@@ -1,0 +1,19 @@
+[package]
+name = "panel-pages"
+description = "The protocol pages of the Proxy Control panel (work package WP8): what the legacy protocol endpoints (`/api/users*`, `/api/host`, `/api/dashboard`, `/api/naive/*`, `/api/mieru/*`, the AmneziaWG and TrustTunnel overviews) and the version routes answer — their request models, allow-lists, links and reveals. The HTTP glue lives in panel-web."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_pages"
+
+[dependencies]
+panel-core = { path = "../core" }
+panel-managers = { path = "../managers" }
+panel-model = { path = "../model" }
+panel-protocols = { path = "../protocols" }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
