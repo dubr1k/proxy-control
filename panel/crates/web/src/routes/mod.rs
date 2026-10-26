@@ -22,7 +22,7 @@
 //! | 11 | `register_trusttunnel_routes` | `trusttunnel` | WP8 |
 //! | 12 | `register_fleet_routes` (fleet v1) | — retired (owner decision 2) | — |
 //! | 13 | `register_node_routes` | `nodes` | WP11 |
-//! | 14 | `register_client_routes` | `clients` | WP7 |
+//! | 14 | `register_client_routes` | [`clients`] | WP7 |
 //! | 15 | `register_subscription_admin_routes` | `subscriptions_admin` | WP9 |
 //! | 16 | `register_subscription_routes` (`/s/{token}`) | `subscriptions` | WP9 |
 //! | 17 | `register_routing_routes` | `routing` | WP10 |
@@ -36,6 +36,7 @@ use crate::http::router::Routes;
 
 pub mod api_keys;
 pub mod auth;
+pub mod clients;
 pub mod fleet_node;
 pub mod openapi;
 pub mod readiness;
@@ -51,10 +52,11 @@ pub fn all() -> Routes {
         .merge(fleet_node::routes())
         // 4: fleet v2 central routes (WP12b)
         // 5: version routes (WP8)
-        .merge(openapi::routes());
-    // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
-    // 13: node routes (WP11); 14: client routes (WP7); 15-16: subscriptions (WP9)
-    // 17: routing (WP10); 18: metrics (WP13)
+        .merge(openapi::routes())
+        // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
+        // 13: node routes (WP11)
+        .merge(clients::routes());
+    // 15-16: subscriptions (WP9); 17: routing (WP10); 18: metrics (WP13)
     #[cfg(feature = "test-hooks")]
     let routes = routes.merge(test_hooks::routes());
     routes

@@ -816,6 +816,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "panel-clients"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "panel-core",
+ "panel-managers",
+ "panel-model",
+ "panel-protocols",
+ "panel-secrets",
+ "rusqlite",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "panel-core"
 version = "0.1.0"
 dependencies = [
@@ -942,6 +958,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "md-5",
+ "panel-clients",
  "panel-core",
  "panel-fleet",
  "panel-managers",

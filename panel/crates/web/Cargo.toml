@@ -20,6 +20,7 @@ path = "src/main.rs"
 test-hooks = []
 
 [dependencies]
+panel-clients = { path = "../clients" }
 panel-core = { path = "../core" }
 panel-model = { path = "../model" }
 panel-secrets = { path = "../secrets" }

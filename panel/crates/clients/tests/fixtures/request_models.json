@@ -1,0 +1,513 @@
+[
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": []
+  },
+  "issues": [
+   {
+    "type": "too_short",
+    "loc": [
+     "decisions"
+    ],
+    "msg": "List should have at least 1 item after validation, not 0",
+    "input": [],
+    "ctx": {
+     "field_type": "List",
+     "min_length": 1,
+     "actual_length": 0
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": []
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "too_short",
+    "loc": [
+     "decisions",
+     0,
+     "items"
+    ],
+    "msg": "List should have at least 1 item after validation, not 0",
+    "input": [],
+    "ctx": {
+     "field_type": "List",
+     "min_length": 1,
+     "actual_length": 0
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": [
+      [
+       "naive"
+      ]
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "missing",
+    "loc": [
+     "decisions",
+     0,
+     "items",
+     0,
+     1
+    ],
+    "msg": "Field required",
+    "input": [
+     "naive"
+    ]
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": [
+      [
+       "naive",
+       "x",
+       "y"
+      ]
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "too_long",
+    "loc": [
+     "decisions",
+     0,
+     "items",
+     0
+    ],
+    "msg": "Tuple should have at most 2 items after validation, not 3",
+    "input": [
+     "naive",
+     "x",
+     "y"
+    ],
+    "ctx": {
+     "field_type": "Tuple",
+     "max_length": 2,
+     "actual_length": 3
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": [
+      "naive"
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "tuple_type",
+    "loc": [
+     "decisions",
+     0,
+     "items",
+     0
+    ],
+    "msg": "Input should be a valid tuple",
+    "input": "naive"
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": [
+      [
+       "nope",
+       5
+      ]
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "literal_error",
+    "loc": [
+     "decisions",
+     0,
+     "items",
+     0,
+     0
+    ],
+    "msg": "Input should be 'mtproxy', 'naive', 'mieru', 'amneziawg' or 'trusttunnel'",
+    "input": "nope",
+    "ctx": {
+     "expected": "'mtproxy', 'naive', 'mieru', 'amneziawg' or 'trusttunnel'"
+    }
+   },
+   {
+    "type": "string_type",
+    "loc": [
+     "decisions",
+     0,
+     "items",
+     0,
+     1
+    ],
+    "msg": "Input should be a valid string",
+    "input": 5
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "items": [
+      [
+       "naive",
+       "bad user"
+      ]
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "value_error",
+    "loc": [
+     "decisions",
+     0,
+     "items"
+    ],
+    "msg": "Value error, invalid runtime username",
+    "input": [
+     [
+      "naive",
+      "bad user"
+     ]
+    ],
+    "ctx": {
+     "error": {}
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "",
+     "client_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "items": [
+      [
+       "naive",
+       "ok"
+      ]
+     ]
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "string_too_short",
+    "loc": [
+     "decisions",
+     0,
+     "display_name"
+    ],
+    "msg": "String should have at least 1 character",
+    "input": "",
+    "ctx": {
+     "min_length": 1
+    }
+   },
+   {
+    "type": "string_too_long",
+    "loc": [
+     "decisions",
+     0,
+     "client_id"
+    ],
+    "msg": "String should have at most 64 characters",
+    "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "ctx": {
+     "max_length": 64
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientImport",
+  "body": {
+   "decisions": [
+    {
+     "display_name": "a",
+     "client_id": null,
+     "items": [
+      [
+       "mieru",
+       "ok"
+      ]
+     ]
+    }
+   ],
+   "extra": 1
+  },
+  "issues": null
+ },
+ {
+  "model": "GrantsCreate",
+  "body": {
+   "grants": []
+  },
+  "issues": [
+   {
+    "type": "too_short",
+    "loc": [
+     "grants"
+    ],
+    "msg": "List should have at least 1 item after validation, not 0",
+    "input": [],
+    "ctx": {
+     "field_type": "List",
+     "min_length": 1,
+     "actual_length": 0
+    }
+   }
+  ]
+ },
+ {
+  "model": "GrantsCreate",
+  "body": {
+   "grants": [
+    {
+     "protocol": "naive",
+     "runtime_username": "a",
+     "node_id": "Bad"
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "string_pattern_mismatch",
+    "loc": [
+     "grants",
+     0,
+     "node_id"
+    ],
+    "msg": "String should match pattern '^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$'",
+    "input": "Bad",
+    "ctx": {
+     "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+    }
+   }
+  ]
+ },
+ {
+  "model": "GrantsCreate",
+  "body": {
+   "grants": [
+    {
+     "protocol": "naive",
+     "runtime_username": "a",
+     "options": [],
+     "valid_from": "1.5"
+    }
+   ]
+  },
+  "issues": [
+   {
+    "type": "dict_type",
+    "loc": [
+     "grants",
+     0,
+     "options"
+    ],
+    "msg": "Input should be a valid dictionary",
+    "input": []
+   },
+   {
+    "type": "int_parsing",
+    "loc": [
+     "grants",
+     0,
+     "valid_from"
+    ],
+    "msg": "Input should be a valid integer, unable to parse string as an integer",
+    "input": "1.5"
+   }
+  ]
+ },
+ {
+  "model": "GrantsCreate",
+  "body": {
+   "grants": [
+    {
+     "protocol": "naive",
+     "runtime_username": "a",
+     "valid_until": "12"
+    }
+   ]
+  },
+  "issues": null
+ },
+ {
+  "model": "GrantAdoptBatch",
+  "body": {
+   "allow_rotation": "yes"
+  },
+  "issues": [
+   {
+    "type": "missing",
+    "loc": [
+     "protocol"
+    ],
+    "msg": "Field required",
+    "input": {
+     "allow_rotation": "yes"
+    }
+   }
+  ]
+ },
+ {
+  "model": "GrantAdoptBatch",
+  "body": {
+   "allow_rotation": 2,
+   "protocol": "naive"
+  },
+  "issues": [
+   {
+    "type": "bool_parsing",
+    "loc": [
+     "allow_rotation"
+    ],
+    "msg": "Input should be a valid boolean, unable to interpret input",
+    "input": 2
+   }
+  ]
+ },
+ {
+  "model": "GrantLabel",
+  "body": {
+   "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "issues": [
+   {
+    "type": "string_too_long",
+    "loc": [
+     "label"
+    ],
+    "msg": "String should have at most 64 characters",
+    "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "ctx": {
+     "max_length": 64
+    }
+   }
+  ]
+ },
+ {
+  "model": "GrantLabel",
+  "body": {},
+  "issues": null
+ },
+ {
+  "model": "ClientState",
+  "body": {
+   "state": "gone"
+  },
+  "issues": [
+   {
+    "type": "literal_error",
+    "loc": [
+     "state"
+    ],
+    "msg": "Input should be 'active', 'suspended' or 'archived'",
+    "input": "gone",
+    "ctx": {
+     "expected": "'active', 'suspended' or 'archived'"
+    }
+   }
+  ]
+ },
+ {
+  "model": "ClientCreate",
+  "body": {
+   "display_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "subscription": "maybe"
+  },
+  "issues": [
+   {
+    "type": "string_too_long",
+    "loc": [
+     "display_name"
+    ],
+    "msg": "String should have at most 128 characters",
+    "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "ctx": {
+     "max_length": 128
+    }
+   },
+   {
+    "type": "bool_parsing",
+    "loc": [
+     "subscription"
+    ],
+    "msg": "Input should be a valid boolean, unable to interpret input",
+    "input": "maybe"
+   }
+  ]
+ },
+ {
+  "model": "ClientRename",
+  "body": {
+   "display_name": ""
+  },
+  "issues": [
+   {
+    "type": "string_too_short",
+    "loc": [
+     "display_name"
+    ],
+    "msg": "String should have at least 1 character",
+    "input": "",
+    "ctx": {
+     "min_length": 1
+    }
+   }
+  ]
+ }
+]
