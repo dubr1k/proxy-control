@@ -233,6 +233,7 @@ name = "installer"
 version = "0.1.0"
 dependencies = [
  "installer-core",
+ "libc",
  "pc_host",
  "serde_json",
 ]
