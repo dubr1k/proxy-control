@@ -47,13 +47,13 @@ pub(super) fn require_acceptance(value: &CoreAcceptance) -> Result<(), Error> {
     Ok(())
 }
 
-struct PanelSession {
+pub(crate) struct PanelSession {
     client: HttpsClient,
     domain: String,
     cookies: BTreeMap<String, String>,
 }
 impl PanelSession {
-    fn request(
+    pub(crate) fn request(
         &mut self,
         method: &str,
         path: &str,
@@ -104,10 +104,10 @@ impl PanelSession {
         }
         serde_json::from_slice(&response.body).map_err(|_| acceptance("Core acceptance response is invalid"))
     }
-    fn logout(&mut self) -> Result<(), Error> {
+    pub(crate) fn logout(&mut self) -> Result<(), Error> {
         self.request("POST", "/api/auth/logout", None, true, false).map(|_| ())
     }
-    fn login(domain: &str, password: &str) -> Result<Self, Error> {
+    pub(crate) fn login(domain: &str, password: &str) -> Result<Self, Error> {
         let client = HttpsClient::new(ClientOptions {
             user_agent: String::new(),
             timeout: Duration::from_secs(20),
@@ -347,7 +347,7 @@ impl CoreAdapter {
             std::thread::sleep(Duration::from_secs(1));
         }
     }
-    fn verify_adjacent(&self, expected: &[(String, String)]) -> Result<(), Error> {
+    pub(crate) fn verify_adjacent(&self, expected: &[(String, String)]) -> Result<(), Error> {
         if expected.is_empty() {
             return Ok(());
         }

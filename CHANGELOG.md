@@ -20,6 +20,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Installer
 - Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.
 - The isolated official Mieru client uses a native Rust acceptance probe, without a Python interpreter. Fragmented SOCKS5 replies are read completely; client diagnostics cannot disclose the revealed configuration.
+- Port NaiveProxy and Mieru host adapters and their private state/token preparers to the Rust installer. Preserve verified external Debian-package extraction and protocol acceptance, use the planned WARP endpoint and reviewed Mieru download URL, and retain version-agent Compose overrides during repair.
 
 ## [3.3.0] - 2026-10-25
 
