@@ -410,11 +410,8 @@ fn real_proxy_engine_install_repair_and_rollback() {
                 let context = a.last().expect("private build context");
                 // The daemon cannot see this mount namespace's /var/tmp. Stream its
                 // context through the client rather than placing secrets on the host.
-                let mut archive = Command::new("tar")
-                    .args(["-C", context, "-cf", "-", "."])
-                    .stdout(Stdio::piped())
-                    .spawn()
-                    .unwrap();
+                let mut archive =
+                    Command::new("tar").args(["-C", context, "-cf", "-", "."]).stdout(Stdio::piped()).spawn().unwrap();
                 let output = docker()
                     .args(["build", "--tag", &image, "-"])
                     .stdin(Stdio::from(archive.stdout.take().unwrap()))

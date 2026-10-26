@@ -47,13 +47,13 @@ mod router_host;
 #[cfg(test)]
 mod router_tests;
 pub mod three_xui;
-pub mod xray_router;
 pub mod trusttunnel;
 mod vpn;
 #[cfg(test)]
 mod vpn_smoke;
 #[cfg(test)]
 mod vpn_tests;
+pub mod xray_router;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
