@@ -6,6 +6,11 @@ assembled from `git ls-files -z` in sorted order, every member is owned by
 `root:root` with uid/gid zero, the mode comes from the Git executable bit
 alone, and every mtime is the release commit timestamp.  Untracked, ignored,
 private, and lab state never enters the archive.
+
+The prebuilt host binaries (`release/host-binaries.list`) are the one exception to
+"tracked files only": they are built from tracked crates by the pinned builder image
+(`release/Dockerfile.host-binaries`), checked against the digests the builder recorded,
+and injected with mode 0755 the way `release/release.json` and the SBOM are injected.
 """
 
 from __future__ import annotations
@@ -15,12 +20,16 @@ import gzip
 import hashlib
 import io
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
+import tomllib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 RELEASE_SCHEMA = 1
@@ -59,10 +68,55 @@ FORBIDDEN_SUFFIXES = (".pyc", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm")
 _VERSION_RE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\Z")
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
 
+# Prebuilt host binaries. The list names the crates; a crate takes part once its Cargo.toml is
+# tracked. The builder writes each binary at <crate>/bin/linux-amd64/<name> plus two files of its
+# own: the sha256sum lines of every binary and the builder identity (image, target, rustc).
+HOST_BINARIES_LIST = "release/host-binaries.list"
+HOST_BINARIES_DOCKERFILE = "release/Dockerfile.host-binaries"
+HOST_BINARY_DIGESTS = "host-binaries.sha256"
+HOST_BINARY_BUILDER = "host-binaries.builder"
+HOST_TARGET = "x86_64-unknown-linux-musl"
+HOST_PLATFORM_DIR = "bin/linux-amd64"
+_CRATE_DIR_RE = re.compile(r"[a-z0-9_][a-z0-9_-]*(?:/[a-z0-9_][a-z0-9_-]*)*\Z")
+_BINARY_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
+_BUILDER_IMAGE_RE = re.compile(r"^ARG BUILDER_IMAGE=(\S+@sha256:[0-9a-f]{64})$", re.M)
+_DIGEST_LINE_RE = re.compile(r"([0-9a-f]{64})  (\S+)\Z")
+_CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
+
 
 class ReleaseBuildError(RuntimeError):
     """The release cannot be built reproducibly from this source tree."""
 
+
+@dataclass(frozen=True)
+class HostCrates:
+    """The crates of `release/host-binaries.list` that exist in the tracked tree."""
+
+    libraries: tuple[str, ...] = ()
+    binaries: tuple[tuple[str, str], ...] = ()  # (crate dir, binary name)
+
+    @property
+    def directories(self) -> tuple[str, ...]:
+        return (*self.libraries, *(crate for crate, _ in self.binaries))
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        return tuple(sorted(host_binary_path(crate, binary) for crate, binary in self.binaries))
+
+
+@dataclass(frozen=True)
+class HostBinaries:
+    """Built host binaries, keyed by their path inside the release tree."""
+
+    files: Mapping[str, bytes] = field(default_factory=dict)
+    builder: Mapping[str, str] = field(default_factory=dict)
+
+    def digests(self) -> dict[str, str]:
+        return {name: hashlib.sha256(data).hexdigest() for name, data in sorted(self.files.items())}
+
+
+def host_binary_path(crate: str, binary: str) -> str:
+    return f"{crate}/{HOST_PLATFORM_DIR}/{binary}"
 
 @dataclass(frozen=True)
 class BuiltRelease:
@@ -156,8 +210,9 @@ def _identity_document(
     manifest_sha256: str,
     components: Mapping[str, str],
     artifacts: Mapping[str, str],
+    binaries: HostBinaries | None = None,
 ) -> dict[str, object]:
-    return {
+    document: dict[str, object] = {
         "artifacts": dict(sorted(artifacts.items())),
         "commit": commit,
         "components": dict(sorted(components.items())),
@@ -166,6 +221,12 @@ def _identity_document(
         "tag": f"v{version}",
         "version": version,
     }
+    # Additive (schema stays 1): readers of release.json ignore keys they do not know, and a
+    # release without host binaries keeps the exact bytes it had before they existed.
+    if binaries is not None and binaries.files:
+        document["binaries"] = binaries.digests()
+        document["builder"] = dict(sorted(binaries.builder.items()))
+    return document
 
 
 def _canonical(document: Mapping[str, object]) -> bytes:
@@ -217,6 +278,213 @@ def _stamps(script: bytes) -> tuple[str, str]:
     return version.group(1), digest.group(1)
 
 
+# ----------------------------------------------------------------------
+# prebuilt host binaries
+# ----------------------------------------------------------------------
+
+
+def host_crates(source: Path, names: Sequence[str]) -> HostCrates:
+    """The listed crates whose Cargo.toml is tracked; a tree without the list has none."""
+    tracked = set(names)
+    if HOST_BINARIES_LIST not in tracked:
+        return HostCrates()
+    libraries: list[str] = []
+    binaries: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    text = (source / HOST_BINARIES_LIST).read_text(encoding="utf-8")
+    for number, line in enumerate(text.splitlines(), start=1):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        where = f"{HOST_BINARIES_LIST}:{number}"
+        if fields[0] == "lib" and len(fields) == 2:
+            crate, binary = fields[1], None
+        elif fields[0] == "bin" and len(fields) == 3:
+            crate, binary = fields[1], fields[2]
+            if _BINARY_NAME_RE.fullmatch(binary) is None:
+                raise ReleaseBuildError(f"{where}: {binary!r} is not a binary name")
+        else:
+            raise ReleaseBuildError(f"{where}: expected 'lib <crate>' or 'bin <crate> <binary>'")
+        if _CRATE_DIR_RE.fullmatch(crate) is None:
+            raise ReleaseBuildError(f"{where}: {crate!r} is not a crate directory")
+        if crate in seen:
+            raise ReleaseBuildError(f"{where}: {crate} is listed twice")
+        seen.add(crate)
+        if f"{crate}/Cargo.toml" not in tracked:
+            continue
+        if binary is None:
+            libraries.append(crate)
+            continue
+        if f"{crate}/Cargo.lock" not in tracked:
+            raise ReleaseBuildError(f"{crate} builds a host binary but tracks no Cargo.lock")
+        path = host_binary_path(crate, binary)
+        if any(name == path or name.startswith(f"{crate}/{HOST_PLATFORM_DIR}/") for name in tracked):
+            raise ReleaseBuildError(f"{crate}/{HOST_PLATFORM_DIR}/ must not be tracked: the release builds {path}")
+        binaries.append((crate, binary))
+    return HostCrates(tuple(libraries), tuple(binaries))
+
+
+def builder_image(source: Path) -> str:
+    """The pinned builder image, read from the Dockerfile's `ARG BUILDER_IMAGE=` line."""
+    try:
+        text = (source / HOST_BINARIES_DOCKERFILE).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ReleaseBuildError(f"{HOST_BINARIES_DOCKERFILE} is unreadable") from exc
+    found = _BUILDER_IMAGE_RE.findall(text)
+    if len(found) != 1:
+        raise ReleaseBuildError(f"{HOST_BINARIES_DOCKERFILE} must pin exactly one BUILDER_IMAGE by digest")
+    return found[0]
+
+
+def _run_builder(command: Sequence[str]) -> None:
+    """Run the container build; its progress goes to stderr so stdout stays the digest lines."""
+    try:
+        subprocess.run(tuple(command), check=True, stdout=2)
+    except OSError as exc:
+        raise ReleaseBuildError("docker is not available to build the host binaries") from exc
+    except subprocess.CalledProcessError as exc:
+        raise ReleaseBuildError(f"the host binaries did not build (docker exited {exc.returncode})") from exc
+
+
+def build_host_binaries(source: Path, names: Sequence[str], destination: Path, *, epoch: int) -> None:
+    """Build the listed host crates with the pinned builder into `destination`.
+
+    The build context is staged from tracked files only (VERSION, the list and every
+    listed crate that exists) and built with no layer cache, so every build starts from
+    the image and Cargo.lock alone."""
+    crates = host_crates(source, names)
+    destination = Path(destination)
+    if destination.exists() and any(destination.iterdir()):
+        raise ReleaseBuildError(f"{destination} must be empty to receive the host binaries")
+    prefixes = tuple(f"{crate}/" for crate in crates.directories)
+    wanted = [
+        name for name in names
+        if name in {"VERSION", HOST_BINARIES_LIST} or name.startswith(prefixes)
+    ]
+    with tempfile.TemporaryDirectory(prefix="proxy-control-host-binaries-") as staging:
+        context = Path(staging) / "context"
+        for name in wanted:
+            target = context / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((source / name).read_bytes())
+        dockerfile = Path(staging) / "Dockerfile.host-binaries"
+        dockerfile.write_bytes((source / HOST_BINARIES_DOCKERFILE).read_bytes())
+        _run_builder(
+            (
+                "docker", "buildx", "build",
+                "--no-cache",
+                "--platform", "linux/amd64",
+                "--file", str(dockerfile),
+                "--build-arg", f"SOURCE_DATE_EPOCH={int(epoch)}",
+                "--target", "binaries",
+                "--output", f"type=local,dest={destination}",
+                str(context),
+            )
+        )
+
+
+def load_host_binaries(directory: Path, *, expected: Sequence[str], image: str) -> HostBinaries:
+    """Read built host binaries back, refusing anything but exactly `expected`, intact.
+
+    `directory` is the builder's output: each binary at its release path, the sha256sum
+    lines the builder wrote, and the builder identity, which must name the pinned image."""
+    directory = Path(directory)
+    try:
+        listing = (directory / HOST_BINARY_DIGESTS).read_text(encoding="utf-8")
+        identity = (directory / HOST_BINARY_BUILDER).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ReleaseBuildError(f"{directory} is not a host binary build (no {HOST_BINARY_DIGESTS})") from exc
+    recorded: dict[str, str] = {}
+    for line in listing.splitlines():
+        match = _DIGEST_LINE_RE.fullmatch(line)
+        if match is None or match.group(2) in recorded:
+            raise ReleaseBuildError(f"{HOST_BINARY_DIGESTS} has a malformed line: {line!r}")
+        recorded[match.group(2)] = match.group(1)
+    builder: dict[str, str] = {}
+    for line in identity.splitlines():
+        key, _, value = line.partition(" ")
+        builder[key] = value
+    if builder.get("image") != image:
+        raise ReleaseBuildError(f"the host binaries were built by {builder.get('image')!r}, not the pinned {image}")
+    if builder.get("target") != HOST_TARGET:
+        raise ReleaseBuildError(f"the host binaries target {builder.get('target')!r}, not {HOST_TARGET}")
+    if not builder.get("rustc", "").startswith("rustc "):
+        raise ReleaseBuildError(f"{HOST_BINARY_BUILDER} does not name the compiler")
+    wanted = set(expected)
+    for name in sorted(wanted - set(recorded)):
+        raise ReleaseBuildError(f"the host binary {name} is missing from {directory}")
+    present = {
+        path.relative_to(directory).as_posix()
+        for path in directory.rglob("*")
+        if not path.is_dir() or path.is_symlink()
+    } - {HOST_BINARY_DIGESTS, HOST_BINARY_BUILDER}
+    for name in sorted((set(recorded) | present) - wanted):
+        raise ReleaseBuildError(f"{directory} carries {name}, which is not a host binary of this tree")
+    files: dict[str, bytes] = {}
+    for name in sorted(wanted):
+        path = directory / name
+        try:
+            info = os.lstat(path)
+        except OSError as exc:
+            raise ReleaseBuildError(f"the host binary {name} is missing from {directory}") from exc
+        if not stat.S_ISREG(info.st_mode):
+            raise ReleaseBuildError(f"the host binary {name} is not a regular file")
+        data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != recorded[name]:
+            raise ReleaseBuildError(f"the host binary {name} does not match {HOST_BINARY_DIGESTS}")
+        files[name] = data
+    return HostBinaries(
+        files=files,
+        builder={"image": image, "rustc": builder["rustc"], "target": HOST_TARGET},
+    )
+
+
+def host_crate_packages(source: Path, crates: HostCrates) -> list[dict[str, str]]:
+    """Every registry crate the host binaries' Cargo.lock files pin, for the SBOM.
+
+    Path dependencies are files of the archive already; anything fetched from elsewhere
+    than crates.io is refused, because its bytes would not be pinned by a checksum."""
+    packages: dict[tuple[str, str], str] = {}
+    for crate, _binary in crates.binaries:
+        try:
+            lock = tomllib.loads((source / crate / "Cargo.lock").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
+            raise ReleaseBuildError(f"{crate}/Cargo.lock is unreadable") from exc
+        for package in lock.get("package", []):
+            origin = package.get("source")
+            if origin is None:
+                continue
+            name, version = str(package.get("name", "")), str(package.get("version", ""))
+            checksum = package.get("checksum")
+            if origin != _CRATES_IO or not isinstance(checksum, str) or re.fullmatch(r"[0-9a-f]{64}", checksum) is None:
+                raise ReleaseBuildError(f"{crate}/Cargo.lock pins {name} {version} from {origin} without a crates.io checksum")
+            packages[(name, version)] = checksum
+    return [
+        {"name": name, "version": version, "checksum": checksum}
+        for (name, version), checksum in sorted(packages.items())
+    ]
+
+
+def verify_archive_binaries(archive: Path) -> dict[str, str]:
+    """Every binary `release/release.json` records is a 0755 member with that digest."""
+    with tarfile.open(archive, mode="r:gz") as handle:
+        identity_member = handle.extractfile(f"{ARCHIVE_PREFIX}/{IDENTITY_NAME}")
+        if identity_member is None:
+            raise ReleaseBuildError(f"the archive carries no {IDENTITY_NAME}")
+        recorded = json.loads(identity_member.read()).get("binaries", {})
+        for name, digest in sorted(recorded.items()):
+            try:
+                member = handle.getmember(f"{ARCHIVE_PREFIX}/{name}")
+            except KeyError as exc:
+                raise ReleaseBuildError(f"the archive lacks the host binary {name}") from exc
+            extracted = handle.extractfile(member) if member.isreg() else None
+            if extracted is None or member.mode != 0o755:
+                raise ReleaseBuildError(f"the host binary {name} is not a 0755 regular file")
+            if hashlib.sha256(extracted.read()).hexdigest() != digest:
+                raise ReleaseBuildError(f"the host binary {name} does not match {IDENTITY_NAME}")
+    return dict(recorded)
+
+
 def build_release(
     output: Path,
     *,
@@ -225,8 +493,17 @@ def build_release(
     commit: str | None = None,
     epoch: int | None = None,
     require_clean: bool = True,
+    binaries_from: Path | None = None,
+    binaries: bool = True,
 ) -> BuiltRelease:
-    """Build the archive, checksums, manifest, and SBOM into `output`."""
+    """Build the archive, checksums, manifest, and SBOM into `output`.
+
+    Host binaries: with `binaries_from` the already-built bytes in that directory are
+    checked and injected; otherwise the pinned builder builds them (Docker); with
+    `binaries=False` they are left out (unit tests, dry runs: such an archive does not
+    install a release whose host crates exist)."""
+    if binaries_from is not None and not binaries:
+        raise ReleaseBuildError("--binaries-from and --no-binaries exclude each other")
     if _VERSION_RE.fullmatch(version) is None:
         raise ReleaseBuildError("the release version must be semantic")
     source = Path(source)
@@ -243,6 +520,17 @@ def build_release(
     timestamp = epoch if epoch is not None else commit_epoch(source, resolved)
     names = tracked_files(source)
 
+    crates = host_crates(source, names)
+    host: HostBinaries | None = None
+    if binaries and (crates.binaries or binaries_from is not None):
+        image = builder_image(source)
+        if binaries_from is not None:
+            host = load_host_binaries(binaries_from, expected=crates.paths, image=image)
+        else:
+            with tempfile.TemporaryDirectory(prefix="proxy-control-host-out-") as built:
+                build_host_binaries(source, names, Path(built) / "out", epoch=timestamp)
+                host = load_host_binaries(Path(built) / "out", expected=crates.paths, image=image)
+
     components, artifacts = _external_artifacts(source)
     manifest_source = (source / "release" / "external-artifacts.json").read_bytes()
     manifest_sha256 = hashlib.sha256(manifest_source).hexdigest()
@@ -253,6 +541,7 @@ def build_release(
             manifest_sha256=manifest_sha256,
             components=components,
             artifacts=artifacts,
+            binaries=host,
         )
     )
 
@@ -268,6 +557,12 @@ def build_release(
             continue
         payloads[name] = (source / name).read_bytes()
     payloads[IDENTITY_NAME] = identity
+    # The host binaries join before the SBOM, so it lists each with its digest, and the
+    # registry crates linked into them become packages of their own.
+    host_files = dict(host.files) if host is not None else {}
+    payloads.update(host_files)
+    executables = set(host_files)
+    crate_packages = host_crate_packages(source, crates) if executables else []
 
     sbom = build_sbom(
         version=version,
@@ -275,6 +570,7 @@ def build_release(
         files={name: hashlib.sha256(data).hexdigest() for name, data in payloads.items()},
         external=source / "release" / "external-artifacts.json",
         epoch=timestamp,
+        crates=crate_packages,
     )
     payloads[f"release/{SBOM_NAME}"] = sbom
 
@@ -285,7 +581,7 @@ def build_release(
     with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as handle:
         for name in sorted(payloads):
             data = payloads[name]
-            executable = name in names and _executable(source, name)
+            executable = name in executables or (name in names and _executable(source, name))
             handle.addfile(
                 _member(name, len(data), epoch=timestamp, executable=executable),
                 io.BytesIO(data),
@@ -371,6 +667,7 @@ def verify_release(dist: Path) -> BuiltRelease:
         raise ReleaseBuildError(f"{INSTALLER_NAME} does not match {INSTALLER_CHECKSUM_NAME}")
     if _stamps(installer_bytes) != (str(manifest["version"]), digest):
         raise ReleaseBuildError(f"{INSTALLER_NAME} is stamped for another release")
+    verify_archive_binaries(archive)
     return BuiltRelease(
         archive=archive,
         checksums=dist / CHECKSUM_NAME,
@@ -399,11 +696,43 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--epoch", type=int)
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--verify", type=Path, help="verify a built dist instead")
+    host = parser.add_mutually_exclusive_group()
+    host.add_argument(
+        "--binaries-from",
+        type=Path,
+        metavar="DIR",
+        help="inject host binaries already built into DIR (by --build-binaries) after checking their digests",
+    )
+    host.add_argument(
+        "--no-binaries",
+        action="store_true",
+        help="leave the host binaries out (tests and dry runs; the archive cannot install host crates)",
+    )
+    host.add_argument(
+        "--build-binaries",
+        type=Path,
+        metavar="DIR",
+        help="only build the host binaries into the empty DIR and print their digests",
+    )
     arguments = parser.parse_args(argv)
     try:
         if arguments.verify is not None:
             built = verify_release(arguments.verify)
             print(f"verified {built.archive.name} {built.archive_sha256}")
+            return 0
+        if arguments.build_binaries is not None:
+            source = Path(arguments.source)
+            if not arguments.allow_dirty:
+                assert_clean(source)
+            names = tracked_files(source)
+            commit = (arguments.commit or _git(source, "rev-parse", "HEAD").strip()).lower()
+            epoch = arguments.epoch if arguments.epoch is not None else commit_epoch(source, commit)
+            build_host_binaries(source, names, arguments.build_binaries, epoch=epoch)
+            built_binaries = load_host_binaries(
+                arguments.build_binaries, expected=host_crates(source, names).paths, image=builder_image(source)
+            )
+            for name, digest in built_binaries.digests().items():
+                print(f"{digest}  {name}")
             return 0
         version = arguments.version or (
             (arguments.source / "VERSION").read_text(encoding="utf-8").strip()
@@ -415,6 +744,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             commit=arguments.commit,
             epoch=arguments.epoch,
             require_clean=not arguments.allow_dirty,
+            binaries_from=arguments.binaries_from,
+            binaries=not arguments.no_binaries,
         )
     except (ReleaseBuildError, OSError, ValueError) as exc:
         print(f"RELEASE FAILED: {exc}", file=sys.stderr)

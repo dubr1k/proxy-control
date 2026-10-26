@@ -1,0 +1,18 @@
+# The prebuilt host binaries of a release: the one list `release/Dockerfile.host-binaries`
+# builds from and `release/build.py` injects from. A line is skipped while its crate has no
+# tracked `Cargo.toml`, so a crate joins the release by existing, not by an edit elsewhere.
+#
+#   lib <crate dir>                  a path dependency of the binaries: staged into the build
+#                                    context and checked (fmt, clippy, tests), never shipped
+#   bin <crate dir> <binary name>    built for x86_64-unknown-linux-musl (static) and shipped
+#                                    at <crate dir>/bin/linux-amd64/<binary name>, mode 0755
+#
+# Every crate is standalone with a committed Cargo.lock and builds with `--locked`.
+lib pc_common
+lib pc_host
+bin installer proxy-control-installer
+bin version_agent proxy-control-version-agent
+# The pipeline probe (WP9): a tiny stand-in that proves the reproducible static build end to
+# end until the installer crate exists. Remove this line and release/host-probe/ once
+# installer/Cargo.toml lands.
+bin release/host-probe proxy-control-host-probe

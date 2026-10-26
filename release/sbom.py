@@ -84,6 +84,34 @@ def _external_packages(external: Path) -> list[dict[str, object]]:
     return packages
 
 
+def _crate_packages(crates: Sequence[Mapping[str, str]]) -> list[dict[str, object]]:
+    """The registry crates linked into the prebuilt host binaries, as Cargo.lock pins them."""
+    packages: list[dict[str, object]] = []
+    for crate in sorted(crates, key=lambda item: (item["name"], item["version"])):
+        name, version = crate["name"], crate["version"]
+        packages.append(
+            {
+                "SPDXID": _identifier("Package", f"crate-{name}-{version}"),
+                "checksums": [{"algorithm": "SHA256", "checksumValue": crate["checksum"]}],
+                "downloadLocation": f"https://crates.io/api/v1/crates/{name}/{version}/download",
+                "externalRefs": [
+                    {
+                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceLocator": f"pkg:cargo/{name}@{version}",
+                        "referenceType": "purl",
+                    }
+                ],
+                "filesAnalyzed": False,
+                "licenseConcluded": "NOASSERTION",
+                "licenseDeclared": "NOASSERTION",
+                "name": name,
+                "supplier": "NOASSERTION",
+                "versionInfo": version,
+            }
+        )
+    return packages
+
+
 def build_sbom(
     *,
     version: str,
@@ -91,8 +119,12 @@ def build_sbom(
     files: Mapping[str, str],
     external: Path,
     epoch: int,
+    crates: Sequence[Mapping[str, str]] = (),
 ) -> bytes:
-    """Render the SPDX document as canonical bytes."""
+    """Render the SPDX document as canonical bytes.
+
+    `crates` (name, version, checksum) are the registry crates of the prebuilt host
+    binaries; a release without host binaries passes none and keeps its former bytes."""
     if not files:
         raise SbomError("a release SBOM needs at least one packaged file")
     created = datetime.fromtimestamp(int(epoch), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -106,7 +138,7 @@ def build_sbom(
         }
         for name, digest in sorted(files.items())
     ]
-    external_packages = _external_packages(external)
+    external_packages = [*_external_packages(external), *_crate_packages(crates)]
     relationships: list[dict[str, object]] = [
         {
             "relatedSpdxElement": root_id,
