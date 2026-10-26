@@ -59,6 +59,50 @@ impl Api for Arc<VersionAgent> {
     }
 }
 
+/// Accepted requests still running when the listener stops. Closing admission before waiting
+/// closes the race with a connection thread that was accepted but has not entered its handler.
+#[derive(Default)]
+pub struct RequestActivity {
+    state: std::sync::Mutex<(bool, usize)>,
+    idle: std::sync::Condvar,
+}
+
+impl RequestActivity {
+    fn begin(self: &Arc<Self>) -> Option<RequestGuard> {
+        let mut state = self.state.lock().ok()?;
+        if state.0 {
+            return None;
+        }
+        state.1 += 1;
+        Some(RequestGuard(self.clone()))
+    }
+
+    /// Refuse requests that have not entered their handler, then drain every accepted request.
+    /// The caller invokes this after `UdsServer::serve` stops admission and before joining
+    /// background update workers.
+    pub fn stop_and_wait(&self) {
+        let Ok(mut state) = self.state.lock() else { return };
+        state.0 = true;
+        while state.1 != 0 {
+            let Ok(next) = self.idle.wait(state) else { return };
+            state = next;
+        }
+    }
+}
+
+struct RequestGuard(Arc<RequestActivity>);
+
+impl Drop for RequestGuard {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.0.state.lock() {
+            state.1 -= 1;
+            if state.1 == 0 {
+                self.0.idle.notify_all();
+            }
+        }
+    }
+}
+
 /// The routes and what they read.
 #[derive(Clone)]
 pub struct Routes {
@@ -66,6 +110,7 @@ pub struct Routes {
     /// `host_metrics()` for `GET /v1/host`.
     pub host: Arc<dyn Fn() -> Value + Send + Sync>,
     pub metrics: Option<Arc<MetricsSampler>>,
+    pub activity: Arc<RequestActivity>,
 }
 
 /// A JSON answer the way `Handler._send` wrote it.
@@ -106,6 +151,9 @@ fn body_of(request: &Request, length: i64) -> Option<&[u8]> {
 
 impl Routes {
     pub fn handle(&self, request: &Request) -> Response {
+        let Some(_request) = self.activity.begin() else {
+            return detail(503, "version agent is stopping");
+        };
         match request.method.as_str() {
             "GET" => self.get(request),
             "POST" => self.post(request),
