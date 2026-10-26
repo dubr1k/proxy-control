@@ -9,16 +9,12 @@ import httpx
 import pytest
 
 from panel.amneziawg import MemoryAmneziawg
-from panel.app import Settings, create_app
 from panel.fleet_v2.client import NodeClient, NodeRejected, NodeUnreachable
-from panel.fleet_v2.metrics_source import FleetMetricsSource, build_fleet_metrics_source
-from panel.keyring import Keyring
+from panel.fleet_v2.metrics_source import FleetMetricsSource
 from panel.mieru import MemoryMieru
-from panel.metrics import setup_metrics
 from panel.metrics.fakes import FakeClock, MemoryAgentMetrics
 from panel.naive import MemoryNaive
 from panel.telemt import MemoryTelemt
-from panel.versions import VersionClient
 
 pytestmark = pytest.mark.anyio
 
@@ -254,37 +250,32 @@ async def test_the_client_calls_the_three_meter_routes_with_a_shorter_timeout():
 
 
 # ---- the node endpoints --------------------------------------------------------------------------------
-def make_app(tmp_path, name, *, awg=None, **flags):
-    key = tmp_path / f"{name}-key"
-    Keyring.generate().save(key)
-    settings = Settings(database_path=tmp_path / f"{name}.sqlite3", master_key_file=key, session_cookie_secure=False,
-                        allowed_hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example", **flags)
-    app = create_app(settings, telemt=MemoryTelemt(public_host=f"{name}.example"), naive=MemoryNaive(),
-                     mieru=MemoryMieru(), amneziawg=awg or MemoryAmneziawg(),
-                     version_client=VersionClient(str(tmp_path / "none.sock")))
-    clock = FakeClock()
-    agent = MemoryAgentMetrics(clock)
-    app.state.versions.metrics = agent.metrics
-    setup_metrics(app, settings, clock=clock, source=build_fleet_metrics_source(app) if name == "central" else None)
-    app.state.store.create_admin("owner", PASSWORD, "owner")
-    return app, clock, agent
+def make_app(panel_server, name, *, awg=None, **flags):
+    """A panel whose host-agent double and own clock move together (`tick`)."""
+    agent = MemoryAgentMetrics(FakeClock())
+    server = panel_server(name=name, hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example",
+                          telemt=MemoryTelemt(public_host=f"{name}.example"), naive=MemoryNaive(), mieru=MemoryMieru(),
+                          amneziawg=awg or MemoryAmneziawg(), versions=agent, **flags)
+    server.create_admin("owner", PASSWORD, "owner")
+    server.clock.set(agent.clock.now)
+    return server, agent.clock, agent
 
 
-async def tick(app, clock, times=1):
+async def tick(server, clock, times=1):
     for _ in range(times):
         clock.advance(2.0)
-        await app.state.metrics_collector.tick()
-        await app.state.metrics_collector.drain()
+        server.clock.set(clock.now)
+        await server.tick("metrics")
 
 
 @pytest.fixture
-async def node(tmp_path):
-    app, clock, agent = make_app(tmp_path, "node")
+async def node(panel_server):
+    server, clock, agent = make_app(panel_server, "node")
     agent.set_protocol("trusttunnel", 1000.0, 3000.0)
-    _, plaintext = app.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
+    plaintext = server.create_api_key("central", "node-sync")
+    http = server.http()
     http.key = {"Authorization": f"Bearer {plaintext}"}
-    http.app, http.clock = app, clock
+    http.server, http.clock = server, clock
     async with http:
         yield http
 
@@ -294,18 +285,18 @@ PATHS = ["/api/fleet/v2/metrics", "/api/fleet/v2/metrics/history?series=host.cpu
 
 @pytest.mark.parametrize("path", PATHS)
 async def test_the_node_meter_routes_need_a_node_sync_key(node, login_user, path):
-    await tick(node.app, node.clock, 2)
+    await tick(node.server, node.clock, 2)
     assert (await node.get(path)).status_code == 401
     assert (await node.get(path, headers={"Authorization": "Bearer pc_nonsense"})).status_code == 401
     assert (await node.get(path, headers=node.key)).status_code == 200
-    reader = node.app.state.api_keys.create("reader", "monitor", None, actor=ACTOR, ip="x")[1]
+    reader = node.server.create_api_key("reader", "monitor")
     assert (await node.get(path, headers={"Authorization": f"Bearer {reader}"})).status_code == 403
     await login_user(node)  # a browser session is not a node key either
     assert (await node.get(path)).status_code == 403
 
 
 async def test_the_node_live_entry_is_the_collectors_latest(node):
-    await tick(node.app, node.clock, 2)
+    await tick(node.server, node.clock, 2)
     response = await node.get("/api/fleet/v2/metrics", headers=node.key)
     assert response.headers["cache-control"] == "no-store"
     body = response.json()
@@ -316,7 +307,7 @@ async def test_the_node_live_entry_is_the_collectors_latest(node):
 
 
 async def test_the_node_history_and_summary_match_the_local_routes(node, login_user):
-    await tick(node.app, node.clock, 3)
+    await tick(node.server, node.clock, 3)
     history = (await node.get("/api/fleet/v2/metrics/history?series=host.cpu,trusttunnel.down_bps&range=15m&points=450",
                               headers=node.key)).json()
     assert history["status"] == "ok" and history["node_id"] == "local" and set(history["series"]) == {
@@ -333,7 +324,7 @@ async def test_the_node_history_and_summary_match_the_local_routes(node, login_u
                                   "/api/fleet/v2/metrics/history?series=host.cpu&points=5",
                                   "/api/fleet/v2/metrics/summary?range=2d"])
 async def test_the_node_validates_its_parameters(node, path):
-    await tick(node.app, node.clock)
+    await tick(node.server, node.clock)
     assert (await node.get(path, headers=node.key)).status_code == 422
 
 
@@ -343,11 +334,10 @@ async def test_before_the_first_sample_the_node_says_it_is_warming_up(node):
         assert response.status_code == 503 and response.json() == {"detail": "metrics_warming_up"}
 
 
-async def test_a_node_with_metrics_off_answers_404_and_does_not_advertise_them(tmp_path):
-    app, _, _ = make_app(tmp_path, "off", metrics_enabled=False)
-    _, plaintext = app.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    headers = {"Authorization": f"Bearer {plaintext}"}
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as http:
+async def test_a_node_with_metrics_off_answers_404_and_does_not_advertise_them(panel_server):
+    server, _, _ = make_app(panel_server, "off", metrics_enabled=False)
+    headers = {"Authorization": f"Bearer {server.create_api_key('central', 'node-sync')}"}
+    async with server.http() as http:
         for path in PATHS:
             response = await http.get(path, headers=headers)
             assert response.status_code == 404 and response.json() == {"detail": "metrics_disabled"}
@@ -360,17 +350,16 @@ async def test_the_identity_advertises_metrics_v1(node):
 
 
 # ---- the status block of AmneziaWG ---------------------------------------------------------------------
-async def test_the_status_reports_amneziawg_traffic(tmp_path):
+async def test_the_status_reports_amneziawg_traffic(panel_server):
     awg = MemoryAmneziawg()
     awg.peer_table = {"a": {"version": "3.1", "enabled": True, "address": "10.0.0.2", "public_key": "k", "revision": "r"},
                       "b": {"version": "2.0", "enabled": True, "address": "10.0.0.3", "public_key": "k", "revision": "r"}}
     rows = {"a": (100, 400), "b": (20, 30)}
     original = awg._view
     awg._view = lambda name: {**original(name), "rx": rows[name][0], "tx": rows[name][1]}
-    app, _, _ = make_app(tmp_path, "awg", awg=awg, amneziawg_enabled=True)
-    _, plaintext = app.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    headers = {"Authorization": f"Bearer {plaintext}"}
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as http:
+    server, _, _ = make_app(panel_server, "awg", awg=awg, amneziawg_enabled=True)
+    headers = {"Authorization": f"Bearer {server.create_api_key('central', 'node-sync')}"}
+    async with server.http() as http:
         traffic = (await http.get("/api/fleet/v2/status", headers=headers)).json()["protocols"]["amneziawg"]["traffic"]
         assert traffic == {"upload_bytes": 120, "download_bytes": 430, "total_bytes": 550}
         awg.broken = True
@@ -379,21 +368,21 @@ async def test_the_status_reports_amneziawg_traffic(tmp_path):
 
 # ---- central: a real link, the routes and the stream ----------------------------------------------------
 @pytest.fixture
-async def linked(tmp_path, login_user):
-    node, node_clock, node_agent = make_app(tmp_path, "node")
+async def linked(panel_server, login_user):
+    node, node_clock, node_agent = make_app(panel_server, "node")
     node_agent.set_protocol("naive", 500.0, 1500.0)
-    central, central_clock, _ = make_app(tmp_path, "central")
-    _, plaintext = node.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    central.state.links.client_factory = lambda url, key, **kw: NodeClient(
-        url, key, transport=httpx.ASGITransport(app=node), **kw)
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
-                                            actor=ACTOR, ip="x")
-    await tick(node, node_clock, 3)
-    await tick(central, central_clock, 3)
-    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=central), base_url="http://testserver")
-    async with http:
+    central, central_clock, _ = make_app(panel_server, "central", node_routes={"node.example": node})
+    plaintext = node.create_api_key("central", "node-sync")
+    async with central.http() as http:
         await login_user(http)
-        yield central, http, node_id
+        http.headers["X-CSRF-Token"] = http.cookies["panel_csrf"]
+        linked = await http.post("/api/nodes/link", json={"display_name": "Edge", "url": "https://node.example",
+                                                          "api_key": plaintext, "tls_verify": "verify",
+                                                          "allow_private_address": False})
+        assert linked.status_code == 201, linked.text
+        await tick(node, node_clock, 3)
+        await tick(central, central_clock, 3)
+        yield central, http, linked.json()["node_id"]
 
 
 async def test_all_includes_the_linked_node_once_it_is_online(linked):
@@ -401,7 +390,7 @@ async def test_all_includes_the_linked_node_once_it_is_online(linked):
     # the link has not had a heartbeat yet: not online, so unavailable and never called
     nodes = (await http.get("/api/metrics/live?node=all")).json()["nodes"]
     assert [(n["node_id"], n["status"]) for n in nodes] == [("local", "ok"), (node_id, "unavailable")]
-    await central.state.pusher.tick()  # the heartbeat reads the identity: `metrics.v1` is in it
+    await central.tick("pusher")  # the heartbeat reads the identity: `metrics.v1` is in it
     central.state.metrics_source._cache.clear()
     nodes = (await http.get("/api/metrics/live?node=all")).json()["nodes"]
     remote = nodes[1]
@@ -419,7 +408,7 @@ async def test_all_includes_the_linked_node_once_it_is_online(linked):
 
 async def test_the_all_stream_carries_the_remote_node_each_tick(linked):
     central, http, node_id = linked
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     cookie = http.cookies["panel_session"]
     body = bytearray()
     seen = asyncio.Event()
@@ -443,7 +432,7 @@ async def test_the_all_stream_carries_the_remote_node_each_tick(linked):
              "path": "/api/metrics/stream", "raw_path": b"/api/metrics/stream", "query_string": b"node=all",
              "root_path": "", "headers": [(b"host", b"testserver"), (b"cookie", f"panel_session={cookie}".encode())],
              "client": ("127.0.0.1", 1), "server": ("testserver", 80)}
-    task = asyncio.create_task(central(scope, receive, send))
+    task = asyncio.create_task(central.app(scope, receive, send))
     await asyncio.wait_for(seen.wait(), 5)
     leave.set()
     await asyncio.wait_for(task, 5)
@@ -453,8 +442,8 @@ async def test_the_all_stream_carries_the_remote_node_each_tick(linked):
 
 
 # ---- central: the compare table over three nodes ----------------------------------------------------------
-async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(tmp_path, login_user):
-    central, clock, _ = make_app(tmp_path, "central")
+async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server, login_user):
+    central, clock, _ = make_app(panel_server, "central")
     await tick(central, clock, 3)
     for node_id, name in (("a", "Alpha"), ("b", "Bravo"), ("c", "Charlie")):
         central.state.nodes.register(node_id, name, actor=ACTOR, ip="x")
@@ -466,8 +455,7 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(tmp_path, lo
     nodes["c"].fail = NodeUnreachable("x")  # c cannot answer: it sorts last, as unavailable
     harness = Harness(nodes)
     central.state.metrics_source = harness.source
-    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=central), base_url="http://testserver")
-    async with http:
+    async with central.http() as http:
         await login_user(http)
         body = (await http.get("/api/metrics/summary?node=all&range=1h")).json()
     assert [(r["node_id"], r["status"]) for r in body["compare"]] == [

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import pytest
 
-from panel.protocols import RouterAdapter
 from panel.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
@@ -17,16 +16,13 @@ def _csrf(client) -> dict:
 
 
 @pytest.fixture
-def router(client, naive, mieru):
-    app = client._transport.app
-    fake = MemoryXrayRouter()
-    app.state.router = RouterAdapter(fake)
-    app.state.routing.router = app.state.router
+def router(xray_router, naive, mieru):
+    """The shared panel wired to the router double (over its socket); the fakes know their ingress."""
     naive.router_url, mieru.router_url = "socks5://127.0.0.1:45101", "socks5://127.0.0.1:45102"
-    return fake
+    return xray_router
 
 
-async def test_local_geodata_view_settings_update_restore_and_audit(client, login_user, router):
+async def test_local_geodata_view_settings_update_restore_and_audit(client, server, login_user, router):
     await login_user(client)
     view = await client.get("/api/routing/geodata")
     assert view.status_code == 200 and view.json()["source"]["kind"] == "xray" and view.json()["files"]["geosite"]["codes"] == 3
@@ -42,7 +38,7 @@ async def test_local_geodata_view_settings_update_restore_and_audit(client, logi
     assert updated.status_code == 200 and updated.json()["changed"] is True and updated.json()["version"] == "v1"
     restored = await client.post("/api/routing/geodata/restore", headers=_csrf(client))
     assert restored.json()["origin"] == "seed" and restored.json()["source"]["kind"] == "xray"
-    actions = [row["action"] for row in client._transport.app.state.store.audits()]
+    actions = [row["action"] for row in server.audits()]
     assert actions.count("routing.geodata.settings") == 1 and "routing.geodata.update" in actions and "routing.geodata.restore" in actions
     # A custom source needs https on both URLs (the manager's refusal is a 422 here).
     bad = await client.put("/api/routing/geodata/settings", headers=_csrf(client),
@@ -68,14 +64,12 @@ async def test_geodata_is_owner_only_to_change_and_needs_a_router(client, login_
     assert (await client.get("/api/routing/geodata?node=nope")).status_code == 404
 
 
-async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair, monkeypatch):
-    node, central, plaintext = pair
+async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair_factory, monkeypatch):
     fake = MemoryXrayRouter()
-    node.state.router = RouterAdapter(fake)
-    node.state.routing.router = node.state.router
+    node, central, plaintext = pair_factory(node={"router": fake})
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
                                             actor=ACTOR, ip="x", auto_import=False)
-    await central.state.pusher.tick()  # the heartbeat records the node's capabilities, geodata.v1 among them
+    await central.tick("pusher")  # the heartbeat records the node's capabilities, geodata.v1 among them
     view = await central.state.routing.geodata(node_id, "view")
     assert view["source"]["kind"] == "xray"
     saved = await central.state.routing.geodata(node_id, "settings", {"source": {"kind": "loyalsoldier"}, "auto_update": True},
@@ -99,7 +93,7 @@ async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair, mon
     assert refused.value.status == 422 and refused.value.code == "geodata_rejected"
 
 
-async def test_node_geodata_and_exit_routes_answer_the_central_key(client, login_user, router):
+async def test_node_geodata_and_exit_routes_answer_the_central_key(client, server, login_user, router):
     """The node side of v0.8 under the node-sync key: geodata view/codes/settings/actions and
     the exit probe — audited as `fleet.*`, refused without the key, 404 without a router."""
     await login_user(client)
@@ -123,7 +117,7 @@ async def test_node_geodata_and_exit_routes_answer_the_central_key(client, login
     assert probe.status_code == 200 and probe.json()["ok"] is True and probe.headers["cache-control"] == "no-store"
     bad = await client.post("/api/fleet/v2/exits/test", headers=headers, json={"exit": {"protocol": "wireguard"}})
     assert bad.status_code == 422 and bad.json()["code"] == "egress_invalid"
-    actions = [row["action"] for row in client._transport.app.state.store.audits()]
+    actions = [row["action"] for row in server.audits()]
     for action in ("fleet.geodata.settings", "fleet.geodata.update", "fleet.exit.test"):
         assert action in actions, action
     client._transport.app.state.router = None

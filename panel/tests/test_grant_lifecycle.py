@@ -52,7 +52,7 @@ async def test_remote_grant_lifecycle_only_records_desired_state(pair):
         states = [r["state"] for r in db.execute("SELECT state FROM secret_versions WHERE secret_id=? ORDER BY version", (f"grant:{grant.id}",))]
         assert states == ["retiring", "pending"]
         assert central.state.desired.latest(db, node_id)["generation"] == 2
-    assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]  # nothing pushed yet
+    assert "alice" not in [u["username"] for u in await node.naive.list_users()]  # nothing pushed yet
 
 
 # --- additional coverage beyond the brief's Step 1 tests ---
@@ -87,7 +87,7 @@ def _actions(central) -> list[str]:
 
 
 async def _node_users(node) -> dict:
-    return {u["username"]: u for u in await node.state.naive.list_users()}
+    return {u["username"]: u for u in await node.naive.list_users()}
 
 
 async def test_is_remote_tells_a_linked_panel_from_the_local_node(pair):
@@ -102,37 +102,37 @@ async def test_is_remote_tells_a_linked_panel_from_the_local_node(pair):
 
 async def test_remote_disable_and_enable_change_only_what_the_central_wants(pair):
     node, central, node_id, client, operation, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert (await _node_users(node))["alice"]["enabled"] is True
     disabled = await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x")
     assert (disabled.desired_state, disabled.observed_state) == ("disabled", "pending")
     latest = _generation(central, node_id)
     assert latest["generation"] == 2 and [r.desired_state for r in latest["document"].resources] == ["disabled"]
     assert (await _node_users(node))["alice"]["enabled"] is True  # nothing pushed by the lifecycle
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert (await _node_users(node))["alice"]["enabled"] is False
     assert central.state.clients.client_with_grants(client.id)[1][0].observed_state == "disabled"
     enabled = await central.state.lifecycle.set_enabled(grant.id, True, actor=ACTOR, ip="x")
     assert (enabled.desired_state, enabled.observed_state) == ("enabled", "pending")
     assert _generation(central, node_id)["generation"] == 3
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert (await _node_users(node))["alice"]["enabled"] is True
     assert [a for a in _actions(central) if a in ("grant.disable", "grant.enable")] == ["grant.disable", "grant.enable"]
-    assert await central.state.naive.list_users() == []  # the central's own runtime is never touched
+    assert await central.naive.list_users() == []  # the central's own runtime is never touched
 
 
 async def test_remote_rotation_is_confirmed_by_the_node_and_retires_the_old_version(pair):
     node, central, node_id, client, operation, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert _secret_states(central, grant.id) == [(1, "active")]
-    before = (await node.state.naive.reveal("alice"))["proxy_url"]
+    before = (await node.naive.reveal("alice"))["proxy_url"]
     rotated = await central.state.lifecycle.rotate(grant.id, actor=ACTOR, ip="x")
     assert rotated.secret_ref.version == 2 and rotated.observed_state == "pending"
     assert _secret_states(central, grant.id) == [(1, "retiring"), (2, "pending")]
     document = _generation(central, node_id)["document"]
     assert [r.credential_ref for r in document.resources] == [f"grant:{grant.id}:2"]
-    await central.state.pusher.tick()
-    assert (await node.state.naive.reveal("alice"))["proxy_url"] != before
+    await central.tick("pusher")
+    assert (await node.naive.reveal("alice"))["proxy_url"] != before
     # The node runs the new credential: it is active, the one it replaced is history.
     assert _secret_states(central, grant.id) == [(1, "revoked"), (2, "active")]
     current = central.state.clients.client_with_grants(client.id)[1][0]
@@ -140,7 +140,7 @@ async def test_remote_rotation_is_confirmed_by_the_node_and_retires_the_old_vers
     with central.state.database.connect() as db:
         escrowed = central.state.secrets.reveal(db, current.secret_ref, purpose="grant.credential", grant_id=grant.id,
                                                 permitted_node_id=node_id).decode()
-    assert escrowed in (await node.state.naive.reveal("alice"))["proxy_url"]
+    assert escrowed in (await node.naive.reveal("alice"))["proxy_url"]
     assert "grant.rotate" in _actions(central)
 
 
@@ -151,12 +151,12 @@ async def test_remote_mtproxy_rotation_escrows_a_telemt_shaped_secret(pair):
         secret = central.state.secrets.reveal(db, rotated.secret_ref, purpose="grant.credential", grant_id=grant.id,
                                               permitted_node_id=node_id).decode()
     assert len(secret) == 32 and int(secret, 16) >= 0
-    assert await central.state.telemt.list_users() == []
+    assert await central.telemt.list_users() == []
 
 
 async def test_remote_delete_is_declared_and_the_node_confirms_it_gone(pair):
     node, central, node_id, client, operation, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert "alice" in await _node_users(node)
     await central.state.lifecycle.delete(grant.id, actor=ACTOR, ip="x")
     assert central.state.clients.client_with_grants(client.id)[1] == []
@@ -166,7 +166,7 @@ async def test_remote_delete_is_declared_and_the_node_confirms_it_gone(pair):
     latest = _generation(central, node_id)
     assert latest["generation"] == 2 and [r.desired_state for r in latest["document"].resources] == ["deleted"]
     assert "alice" in await _node_users(node)  # nothing pushed by the lifecycle
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert "alice" not in await _node_users(node)
     # The node confirmed it gone: the row is purged, every credential version revoked.
     with central.state.database.connect() as db, pytest.raises(KeyError):
@@ -178,7 +178,7 @@ async def test_remote_delete_is_declared_and_the_node_confirms_it_gone(pair):
     again = await central.state.provisioning.start(
         client.id, [GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())],
         actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(again)["status"] == "succeeded"
     fresh = central.state.clients.client_with_grants(client.id)[1][0]
     assert fresh.id != grant.id and fresh.observed_state == "enabled" and "alice" in await _node_users(node)
@@ -191,7 +191,7 @@ async def test_deleting_a_remote_grant_the_node_never_applied_settles_its_operat
     status = central.state.provisioning.status(operation)
     assert status["status"] == "compensated"
     assert status["steps"][0]["status"] == "compensated" and "deleted" in status["steps"][0]["error"]
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert "alice" not in await _node_users(node)
     assert central.state.provisioning.status(operation)["status"] == "compensated"
     with central.state.database.connect() as db, pytest.raises(KeyError):
@@ -206,7 +206,7 @@ async def test_deleting_one_grant_of_a_pending_operation_leaves_the_other_step_w
     await central.state.lifecycle.delete(alice.id, actor=ACTOR, ip="x")
     assert central.state.provisioning.status(operation)["status"] == "compensated"
     assert central.state.provisioning.status(other)["status"] == "pending_remote"
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(other)["status"] == "succeeded"
     assert list(await _node_users(node)) == ["bob"]
 
@@ -215,7 +215,7 @@ async def test_disabling_a_remote_grant_before_the_node_applied_it_still_finishe
     node, central, node_id, client, operation, grant = await _remote(pair)
     await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x")
     assert central.state.provisioning.status(operation)["status"] == "pending_remote"
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert (await _node_users(node))["alice"]["enabled"] is False
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
     assert _secret_states(central, grant.id) == [(1, "active")]
@@ -224,7 +224,7 @@ async def test_disabling_a_remote_grant_before_the_node_applied_it_still_finishe
 
 async def test_enabling_a_remote_grant_twice_is_a_no_op(pair):
     node, central, node_id, client, operation, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     before = central.state.clients.client_with_grants(client.id)[1][0]
     assert (before.desired_state, before.observed_state) == ("enabled", "enabled")
     again = await central.state.lifecycle.set_enabled(grant.id, True, actor=ACTOR, ip="x")
@@ -232,11 +232,11 @@ async def test_enabling_a_remote_grant_twice_is_a_no_op(pair):
     assert again == before
     assert _generation(central, node_id)["generation"] == 1
     assert "grant.enable" not in _actions(central)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.clients.client_with_grants(client.id)[1][0].observed_state == "enabled"
     # The same for disable after disable.
     await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     twice = await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x")
     assert (twice.desired_state, twice.observed_state) == ("disabled", "disabled")
     assert _generation(central, node_id)["generation"] == 2 and _actions(central).count("grant.disable") == 1
@@ -246,7 +246,7 @@ async def test_bundle_never_renders_a_withdrawn_or_deleted_grant(pair):
     node, central, node_id, client, operation, alice = await _remote(pair)
     bob = GrantIntent(protocol="naive", node_id=node_id, runtime_username="bob", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [bob], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     hosts = {"naive": "node.example"}
 
     def rendered(operation_id=operation):
@@ -256,7 +256,7 @@ async def test_bundle_never_renders_a_withdrawn_or_deleted_grant(pair):
     # Deleted since the operation succeeded: declared, then confirmed and purged.
     await central.state.lifecycle.delete(alice.id, actor=ACTOR, ip="x")
     assert rendered() == []
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert rendered() == []
     # Withdrawn before the node ever applied it, next to a grant it did apply.
     carol = GrantIntent(protocol="naive", node_id=node_id, runtime_username="carol", options=NaiveOptions())
@@ -264,18 +264,17 @@ async def test_bundle_never_renders_a_withdrawn_or_deleted_grant(pair):
     pair_op = await central.state.provisioning.start(client.id, [carol, dave], actor=ACTOR, ip="x")
     grants = {g.runtime_username: g for g in central.state.clients.client_with_grants(client.id)[1]}
     await central.state.lifecycle.delete(grants["carol"].id, actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     status = central.state.provisioning.status(pair_op)
     assert status["status"] == "succeeded" and {s["status"] for s in status["steps"]} == {"compensated", "active"}
     assert rendered(pair_op) == ["dave"]
     assert sorted(await _node_users(node)) == ["bob", "dave"]
 
 
-async def test_local_delete_purges_the_row_at_once_and_frees_the_name(client, login_user, naive):
+async def test_local_delete_purges_the_row_at_once_and_frees_the_name(client, server, login_user, naive):
     grant_id, csrf = await _grant(client, login_user)
-    app = client._transport.app
     assert (await client.post(f"/api/clients/grants/{grant_id}/delete", headers=csrf)).status_code == 200
-    with app.state.database.connect() as db:
+    with server.db() as db:
         assert db.execute("SELECT count(*) FROM access_grants WHERE id=?", (grant_id,)).fetchone()[0] == 0
         states = [row["state"] for row in db.execute("SELECT state FROM secret_versions WHERE secret_id=?", (f"grant:{grant_id}",))]
     assert states == ["revoked"]
@@ -303,7 +302,7 @@ async def test_a_deleted_or_unknown_grant_is_refused(pair):
     assert _generation(central, node_id)["generation"] == 2  # the refusals published nothing
 
 
-async def test_local_enable_route_reaches_the_manager_and_rotation_keeps_a_disabled_grant_disabled(client, login_user, naive):
+async def test_local_enable_route_reaches_the_manager_and_rotation_keeps_a_disabled_grant_disabled(client, server, login_user, naive):
     grant_id, csrf = await _grant(client, login_user)
     assert (await client.post(f"/api/clients/grants/{grant_id}/disable", headers=csrf)).status_code == 200
     rotated = await client.post(f"/api/clients/grants/{grant_id}/rotate", headers=csrf)
@@ -314,7 +313,7 @@ async def test_local_enable_route_reaches_the_manager_and_rotation_keeps_a_disab
     assert {u["username"]: u["enabled"] for u in await naive.list_users()}["alice"] is True
     assert rotated.json()["secret_ref"]["version"] == 2 and enabled.json()["secret_ref"]["version"] == 2
     # The runtime already runs the new credential: exactly one live version remains.
-    with client._transport.app.state.database.connect() as db:
+    with server.db() as db:
         rows = db.execute("SELECT version, state FROM secret_versions WHERE secret_id=? ORDER BY version",
                           (f"grant:{grant_id}",)).fetchall()
     assert [tuple(row) for row in rows] == [(1, "revoked"), (2, "active")]
@@ -348,12 +347,12 @@ async def test_local_lifecycle_and_adoption_refuse_a_central_owned_account_befor
     refused with 409/managed_by_central *before* the manager is asked to do anything."""
     from fastapi import HTTPException
     node, central, plaintext = pair
-    node.state.naive.seed("bob", "pw-bob")
+    node.naive.seed("bob", "pw-bob")
     grant = node.state.domain_facade.touch_import("naive", "bob", enabled=True, options={}, actor=ACTOR, ip="x")
     with node.state.database.transaction() as db:
         node.state.managed.upsert_resource(db, protocol="naive", username="bob", ref="grant:bob", generation=1,
                                            state="enabled")
-    node.state.naive.calls.clear()
+    node.naive.calls.clear()
     lifecycle, clients = node.state.lifecycle, node.state.clients
     attempts = [
         lambda: lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x"),
@@ -366,8 +365,8 @@ async def test_local_lifecycle_and_adoption_refuse_a_central_owned_account_befor
         with pytest.raises(HTTPException) as refused:
             await attempt()
         assert refused.value.status_code == 409 and refused.value.headers["X-Reason"] == "managed_by_central"
-    assert node.state.naive.calls == [], "the manager must not be reached for a central-owned account"
-    bob = node.state.naive.users["bob"]
+    assert node.naive.calls == [], "the manager must not be reached for a central-owned account"
+    bob = node.naive.users["bob"]
     assert (bob["enabled"], bob["password"]) == (True, "pw-bob")
     with node.state.database.connect() as db:
         row = node.state.clients.store.grant(db, grant.id)  # the row is still there, untouched

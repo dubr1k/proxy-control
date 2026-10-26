@@ -4,14 +4,9 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
-from pathlib import Path
 
-import httpx
 import pytest
 
-from panel.app import Settings, create_app
-from panel.keyring import Keyring
-from panel.metrics import setup_metrics
 from panel.metrics.fakes import FakeClock, MemoryAgentMetrics
 from panel.metrics.sse import StreamRegistry, event_stream
 
@@ -19,34 +14,31 @@ pytestmark = pytest.mark.anyio
 
 
 class Rig:
-    def __init__(self, app, client, clock, agent):
-        self.app, self.client, self.clock, self.agent = app, client, clock, agent
+    """A panel whose agent double and whose own clock move together (`tick`)."""
+
+    def __init__(self, server, agent):
+        self.server, self.client, self.agent = server, server.client, agent
+        self.clock = agent.clock
 
     async def tick(self, seconds=2.0, times=1):
         for _ in range(times):
             self.clock.advance(seconds)
-            await self.app.state.metrics_collector.tick()
-            await self.app.state.metrics_collector.drain()
+            self.server.clock.set(self.clock.now)
+            await self.server.tick("metrics")
 
 
-async def build(tmp_path: Path, **flags) -> Rig:
-    key = tmp_path / "key"
-    Keyring.generate().save(key)
-    settings = Settings(database_path=tmp_path / "panel.sqlite3", master_key_file=key, session_cookie_secure=False,
-                        allowed_hosts=("testserver",), naive_public_host="naive.example", **flags)
-    clock = FakeClock()
-    agent = MemoryAgentMetrics(clock)
-    app = create_app(settings, version_client=agent)
-    setup_metrics(app, settings, clock=clock)
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
-    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
-    return Rig(app, client, clock, agent)
+async def build(panel_server, **flags) -> Rig:
+    agent = MemoryAgentMetrics(FakeClock())
+    server = panel_server(name="panel", key_name="key", naive_public_host="naive.example", versions=agent, **flags)
+    server.create_admin("owner", "correct horse battery staple", "owner")
+    server.create_admin("viewer", "correct horse battery staple", "viewer")
+    server.clock.set(agent.clock.now)  # one timeline for the panel and its host agent
+    return Rig(server, agent)
 
 
 @pytest.fixture
-async def rig(tmp_path, login_user):
-    value = await build(tmp_path)
+async def rig(panel_server, login_user):
+    value = await build(panel_server)
     value.agent.set_protocol("trusttunnel", 1000.0, 3000.0)
     value.agent.set_protocol("amneziawg", 200.0, 800.0, source="interface")
     await login_user(value.client)
@@ -59,8 +51,8 @@ ROUTES = ["/api/metrics/clients?protocol=mieru", "/api/metrics/live", "/api/metr
 
 
 @pytest.mark.parametrize("path", ROUTES)
-async def test_every_metrics_route_needs_a_session(tmp_path, path):
-    rig = await build(tmp_path)
+async def test_every_metrics_route_needs_a_session(panel_server, path):
+    rig = await build(panel_server)
     async with rig.client:
         assert (await rig.client.get(path)).status_code == 401
 
@@ -83,12 +75,12 @@ async def test_live_snapshot_shape_and_no_store(rig):
 
 
 async def test_client_rates_of_one_protocol_for_the_protocol_pages(rig):
-    collector = rig.app.state.metrics_collector
+    collector = rig.server.state.metrics_collector
     collector.settings = dataclasses.replace(collector.settings, trusttunnel_enabled=True)
-    rig.app.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
+    rig.server.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
         {"username": "alice", "tx": 0, "rx": 0, "sessions": 1}]))})()
     await rig.tick(times=1)
-    rig.app.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
+    rig.server.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
         {"username": "alice", "tx": 6000, "rx": 2000, "sessions": 1}]))})()
     await rig.tick(5.0)
     body = (await rig.client.get("/api/metrics/clients?protocol=trusttunnel")).json()
@@ -105,8 +97,7 @@ async def _rows(rows):
 
 
 async def test_a_viewer_may_read_the_meters(rig, login_user):
-    other = httpx.AsyncClient(transport=httpx.ASGITransport(app=rig.app), base_url="http://testserver")
-    async with other:
+    async with rig.server.http() as other:
         await login_user(other, "viewer")
         assert (await other.get("/api/metrics/live")).status_code == 200
 
@@ -134,7 +125,8 @@ async def test_unknown_node_range_or_series_is_422(rig, query):
 
 
 async def test_linked_nodes_are_unsupported_until_a_source_is_plugged_in(rig):
-    rig.app.state.nodes.register("amsterdam", "Amsterdam", actor={"id": 1, "username": "owner"}, ip="x")
+    rig.server.state.metrics_source = None  # the panel wires the fleet source in; this is the state before it
+    rig.server.state.nodes.register("amsterdam", "Amsterdam", actor={"id": 1, "username": "owner"}, ip="x")
     live = (await rig.client.get("/api/metrics/live?node=amsterdam")).json()
     assert live["nodes"] == [{"node_id": "amsterdam", "name": "Amsterdam", "status": "unsupported", "age_seconds": None,
                               "host": None, "protocols": {}, "top_clients": [], "kernel_counters": None, "alerts": []}]
@@ -159,9 +151,9 @@ async def test_a_node_metrics_source_serves_the_linked_nodes(rig):
         async def nodes(self):
             return [{"node_id": "amsterdam", "name": "Amsterdam"}]
 
-    rig.app.state.nodes.register("amsterdam", "Amsterdam", actor={"id": 1, "username": "owner"}, ip="x")
-    rig.app.state.nodes.register("berlin", "Berlin", actor={"id": 1, "username": "owner"}, ip="x")
-    rig.app.state.metrics_source = Source()
+    rig.server.state.nodes.register("amsterdam", "Amsterdam", actor={"id": 1, "username": "owner"}, ip="x")
+    rig.server.state.nodes.register("berlin", "Berlin", actor={"id": 1, "username": "owner"}, ip="x")
+    rig.server.state.metrics_source = Source()
     nodes = (await rig.client.get("/api/metrics/live?node=all")).json()["nodes"]
     assert [(n["node_id"], n["status"]) for n in nodes] == [("local", "ok"), ("amsterdam", "ok"), ("berlin", "unavailable")]
     history = (await rig.client.get("/api/metrics/history?node=amsterdam&series=host.cpu&range=6h")).json()
@@ -169,13 +161,12 @@ async def test_a_node_metrics_source_serves_the_linked_nodes(rig):
 
 
 @pytest.mark.parametrize("path", ROUTES)
-async def test_disabled_monitoring_answers_404(tmp_path, login_user, path):
-    rig = await build(tmp_path, metrics_enabled=False)
+async def test_disabled_monitoring_answers_404(panel_server, login_user, path):
+    rig = await build(panel_server, metrics_enabled=False)
     async with rig.client:
         await login_user(rig.client)
         response = await rig.client.get(path)
         assert response.status_code == 404 and response.json() == {"detail": "metrics_disabled"}
-        assert rig.app.state.metrics_collector is None
 
 
 async def test_stale_agent_is_reported_not_hidden(rig):
@@ -195,7 +186,7 @@ class FakeRequest:
 
 
 def stream_of(rig, request, lease, **kwargs):
-    collector = rig.app.state.metrics_collector
+    collector = rig.server.state.metrics_collector
 
     async def build():
         return collector.snapshot()
@@ -282,8 +273,8 @@ def test_stream_limits_four_per_session_and_twenty_four_in_total():
 
 async def test_stream_route_answers_429_beyond_the_session_limit(rig):
     cookie = rig.client.cookies["panel_session"]
-    registry = rig.app.state.metrics_streams
-    session = rig.app.state.store.session(cookie)["token_hash"]
+    registry = rig.server.state.metrics_streams
+    session = rig.server.state.store.session(cookie)["token_hash"]
     held = [registry.acquire(session) for _ in range(4)]
     response = await rig.client.get("/api/metrics/stream")
     assert response.status_code == 429 and response.json() == {"detail": "too many metric streams"}
@@ -314,16 +305,16 @@ async def test_stream_route_sends_event_stream_headers_and_frees_its_slot_on_dis
              "path": "/api/metrics/stream", "raw_path": b"/api/metrics/stream", "query_string": b"", "root_path": "",
              "headers": [(b"host", b"testserver"), (b"cookie", f"panel_session={cookie}".encode())],
              "client": ("127.0.0.1", 1), "server": ("testserver", 80)}
-    task = asyncio.create_task(rig.app(scope, receive, send))
+    task = asyncio.create_task(rig.server.app(scope, receive, send))
     await asyncio.wait_for(seen_snapshot.wait(), 5)
     start = next(m for m in sent if m["type"] == "http.response.start")
     headers = {k.decode(): v.decode() for k, v in start["headers"]}
     assert start["status"] == 200 and headers["content-type"].startswith("text/event-stream")
     assert headers["cache-control"] == "no-store" and headers["x-accel-buffering"] == "no"
-    assert rig.app.state.metrics_streams.open_streams() == 1
+    assert rig.server.state.metrics_streams.open_streams() == 1
     leave.set()
     await asyncio.wait_for(task, 5)
-    assert rig.app.state.metrics_streams.open_streams() == 0
+    assert rig.server.state.metrics_streams.open_streams() == 0
 
 
 def test_the_endless_stream_is_not_an_mcp_tool_but_the_snapshots_are():

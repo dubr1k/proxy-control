@@ -12,8 +12,8 @@ async def test_openapi_requires_a_session(client):
     assert (await client.get("/api/openapi.json")).status_code == 401
 
 
-async def test_viewer_is_refused(client, login_user):
-    client._transport.app.state.store.create_admin("viewer", "viewer password long enough", "viewer")
+async def test_viewer_is_refused(client, server, login_user):
+    server.create_admin("viewer", "viewer password long enough", "viewer")
     await login_user(client, "viewer", "viewer password long enough")
     assert (await client.get("/api/openapi.json")).status_code == 403
 

@@ -394,12 +394,11 @@ async def test_public_fleet_schema_rejects_mieru_commands(
 
 
 
-async def test_viewer_can_read_fleet_but_cannot_register_or_queue(client, login_user):
-    store = client._transport.app.state.store
+async def test_viewer_can_read_fleet_but_cannot_register_or_queue(client, server, login_user):
     fleet = client._transport.app.state.fleet
     fleet.register_node("edge-01", "Edge", {"telemt_version": "3.4.25"})
     fleet.enqueue("edge-01", "viewer-redaction", "telemt.user.disable", {"username": "alice"}, "r")
-    store.create_admin("viewer", "viewer password long enough", "viewer")
+    server.create_admin("viewer", "viewer password long enough", "viewer")
     await login_user(client, "viewer", "viewer password long enough")
     csrf = client.cookies["panel_csrf"]
     assert (await client.get("/api/fleet/nodes")).status_code == 200

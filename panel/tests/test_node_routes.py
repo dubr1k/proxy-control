@@ -7,9 +7,8 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_viewer_reads_nodes_but_cannot_register(client, login_user):
-    app = client._transport.app
-    app.state.store.create_admin("viewer", "viewer-password-123", "viewer")
+async def test_viewer_reads_nodes_but_cannot_register(client, server, login_user):
+    server.create_admin("viewer", "viewer-password-123", "viewer")
     await login_user(client, "viewer", "viewer-password-123")
     csrf = client.cookies["panel_csrf"]
     assert (await client.get("/api/nodes")).status_code == 200
@@ -75,10 +74,9 @@ async def test_rename_is_audited_and_unknown_nodes_are_404(client, login_user):
     assert missing.status_code == 404
 
 
-async def test_node_view_never_leaks_unknown_inventory_keys(client, login_user):
+async def test_node_view_never_leaks_unknown_inventory_keys(client, server, login_user):
     await login_user(client)
-    app = client._transport.app
-    with app.state.database.connect() as db:
+    with server.db(write=True) as db:
         db.execute(
             "INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at)"
             " VALUES('edge-02','x','unenrolled','{\"telemt_version\":\"3.4.25\",\"api_token\":\"leak\"}',1,1)"
@@ -88,7 +86,7 @@ async def test_node_view_never_leaks_unknown_inventory_keys(client, login_user):
     assert "leak" not in str(body) and body["daemon_health"] == "reported"
 
 
-async def test_local_node_is_listed_first_with_manager_health(client, login_user):
+async def test_local_node_is_listed_first_with_manager_health(client, server, login_user):
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
     await client.post(
@@ -101,7 +99,7 @@ async def test_local_node_is_listed_first_with_manager_health(client, login_user
     assert items[0]["services"] == {"telemt": "ok", "naive": "ok", "mieru": "ok", "amneziawg": "disabled", "trusttunnel": "disabled"}
     # The owner's own card shows who this panel is and who manages it (nobody, until a
     # central links it); a remote node carries neither block.
-    assert items[0]["identity"] == {"guid": client._transport.app.state.panel_guid, "master_guid": None,
+    assert items[0]["identity"] == {"guid": server.panel_guid, "master_guid": None,
                                     "awg_versions": []}
     assert "services" not in items[1] and "identity" not in items[1]
     assert (await client.get("/api/nodes/local")).json()["services"]["telemt"] == "ok"
@@ -124,7 +122,8 @@ async def test_local_node_reports_unavailable_managers(client, login_user, mieru
 async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
     import httpx
 
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
     from panel.mieru import MemoryMieru
     from panel.naive import MemoryNaive
     from panel.telemt import MemoryTelemt
@@ -145,7 +144,7 @@ async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
         naive_enabled=False,
         mieru_enabled=False,
     )
-    app = create_app(
+    app = panel_app(
         settings,
         telemt=MemoryTelemt(),
         naive=MustNotBeAsked(),

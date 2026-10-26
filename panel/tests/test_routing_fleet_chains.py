@@ -254,26 +254,21 @@ async def _link(pair):
 
 
 @pytest.fixture
-def routed_pair(pair):
+def routed_pair(pair_factory):
     """Both panels run a memory router; the node's managers know their ingress."""
-    node, central, plaintext = pair
-    routers = {}
+    node_router, central_router = MemoryXrayRouter(), MemoryXrayRouter()
+    node, central, plaintext = pair_factory(node={"router": node_router}, central={"router": central_router})
+    routers = {node: node_router, central: central_router}
     for app in (node, central):
-        router = MemoryXrayRouter()
-        app.state.router = RouterAdapter(router)
-        app.state.routing.router = app.state.router
-        app.state.lanes.router = app.state.router
-        app.state.reconciler.router = app.state.router
-        app.state.naive.router_url = "socks5://127.0.0.1:45101"
-        app.state.mieru.router_url = "socks5://127.0.0.1:45102"
-        routers[app] = router
+        app.naive.router_url = "socks5://127.0.0.1:45101"
+        app.mieru.router_url = "socks5://127.0.0.1:45102"
     return node, central, plaintext, routers
 
 
 async def test_identity_reports_the_lanes_and_relay_capabilities_and_the_relays_public_part(routed_pair):
     node, central, plaintext, routers = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with central.state.database.connect() as db:
         identity = central.state.links.link(db, node_id)["identity"]
     assert {"egress.lanes.v1", "relay.v1"} <= set(identity["capabilities"])
@@ -286,13 +281,13 @@ async def test_a_linked_nodes_relay_is_enabled_through_its_generation_and_a_chai
     node, central, plaintext, routers = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
     routing = central.state.routing
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     enabled = await routing.relay_enable(node_id, **CTX)
     assert enabled["enabled"] is True and enabled["port"] == 45443 and enabled["public_key"] is None and enabled["pending"] is True
     with central.state.database.connect() as db:
         section = central.state.desired.latest(db, node_id)["document"].relay
     assert section.enabled is True and section.port == 45443 and section.server_name == "node.example" and section.accounts == []
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert routers[node].relay_state["enabled"] is True
     with central.state.database.connect() as db:
         relay = central.state.relays.relay(db, node_id)
@@ -318,7 +313,7 @@ async def test_a_linked_nodes_relay_is_enabled_through_its_generation_and_a_chai
     assert {peer["exit"] for peer in peers} == {"direct", "warp"}
     request = central.state.pusher._secrets_for(node_id, latest)
     assert set(request) == {account.credential_ref for account in latest.relay.accounts}
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert sorted(a["email"] for a in routers[node].relay_state["accounts"]) == emails
     result = await routing.apply("local", "naive", expected_revision=2, **CTX)
     chain = result["compiled"].document["chains"]["c1"]
@@ -336,31 +331,31 @@ async def test_a_linked_nodes_relay_is_enabled_through_its_generation_and_a_chai
     # rotate: the node gets fresh accounts through its next generation, the old ones are gone
     rotated = await routing.relay_rotate(node_id, **CTX)
     assert rotated["rotated"] == 2
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert direct["uuid"] not in [a["uuid"] for a in routers[node].relay_state["accounts"]]
 
 
 async def test_a_grant_on_a_linked_node_gets_its_lane_through_the_generation(routed_pair):
     node, central, plaintext, routers = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     client = central.state.clients.create_client("A", actor=ACTOR, ip="x")
     intents = [GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions()),
                GrantIntent(protocol="mieru", node_id=node_id, runtime_username="phone", options=MieruOptions())]
     await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     grants = {grant.protocol: grant for grant in central.state.clients.client_with_grants(client.id)[1]}
     assert all(grant.observed_state == "enabled" for grant in grants.values())
     await central.state.routing.attach(node_id, "naive", **CTX)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     enabled = await central.state.lanes.enable(grants["naive"].id, **CTX)
     lane = f"grant:{grants['naive'].id}"
     assert enabled["mode"] == "own" and enabled["lane"] == lane and enabled["pending"] is True
     with central.state.database.connect() as db:
         resource = next(r for r in central.state.desired.latest(db, node_id)["document"].resources if r.ref == lane)
     assert resource.lane == "own"
-    await central.state.pusher.tick()
-    assert lane in routers[node].lane_accounts["naive"] and node.state.naive.lane_table[lane]["users"] == ["alice"]
+    await central.tick("pusher")
+    assert lane in routers[node].lane_accounts["naive"] and node.naive.lane_table[lane]["users"] == ["alice"]
     policy = central.state.routing.get(node_id, "naive", lane=lane)
     assert policy.state == "draft" and policy.backend == "xray_router"
     # the lane's policy applies as the service's schema-2 intent through the next generation
@@ -368,28 +363,28 @@ async def test_a_grant_on_a_linked_node_gets_its_lane_through_the_generation(rou
                                expected_revision=1, lane=lane, **CTX)
     result = await central.state.routing.apply(node_id, "naive", expected_revision=2, lane=lane, **CTX)
     assert result["policy"].state == "applying" and result["compiled"].document["schema"] == 2
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert routers[node].documents["naive"]["lanes"][lane]["default"] == {"action": "egress", "egress": "warp"}
     assert central.state.routing.get(node_id, "naive", lane=lane).state == "applied"
     assert central.state.routing.get(node_id, "naive").state == "applied"
     # a Mieru lane: the node's slot port reaches the central's link through `learned`
     enabled = await central.state.lanes.enable(grants["mieru"].id, **CTX)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     mieru_grant = next(g for g in central.state.clients.client_with_grants(client.id)[1] if g.protocol == "mieru")
     assert mieru_grant.routing_lane == "own"
-    assert mieru_grant.options.share_template.endswith(f"port={node.state.mieru.lane_slots[1]}&protocol=TCP&mtu=1400")
+    assert mieru_grant.options.share_template.endswith(f"port={node.mieru.lane_slots[1]}&protocol=TCP&mtu=1400")
     # back to the service: the node drops the lane, the template returns to the main port
     disabled = await central.state.lanes.disable(grants["mieru"].id, **CTX)
     assert disabled["mode"] == "service"
-    await central.state.pusher.tick()
-    assert node.state.mieru.lane_table == {}
+    await central.tick("pusher")
+    assert node.mieru.lane_table == {}
     # the naive lane withdrawn: the service's section the node runs loses the lane (and any
     # chain only it used) in the very next generation — nothing stale reaches the router
     await central.state.lanes.disable(grants["naive"].id, **CTX)
     with central.state.database.connect() as db:
         section = central.state.desired.latest(db, node_id)["document"].egress["naive"]
     assert section.document["schema"] == 2 and list(section.document["lanes"]) == ["svc:naive"] and section.document["chains"] == {}
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert list(routers[node].documents["naive"]["lanes"]) == ["svc:naive"] and lane not in routers[node].lane_accounts["naive"]
     assert central.state.routing.get(node_id, "naive").state == "applied"
     mieru_grant = next(g for g in central.state.clients.client_with_grants(client.id)[1] if g.protocol == "mieru")
@@ -401,7 +396,7 @@ async def test_a_grant_on_a_linked_node_gets_its_lane_through_the_generation(rou
 async def test_a_v06_node_refuses_lanes_and_relay_by_code(routed_pair):
     node, central, plaintext, routers = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with central.state.database.transaction() as db:
         row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (node_id,)).fetchone()
         identity = json.loads(row["identity_json"])

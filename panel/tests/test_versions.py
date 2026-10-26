@@ -18,7 +18,8 @@ async def test_version_update_requires_owner_and_current_revision(
     tmp_path, telemt, naive, mieru, login_user
 ):
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions()
     settings = Settings(
@@ -29,7 +30,7 @@ async def test_version_update_requires_owner_and_current_revision(
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
     )
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -63,7 +64,8 @@ async def test_version_update_requires_owner_and_current_revision(
 @pytest.mark.anyio
 async def test_version_update_rejects_viewer(tmp_path, telemt, naive, mieru, login_user):
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     settings = Settings(
         database_path=tmp_path / "panel.sqlite3",
@@ -73,7 +75,7 @@ async def test_version_update_rejects_viewer(tmp_path, telemt, naive, mieru, log
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=MemoryVersions()
     )
     app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
@@ -100,7 +102,8 @@ async def test_overview_reports_host_resources_from_the_agent(
     honest source. The overview carries them alongside the protocol cards.
     """
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions()
     settings = Settings(
@@ -111,7 +114,7 @@ async def test_overview_reports_host_resources_from_the_agent(
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
     )
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -137,7 +140,8 @@ async def test_host_resources_are_polled_alone_and_follow_the_agent(
     """v0.15: the overview refreshes its resource card from `GET /api/host` — the same
     mapped contract as the dashboard's `host`, fresh on every call, read-only for any role."""
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions()
     settings = Settings(
@@ -148,7 +152,7 @@ async def test_host_resources_are_polled_alone_and_follow_the_agent(
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
     )
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -201,7 +205,8 @@ async def test_owner_checks_upstream_and_sees_the_candidate(
     reply is the same shape as `GET /api/versions`, now with upstream candidates and, on a
     host with the Xray-router, the `xray` component that the update route accepts."""
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions(router=True)
     settings = Settings(
@@ -212,7 +217,7 @@ async def test_owner_checks_upstream_and_sees_the_candidate(
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
     )
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -253,7 +258,8 @@ async def test_owner_updates_the_panel_itself_and_the_answer_is_async(
     """`POST /api/versions/panel/update` (v0.11): the agent accepts the panel's own update
     and answers before the panel restarts; the browser then polls `GET /api/versions`."""
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions()
     settings = Settings(
@@ -264,7 +270,7 @@ async def test_owner_updates_the_panel_itself_and_the_answer_is_async(
         naive_enabled=True,
         mieru_enabled=True,
     )
-    app = create_app(
+    app = panel_app(
         settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
     )
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -296,7 +302,8 @@ async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_updat
     tmp_path, telemt, naive, mieru, login_user
 ):
     from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
 
     versions = MemoryVersions()
     versions.components["panel"]["pending_rebuild"] = ["naive_manager", "docker"]
@@ -305,7 +312,7 @@ async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_updat
         allowed_hosts=("testserver",), naive_public_host="naive.example.com",
         naive_enabled=True, mieru_enabled=True,
     )
-    app = create_app(settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions)
+    app = panel_app(settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions)
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
     app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:

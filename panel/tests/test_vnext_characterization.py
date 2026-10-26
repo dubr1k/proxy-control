@@ -92,13 +92,13 @@ async def test_every_protocol_access_is_re_revealable(client, login_user, mieru)
     assert mieru_access.json()["clients"]["native"]["simple_share_url"].startswith("mierus://phone:")
 
 
-async def test_one_time_reveal_is_consumed_once_and_lives_only_in_memory(client, login_user):
+async def test_one_time_reveal_is_consumed_once_and_lives_only_in_memory(client, server, login_user):
     csrf = await _csrf(client, login_user)
     created = await client.post("/api/naive/users", json={"username": "laptop"}, headers={"X-CSRF-Token": csrf})
     token = created.json()["reveal_token"]
     assert (await client.get(f"/api/reveal/{token}")).status_code == 200
     assert (await client.get(f"/api/reveal/{token}")).status_code == 410
-    schema = " ".join(client._transport.app.state.store.dump_schema()).lower()
+    schema = " ".join(server.schema()).lower()
     # One-time reveals stay in process memory: no table is named after them.
     assert "reveal" not in schema
     # Task 6 deliberately added `secret_versions`; it is the only place the schema

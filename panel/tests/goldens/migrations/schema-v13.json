@@ -1,0 +1,372 @@
+{
+ "version": 13,
+ "sqlite_master": [
+  {
+   "type": "table",
+   "name": "schema_migrations",
+   "tbl_name": "schema_migrations",
+   "sql": "CREATE TABLE schema_migrations (\n            version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "table",
+   "name": "admins",
+   "tbl_name": "admins",
+   "sql": "CREATE TABLE admins (\n      id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,\n      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),\n      active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_admins_1",
+   "tbl_name": "admins",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "sessions",
+   "tbl_name": "sessions",
+   "sql": "CREATE TABLE sessions (\n      token_hash TEXT PRIMARY KEY, admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,\n      csrf_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,\n      last_seen_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_sessions_1",
+   "tbl_name": "sessions",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "login_attempts",
+   "tbl_name": "login_attempts",
+   "sql": "CREATE TABLE login_attempts (\n      scope TEXT NOT NULL, happened_at INTEGER NOT NULL, reservation_id TEXT NOT NULL DEFAULT '')"
+  },
+  {
+   "type": "index",
+   "name": "login_attempts_scope_time",
+   "tbl_name": "login_attempts",
+   "sql": "CREATE INDEX login_attempts_scope_time ON login_attempts(scope,happened_at)"
+  },
+  {
+   "type": "table",
+   "name": "audit_log",
+   "tbl_name": "audit_log",
+   "sql": "CREATE TABLE audit_log (\n      id INTEGER PRIMARY KEY, happened_at INTEGER NOT NULL, actor_id INTEGER,\n      actor_username TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL,\n      detail_json TEXT NOT NULL DEFAULT '{}', ip TEXT NOT NULL, request_id TEXT, correlation_id TEXT, reason_code TEXT, generation INTEGER, before_digest TEXT, after_digest TEXT)"
+  },
+  {
+   "type": "table",
+   "name": "fleet_nodes",
+   "tbl_name": "fleet_nodes",
+   "sql": "CREATE TABLE fleet_nodes (\n      node_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, auth_state TEXT NOT NULL,\n      inventory_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      next_sequence INTEGER NOT NULL DEFAULT 1, last_result_sequence INTEGER NOT NULL DEFAULT 0,\n      last_seen_at INTEGER, kind TEXT NOT NULL DEFAULT 'remote' CHECK(kind IN ('local','remote')), disabled INTEGER NOT NULL DEFAULT 0, transport TEXT NOT NULL DEFAULT 'v1' CHECK(transport IN ('v1','panel')))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_nodes_1",
+   "tbl_name": "fleet_nodes",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "fleet_commands",
+   "tbl_name": "fleet_commands",
+   "sql": "CREATE TABLE fleet_commands (\n      command_id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      sequence INTEGER NOT NULL, idempotency_key TEXT NOT NULL, protocol_version INTEGER NOT NULL,\n      operation TEXT NOT NULL, expected_revision TEXT NOT NULL, payload_json TEXT NOT NULL,\n      status TEXT NOT NULL CHECK(status IN ('queued','dispatched','succeeded','failed','indeterminate')),\n      result_json TEXT, created_at INTEGER NOT NULL, completed_at INTEGER,\n      actor TEXT NOT NULL DEFAULT 'system', expires_at INTEGER NOT NULL DEFAULT 0,\n      payload_sha256 TEXT NOT NULL DEFAULT '', dispatched_at INTEGER,\n      UNIQUE(node_id,sequence), UNIQUE(node_id,idempotency_key))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_commands_1",
+   "tbl_name": "fleet_commands",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_commands_2",
+   "tbl_name": "fleet_commands",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_commands_3",
+   "tbl_name": "fleet_commands",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "fleet_commands_node_sequence",
+   "tbl_name": "fleet_commands",
+   "sql": "CREATE INDEX fleet_commands_node_sequence ON fleet_commands(node_id,sequence)"
+  },
+  {
+   "type": "table",
+   "name": "fleet_certificates",
+   "tbl_name": "fleet_certificates",
+   "sql": "CREATE TABLE fleet_certificates (\n      serial TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      fingerprint_sha256 TEXT NOT NULL UNIQUE, not_before INTEGER NOT NULL, not_after INTEGER NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')), issued_at INTEGER NOT NULL, revoked_at INTEGER)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_certificates_1",
+   "tbl_name": "fleet_certificates",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_fleet_certificates_2",
+   "tbl_name": "fleet_certificates",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "audit_log_request",
+   "tbl_name": "audit_log",
+   "sql": "CREATE INDEX audit_log_request ON audit_log(request_id)"
+  },
+  {
+   "type": "table",
+   "name": "secret_versions",
+   "tbl_name": "secret_versions",
+   "sql": "CREATE TABLE secret_versions (\n      secret_id TEXT NOT NULL, version INTEGER NOT NULL, purpose TEXT NOT NULL,\n      grant_id TEXT, permitted_node_id TEXT, key_id TEXT NOT NULL,\n      nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('pending','active','retiring','revoked')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      PRIMARY KEY(secret_id, version))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_secret_versions_1",
+   "tbl_name": "secret_versions",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "secret_versions_key",
+   "tbl_name": "secret_versions",
+   "sql": "CREATE INDEX secret_versions_key ON secret_versions(key_id)"
+  },
+  {
+   "type": "index",
+   "name": "secret_versions_grant",
+   "tbl_name": "secret_versions",
+   "sql": "CREATE INDEX secret_versions_grant ON secret_versions(grant_id, state)"
+  },
+  {
+   "type": "table",
+   "name": "clients",
+   "tbl_name": "clients",
+   "sql": "CREATE TABLE clients (\n      id TEXT PRIMARY KEY, display_name TEXT NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','suspended','archived')),\n      metadata_json TEXT NOT NULL DEFAULT '{}',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_clients_1",
+   "tbl_name": "clients",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "access_grants",
+   "tbl_name": "access_grants",
+   "sql": "CREATE TABLE access_grants (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru')),\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      endpoint_id TEXT NOT NULL DEFAULT 'default',\n      runtime_username TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),\n      observed_state TEXT NOT NULL DEFAULT 'unknown'\n        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),\n      valid_from INTEGER, valid_until INTEGER,\n      protocol_options_json TEXT NOT NULL DEFAULT '{}',\n      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(protocol,node_id,endpoint_id,runtime_username))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_access_grants_1",
+   "tbl_name": "access_grants",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_access_grants_2",
+   "tbl_name": "access_grants",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "access_grants_client",
+   "tbl_name": "access_grants",
+   "sql": "CREATE INDEX access_grants_client ON access_grants(client_id)"
+  },
+  {
+   "type": "table",
+   "name": "client_subscriptions",
+   "tbl_name": "client_subscriptions",
+   "sql": "CREATE TABLE client_subscriptions (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      public_token_hash TEXT NOT NULL UNIQUE,\n      generation INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')),\n      update_interval_hours INTEGER NOT NULL DEFAULT 12,\n      last_fetched_at INTEGER,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, revoked_at INTEGER)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_client_subscriptions_1",
+   "tbl_name": "client_subscriptions",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_client_subscriptions_2",
+   "tbl_name": "client_subscriptions",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "client_subscriptions_one_active",
+   "tbl_name": "client_subscriptions",
+   "sql": "CREATE UNIQUE INDEX client_subscriptions_one_active ON client_subscriptions(client_id) WHERE state='active'"
+  },
+  {
+   "type": "table",
+   "name": "panel_settings",
+   "tbl_name": "panel_settings",
+   "sql": "CREATE TABLE panel_settings (\n      key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_panel_settings_1",
+   "tbl_name": "panel_settings",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "api_keys",
+   "tbl_name": "api_keys",
+   "sql": "CREATE TABLE api_keys (\n      id INTEGER PRIMARY KEY, name TEXT NOT NULL,\n      scope TEXT NOT NULL CHECK(scope IN ('admin','monitor','node-sync')),\n      prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,\n      enabled INTEGER NOT NULL DEFAULT 1, expires_at INTEGER,\n      created_at INTEGER NOT NULL, created_by TEXT NOT NULL, last_used_at INTEGER)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_api_keys_1",
+   "tbl_name": "api_keys",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "api_keys_prefix",
+   "tbl_name": "api_keys",
+   "sql": "CREATE INDEX api_keys_prefix ON api_keys(prefix)"
+  },
+  {
+   "type": "table",
+   "name": "managed_generations",
+   "tbl_name": "managed_generations",
+   "sql": "CREATE TABLE managed_generations (\n      generation INTEGER PRIMARY KEY, digest TEXT NOT NULL, master_guid TEXT NOT NULL,\n      document_json TEXT NOT NULL, received_at INTEGER NOT NULL, applied_at INTEGER,\n      state TEXT NOT NULL CHECK(state IN ('received','applying','converged','failed')))"
+  },
+  {
+   "type": "table",
+   "name": "managed_resources",
+   "tbl_name": "managed_resources",
+   "sql": "CREATE TABLE managed_resources (\n      protocol TEXT NOT NULL, runtime_username TEXT NOT NULL, ref TEXT NOT NULL,\n      credential_ref TEXT, generation INTEGER NOT NULL, state TEXT NOT NULL,\n      last_error TEXT, revision TEXT, updated_at INTEGER NOT NULL, learned_json TEXT,\n      PRIMARY KEY(protocol, runtime_username))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_managed_resources_1",
+   "tbl_name": "managed_resources",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "node_links",
+   "tbl_name": "node_links",
+   "sql": "CREATE TABLE node_links (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      panel_url TEXT NOT NULL, tls_verify TEXT NOT NULL CHECK(tls_verify IN ('verify','pin')),\n      pinned_cert_sha256 TEXT, api_key_secret_id TEXT NOT NULL, allow_private_address INTEGER NOT NULL DEFAULT 0,\n      enabled INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown','online','offline')),\n      latency_ms INTEGER, panel_version TEXT, identity_json TEXT NOT NULL DEFAULT '{}',\n      status_json TEXT NOT NULL DEFAULT '{}', last_heartbeat_at INTEGER, last_error TEXT,\n      config_dirty INTEGER NOT NULL DEFAULT 0, desired_generation INTEGER NOT NULL DEFAULT 0,\n      acknowledged_generation INTEGER NOT NULL DEFAULT 0,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_node_links_1",
+   "tbl_name": "node_links",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "desired_generations",
+   "tbl_name": "desired_generations",
+   "sql": "CREATE TABLE desired_generations (\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      generation INTEGER NOT NULL, digest TEXT NOT NULL, content_digest TEXT NOT NULL,\n      document_json TEXT NOT NULL,\n      previous_generation INTEGER NOT NULL, created_at INTEGER NOT NULL, created_by TEXT NOT NULL,\n      pushed_at INTEGER, acknowledged_at INTEGER, PRIMARY KEY(node_id, generation))"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_desired_generations_1",
+   "tbl_name": "desired_generations",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "observed_generations",
+   "tbl_name": "observed_generations",
+   "sql": "CREATE TABLE observed_generations (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      applied_generation INTEGER NOT NULL, digest TEXT NOT NULL, reconcile_state TEXT NOT NULL,\n      resources_json TEXT NOT NULL, reported_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_observed_generations_1",
+   "tbl_name": "observed_generations",
+   "sql": null
+  },
+  {
+   "type": "table",
+   "name": "provisioning_operations",
+   "tbl_name": "provisioning_operations",
+   "sql": "CREATE TABLE provisioning_operations (\n      operation_id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      status TEXT NOT NULL CHECK(status IN\n        ('pending','pending_remote','applying','succeeded','compensating','compensated',\n         'manual_intervention_required')),\n      steps_json TEXT NOT NULL,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)"
+  },
+  {
+   "type": "index",
+   "name": "sqlite_autoindex_provisioning_operations_1",
+   "tbl_name": "provisioning_operations",
+   "sql": null
+  },
+  {
+   "type": "index",
+   "name": "provisioning_operations_client",
+   "tbl_name": "provisioning_operations",
+   "sql": "CREATE INDEX provisioning_operations_client ON provisioning_operations(client_id)"
+  }
+ ],
+ "schema_migrations": [
+  {
+   "version": 1,
+   "name": "baseline-v0.1.0",
+   "checksum": "65266de1f801afb3720c00be88b27870bff1598636d4ea1a1c37a529bbdc8033"
+  },
+  {
+   "version": 2,
+   "name": "audit-structured",
+   "checksum": "f094bd8f6e7a21e390b9d021cc65f8db1663eb6cc2d27d7370e63b79b0826c1d"
+  },
+  {
+   "version": 3,
+   "name": "secret-versions",
+   "checksum": "154d0677662fe5ef743706e23ac3934cf3c1b66abe2e0d3b0447e763aead47ad"
+  },
+  {
+   "version": 4,
+   "name": "node-lifecycle",
+   "checksum": "0db82e9647af5823246f7976bc55154705a8c66fab37235d6999169907f9256a"
+  },
+  {
+   "version": 5,
+   "name": "local-node",
+   "checksum": "a6c4042ff026a51e1e9cb5a814eff944b5bcce8b13362af6769f80a8ca38633c"
+  },
+  {
+   "version": 6,
+   "name": "clients-and-grants",
+   "checksum": "e9b0c301fb155193f8a57908b5a594df4239750ae46436a51b18849c91891e9d"
+  },
+  {
+   "version": 7,
+   "name": "provisioning-operations",
+   "checksum": "2ef3fab99218ab4b466cd961d35b8e5de2f85d5998bf7026477b7467edff7642"
+  },
+  {
+   "version": 8,
+   "name": "client-subscriptions",
+   "checksum": "999ab285cba4061ccc16698ef930007d7d2a2ab4b0959504712507931298a1e0"
+  },
+  {
+   "version": 9,
+   "name": "panel-settings-and-api-keys",
+   "checksum": "4f7ee8475c471e6a7d872bff9a59a688d5ded2260d3733740673f0f1c083834b"
+  },
+  {
+   "version": 10,
+   "name": "fleet-v2-managed",
+   "checksum": "2cb4b8da09553a7146a3866218c6100c82a4d6bbf6b359d5d93681445f572600"
+  },
+  {
+   "version": 11,
+   "name": "fleet-v2-links",
+   "checksum": "d4d672944a9854fece96e449cbdf20519757253fa9f228884d37cef878c77ec8"
+  },
+  {
+   "version": 12,
+   "name": "provisioning-pending-remote",
+   "checksum": "0e409295295f7e5eb9068703d17230168d7c43e5bb856e44c0e2298db07281aa"
+  },
+  {
+   "version": 13,
+   "name": "fleet-v2-learned-options",
+   "checksum": "d6b39ee2cfee0822a97589d729f1804c7212680042ae8d072ea6f3eb98ff5d00"
+  }
+ ]
+}

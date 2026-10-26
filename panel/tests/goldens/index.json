@@ -1,0 +1,97 @@
+{
+ "recorded_at": 1792961679,
+ "python": "3.12.3",
+ "panel_version": "3.3.0",
+ "commit": null,
+ "synthetic": "every key, token, password and id here was generated for this recording in a throwaway directory against in-memory manager doubles; none is in use anywhere",
+ "sections": {
+  "keyring": {
+   "ok": true,
+   "files": [
+    "keyring-1.json",
+    "keyring-2.json",
+    "keyring-3.json",
+    "secret_versions.json"
+   ],
+   "rows": 5
+  },
+  "migrations": {
+   "ok": true,
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26
+   ]
+  },
+  "subscriptions": {
+   "ok": true,
+   "exchanges": 433
+  },
+  "clients": {
+   "ok": true,
+   "exchanges": 32
+  },
+  "routing": {
+   "ok": true,
+   "exchanges": 112
+  },
+  "fleet": {
+   "ok": true,
+   "generations": 5,
+   "wire": 38
+  },
+  "links": {
+   "ok": true,
+   "vectors": 4
+  },
+  "errors": {
+   "ok": true,
+   "exchanges": 49
+  },
+  "audit": {
+   "ok": true,
+   "subscriptions": 440,
+   "routing": 37,
+   "fleet-central": 15,
+   "fleet-node": 6,
+   "errors": 4
+  }
+ },
+ "layout": {
+  "keyring/keyring-N.json": "keyring files as `Keyring.save` writes them (1 key; 2 keys after rotate; narrowed)",
+  "keyring/secret_versions.json": "secret_versions rows (base64 nonce/ciphertext, the exact AAD text, the plaintext) under each keyring: a Rust SecretStore must decrypt every row",
+  "migrations/migrations.json": "every migration: version, name, checksum, exact statement text",
+  "migrations/schema-vNN.json": "sqlite_master (rowid order) and schema_migrations after migrations 1..NN",
+  "subscriptions/subscriptions.sqlite3": "database snapshot taken before the first fetch (with its master key subscriptions-master-key.json); open it with that keyring",
+  "subscriptions/subscriptions.json": "GET/HEAD /s/{token} exchanges: request (path, query, Accept, User-Agent, If-None-Match, Host) → status, headers in order, body by sha256 in `bodies`",
+  "clients/client_cursor.json": "GET /api/clients?limit=… pages following next_cursor, plus invalid cursors",
+  "routing/routing.json": "routing preview/put/apply/explain/history/rollback per protocol and policy, and the documents each manager double held after the apply",
+  "fleet/fleet.json": "desired_generations (document_json, digest, content_digest, canonical wire JSON), observed/managed rows on both sides and the central↔node HTTP exchanges",
+  "links/tt_links.json": "tt:// deep links: encode_deeplink inputs → link → decode_deeplink",
+  "errors/error_bodies.json": "status, headers and body of every error class (framework, auth, validation, managers, routing codes, fleet refusals, node-side fleet conflicts, metrics)",
+  "audit/audit.json": "audit_log rows (exact detail_json) and events of every scenario database"
+ }
+}

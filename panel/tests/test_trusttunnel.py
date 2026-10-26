@@ -462,7 +462,8 @@ async def test_the_real_client_speaks_the_manager_contract():
 import httpx  # noqa: E402
 
 from panel.amneziawg import MemoryAmneziawg  # noqa: E402
-from panel.app import Settings, create_app  # noqa: E402
+from panel.app import Settings  # noqa: E402
+from panel.tests.harness.server import panel_app  # noqa: E402
 from panel.keyring import Keyring  # noqa: E402
 from panel.mieru import MemoryMieru  # noqa: E402
 from panel.naive import MemoryNaive  # noqa: E402
@@ -485,7 +486,7 @@ async def api(tmp_path, tt):
         naive_enabled=True, mieru_enabled=True, amneziawg_enabled=True, trusttunnel_enabled=True,
         trusttunnel_public_host="gate.example.com", vnext_writer="domain",
     )
-    app = create_app(settings, telemt=MemoryTelemt(public_host="proxy.example.com"), naive=MemoryNaive(),
+    app = panel_app(settings, telemt=MemoryTelemt(public_host="proxy.example.com"), naive=MemoryNaive(),
                      mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(), trusttunnel=tt,
                      version_client=VersionClient(str(tmp_path / "missing-version-agent.sock")))
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -625,7 +626,7 @@ async def test_the_overview_says_so_when_the_manager_is_down_or_the_feature_is_o
 
     master_key = tmp_path / "off-key"
     Keyring.generate().save(master_key)
-    app = create_app(Settings(database_path=tmp_path / "off.sqlite3", master_key_file=master_key,
+    app = panel_app(Settings(database_path=tmp_path / "off.sqlite3", master_key_file=master_key,
                               session_cookie_secure=False, allowed_hosts=("testserver",), vnext_writer="domain"),
                      telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(),
                      trusttunnel=MemoryTrusttunnel(), version_client=VersionClient(str(tmp_path / "none.sock")))
@@ -641,30 +642,24 @@ async def test_the_overview_says_so_when_the_manager_is_down_or_the_feature_is_o
 
 # ---- a central and a linked node -------------------------------------------------------------------------
 
-from panel.fleet_v2.client import NodeClient  # noqa: E402
+from panel.tests.harness.server import start_panel  # noqa: E402
 
 ACTOR = {"id": 1, "username": "owner"}
 
 
-def _tt_app(tmp_path, name, manager=None, enabled=True):
-    key = tmp_path / f"{name}-key"
-    Keyring.generate().save(key)
-    settings = Settings(database_path=tmp_path / f"{name}.sqlite3", master_key_file=key, session_cookie_secure=False,
-                        allowed_hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example",
-                        trusttunnel_enabled=enabled, trusttunnel_public_host=f"gate.{name}.example" if enabled else "",
-                        version_agent_socket=str(tmp_path / "none.sock"))
-    return create_app(settings, telemt=MemoryTelemt(public_host=f"{name}.example"), naive=MemoryNaive(),
-                      mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(),
-                      trusttunnel=manager or MemoryTrusttunnel(hostname=f"gate.{name}.example"),
-                      version_client=VersionClient(str(tmp_path / "none.sock")))
+def _tt_app(tmp_path, name, manager=None, enabled=True, node_routes=None):
+    return start_panel(tmp_path, name=name, hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example",
+                       trusttunnel_enabled=enabled, trusttunnel_public_host=f"gate.{name}.example" if enabled else "",
+                       telemt=MemoryTelemt(public_host=f"{name}.example"), naive=MemoryNaive(), mieru=MemoryMieru(),
+                       amneziawg=MemoryAmneziawg(),
+                       trusttunnel=manager or MemoryTrusttunnel(hostname=f"gate.{name}.example"),
+                       node_routes=node_routes)
 
 
 async def _linked_tt(tmp_path, *, node_enabled=True):
     node = _tt_app(tmp_path, "node", enabled=node_enabled)
-    central = _tt_app(tmp_path, "central", enabled=False)
-    _, plaintext = node.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    central.state.links.client_factory = lambda url, key, **kw: NodeClient(
-        url, key, transport=httpx.ASGITransport(app=node), **kw)
+    central = _tt_app(tmp_path, "central", enabled=False, node_routes={"node.example": node})
+    plaintext = node.create_api_key("central", "node-sync")
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
                                             actor=ACTOR, ip="x")
     return node, central, node_id
@@ -678,16 +673,16 @@ async def test_a_linked_node_applies_the_access_and_the_central_learns_its_detai
     operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
     assert central.state.provisioning.status(operation)["status"] == "pending_remote"
     # the central has no TrustTunnel manager of its own and never called one
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
-    assert list(node.state.trusttunnel.client_table) == ["alice-tt"]
+    assert list(node.trusttunnel.client_table) == ["alice-tt"]
     [grant] = central.state.clients.client_with_grants(client.id)[1]
     assert grant.observed_state == "enabled" and grant.options.hostname == "gate.node.example"
     assert grant.options.port == 443 and grant.options.name == "Alice"
     with central.state.database.connect() as db:
         credential = central.state.secrets.reveal(db, grant.secret_ref, purpose="grant.credential",
                                                   grant_id=grant.id, permitted_node_id=node_id)
-    assert node.state.trusttunnel.authenticates("alice-tt", credential.decode())
+    assert node.trusttunnel.authenticates("alice-tt", credential.decode())
     from panel.fleet_v2.central_routes import public_hosts_for
 
     host = public_hosts_for(central.state, node_id)["trusttunnel"]
@@ -763,8 +758,8 @@ async def test_the_node_declares_the_capability_and_its_endpoint_host(tmp_path):
 
 async def test_the_node_inventory_and_traffic_know_trusttunnel(tmp_path):
     node, central, node_id = await _linked_tt(tmp_path)
-    await node.state.trusttunnel.create_client({"operation_id": "x", "username": "local-one", "password": "pw-local-1"})
-    node.state.trusttunnel.client_table["local-one"].update(rx=100, tx=900)
+    await node.trusttunnel.create_client({"operation_id": "x", "username": "local-one", "password": "pw-local-1"})
+    node.trusttunnel.client_table["local-one"].update(rx=100, tx=900)
     key = node.state.api_keys.create("probe", "node-sync", None, actor=ACTOR, ip="x")[1]
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=node), base_url="http://testserver",
                                  headers={"Authorization": f"Bearer {key}"}) as client:

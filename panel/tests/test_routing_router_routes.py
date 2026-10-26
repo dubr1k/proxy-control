@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from panel.routing.document import attach_document
-from panel.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
 
@@ -19,19 +18,13 @@ def _csrf(client) -> dict:
 
 
 @pytest.fixture
-def router(client, naive, mieru):
-    """The app under test wired to a memory router; the fakes know their ingress."""
-    from panel.protocols import RouterAdapter
-
-    app = client._transport.app
-    fake = MemoryXrayRouter()
-    app.state.router = RouterAdapter(fake)
-    app.state.routing.router = app.state.router
+def router(xray_router, naive, mieru):
+    """The shared panel wired to the router double (over its socket); the fakes know their ingress."""
     naive.router_url, mieru.router_url = "socks5://127.0.0.1:45101", "socks5://127.0.0.1:45102"
-    return fake
+    return xray_router
 
 
-async def test_attach_detach_are_owner_only_and_audited(client, login_user, router, naive):
+async def test_attach_detach_are_owner_only_and_audited(client, server, login_user, router, naive):
     await login_user(client)
     targets = await client.get("/api/routing/targets")
     item = next(item for item in targets.json()["items"] if item["protocol"] == "naive")
@@ -40,7 +33,7 @@ async def test_attach_detach_are_owner_only_and_audited(client, login_user, rout
     assert attached.status_code == 200, attached.text
     assert attached.json()["target"]["backend"] == "xray_router" and attached.json()["target"]["router"]["attached"] is True
     assert naive.egress_document == attach_document("naive")
-    audits = client._transport.app.state.store.audits()
+    audits = server.audits()
     assert any(row["action"] == "routing.target.attach" for row in audits)
     # A policy on the router, previewed and applied through the usual routes.
     put = await client.put("/api/routing/policies/local/naive", json={**GEO, "expected_revision": 1}, headers=_csrf(client))
@@ -57,14 +50,14 @@ async def test_attach_detach_are_owner_only_and_audited(client, login_user, rout
     detached = await client.post("/api/routing/targets/local/naive/detach", headers=_csrf(client))
     assert detached.status_code == 200 and detached.json()["target"]["backend"] == "naive_native"
     assert detached.json()["target"]["policy"]["backend"] == "naive_native"
-    assert any(row["action"] == "routing.target.detach" for row in client._transport.app.state.store.audits())
+    assert any(row["action"] == "routing.target.detach" for row in server.audits())
     # Now the policy's geosite rule is honestly unsupported on the native backend.
     preview = await client.post("/api/routing/policies/local/naive/preview", headers=_csrf(client))
     assert preview.json()["status"] == "unsupported" and preview.json()["reasons"][0]["code"] == "rule_kind_unsupported"
     # Viewer: reads the router, cannot attach.
     await client.post("/api/auth/logout", headers=_csrf(client))
     client.cookies.clear()
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     assert (await client.get("/api/routing/targets")).status_code == 200
     for path in ("/api/routing/targets/local/naive/attach", "/api/routing/targets/local/naive/detach"):

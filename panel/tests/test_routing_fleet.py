@@ -213,7 +213,7 @@ async def test_targets_for_remote_node_from_identity_json(pair):
     node, central, node_id = await _link(pair)
     items = {(i["node_id"], i["protocol"]): i for i in await central.state.routing.targets()}
     assert items[(node_id, "naive")]["reason"] == "node_offline"  # no heartbeat yet: the link is `unknown`
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     items = {(i["node_id"], i["protocol"]): i for i in await central.state.routing.targets()}
     remote = items[(node_id, "naive")]
     assert remote["kind"] == "remote" and remote["egress_v1"] is True and remote["backend"] == "naive_native"
@@ -267,8 +267,8 @@ async def test_routing_apply_remote_publishes_generation_and_the_report_marks_it
         latest = central.state.desired.latest(db, node_id)
         assert latest["document"].egress["naive"].digest == result["compiled"].digest
         assert central.state.links.link(db, node_id)["config_dirty"] == 1
-    await central.state.pusher.tick()
-    assert node.state.naive.egress_document == NAIVE_WARP
+    await central.tick("pusher")
+    assert node.naive.egress_document == NAIVE_WARP
     policy = routing.get(node_id, "naive")
     assert policy.state == "applied" and policy.applied_revision == 1 and policy.applied_current is True
     assert policy.applied_digest == document_digest(NAIVE_WARP)
@@ -276,7 +276,7 @@ async def test_routing_apply_remote_publishes_generation_and_the_report_marks_it
     assert [row["outcome"] for row in history] == ["applied"] and history[0]["actor"] == "node"
     assert history[0]["document"] == NAIVE_WARP and json.loads(history[0]["detail"])["generation"] == latest["generation"]
     # Another tick changes nothing: one history row per outcome.
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert len(routing.history(node_id, "naive")) == 1
     # The target now reflects the node's applied digest; the preview shows no diff.
     preview = await routing.preview(node_id, "naive", None)
@@ -285,8 +285,8 @@ async def test_routing_apply_remote_publishes_generation_and_the_report_marks_it
     client = central.state.clients.create_client("Alice", actor=ACTOR, ip="x")
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
-    assert len([c for c in node.state.naive.calls if c[0] == "egress_apply"]) == 1
+    await central.tick("pusher")
+    assert len([c for c in node.naive.calls if c[0] == "egress_apply"]) == 1
     assert routing.get(node_id, "naive").state == "applied"
 
 
@@ -295,19 +295,19 @@ async def test_pusher_marks_policy_failed_with_the_node_error(pair):
     routing = central.state.routing
     routing.save(node_id, "naive", _warp(), expected_revision=None, **CTX)
     await routing.apply(node_id, "naive", expected_revision=1, **CTX)
-    node.state.naive.reachable = False
-    await central.state.pusher.tick()
+    node.naive.reachable = False
+    await central.tick("pusher")
     policy = routing.get(node_id, "naive")
     assert policy.state == "failed" and policy.last_error == "egress_unreachable" and policy.applied_revision is None
     assert [row["outcome"] for row in routing.history(node_id, "naive")] == ["failed"]
     items = {(i["node_id"], i["protocol"]): i for i in await routing.targets()}
     assert items[(node_id, "naive")]["policy"]["last_error"] == "egress_unreachable"
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert len(routing.history(node_id, "naive")) == 1
     # Once the provider answers, the re-push (after the backoff) converges.
-    node.state.naive.reachable = True
+    node.naive.reachable = True
     central.state.pusher._backoff.clear()
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     policy = routing.get(node_id, "naive")
     assert policy.state == "applied" and policy.applied_revision == 1
 
@@ -320,16 +320,16 @@ async def test_routing_rollback_remote_publishes_previous_document(pair):
         await routing.rollback(node_id, "naive", expected_revision=1, **CTX)
     assert failure.value.code == "egress_no_previous"
     await routing.apply(node_id, "naive", expected_revision=1, **CTX)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     routing.save(node_id, "naive", _warp(), expected_revision=1, **CTX)
     await routing.apply(node_id, "naive", expected_revision=2, **CTX)
-    await central.state.pusher.tick()
-    assert node.state.naive.egress_document == NAIVE_WARP
+    await central.tick("pusher")
+    assert node.naive.egress_document == NAIVE_WARP
     result = await routing.rollback(node_id, "naive", expected_revision=2, **CTX)
     assert result["policy"].state == "applying" and result["compiled"].document == NAIVE_BLOCK
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     policy = routing.get(node_id, "naive")
-    assert node.state.naive.egress_document == NAIVE_BLOCK
+    assert node.naive.egress_document == NAIVE_BLOCK
     assert policy.state == "applied" and policy.applied_revision == 1 and policy.applied_current is False
     assert [row["outcome"] for row in routing.history(node_id, "naive")] == ["applied", "rolled_back", "applied", "applied"]
     audit = central.state.store.audits(action="routing.policy.rollback")
@@ -342,7 +342,7 @@ async def test_local_apply_is_refused_while_a_central_manages_the_node(pair):
     routing = central.state.routing
     routing.save(node_id, "naive", _warp(), expected_revision=None, **CTX)
     await routing.apply(node_id, "naive", expected_revision=1, **CTX)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     node.state.routing.save("local", "naive", _block("x.example"), expected_revision=None, **CTX)
     with pytest.raises(RoutingError) as failure:
         await node.state.routing.apply("local", "naive", expected_revision=1, **CTX)
