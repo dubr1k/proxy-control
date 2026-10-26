@@ -105,7 +105,19 @@ impl RoutingFailure {
     }
 
     pub fn status(&self) -> u16 {
-        self.app_error().map_or(500, |error| error.status())
+        match self {
+            Self::Refused(refusal) => refusal.status,
+            Self::Manager { protocol, error } => panel_protocols::error::runtime_failure(error).map_or(500, |failure| {
+                if failure.status == 500 && failure.code.is_none() && !failure.indeterminate {
+                    500
+                } else if *protocol == panel_model::Protocol::Mtproxy {
+                    502
+                } else {
+                    failure.status
+                }
+            }),
+            _ => 500,
+        }
     }
 }
 

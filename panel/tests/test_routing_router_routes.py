@@ -76,7 +76,7 @@ async def test_attach_refusals_carry_codes(client, login_user, router, naive, pa
     refused = await client.post("/api/routing/targets/local/naive/attach", headers=_csrf(client))
     assert (refused.status_code, refused.json()["code"]) == (409, "router_unavailable")
     # Without any router the panel still answers, with the reason.
-    without = panel_server(name="without-router", naive=naive, naive_enabled=True)
+    without = panel_server(name="without-router", naive=naive, naive_enabled=True, naive_public_host="naive.example.com")
     without.create_admin("owner", "correct horse battery staple", "owner")
     async with without.http() as http:
         await login_user(http)

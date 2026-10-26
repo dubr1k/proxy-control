@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use panel_clients::AuditContext;
-use panel_core::clock::{SharedClock, SystemClock};
+use panel_core::clock::SharedClock;
 use panel_core::db::{row_to_json, Conn, Database};
 use panel_core::pyjson;
 use panel_core::pytext::urlsplit;
@@ -242,24 +242,6 @@ impl RoutingService {
             confirmed,
             node_client,
         }
-    }
-
-    /// A local-only service with every protocol enabled and no relay registry.
-    pub fn local(database: Database, adapters: Arc<dyn RoutingAdapters>) -> Self {
-        Self::new(
-            database,
-            adapters,
-            Arc::new(|_: &str| true),
-            None,
-            None,
-            SystemClock::shared(),
-            None,
-            None,
-            "local",
-            "",
-            Arc::new(lanes::local_only),
-            None,
-        )
     }
 
     fn now(&self) -> i64 {

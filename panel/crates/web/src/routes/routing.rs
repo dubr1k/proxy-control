@@ -779,3 +779,55 @@ async fn geodata_action(State(app): State<AppState>, call: Call) -> Handled {
         service(&app).geodata(&node, action.expect("validated"), None, Some(&context)).await.map_err(failed)?;
     Ok(response::json(200, &Value::Object(answer)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse as _;
+    use panel_managers::{Manager, ManagerError, TelemtError};
+    use panel_model::Protocol;
+    use panel_protocols::error::{crash, raw_manager, raw_telemt};
+
+    #[tokio::test]
+    async fn escaped_manager_errors_keep_protocol_http_answers() {
+        for (protocol, manager, detail) in [
+            (Protocol::Naive, Manager::Naive, "NaiveProxy manager unavailable"),
+            (Protocol::Mieru, Manager::Mieru, "Mieru manager unavailable"),
+            (Protocol::Amneziawg, Manager::Amneziawg, "AmneziaWG manager unavailable"),
+            (Protocol::Trusttunnel, Manager::Trusttunnel, "TrustTunnel manager unavailable"),
+        ] {
+            let error = raw_manager(ManagerError::new(manager, "private upstream message", 422, None));
+            let answer = failed(RoutingFailure::manager(protocol, error)).into_response();
+            assert_eq!(answer.status(), 422);
+            let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(serde_json::from_slice::<Value>(&body).unwrap(), json!({"detail": detail}));
+        }
+        let error = raw_manager(ManagerError::new(Manager::Naive, "quota", 409, Some("quota_exhausted")));
+        let answer = failed(RoutingFailure::manager(Protocol::Naive, error)).into_response();
+        assert_eq!(answer.status(), 409);
+        let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&body).unwrap(), json!({
+            "detail": "Quota exhausted: reset traffic or raise the quota first", "code": "quota_exhausted"
+        }));
+        let error = raw_telemt(TelemtError::indeterminate("lost reply"));
+        let answer = failed(RoutingFailure::manager(Protocol::Mtproxy, error)).into_response();
+        assert_eq!(answer.status(), 502);
+        let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&body).unwrap(), json!({"detail":"Telemt service unavailable"}));
+    }
+
+    #[tokio::test]
+    async fn actual_crashes_and_unhandled_router_errors_stay_bare_500() {
+        for error in [
+            RoutingFailure::manager(Protocol::Naive, crash("malformed manager answer")),
+            RoutingFailure::Adapter(raw_manager(ManagerError::plain(Manager::XrayRouter, "unhandled"))),
+            RoutingFailure::internal("database crashed"),
+        ] {
+            let answer = failed(error).into_response();
+            assert_eq!(answer.status(), 500);
+            assert_eq!(answer.headers()["content-type"], "text/plain; charset=utf-8");
+            let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(body, "Internal Server Error");
+        }
+    }
+}
