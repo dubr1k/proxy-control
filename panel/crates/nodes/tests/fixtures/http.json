@@ -1,0 +1,416 @@
+{
+ "now": 1793000000,
+ "panel_guid": "0d8f06ed-a24c-4189-9d02-e2b30e32f3cc",
+ "services_note": "telemt ok, naive ok, mieru broken, amneziawg 2.0+1.5, trusttunnel off",
+ "exchanges": [
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"items\":[{\"node_id\":\"local\",\"display_name\":\"Амстердам «центр»\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999500,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null,\"services\":{\"telemt\":\"ok\",\"naive\":\"ok\",\"mieru\":\"unavailable\",\"amneziawg\":\"ok\",\"trusttunnel\":\"disabled\"},\"identity\":{\"guid\":\"0d8f06ed-a24c-4189-9d02-e2b30e32f3cc\",\"master_guid\":null,\"awg_versions\":[\"1.5\",\"2.0\"]}},{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"display_name\":\"Ниш\",\"kind\":\"remote\",\"disabled\":true,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999950,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-a.example\",\"tls_verify\":\"pin\",\"status\":\"online\",\"latency_ms\":42,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1792999995,\"last_error\":null,\"desired_generation\":7,\"acknowledged_generation\":6,\"identity\":{\"api_version\":2,\"guid\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"master_guid\":\"c0ffee00-0000-4000-8000-000000000000\",\"panel_version\":\"3.3.0\",\"name\":\"Ниш\",\"protocols\":{\"amneziawg\":{\"versions\":[\"2.0\",\"1.5\"]},\"mtproxy\":{\"enabled\":true}}},\"status_json\":{\"uptime\":5,\"load\":0.25},\"has_api_key\":true,\"config_dirty\":true,\"enabled\":false,\"auto_import\":false,\"observed_generation\":6,\"observed_state\":\"converged\"}},{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000002\",\"display_name\":\"Second panel\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"unknown\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792997000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-b.example:8443\",\"tls_verify\":\"verify\",\"status\":\"unknown\",\"latency_ms\":null,\"panel_version\":null,\"last_heartbeat_at\":null,\"last_error\":\"TimeoutError\",\"desired_generation\":0,\"acknowledged_generation\":0,\"identity\":{},\"status_json\":{},\"has_api_key\":true,\"config_dirty\":false,\"enabled\":true,\"auto_import\":true,\"observed_generation\":null,\"observed_state\":null}},{\"node_id\":\"edge-01\",\"display_name\":\"Франкфурт edge\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"hostname\":\"edge-01.example\",\"telemt_version\":\"3.4.25\",\"region\":\"eu-central\",\"agent_version\":\"1.0\"},\"capabilities\":[\"telemt.inventory.refresh\",\"telemt.user.enable\"],\"last_seen_at\":1792999970,\"last_checked_at\":1792999900,\"certificates\":[{\"serial\":\"AA01\",\"fingerprint_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"not_before\":1792992000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792992000,\"revoked_at\":null},{\"serial\":\"AA00\",\"fingerprint_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"not_before\":1792991000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792991000,\"revoked_at\":1792992000}],\"pending_commands\":2,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-02\",\"display_name\":\"Never seen\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"unenrolled\",\"connectivity_state\":\"never\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792992000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-03\",\"display_name\":\"Revoked\",\"kind\":\"remote\",\"disabled\":true,\"enrollment_state\":\"revoked\",\"connectivity_state\":\"stale\",\"daemon_health\":\"unknown\",\"inventory\":{\"telemt_version\":\"\",\"platform\":\"linux\"},\"capabilities\":[],\"last_seen_at\":1792999400,\"last_checked_at\":1792999400,\"certificates\":[{\"serial\":\"BB01\",\"fingerprint_sha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"not_before\":1792993000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792993000,\"revoked_at\":1792999350}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-04\",\"display_name\":\"Odd inventory\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"never\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792994000,\"certificates\":[{\"serial\":\"CC01\",\"fingerprint_sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"not_before\":1792994000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792994000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-05\",\"display_name\":\"On the edge\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"telemt_version\":\"3.5.0\"},\"capabilities\":[],\"last_seen_at\":1792999910,\"last_checked_at\":1792999910,\"certificates\":[{\"serial\":\"DD01\",\"fingerprint_sha256\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"not_before\":1792995000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792995000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-06\",\"display_name\":\"Stale\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"stale\",\"daemon_health\":\"reported\",\"inventory\":{\"telemt_version\":\"3.4.0\"},\"capabilities\":[],\"last_seen_at\":1792999909,\"last_checked_at\":1792999909,\"certificates\":[{\"serial\":\"EE01\",\"fingerprint_sha256\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"not_before\":1792995000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792995000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}]}"
+  },
+  {
+   "as": "viewer",
+   "method": "GET",
+   "path": "/api/nodes/local",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"local\",\"display_name\":\"Амстердам «центр»\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999500,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null,\"services\":{\"telemt\":\"ok\",\"naive\":\"ok\",\"mieru\":\"unavailable\",\"amneziawg\":\"ok\",\"trusttunnel\":\"disabled\"},\"identity\":{\"guid\":\"0d8f06ed-a24c-4189-9d02-e2b30e32f3cc\",\"master_guid\":null,\"awg_versions\":[\"1.5\",\"2.0\"]}}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes/edge-01",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"edge-01\",\"display_name\":\"Франкфурт edge\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"hostname\":\"edge-01.example\",\"telemt_version\":\"3.4.25\",\"region\":\"eu-central\",\"agent_version\":\"1.0\"},\"capabilities\":[\"telemt.inventory.refresh\",\"telemt.user.enable\"],\"last_seen_at\":1792999970,\"last_checked_at\":1792999900,\"certificates\":[{\"serial\":\"AA01\",\"fingerprint_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"not_before\":1792992000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792992000,\"revoked_at\":null},{\"serial\":\"AA00\",\"fingerprint_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"not_before\":1792991000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792991000,\"revoked_at\":1792992000}],\"pending_commands\":2,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes/a1b2c3d4-0000-4000-8000-000000000001",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"display_name\":\"Ниш\",\"kind\":\"remote\",\"disabled\":true,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999950,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-a.example\",\"tls_verify\":\"pin\",\"status\":\"online\",\"latency_ms\":42,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1792999995,\"last_error\":null,\"desired_generation\":7,\"acknowledged_generation\":6,\"identity\":{\"api_version\":2,\"guid\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"master_guid\":\"c0ffee00-0000-4000-8000-000000000000\",\"panel_version\":\"3.3.0\",\"name\":\"Ниш\",\"protocols\":{\"amneziawg\":{\"versions\":[\"2.0\",\"1.5\"]},\"mtproxy\":{\"enabled\":true}}},\"status_json\":{\"uptime\":5,\"load\":0.25},\"has_api_key\":true,\"config_dirty\":true,\"enabled\":false,\"auto_import\":false,\"observed_generation\":6,\"observed_state\":\"converged\"}}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes/a1b2c3d4-0000-4000-8000-000000000002",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000002\",\"display_name\":\"Second panel\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"unknown\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792997000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-b.example:8443\",\"tls_verify\":\"verify\",\"status\":\"unknown\",\"latency_ms\":null,\"panel_version\":null,\"last_heartbeat_at\":null,\"last_error\":\"TimeoutError\",\"desired_generation\":0,\"acknowledged_generation\":0,\"identity\":{},\"status_json\":{},\"has_api_key\":true,\"config_dirty\":false,\"enabled\":true,\"auto_import\":true,\"observed_generation\":null,\"observed_state\":null}}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes/edge-04",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"edge-04\",\"display_name\":\"Odd inventory\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"never\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792994000,\"certificates\":[{\"serial\":\"CC01\",\"fingerprint_sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"not_before\":1792994000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792994000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes/ghost",
+   "json": null,
+   "status": 404,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node not found\"}"
+  },
+  {
+   "as": "anonymous",
+   "method": "GET",
+   "path": "/api/nodes",
+   "json": null,
+   "status": 401,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"authentication required\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": "  Новое имя  "
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"edge-01\",\"display_name\":\"Новое имя\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"hostname\":\"edge-01.example\",\"telemt_version\":\"3.4.25\",\"region\":\"eu-central\",\"agent_version\":\"1.0\"},\"capabilities\":[\"telemt.inventory.refresh\",\"telemt.user.enable\"],\"last_seen_at\":1792999970,\"last_checked_at\":1793000000,\"certificates\":[{\"serial\":\"AA01\",\"fingerprint_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"not_before\":1792992000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792992000,\"revoked_at\":null},{\"serial\":\"AA00\",\"fingerprint_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"not_before\":1792991000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792991000,\"revoked_at\":1792992000}],\"pending_commands\":2,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": "   "
+   },
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"display_name is invalid\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": ""
+   },
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"display_name\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}}]}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+   },
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"body\",\"display_name\"],\"msg\":\"String should have at most 128 characters\",\"input\":\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\",\"ctx\":{\"max_length\":128}}]}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {},
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"display_name\"],\"msg\":\"Field required\",\"input\":{}}]}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": 5,
+    "extra": true
+   },
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"display_name\"],\"msg\":\"Input should be a valid string\",\"input\":5}]}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": [
+    1
+   ],
+   "status": 422,
+   "content_type": "application/json",
+   "body": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":[1]}]}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/ghost/rename",
+   "json": {
+    "display_name": "x"
+   },
+   "status": 404,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node not found\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/local/rename",
+   "json": {
+    "display_name": "Амстердам"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"local\",\"display_name\":\"Амстердам\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1793000000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "viewer",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": "x"
+   },
+   "status": 403,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"insufficient role\"}"
+  },
+  {
+   "as": "no-csrf",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/rename",
+   "json": {
+    "display_name": "x"
+   },
+   "status": 403,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"CSRF validation failed\"}"
+  },
+  {
+   "as": "anonymous",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/disable",
+   "json": null,
+   "status": 401,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"authentication required\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/local/disable",
+   "json": null,
+   "status": 409,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"the local node cannot be disabled\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-01/disable",
+   "json": null,
+   "status": 409,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node has pending commands\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-02/disable",
+   "json": null,
+   "status": 409,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node still carries active grants\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-03/disable",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"edge-03\",\"display_name\":\"Revoked\",\"kind\":\"remote\",\"disabled\":true,\"enrollment_state\":\"revoked\",\"connectivity_state\":\"stale\",\"daemon_health\":\"unknown\",\"inventory\":{\"telemt_version\":\"\",\"platform\":\"linux\"},\"capabilities\":[],\"last_seen_at\":1792999400,\"last_checked_at\":1793000000,\"certificates\":[{\"serial\":\"BB01\",\"fingerprint_sha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"not_before\":1792993000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792993000,\"revoked_at\":1792999350}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/edge-03/enable",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"edge-03\",\"display_name\":\"Revoked\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"revoked\",\"connectivity_state\":\"stale\",\"daemon_health\":\"unknown\",\"inventory\":{\"telemt_version\":\"\",\"platform\":\"linux\"},\"capabilities\":[],\"last_seen_at\":1792999400,\"last_checked_at\":1793000000,\"certificates\":[{\"serial\":\"BB01\",\"fingerprint_sha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"not_before\":1792993000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792993000,\"revoked_at\":1792999350}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/a1b2c3d4-0000-4000-8000-000000000001/disable",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"display_name\":\"Ниш\",\"kind\":\"remote\",\"disabled\":true,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999950,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-a.example\",\"tls_verify\":\"pin\",\"status\":\"online\",\"latency_ms\":42,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1792999995,\"last_error\":null,\"desired_generation\":7,\"acknowledged_generation\":6,\"identity\":{\"api_version\":2,\"guid\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"master_guid\":\"c0ffee00-0000-4000-8000-000000000000\",\"panel_version\":\"3.3.0\",\"name\":\"Ниш\",\"protocols\":{\"amneziawg\":{\"versions\":[\"2.0\",\"1.5\"]},\"mtproxy\":{\"enabled\":true}}},\"status_json\":{\"uptime\":5,\"load\":0.25},\"has_api_key\":true,\"config_dirty\":true,\"enabled\":false,\"auto_import\":false,\"observed_generation\":6,\"observed_state\":\"converged\"}}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/a1b2c3d4-0000-4000-8000-000000000001/enable",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"display_name\":\"Ниш\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999950,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-a.example\",\"tls_verify\":\"pin\",\"status\":\"online\",\"latency_ms\":42,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1792999995,\"last_error\":null,\"desired_generation\":7,\"acknowledged_generation\":6,\"identity\":{\"api_version\":2,\"guid\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"master_guid\":\"c0ffee00-0000-4000-8000-000000000000\",\"panel_version\":\"3.3.0\",\"name\":\"Ниш\",\"protocols\":{\"amneziawg\":{\"versions\":[\"2.0\",\"1.5\"]},\"mtproxy\":{\"enabled\":true}}},\"status_json\":{\"uptime\":5,\"load\":0.25},\"has_api_key\":true,\"config_dirty\":true,\"enabled\":true,\"auto_import\":false,\"observed_generation\":6,\"observed_state\":\"converged\"}}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/ghost/disable",
+   "json": null,
+   "status": 404,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node not found\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/ghost/enable",
+   "json": null,
+   "status": 404,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"node not found\"}"
+  },
+  {
+   "as": "owner",
+   "method": "POST",
+   "path": "/api/nodes/local/enable",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"node_id\":\"local\",\"display_name\":\"Амстердам\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1793000000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}"
+  },
+  {
+   "as": "viewer",
+   "method": "POST",
+   "path": "/api/nodes/edge-03/disable",
+   "json": null,
+   "status": 403,
+   "content_type": "application/json",
+   "body": "{\"detail\":\"insufficient role\"}"
+  },
+  {
+   "as": "owner",
+   "method": "GET",
+   "path": "/api/nodes",
+   "json": null,
+   "status": 200,
+   "content_type": "application/json",
+   "body": "{\"items\":[{\"node_id\":\"local\",\"display_name\":\"Амстердам\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1793000000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null,\"services\":{\"telemt\":\"ok\",\"naive\":\"ok\",\"mieru\":\"unavailable\",\"amneziawg\":\"ok\",\"trusttunnel\":\"disabled\"},\"identity\":{\"guid\":\"0d8f06ed-a24c-4189-9d02-e2b30e32f3cc\",\"master_guid\":null,\"awg_versions\":[\"1.5\",\"2.0\"]}},{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"display_name\":\"Ниш\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792999950,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-a.example\",\"tls_verify\":\"pin\",\"status\":\"online\",\"latency_ms\":42,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1792999995,\"last_error\":null,\"desired_generation\":7,\"acknowledged_generation\":6,\"identity\":{\"api_version\":2,\"guid\":\"a1b2c3d4-0000-4000-8000-000000000001\",\"master_guid\":\"c0ffee00-0000-4000-8000-000000000000\",\"panel_version\":\"3.3.0\",\"name\":\"Ниш\",\"protocols\":{\"amneziawg\":{\"versions\":[\"2.0\",\"1.5\"]},\"mtproxy\":{\"enabled\":true}}},\"status_json\":{\"uptime\":5,\"load\":0.25},\"has_api_key\":true,\"config_dirty\":true,\"enabled\":true,\"auto_import\":false,\"observed_generation\":6,\"observed_state\":\"converged\"}},{\"node_id\":\"a1b2c3d4-0000-4000-8000-000000000002\",\"display_name\":\"Second panel\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"unknown\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792997000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node-b.example:8443\",\"tls_verify\":\"verify\",\"status\":\"unknown\",\"latency_ms\":null,\"panel_version\":null,\"last_heartbeat_at\":null,\"last_error\":\"TimeoutError\",\"desired_generation\":0,\"acknowledged_generation\":0,\"identity\":{},\"status_json\":{},\"has_api_key\":true,\"config_dirty\":false,\"enabled\":true,\"auto_import\":true,\"observed_generation\":null,\"observed_state\":null}},{\"node_id\":\"edge-01\",\"display_name\":\"Новое имя\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"hostname\":\"edge-01.example\",\"telemt_version\":\"3.4.25\",\"region\":\"eu-central\",\"agent_version\":\"1.0\"},\"capabilities\":[\"telemt.inventory.refresh\",\"telemt.user.enable\"],\"last_seen_at\":1792999970,\"last_checked_at\":1793000000,\"certificates\":[{\"serial\":\"AA01\",\"fingerprint_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"not_before\":1792992000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792992000,\"revoked_at\":null},{\"serial\":\"AA00\",\"fingerprint_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"not_before\":1792991000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792991000,\"revoked_at\":1792992000}],\"pending_commands\":2,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-02\",\"display_name\":\"Never seen\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"unenrolled\",\"connectivity_state\":\"never\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792992000,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-03\",\"display_name\":\"Revoked\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"revoked\",\"connectivity_state\":\"stale\",\"daemon_health\":\"unknown\",\"inventory\":{\"telemt_version\":\"\",\"platform\":\"linux\"},\"capabilities\":[],\"last_seen_at\":1792999400,\"last_checked_at\":1793000000,\"certificates\":[{\"serial\":\"BB01\",\"fingerprint_sha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"not_before\":1792993000,\"not_after\":1793086400,\"state\":\"revoked\",\"issued_at\":1792993000,\"revoked_at\":1792999350}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-04\",\"display_name\":\"Odd inventory\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"never\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1792994000,\"certificates\":[{\"serial\":\"CC01\",\"fingerprint_sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"not_before\":1792994000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792994000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-05\",\"display_name\":\"On the edge\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{\"telemt_version\":\"3.5.0\"},\"capabilities\":[],\"last_seen_at\":1792999910,\"last_checked_at\":1792999910,\"certificates\":[{\"serial\":\"DD01\",\"fingerprint_sha256\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"not_before\":1792995000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792995000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null},{\"node_id\":\"edge-06\",\"display_name\":\"Stale\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"enrolled\",\"connectivity_state\":\"stale\",\"daemon_health\":\"reported\",\"inventory\":{\"telemt_version\":\"3.4.0\"},\"capabilities\":[],\"last_seen_at\":1792999909,\"last_checked_at\":1792999909,\"certificates\":[{\"serial\":\"EE01\",\"fingerprint_sha256\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"not_before\":1792995000,\"not_after\":1793086400,\"state\":\"active\",\"issued_at\":1792995000,\"revoked_at\":null}],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null}]}"
+  }
+ ],
+ "audit_log": [
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.rename",
+   "target": "edge-01",
+   "detail_json": "{\"display_name\": \"  \\u041d\\u043e\\u0432\\u043e\\u0435 \\u0438\\u043c\\u044f  \"}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.rename",
+   "target": "local",
+   "detail_json": "{\"display_name\": \"\\u0410\\u043c\\u0441\\u0442\\u0435\\u0440\\u0434\\u0430\\u043c\"}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.disable",
+   "target": "edge-03",
+   "detail_json": "{}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.enable",
+   "target": "edge-03",
+   "detail_json": "{}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.pause",
+   "target": "a1b2c3d4-0000-4000-8000-000000000001",
+   "detail_json": "{}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.resume",
+   "target": "a1b2c3d4-0000-4000-8000-000000000001",
+   "detail_json": "{}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  },
+  {
+   "happened_at": 1793000000,
+   "actor_id": 1,
+   "actor_username": "owner",
+   "action": "node.enable",
+   "target": "local",
+   "detail_json": "{}",
+   "ip": "127.0.0.1",
+   "correlation_id": null,
+   "reason_code": null,
+   "generation": null,
+   "before_digest": null,
+   "after_digest": null
+  }
+ ]
+}
