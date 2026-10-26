@@ -33,6 +33,7 @@ if [[ ${1:-} == --inside ]]; then
     printf 'NATIVE_PROXY_ENGINE_AND_HELPER_SMOKE_OK\n'
     exit 0
 fi
+case ${1:-} in --naive) export PC_PROXY_SMOKE_PROTOCOL=naive;; --mieru) export PC_PROXY_SMOKE_PROTOCOL=mieru;; esac
 root=$(realpath "$(dirname "$0")/../..")
 case "$root" in /root/dev/rust-host-wp5c-*) ;; *) printf 'Use a dedicated ams-test WP5c stand only\n' >&2; exit 1;; esac
 native="$root/native"

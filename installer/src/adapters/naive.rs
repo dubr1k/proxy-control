@@ -283,11 +283,11 @@ impl NaiveAdapter {
         planned.insert(PIN.into(), declaration(false, rendered.pin_text.as_bytes()));
         self.host.planned_helpers(HELPERS, &mut planned)?;
         planned.insert(HOOK.into(), declaration(false, deploy_hook_text(&self.selection(action)?.domain).as_bytes()));
-        let selected=self.selection(action)?;
-        for name in ["fullchain.pem","privkey.pem"]{
-            let source=self.host.host(&format!("/etc/letsencrypt/live/{}/{name}",selected.domain))?;
-            if let Ok(bytes)=fs::read(source){
-                planned.insert(format!("/var/lib/naive-caddy/tls/{name}"),declaration(false,&bytes));
+        let selected = self.selection(action)?;
+        for name in ["fullchain.pem", "privkey.pem"] {
+            let source = self.host.host(&format!("/etc/letsencrypt/live/{}/{name}", selected.domain))?;
+            if let Ok(bytes) = fs::read(source) {
+                planned.insert(format!("/var/lib/naive-caddy/tls/{name}"), declaration(false, &bytes));
             }
         }
         Ok(Value::Object(planned))
@@ -531,7 +531,9 @@ impl Adapter for NaiveAdapter {
                     self.host.write_acceptance(&name)?;
                 }
             }
-            if !pending { self.host.remove(&self.host.pending())?; }
+            if !pending {
+                self.host.remove(&self.host.pending())?;
+            }
         }
         if self.host.exists(UNIT)? {
             self.host.best_effort(&["systemctl", "disable", "--now", "caddy-naive"])?;

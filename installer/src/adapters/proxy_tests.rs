@@ -890,7 +890,7 @@ fn client_config_proves_only_the_selected_transport() {
 }
 #[test]
 fn transport_selection_rejects_invalid_and_duplicate_bindings() {
-    for value in ["", "TCP:443", "UDP:0", "TCP:65536", "TCP:-1", "TCP:1;TCP:1", "tcp:46001", "TCP:no"] {
+    for value in ["", "TCP:443", "UDP:0", "TCP:65536", "TCP:-1", "TCP:+1", "TCP:1;TCP:1", "tcp:46001", "TCP:no"] {
         assert!(super::mieru::decode_transports(value).is_err(), "{value}");
     }
     assert_eq!(
@@ -1176,7 +1176,9 @@ fn repair_migrates_checkpoint_owned_python_helpers_and_recovers_an_interrupted_r
         } else {
             "/usr/local/libexec/prepare-mieru-token"
         };
-        let bytes = b"#!/usr/bin/env python3\n# Previous release-owned helper bytes, covered by the old journal digest.\n".to_vec();
+        let bytes =
+            b"#!/usr/bin/env python3\n# Previous release-owned helper bytes, covered by the old journal digest.\n"
+                .to_vec();
         rig.put(path, &bytes, 0o755);
         data["ownership"][path]["sha256"] = sha256_hex(&bytes).into();
         let repaired = adapter.repair(&action, data.clone()).unwrap();
@@ -1226,46 +1228,85 @@ fn protocol_compose_preserves_agent_version_overrides() {
 }
 
 #[test]
-fn mieru_acceptance_preserves_the_audited_neighbor_baseline(){
-    let rig=Rig::new();let mut facts=AuditFacts::default();facts.listeners.insert("tcp".into(),json!([443,8787]));facts.listeners.insert("udp".into(),json!([50000]));
-    let action=rig.mieru().plan(&config(),&facts).unwrap().remove(0);let selected=rig.mieru().selection(&action).unwrap();
-    assert_eq!(selected.adjacent_listeners,vec![("TCP".into(),443),("TCP".into(),8787),("UDP".into(),50000)]);
-    let runner=Arc::new(RecordingRunner::new());runner.reply(&["ss"],Reply::ok("tcp LISTEN 0 128 127.0.0.1:443 0.0.0.0:*\nudp UNCONN 0 0 *:50000 *:*\n"));
-    let adapter=MieruAdapter::new(&AdapterContext{runner,..rig.context.clone()});
-    assert!(adapter.adjacent_listeners_ok(&[("TCP".into(),443),("UDP".into(),50000)]));
+fn mieru_acceptance_preserves_the_audited_neighbor_baseline() {
+    let rig = Rig::new();
+    let mut facts = AuditFacts::default();
+    facts.listeners.insert("tcp".into(), json!([443, 8787]));
+    facts.listeners.insert("udp".into(), json!([50000]));
+    let action = rig.mieru().plan(&config(), &facts).unwrap().remove(0);
+    let selected = rig.mieru().selection(&action).unwrap();
+    assert_eq!(selected.adjacent_listeners, vec![("TCP".into(), 443), ("TCP".into(), 8787), ("UDP".into(), 50000)]);
+    let runner = Arc::new(RecordingRunner::new());
+    runner.reply(&["ss"], Reply::ok("tcp LISTEN 0 128 127.0.0.1:443 0.0.0.0:*\nudp UNCONN 0 0 *:50000 *:*\n"));
+    let adapter = MieruAdapter::new(&AdapterContext { runner, ..rig.context.clone() });
+    assert!(adapter.adjacent_listeners_ok(&[("TCP".into(), 443), ("UDP".into(), 50000)]));
     assert!(!adapter.adjacent_listeners_ok(&selected.adjacent_listeners));
 }
 #[test]
-fn interrupted_mieru_apply_removes_proven_partial_license_and_environment(){
-    let rig=Rig::new();*rig.fail.lock().unwrap()=Some(" up ".into());let adapter:Arc<dyn Adapter>=Arc::new(rig.mieru());let plan=plan_with(vec![rig.action("mieru")],serde_json::Map::new());let engine=engine_for(rig.dir.path(),vec![adapter]);
-    assert!(engine.apply(&plan,&plan.digest()).is_err());
-    assert_eq!(engine.store().read_state().unwrap().status,crate::Status::RolledBack);
-    for path in ["/usr/bin/mita","/usr/share/doc/mita/copyright","/opt/mtproxy-shared443/.env.mieru","/etc/systemd/system/mita.service"]{assert!(!rig.host(path).exists(),"{path} leaked");}
+fn interrupted_mieru_apply_removes_proven_partial_license_and_environment() {
+    let rig = Rig::new();
+    *rig.fail.lock().unwrap() = Some(" up ".into());
+    let adapter: Arc<dyn Adapter> = Arc::new(rig.mieru());
+    let plan = plan_with(vec![rig.action("mieru")], serde_json::Map::new());
+    let engine = engine_for(rig.dir.path(), vec![adapter]);
+    assert!(engine.apply(&plan, &plan.digest()).is_err());
+    assert_eq!(engine.store().read_state().unwrap().status, crate::Status::RolledBack);
+    for path in [
+        "/usr/bin/mita",
+        "/usr/share/doc/mita/copyright",
+        "/opt/mtproxy-shared443/.env.mieru",
+        "/etc/systemd/system/mita.service",
+    ] {
+        assert!(!rig.host(path).exists(), "{path} leaked");
+    }
     assert!(rig.host("/etc/mieru-manager/token").exists());
 }
 
 #[test]
-fn naive_accepts_the_caddy_the_version_agent_built_but_not_a_failed_rollback(){
-    let rig=Rig::new();rig.put(super::naive::CADDY_BINARY,b"agent-built-caddy",0o755);
-    let runner=Arc::new(RecordingRunner::with_responder(|call|{
-        if call.argv.last().is_some_and(|arg|arg=="version"){return Some(Reply::ok("v2.12.0 h1:agent="));}
-        if call.argv.last().is_some_and(|arg|arg=="list-modules"){return Some(Reply::ok("http.handlers.forward_proxy\n"));}
+fn naive_accepts_the_caddy_the_version_agent_built_but_not_a_failed_rollback() {
+    let rig = Rig::new();
+    rig.put(super::naive::CADDY_BINARY, b"agent-built-caddy", 0o755);
+    let runner = Arc::new(RecordingRunner::with_responder(|call| {
+        if call.argv.last().is_some_and(|arg| arg == "version") {
+            return Some(Reply::ok("v2.12.0 h1:agent="));
+        }
+        if call.argv.last().is_some_and(|arg| arg == "list-modules") {
+            return Some(Reply::ok("http.handlers.forward_proxy\n"));
+        }
         Some(Reply::ok(""))
     }));
-    let adapter=NaiveAdapter::new(&AdapterContext{runner,..rig.context.clone()});let action=rig.action("naive");
-    rig.put("/var/lib/proxy-control/version-agent/state.json",json!({"schema":2,"components":{"naive":{"runtime_version":"v2.12.0 h1:agent="}}}).to_string().as_bytes(),0o600);
+    let adapter = NaiveAdapter::new(&AdapterContext { runner, ..rig.context.clone() });
+    let action = rig.action("naive");
+    rig.put(
+        "/var/lib/proxy-control/version-agent/state.json",
+        json!({"schema":2,"components":{"naive":{"runtime_version":"v2.12.0 h1:agent="}}}).to_string().as_bytes(),
+        0o600,
+    );
     assert!(adapter.prepare(&action).is_ok());
-    rig.put("/var/lib/proxy-control/version-agent/state.json",json!({"schema":2,"components":{"naive":{"runtime_version":"v2.12.0 h1:agent=","status":"rollback_failed"}}}).to_string().as_bytes(),0o600);
+    rig.put(
+        "/var/lib/proxy-control/version-agent/state.json",
+        json!({"schema":2,"components":{"naive":{"runtime_version":"v2.12.0 h1:agent=","status":"rollback_failed"}}})
+            .to_string()
+            .as_bytes(),
+        0o600,
+    );
     assert!(adapter.prepare(&action).unwrap_err().message().contains("unpinned Caddy"));
 }
 #[test]
-fn live_fixed_identity_collisions_are_rechecked_before_mutation(){
-    let rig=Rig::new();
-    for (name,database,id) in [("naive","passwd","10003"),("naive","group","10004"),("mieru","passwd","10005"),("mieru","group","10005")]{
-        let runner=Arc::new(RecordingRunner::new());runner.reply(&["getent",database,id],Reply::ok(&format!("foreign:x:{id}:10004::/nonexistent:/bin/false\n")));
-        let context=AdapterContext{runner:runner.clone(),..rig.context.clone()};
-        let adapter:Box<dyn Adapter>=if name=="naive"{Box::new(NaiveAdapter::new(&context))}else{Box::new(MieruAdapter::new(&context))};
+fn live_fixed_identity_collisions_are_rechecked_before_mutation() {
+    let rig = Rig::new();
+    for (name, database, id) in [
+        ("naive", "passwd", "10003"),
+        ("naive", "group", "10004"),
+        ("mieru", "passwd", "10005"),
+        ("mieru", "group", "10005"),
+    ] {
+        let runner = Arc::new(RecordingRunner::new());
+        runner.reply(&["getent", database, id], Reply::ok(&format!("foreign:x:{id}:10004::/nonexistent:/bin/false\n")));
+        let context = AdapterContext { runner: runner.clone(), ..rig.context.clone() };
+        let adapter: Box<dyn Adapter> =
+            if name == "naive" { Box::new(NaiveAdapter::new(&context)) } else { Box::new(MieruAdapter::new(&context)) };
         assert!(adapter.prepare(&rig.action(name)).unwrap_err().message().contains("collision"));
-        assert!(runner.calls().iter().all(|call|call.kind!=CallKind::Run));
+        assert!(runner.calls().iter().all(|call| call.kind != CallKind::Run));
     }
 }

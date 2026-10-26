@@ -267,11 +267,16 @@ impl MieruAdapter {
                     drained = false;
                 }
             }
-            let identity=self.host.capture(&["getent","passwd","mita"],512);
-            let fields:Vec<_>=identity.trim().split(':').collect();
-            let owner=if fields.len()>=4&&fields[0]=="mita"{fields[2].parse::<u32>().ok().zip(fields[3].parse::<u32>().ok())}else{None};
-            let boundary = fs::symlink_metadata(self.host.host(SOCKET)?)
-                .is_ok_and(|info|info.file_type().is_socket()&&info.mode()&0o7777==0o770&&owner==Some((info.uid(),info.gid())));
+            let identity = self.host.capture(&["getent", "passwd", "mita"], 512);
+            let fields: Vec<_> = identity.trim().split(':').collect();
+            let owner = if fields.len() >= 4 && fields[0] == "mita" {
+                fields[2].parse::<u32>().ok().zip(fields[3].parse::<u32>().ok())
+            } else {
+                None
+            };
+            let boundary = fs::symlink_metadata(self.host.host(SOCKET)?).is_ok_and(|info| {
+                info.file_type().is_socket() && info.mode() & 0o7777 == 0o770 && owner == Some((info.uid(), info.gid()))
+            });
             let package_ok =
                 pc_host::archive::verify_artifact(&self.host.host(&selected.package)?, &selected.package_digest)
                     .is_ok();
@@ -289,17 +294,26 @@ impl MieruAdapter {
         logout?;
         result
     }
-    pub(super) fn adjacent_listeners_ok(&self,expected:&[(String,u16)])->bool{
-        if expected.is_empty(){return true;}
-        let output=self.host.capture(&["ss","-H","-lntup"],65536);
-        if pc_host::runner::is_in_band_failure(&output){return false;}
-        let observed:std::collections::BTreeSet<_>=output.lines().filter_map(|line|{
-            let fields:Vec<_>=line.split_whitespace().collect();
-            if fields.len()<5||!["tcp","udp"].contains(&fields[0]){return None;}
-            let port=fields[4].rsplit_once(':')?.1.parse::<u16>().ok()?;
-            Some((fields[0].to_uppercase(),port))
-        }).collect();
-        expected.iter().all(|binding|observed.contains(binding))
+    pub(super) fn adjacent_listeners_ok(&self, expected: &[(String, u16)]) -> bool {
+        if expected.is_empty() {
+            return true;
+        }
+        let output = self.host.capture(&["ss", "-H", "-lntup"], 65536);
+        if pc_host::runner::is_in_band_failure(&output) {
+            return false;
+        }
+        let observed: std::collections::BTreeSet<_> = output
+            .lines()
+            .filter_map(|line| {
+                let fields: Vec<_> = line.split_whitespace().collect();
+                if fields.len() < 5 || !["tcp", "udp"].contains(&fields[0]) {
+                    return None;
+                }
+                let port = fields[4].rsplit_once(':')?.1.parse::<u16>().ok()?;
+                Some((fields[0].to_uppercase(), port))
+            })
+            .collect();
+        expected.iter().all(|binding| observed.contains(binding))
     }
     fn cleanup_in_session(&self, session: &mut PanelSession, name: &str) -> Result<(), Error> {
         let listed = request(session, "GET", "/api/mieru/users", None, true)?;

@@ -88,7 +88,7 @@ pub struct MieruSelection {
     pub warp_provider: String,
     pub router_provider: String,
     pub lane_slots: u32,
-    pub adjacent_listeners:Vec<(String,u16)>,
+    pub adjacent_listeners: Vec<(String, u16)>,
 }
 /// The private extraction tree is removed on every return path, including failures.
 pub struct StagedMita {
@@ -185,7 +185,7 @@ impl MieruAdapter {
                 "transports",
                 "egress",
             ],
-            &["package", "warp-port", "warp-provider", "router-provider", "lane-slots","adjacent-listeners"],
+            &["package", "warp-port", "warp-provider", "router-provider", "lane-slots", "adjacent-listeners"],
         )?;
         let expected = [
             ("project", PROJECT),
@@ -216,6 +216,9 @@ impl MieruAdapter {
         self.host.host(&package)?;
         let (warp_port, warp_provider, router_provider) = providers(&values, 45102, &self.host)?;
         let count = values.get("lane-slots").map(String::as_str).unwrap_or("0");
+        if count.is_empty() || !count.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(self.host.error("invalid lane slot count"));
+        }
         let lane_slots = count
             .parse::<u32>()
             .ok()
@@ -231,13 +234,20 @@ impl MieruAdapter {
         {
             return Err(self.host.error("Mieru lane slot ports collide with the selected listeners"));
         }
-        let mut adjacent_listeners=Vec::new();
-        if let Some(value)=values.get("adjacent-listeners"){
-            for encoded in value.split(';'){
-                let(protocol,port)=encoded.split_once(':').ok_or_else(||self.host.error("invalid adjacent listener selection"))?;
-                let port=port.parse::<u16>().ok().filter(|p|*p>0).ok_or_else(||self.host.error("invalid adjacent listener selection"))?;
-                if !["TCP","UDP"].contains(&protocol)||adjacent_listeners.contains(&(protocol.to_string(),port)){return Err(self.host.error("invalid adjacent listener selection"));}
-                adjacent_listeners.push((protocol.to_string(),port));
+        let mut adjacent_listeners = Vec::new();
+        if let Some(value) = values.get("adjacent-listeners") {
+            for encoded in value.split(';') {
+                let (protocol, port) =
+                    encoded.split_once(':').ok_or_else(|| self.host.error("invalid adjacent listener selection"))?;
+                let port = port
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|p| *p > 0)
+                    .ok_or_else(|| self.host.error("invalid adjacent listener selection"))?;
+                if !["TCP", "UDP"].contains(&protocol) || adjacent_listeners.contains(&(protocol.to_string(), port)) {
+                    return Err(self.host.error("invalid adjacent listener selection"));
+                }
+                adjacent_listeners.push((protocol.to_string(), port));
             }
             adjacent_listeners.sort();
         }
@@ -576,28 +586,41 @@ impl MieruAdapter {
         }
         self.host.atomic(ENV, self.env_text(selected, gid).as_bytes(), 0o600)
     }
-    fn complete_partial_inverse(&self,action:&Action,selected:&MieruSelection,data:&mut CheckpointData)->Result<(),Error>{
-        if !data["ownership"].as_object().expect("validated checkpoint").is_empty(){return Ok(());}
-        let mut additional=Vec::new();
-        if data["binary_preexisting"]==false&&self.host.exists(BINARY)?{
-            let actual=sha256_file(&self.host.host(BINARY)?)?;
-            if actual!=selected.executable_digest&&self.host.agent_value("mita","sha256").as_deref()!=Some(&actual){
+    fn complete_partial_inverse(
+        &self,
+        action: &Action,
+        selected: &MieruSelection,
+        data: &mut CheckpointData,
+    ) -> Result<(), Error> {
+        if !data["ownership"].as_object().expect("validated checkpoint").is_empty() {
+            return Ok(());
+        }
+        let mut additional = Vec::new();
+        if data["binary_preexisting"] == false && self.host.exists(BINARY)? {
+            let actual = sha256_file(&self.host.host(BINARY)?)?;
+            if actual != selected.executable_digest
+                && self.host.agent_value("mita", "sha256").as_deref() != Some(&actual)
+            {
                 return Err(self.host.error("Mieru owned binary has drifted"));
             }
-            if self.host.exists(LICENSE)?{
+            if self.host.exists(LICENSE)? {
                 // A failed apply cannot return its ownership. Re-prove the cached package
                 // instead of guessing which license bytes the interrupted stage installed.
-                let staged=self.stage(action)?;
-                additional.push((LICENSE,declaration(false,&fs::read(&staged.license)?)));
+                let staged = self.stage(action)?;
+                additional.push((LICENSE, declaration(false, &fs::read(&staged.license)?)));
             }
         }
-        if self.host.exists(ENV)?{
-            if let Ok(socket)=fs::symlink_metadata(self.host.host(SOCKET)?){
-                if socket.file_type().is_socket(){additional.push((ENV,declaration(false,self.env_text(selected,socket.gid()).as_bytes())));}
+        if self.host.exists(ENV)? {
+            if let Ok(socket) = fs::symlink_metadata(self.host.host(SOCKET)?) {
+                if socket.file_type().is_socket() {
+                    additional.push((ENV, declaration(false, self.env_text(selected, socket.gid()).as_bytes())));
+                }
             }
         }
-        let planned=data["planned_ownership"].as_object_mut().expect("validated checkpoint");
-        for (path,entry) in additional{planned.insert(path.into(),entry);}
+        let planned = data["planned_ownership"].as_object_mut().expect("validated checkpoint");
+        for (path, entry) in additional {
+            planned.insert(path.into(), entry);
+        }
         Ok(())
     }
     // An agent may refresh only the executable SHA line. Reconstruct all other bytes from the
@@ -617,7 +640,9 @@ impl MieruAdapter {
         }
         let mut current = selected.clone();
         current.executable_digest = digest;
-        let Ok(actual) = fs::read(self.host.host(ENV)?) else { return Ok(()); };
+        let Ok(actual) = fs::read(self.host.host(ENV)?) else {
+            return Ok(());
+        };
         if actual == self.env_text(&current, info.gid()).as_bytes() {
             if let Some(entry) =
                 data.get_mut("ownership").and_then(Value::as_object_mut).and_then(|entries| entries.get_mut(ENV))
@@ -712,16 +737,23 @@ impl Adapter for MieruAdapter {
             format!("router-provider={}", egress.router_url("mieru").unwrap_or_default()),
             format!("lane-slots={}", mieru.lane_slots),
         ];
-        let mut adjacent=Vec::new();
-        for protocol in ["TCP","UDP"]{
-            if let Some(ports)=facts.listeners.get(&protocol.to_lowercase()).and_then(Value::as_array){
-                for port in ports.iter().filter_map(Value::as_u64).filter_map(|p|u16::try_from(p).ok()).filter(|p|*p>0){
-                    if !transports.iter().chain(&slots).any(|(p,n)|p==protocol&&*n==port){adjacent.push((protocol.to_string(),port));}
+        let mut adjacent = Vec::new();
+        for protocol in ["TCP", "UDP"] {
+            if let Some(ports) = facts.listeners.get(&protocol.to_lowercase()).and_then(Value::as_array) {
+                for port in
+                    ports.iter().filter_map(Value::as_u64).filter_map(|p| u16::try_from(p).ok()).filter(|p| *p > 0)
+                {
+                    if !transports.iter().chain(&slots).any(|(p, n)| p == protocol && *n == port) {
+                        adjacent.push((protocol.to_string(), port));
+                    }
                 }
             }
         }
-        adjacent.sort();adjacent.dedup();
-        if !adjacent.is_empty(){mutations.push(format!("adjacent-listeners={}",encode_transports(&adjacent)));}
+        adjacent.sort();
+        adjacent.dedup();
+        if !adjacent.is_empty() {
+            mutations.push(format!("adjacent-listeners={}", encode_transports(&adjacent)));
+        }
         let mut preconditions = strings(&[
             "the Core runtime is verified",
             "the selected Mieru listeners are free",
@@ -868,7 +900,7 @@ impl Adapter for MieruAdapter {
         let selected = self.selection(action)?;
         self.checkpoint(&data, action, true)?;
         self.rebase_agent_env(&selected, &mut data)?;
-        self.complete_partial_inverse(action,&selected,&mut data)?;
+        self.complete_partial_inverse(action, &selected, &mut data)?;
         let purge = purge_data && target == RollbackTarget::Uninstalled;
         let mut pending = false;
         if self.host.exists(&self.host.pending())? {
@@ -880,7 +912,9 @@ impl Adapter for MieruAdapter {
                     self.host.write_acceptance(&name)?;
                 }
             }
-            if !pending { self.host.remove(&self.host.pending())?; }
+            if !pending {
+                self.host.remove(&self.host.pending())?;
+            }
         }
         if self.host.exists(UNIT)? {
             self.host.best_effort(&["systemctl", "disable", "--now", "mita"])?;
@@ -956,6 +990,9 @@ pub fn decode_transports(value: &str) -> Result<Vec<(String, u16)>, Error> {
     let invalid = || Error::other("MieruError", "Mieru action has invalid transports");
     for item in value.split(';') {
         let (protocol, port) = item.split_once(':').ok_or_else(invalid)?;
+        if port.is_empty() || !port.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(invalid());
+        }
         let port = port.parse::<u16>().ok().filter(|p| *p != 0 && *p != 443).ok_or_else(invalid)?;
         if !["TCP", "UDP"].contains(&protocol) || values.iter().any(|(p, n)| p == protocol && *n == port) {
             return Err(invalid());

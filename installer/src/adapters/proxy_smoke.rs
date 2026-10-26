@@ -35,6 +35,10 @@ impl Drop for Processes {
         stop(&mut self.mita);
     }
 }
+struct ProbeClient(Child);
+impl Drop for ProbeClient {
+    fn drop(&mut self){let _=self.0.kill();let _=self.0.wait();}
+}
 fn execute(argv: &[String]) -> Reply {
     let output = Command::new(&argv[0]).args(&argv[1..]).output().unwrap();
     Reply::exit(
@@ -56,6 +60,8 @@ fn start_mita(processes: &mut Processes) {
         .arg("run")
         .env("MITA_CONFIG_JSON_FILE", "/var/lib/mita/server_config.json")
         .env("MITA_UDS_PATH", "/run/mita/mita.sock")
+        .env("HOME","/var/lib/mita")
+        .env("XDG_CONFIG_HOME","/var/lib/mita")
         .uid(uid)
         .gid(gid)
         .stdout(Stdio::null())
@@ -179,17 +185,18 @@ impl RuntimeAdapter {
                 0o600,
                 None,
             )?;
-            let mut client = Command::new(&self.client)
+            fs::create_dir_all("/run/proxy-smoke/client-home")?;
+            let client = ProbeClient(Command::new(&self.client)
                 .arg("run")
                 .env("MIERU_CONFIG_JSON_FILE", "/run/proxy-smoke/client.json")
+                .env("HOME","/run/proxy-smoke/client-home")
+                .env("XDG_CONFIG_HOME","/run/proxy-smoke/client-home")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
-                .spawn()?;
+                .spawn()?);
             let deadline = Instant::now() + Duration::from_secs(10);
             while std::net::TcpStream::connect("127.0.0.1:18080").is_err() {
                 if Instant::now() >= deadline {
-                    let _ = client.kill();
-                    let _ = client.wait();
                     return Err(Error::other("AcceptanceError", "private official client did not listen"));
                 }
                 std::thread::sleep(Duration::from_millis(100));
@@ -211,8 +218,7 @@ impl RuntimeAdapter {
                     "http://127.0.0.1:18081/",
                 ])
                 .output()?;
-            let _ = client.kill();
-            let _ = client.wait();
+            drop(client);
             if !output.status.success() || output.stdout != b"204" {
                 return Err(Error::other("AcceptanceError", "private official client tunnel failed"));
             }
@@ -303,6 +309,8 @@ fn real_proxy_engine_install_repair_and_rollback() {
     let output = Command::new("openssl")
         .args([
             "req",
+            "-config",
+            "/dev/null",
             "-x509",
             "-newkey",
             "rsa:2048",
@@ -320,7 +328,7 @@ fn real_proxy_engine_install_repair_and_rollback() {
         ])
         .output()
         .unwrap();
-    assert!(output.status.success());
+    assert!(output.status.success(),"isolated certificate generation failed: {}",String::from_utf8_lossy(&output.stderr));
     for name in ["mita_3.38.1_amd64.deb", "mieru_3.38.1_amd64.deb"] {
         fs::create_dir_all("/var/lib/proxy-control").unwrap();
         fs::copy(native.join(name), Path::new("/var/lib/proxy-control").join(name)).unwrap();
@@ -400,6 +408,9 @@ fn real_proxy_engine_install_repair_and_rollback() {
     config.mieru.as_mut().unwrap().tcp_ports = vec![46001];
     config.mieru.as_mut().unwrap().udp_ports = vec![46001];
     for name in ["naive", "mieru"] {
+        if std::env::var("PC_PROXY_SMOKE_PROTOCOL").is_ok_and(|selected| selected != name) {
+            continue;
+        }
         let inner: Arc<dyn Adapter + Send + Sync> =
             if name == "naive" { Arc::new(NaiveAdapter::new(&context)) } else { Arc::new(MieruAdapter::new(&context)) };
         let action = inner.plan(&config, &AuditFacts::default()).unwrap().remove(0);
