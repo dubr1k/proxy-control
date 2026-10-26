@@ -116,7 +116,7 @@ EXCLUDE_TESTS = {"test_route_coverage.py", "test_verification_matrix.py", "route
 @lru_cache(maxsize=1)
 def collect_routes() -> list[dict]:
     completed = subprocess.run(
-        ["cargo", "test", "-p", "panel-web", "--test", RUST_TEST, "--", "--nocapture"],
+        ["cargo", "test", "--locked", "-p", "panel-web", "--test", RUST_TEST, "--", "--nocapture"],
         cwd=ROOT / "panel", capture_output=True, text=True, check=False,
     )
     if completed.returncode:
