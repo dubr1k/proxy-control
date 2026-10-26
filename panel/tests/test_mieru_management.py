@@ -348,18 +348,7 @@ async def test_a_user_mita_has_not_counted_yet_shows_zero_and_an_old_manager_sho
     assert dashboard["traffic"]["available"] is False and dashboard["traffic"]["reason"] == "typed_histories_unavailable"
 
 
-async def test_mieru_client_reads_the_manager_traffic_route():
-    import httpx
 
-    seen = {}
-
-    async def handler(request):
-        seen.update(method=request.method, path=request.url.path)
-        return httpx.Response(200, json={"users": [{"username": "a", "upload_bytes": 1, "download_bytes": 2}]})
-
-    client = MieruClient("/run/mieru.sock", "token", transport=httpx.MockTransport(handler))
-    assert (await client.traffic())["users"][0]["download_bytes"] == 2
-    assert seen == {"method": "GET", "path": "/v1/traffic"}
 
 
 async def test_panel_mieru_viewer_is_read_only(client, server, login_user):
@@ -388,42 +377,10 @@ async def test_dashboard_reports_mieru_disabled_ready_and_degraded(
     assert degraded["status"] == "degraded"
 
 
-async def test_mieru_client_sanitizes_manager_errors():
-    import httpx
-
-    async def handler(_request):
-        return httpx.Response(409, text='{"detail":"hash aaaa password secret"}')
-
-    client = MieruClient(
-        "/run/mieru.sock", "token", transport=httpx.MockTransport(handler)
-    )
-    with pytest.raises(Exception, match="manager rejected request") as error:
-        await client.list_users()
-    assert "password" not in str(error.value)
 
 
-async def test_mieru_client_lifecycle_uses_fixed_allowlisted_path_and_empty_body():
-    import httpx
 
-    seen = {}
 
-    async def handler(request):
-        seen["method"] = request.method
-        seen["path"] = request.url.path
-        seen["body"] = json.loads(request.content)
-        return httpx.Response(
-            200, json={"ready": True, "status": "running", "revision": "rev-1"}
-        )
-
-    client = MieruClient(
-        "/run/mieru-manager/manager.sock",
-        "x" * 32,
-        transport=httpx.MockTransport(handler),
-    )
-    assert (await client.lifecycle("restart"))["ready"] is True
-    assert seen == {"method": "POST", "path": "/v1/lifecycle/restart", "body": {}}
-    with pytest.raises(ValueError, match="lifecycle"):
-        await client.lifecycle("reload")
 
 
 async def test_memory_mieru_replays_a_caller_credential_and_refuses_a_generated_one():

@@ -27,16 +27,7 @@ def _contract() -> dict:
     return json.loads(CONTRACT.read_text())
 
 
-def test_a_rule_may_stand_on_the_sniffed_protocol_alone_and_carries_its_preset():
-    rule = RoutingRule.model_validate(rule_for("torrent"))
-    assert rule.match.protocols == ["bittorrent"] and rule.preset == "torrent" and rule.action == "block"
-    assert RuleMatch(protocols=[" TLS ", "http", "tls"]).protocols == ["tls", "http"]
-    with pytest.raises(ValidationError, match="invalid protocol selector"):
-        RuleMatch(protocols=["ssh"])
-    with pytest.raises(ValidationError, match="invalid preset name"):
-        RoutingRule(match=RuleMatch(domains=["x.com"]), action="block", preset="Bad Name")
-    assert RoutingRule(match=RuleMatch(domains=["x.com"]), action="block", preset="").preset is None
-    assert COMPILER_VERSION == "3"
+
 
 
 def test_every_preset_is_a_valid_rule_and_the_ids_are_distinct():

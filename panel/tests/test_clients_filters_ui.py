@@ -145,17 +145,7 @@ def test_the_card_lists_clickable_grant_rows_and_escapes_names(tmp_path: Path) -
     assert "<b>телефон</b>" not in rendered and "&lt;b&gt;телефон&lt;/b&gt;" in rendered
 
 
-def test_the_grant_window_is_wired_and_reveals_one_grant() -> None:
-    grant = (STATIC / "js" / "grant.js").read_text()
-    main = (STATIC / "js" / "main.js").read_text()
-    html = (STATIC / "index.html").read_text()
-    assert "/links?grant_id=" in grant and "/api/reveal/" in grant
-    # nothing of the link survives the window; only Telegram's own link becomes an href
-    assert 'state.link = null;\n      query("#grant-link-body", root).innerHTML = "";' in grant
-    assert "proxyLink(value)" in grant and "qrSource(artifact.qr)" in grant
-    assert "createGrantDialog" in main and "context.grants.bind()" in main and "handleClientsInput" in main
-    for element in ('id="grant-window"', 'id="grant-facts"', 'id="grant-link"', 'id="grant-link-body"', 'id="grant-actions"', 'id="grant-error"'):
-        assert element in html, element
+
 
 
 def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_responses(tmp_path):

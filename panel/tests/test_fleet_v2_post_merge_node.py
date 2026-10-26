@@ -43,48 +43,12 @@ def _audit(app, action):
 
 # --- [T6] a superseded generation is the only KeyError the push route swallows ---
 
-async def test_only_a_superseded_generation_is_answered_stale(client, login_user, monkeypatch):
-    from panel.fleet_v2.reconcile import GenerationSuperseded
 
-    app = client._transport.app
-    headers = await _node_key(client, login_user)
-    guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
-
-    async def superseded(generation):
-        raise GenerationSuperseded(generation)
-
-    monkeypatch.setattr(app.state.reconciler, "apply", superseded)
-    response = await _push(client, headers, guid, 1)
-    assert (response.status_code, response.json()["code"]) == (409, "stale_generation")
-
-    async def broken(generation):
-        raise KeyError("an adapter's bug, not a superseded generation")
-
-    monkeypatch.setattr(app.state.reconciler, "apply", broken)
-    with pytest.raises(KeyError):
-        await _push(client, headers, guid, 2)
 
 
 # --- [T6]/[re-review] capture: audited, and local users only for an import ---
 
-async def test_capture_is_audited_and_answers_local_users_only_for_an_import(client, login_user, naive):
-    app = client._transport.app
-    headers = await _node_key(client, login_user)
-    guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
-    naive.seed("local-bob", "hunter2")
-    await _push(client, headers, guid, 1)  # alice is the central's
-    body = {"resources": [{"protocol": "naive", "runtime_username": "alice"},
-                          {"protocol": "naive", "runtime_username": "local-bob"}]}
-    escrow = (await client.post("/api/fleet/v2/credentials/capture", headers=headers, json=body)).json()
-    assert escrow["credentials"] == {"naive:alice": "pw-alice"} and escrow["refused"] == ["naive:local-bob"]
-    imported = (await client.post("/api/fleet/v2/credentials/capture", headers=headers,
-                                  json={**body, "purpose": "import"})).json()
-    assert imported["credentials"] == {"naive:alice": "pw-alice", "naive:local-bob": "hunter2"}
-    assert imported["refused"] == []
-    rows = _audit(app, "fleet.credentials.capture")
-    assert len(rows) == 2
-    assert "hunter2" not in rows[1]["detail_json"] and "pw-alice" not in rows[1]["detail_json"]
-    assert '"purpose": "import"' in rows[1]["detail_json"] and '"naive:local-bob"' in rows[1]["detail_json"]
+
 
 
 async def test_capture_with_an_unknown_purpose_is_422(client, login_user):

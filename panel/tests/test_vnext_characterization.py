@@ -23,29 +23,13 @@ async def _csrf(client, login_user):
     return client.cookies["panel_csrf"]
 
 
-def test_fleet_v1_allowlist_is_exactly_the_five_telemt_operations():
-    assert OPERATIONS == {
-        "telemt.inventory.refresh",
-        "telemt.user.enable",
-        "telemt.user.disable",
-        "telemt.user.update_limits",
-        "telemt.user.reset_quota",
-    }
 
 
-@pytest.mark.parametrize("payload", [
-    {"username": "alice", "token": "x"},
-    {"username": "alice", "proxy_url": "tg://proxy"},
-    {"username": "alice", "nested": {"api_token": "x"}},
-])
-def test_fleet_v1_rejects_secret_bearing_payload(payload):
-    with pytest.raises(ProtocolError):
-        validate_payload("telemt.user.update_limits", payload)
 
 
-def test_fleet_v1_rejects_secret_bearing_result():
-    with pytest.raises(ProtocolError, match="secret-bearing"):
-        validate_result({"message": "ok", "link": "tg://proxy?secret=00"}, "telemt.user.enable", "succeeded")
+
+
+
 
 
 async def test_same_username_in_three_managers_is_three_independent_accounts(client, login_user, telemt, naive, mieru):

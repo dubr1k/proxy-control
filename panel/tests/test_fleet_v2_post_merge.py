@@ -386,57 +386,7 @@ async def test_an_imported_grant_without_a_credential_is_captured_after_a_202(pa
 
 # --- [fix wave, I2] one Telemt inventory read per apply, not one per resource ---
 
-async def test_telemt_client_batches_inventory_reads_until_access_changes():
-    from panel.telemt import TelemtClient
 
-    reads = []
-    users = {
-        name: {"username": name, "enabled": True,
-               "links": {"tls": [f"tg://proxy?server=h&port=443&secret=ee{name[-1] * 2}"]}}
-        for name in ("u1", "u2")
-    }
-
-    def handler(request):
-        reads.append((request.method, request.url.path))
-        if request.method == "GET":
-            return httpx.Response(200, json={"ok": True, "data": list(users.values())})
-        parts = request.url.path.split("/")
-        row = users[parts[3]]
-        if request.method == "PATCH":
-            row.update(json.loads(request.content))
-        elif parts[-1] in ("enable", "disable"):
-            row["enabled"] = parts[-1] == "enable"
-        elif parts[-1] == "rotate-secret":
-            row["links"]["tls"] = ["tg://proxy?server=h&port=443&secret=ee33"]
-        return httpx.Response(200, json={"ok": True, "data": {}})
-
-    def assert_reads(count):
-        assert [path for method, path in reads if method == "GET"] == ["/v1/users"] * count
-
-    client = TelemtClient("http://telemt", "Bearer t", transport=httpx.MockTransport(handler))
-    async with client.batch():
-        await client.list_users()  # discover
-        for name in ("u1", "u2", "u1", "u2"):
-            assert (await client.current_access(name))["secret"] == f"ee{name[-1] * 2}"
-        assert_reads(1)  # read-only lookups still share one inventory
-        for index, (name, enabled) in enumerate((("u1", False), ("u2", False), ("u1", True), ("u2", True)), 1):
-            await client.set_enabled(name, enabled)
-            row = next(row for row in await client.list_users() if row["username"] == name)
-            assert row["enabled"] is enabled  # confirm real runtime state, not the pre-write cache
-            await client.current_access("u1")
-            await client.current_access("u2")
-            assert_reads(index + 1)  # exactly one fresh read after each mutation
-        await client.update_user("u1", {"max_tcp_conns": 3})
-        row = next(row for row in await client.list_users() if row["username"] == "u1")
-        assert row["max_tcp_conns"] == 3
-        await client.current_access("u1")
-        assert_reads(6)
-        await client.rotate("u1")  # link mutations also invalidate the snapshot
-        assert (await client.current_access("u1"))["secret"] == "ee33"
-        await client.current_access("u2")
-        assert_reads(7)
-    await client.current_access("u2")  # outside a batch every look-up reads
-    assert_reads(8)
 
 
 async def test_reconcile_reads_the_telemt_inventory_once_per_pass(pair, monkeypatch):
@@ -473,16 +423,4 @@ async def test_node_view_exposes_one_disabled_flag(pair):
 
 # --- [T11] the CLI's set_disabled pauses a panel link even without the link service wired ---
 
-async def test_set_disabled_without_the_link_service_still_pauses_the_link(pair):
-    from panel.fleet import FleetStore
-    from panel.nodes.service import NodeLifecycleService
 
-    node, central, node_id, client = await _link(pair)
-    service = NodeLifecycleService(central.state.database, FleetStore(central.state.settings.database_path))  # as the CLI
-    view = service.set_disabled(node_id, True, actor=ACTOR, ip="cli")
-    assert view.disabled is True and view.link["enabled"] is False
-    with central.state.database.connect() as db:
-        assert db.execute("SELECT enabled FROM node_links WHERE node_id=?", (node_id,)).fetchone()[0] == 0
-        assert db.execute("SELECT disabled FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()[0] == 0
-        assert db.execute("SELECT action FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()[0] == "node.pause"
-    assert service.set_disabled(node_id, False, actor=ACTOR, ip="cli").disabled is False

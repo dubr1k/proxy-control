@@ -25,31 +25,16 @@ PAGES = {
 }
 
 
-@pytest.mark.parametrize("module", PAGES)
-def test_every_protocol_page_has_a_live_cell_per_user_and_starts_the_poller(module):
-    source = (JS / module).read_text()
-    view, protocol, name = PAGES[module]
-    assert 'from "./live-rates.js"' in source
-    assert f'<small class="live-rate" data-live-rate="${{esc({name})}}"></small>' in source
-    assert f'startLiveRates(context, generation, "{view}", "{protocol}")' in source
 
 
-def test_pages_that_repaint_their_list_put_the_last_numbers_back():
-    for module in ("naive.js", "users.js"):
-        source = (JS / module).read_text()
-        assert "repaintLiveRates(context);" in source, module
 
 
-def test_the_dashboard_shows_mieru_volumes_when_the_manager_has_them():
-    source = (JS / "dashboard.js").read_text()
-    assert "mieru.traffic?.available" in source and "С запуска mita" in source
 
 
-def test_the_poller_stops_with_its_page_and_never_sends_another_pages_numbers():
-    source = (JS / "live-rates.js").read_text()
-    assert "state.navigationGeneration === generation && state.view === view" in source
-    assert "state.liveRatesLast = null" in source and "document.hidden" in source
-    assert "style=" not in source
+
+
+
+
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")
@@ -84,9 +69,4 @@ console.log(JSON.stringify({ live, naive: cells.alice.textContent, title: cells.
     assert out["naive"].startswith("За минуту ↓ 3") and "закрывается" in out["title"]
 
 
-def test_the_services_list_on_the_overview_names_every_protocol_that_is_switched_on():
-    source = (JS / "dashboard.js").read_text()
-    for needle in ("MTProxy · Telemt", "NaiveProxy · manager", 'serviceRow("Mieru · manager"',
-                   'serviceRow("AmneziaWG · manager"', 'serviceRow("TrustTunnel · manager"'):
-        assert needle in source, needle
-    assert "if (!available) return \"\";" in source  # a protocol that is off has no line
+

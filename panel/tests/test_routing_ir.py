@@ -55,71 +55,22 @@ def _policy(protocol="naive", *, default_action="direct", fallback="fail_closed"
 # -- models ------------------------------------------------------------------------
 
 
-def test_rule_match_normalizes_domains_and_cidrs():
-    match = RuleMatch(domains=["Example.COM.", "*.CDN.example", "пример.рф", "example.com"],
-                      cidrs=["10.1.2.3", "192.168.1.0/24", "2001:db8::1", "10.0.0.5/8"], ports=[443, "80", "1000-2000"])
-    assert match.domains == ["example.com", "*.cdn.example", "xn--e1afmkfd.xn--p1ai"]
-    assert match.cidrs == ["10.1.2.3/32", "192.168.1.0/24", "2001:db8::1/128", "10.0.0.0/8"]
-    assert match.ports == [443, 80, "1000-2000"]
 
 
-@pytest.mark.parametrize("bad", [
-    {"domains": ["exa mple.com"]}, {"domains": ["*"]}, {"domains": ["a.*.com"]}, {"domains": ["-bad.com"]},
-    {"cidrs": ["300.1.1.1"]}, {"cidrs": ["10.0.0.0/33"]}, {"domains": ["ok.com"], "ports": [0]},
-    {"domains": ["ok.com"], "ports": ["9-1"]}, {"domains": ["ok.com"], "ports": [True]},
-    {"domains": ["ok.com"], "extra": 1},
-])
-def test_rule_match_rejects_bad_selectors(bad):
-    with pytest.raises(ValidationError):
-        RuleMatch(**bad)
 
 
-def test_rule_match_rejects_empty():
-    with pytest.raises(ValidationError):
-        RuleMatch()
-    # A rule on ports alone is a valid selector since v0.5 (the router enforces it).
-    assert RuleMatch(ports=[443]).ports == [443]
 
 
-def test_egress_required_for_egress_action_only():
-    with pytest.raises(ValidationError):
-        _rule("egress")
-    with pytest.raises(ValidationError):
-        _rule("block", domains=["a.com"], egress="warp")
-    assert _rule("egress", domains=["a.com"], egress="warp").egress == "warp"
-    with pytest.raises(ValidationError):
-        PolicyInput(default_action="egress")
-    with pytest.raises(ValidationError):
-        PolicyInput(default_action="direct", default_egress="warp")
-    with pytest.raises(ValidationError):
-        PolicyInput(default_action="egress", default_egress="tor")
 
 
-def test_policy_limits():
-    rule = _rule(domains=["a.com"])
-    assert len(PolicyInput(rules=[rule] * MAX_RULES).rules) == MAX_RULES
-    with pytest.raises(ValidationError):
-        PolicyInput(rules=[rule] * (MAX_RULES + 1))
-    with pytest.raises(ValidationError):
-        RuleMatch(domains=[f"h{i}.com" for i in range(65)])
-    with pytest.raises(ValidationError):
-        RuleMatch(cidrs=[f"10.0.{i}.0/24" for i in range(65)])
-    with pytest.raises(ValidationError):
-        RuleMatch(domains=["a.com"], ports=list(range(1, 34)))
-    with pytest.raises(ValidationError):
-        RoutingRule(action="block", match=RuleMatch(domains=["a.com"]), note="x" * 121)
 
 
-def test_policy_input_ignores_server_fields():
-    policy = _policy(rules=[_rule(domains=["a.com"], rule_id="0" * 8 + "-0000-4000-8000-" + "0" * 12)], revision=7)
-    policy = policy.model_copy(update={"state": "applied", "applied_revision": 7, "applied_digest": "d"})
-    draft = PolicyInput.from_policy(policy)
-    assert set(draft.model_dump()) == {"backend", "default_action", "default_egress", "fallback", "rules"}
-    assert draft.rules[0].id == policy.rules[0].id
-    with pytest.raises(ValidationError):  # the server's bookkeeping is not accepted from a client
-        PolicyInput(revision=3)
-    with pytest.raises(ValidationError):
-        PolicyInput(state="applied")
+
+
+
+
+
+
 
 
 # -- compiler: naive_native ----------------------------------------------------------

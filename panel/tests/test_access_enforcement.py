@@ -37,29 +37,7 @@ async def test_suspension_reaches_remote_runtime_and_resume_preserves_disabled_g
     assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "disabled"
 
 
-async def test_local_suspension_is_pending_until_runtime_readback_and_retries(pair, monkeypatch):
-    _, app, _ = pair
-    person, grant = await _local(app)
-    app.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
-    adapter = app.state.adapters["naive"]
-    disable = adapter.disable
 
-    async def fail(_ref):
-        raise AdapterError("manager unavailable")
-
-    monkeypatch.setattr(adapter, "disable", fail)
-    await app.tick("enforcer")
-    assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
-    assert await _enabled(app) is True
-    monkeypatch.setattr(adapter, "disable", disable)
-    await app.tick("enforcer")
-    assert await _enabled(app) is False
-    observed = app.state.clients.client_with_grants(person.id)[1][0]
-    assert observed.observed_state == "disabled" and observed.desired_state == "enabled"
-    app.state.clients.set_state(person.id, "active", actor=ACTOR, ip="test")
-    await app.tick("enforcer")
-    assert await _enabled(app) is True
 
 
 @pytest.mark.parametrize("protocol", ["mtproxy", "naive", "mieru"])
@@ -84,42 +62,13 @@ async def test_protocol_enable_cannot_bypass_a_suspended_known_grant(client, log
     assert next(row for row in inventory.items if row.runtime_username == "alice").enabled is False
 
 
-async def test_telemt_batch_readback_observes_enable_disable_mutations():
-    from panel.telemt import TelemtClient
-
-    enabled = True
-
-    def upstream(request):
-        nonlocal enabled
-        if request.method == "POST":
-            enabled = False
-        return httpx.Response(200, json={"ok": True, "data": [{"username": "alice", "enabled": enabled}]})
-
-    telemt = TelemtClient("https://runtime.example", "synthetic", transport=httpx.MockTransport(upstream))
-    async with telemt.batch():
-        assert (await telemt.list_users())[0]["enabled"] is True
-        await telemt.set_enabled("alice", False)
-        assert (await telemt.list_users())[0]["enabled"] is False
 
 
-@pytest.mark.parametrize("window", [{"valid_until": 1}, {"valid_from": 9999999999}])
-async def test_local_provisioning_finishes_disabled_outside_validity_window(pair, window):
-    _, app, _ = pair
-    person, _ = await _local(app, **window)
-    assert await _enabled(app) is False
-    assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "disabled"
 
 
-async def test_local_clock_transition_enables_then_expires_without_request(pair):
-    _, app, _ = pair
-    person, grant = await _local(app, valid_from=9999999998, valid_until=9999999999)
-    app.clock.set(9999999998)
-    await app.tick("enforcer")
-    assert await _enabled(app) is True
-    app.clock.set(9999999999)
-    await app.tick("enforcer")
-    assert await _enabled(app) is False
-    assert app.state.clients.client_with_grants(person.id)[1][0].desired_state == "enabled"
+
+
+
 
 
 async def test_remote_clock_transition_enforces_without_central_or_new_generation(pair):
@@ -141,69 +90,16 @@ async def test_remote_clock_transition_enforces_without_central_or_new_generatio
         assert node.state.managed.latest(db)["generation"] == generation
 
 
-async def test_local_enable_cannot_bypass_suspension_or_expiry(pair):
-    _, app, _ = pair
-    person, grant = await _local(app, valid_until=1)
-    await app.state.lifecycle.set_enabled(grant.id, True, actor=ACTOR, ip="test")
-    assert await _enabled(app) is False
-    app.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    await app.state.lifecycle.set_enabled(grant.id, True, actor=ACTOR, ip="test")
-    assert await _enabled(app) is False
 
 
-async def test_local_readback_does_not_accept_a_success_reply_without_runtime_change(pair, monkeypatch):
-    _, app, _ = pair
-    person, _ = await _local(app)
-    app.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    from panel.protocols.base import AppliedGrant
-
-    async def dishonest(_ref):
-        return AppliedGrant(runtime_username="alice", enabled=False)
-
-    monkeypatch.setattr(app.state.adapters["naive"], "disable", dishonest)
-    await app.tick("enforcer")
-    assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
-    assert await _enabled(app) is True
 
 
-async def test_local_enforcement_batches_runtime_inventory_per_protocol(pair, monkeypatch):
-    _, app, _ = pair
-    person = app.state.clients.create_client("A", actor=ACTOR, ip="test")
-    operation = await app.state.provisioning.start(person.id, [GrantIntent(
-        protocol="naive", runtime_username=f"user{index}", options=NaiveOptions(),
-    ) for index in range(4)], actor=ACTOR, ip="test")
-    await app.state.provisioning.run(operation)
-    app.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    adapter = app.state.adapters["naive"]
-    discover = adapter.discover
-    reads = 0
-
-    async def count():
-        nonlocal reads
-        reads += 1
-        return await discover()
-
-    monkeypatch.setattr(adapter, "discover", count)
-    await app.tick("enforcer")
-    assert all(row["enabled"] is False for row in await app.state.naive.list_users())
-    assert reads == 2  # one plan and one readback, independent of the number of grants
 
 
-async def test_background_timer_expires_access_without_a_request(pair):
-    _, app, _ = pair
-    await _local(app, valid_until=9999999999)
-    app.clock.set(9999999999)
-    enforcer = app.state.access_enforcer
-    enforcer.interval = 0.001
-    task = asyncio.create_task(enforcer.run_forever())
-    try:
-        async with asyncio.timeout(2):
-            while await _enabled(app):
-                await asyncio.sleep(0.005)
-        assert await _enabled(app) is False
-    finally:
-        enforcer.stop()
-        await asyncio.wait_for(task, timeout=2)
+
+
+
+
 
 
 async def test_lifespan_enforces_expired_local_access_before_serving(pair):

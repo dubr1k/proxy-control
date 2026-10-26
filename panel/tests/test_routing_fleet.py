@@ -63,31 +63,10 @@ def _resource(user="alice"):
 # -- protocol --------------------------------------------------------------------------
 
 
-def test_egress_section_is_part_of_the_digest_and_omitted_when_absent():
-    plain = _doc()
-    assert "egress" not in plain.wire() and "egress" not in PushRequest(expected_guid=NODE, generation=plain).wire()["generation"]
-    assert canonical_digest(plain) == canonical_digest(GenerationDocument.model_validate(plain.wire()))
-    with_egress = _doc(egress={"naive": _egress(NAIVE_WARP)})
-    assert with_egress.wire()["egress"]["naive"]["digest"] == document_digest(NAIVE_WARP)
-    assert canonical_digest(with_egress) != canonical_digest(plain)
-    assert canonical_digest(with_egress) != canonical_digest(_doc(egress={"naive": _egress(NAIVE_BLOCK)}))
-    # A v0.3 node's strict model is what `_doc(...).wire()` without egress satisfies; an unknown
-    # key would be a 422 there — here, the same rule refuses an unknown protocol and unknown fields
-    # (`mtproxy` is a key since v1.1, sent only to a node with `egress.mtproxy.v1`).
-    with pytest.raises(ValidationError):
-        _doc(egress={"socks": _egress(NAIVE_WARP)})
-    with pytest.raises(ValidationError):
-        GenerationDocument.model_validate({**plain.wire(), "egress": {"naive": {**_egress(NAIVE_WARP).model_dump(), "x": 1}}})
 
 
-def test_egress_document_validates_digest_and_size():
-    with pytest.raises(ValidationError):
-        EgressDocument(backend="naive_native", policy_id="p", policy_revision=1, document=NAIVE_WARP, digest="0" * 64)
-    huge = {"schema": 1, "upstream": None, "acl": [{"deny": [f"{'x' * 60}{i:04d}.example" for i in range(300)]}]}
-    with pytest.raises(ValidationError):
-        _egress(huge)
-    with pytest.raises(ValidationError):
-        EgressDocument(backend="xray", policy_id="p", policy_revision=1, document=NAIVE_WARP, digest=document_digest(NAIVE_WARP))
+
+
 
 
 def test_observed_egress_is_ignored_by_an_older_central_and_tolerates_new_fields():

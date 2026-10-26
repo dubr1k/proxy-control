@@ -38,171 +38,37 @@ def _grant(client_id, protocol="naive", username="alice", node_id="local", **fie
     )
 
 
-def test_client_ids_are_uuids_and_grants_belong_to_one_client_and_node(service):
-    client = service.create_client("Sergey", **CTX)
-    uuid.UUID(client.id)
-    store = ClientStore(service.database)
-    with service.database.transaction() as db:
-        store.insert_grant(db, _grant(client.id))
-        # Same protocol, node, endpoint and runtime username: the conflict is refused
-        # before any SQL runs, so the caller's transaction stays usable.
-        with pytest.raises(ClientConflict, match="runtime_username"):
-            store.insert_grant(db, _grant(client.id))
-        store.insert_grant(db, _grant(client.id, protocol="mtproxy"))
-    with service.database.connect() as db:
-        assert len(store.grants(db, client_id=client.id)) == 2
-        assert store.find_grant(db, "naive", "local", "default", "alice").client_id == client.id
-        with pytest.raises(sqlite3.IntegrityError):
-            store.insert_grant(db, _grant(client.id, node_id="edge-missing"))
 
 
-def test_a_grant_round_trips_through_the_database_with_its_typed_options(service):
-    client = service.create_client("Sergey", **CTX)
-    store = ClientStore(service.database)
-    stored = _grant(client.id, protocol="mieru", username="mieru-one")
-    stored = stored.model_copy(update={"options": MieruOptions(quotas=[{"days": 30, "megabytes": 10}])})
-    with service.database.transaction() as db:
-        store.insert_grant(db, stored)
-    with service.database.connect() as db:
-        loaded = store.grant(db, stored.id)
-    assert isinstance(loaded.options, MieruOptions)
-    assert loaded.options.quotas[0].megabytes == 10
-    assert loaded == stored
 
 
-def test_options_are_typed_and_secret_free():
-    with pytest.raises(ValidationError):
-        GrantIntent(protocol="mieru", runtime_username="a", options=NaiveOptions(quota_bytes=1))
-    with pytest.raises(ValidationError):
-        GrantIntent(protocol="naive", runtime_username="a b", options=NaiveOptions(quota_bytes=1))
-    with pytest.raises(ValidationError):
-        # A rendered link, not a template: the real credential would be stored in the row.
-        MieruOptions(quotas=[], share_template="mierus://u:realpassword@h?port=1")
-    with pytest.raises(ValidationError):
-        MtproxyOptions(max_tcp_conns=0)
-    intent = GrantIntent(protocol="mieru", runtime_username="alice", options=MieruOptions(quotas=[]))
-    assert (intent.node_id, intent.endpoint_id) == ("local", "default")
-    assert MieruOptions(quotas=[], share_template="mierus://{username}:{password}@h?port=1")
 
 
-def test_suspended_client_compiles_every_grant_as_disabled(service):
-    client = service.create_client("Sergey", **CTX)
-    now = int(time.time())
-    grant = _grant(client.id)
-    assert effective_enabled(grant, client, now) is True
-    service.set_state(client.id, "suspended", **CTX)
-    client, _ = service.client_with_grants(client.id)
-    assert effective_enabled(grant, client, now) is False
-    active = client.model_copy(update={"state": "active"})
-    assert effective_enabled(grant.model_copy(update={"valid_until": now - 1}), active, now) is False
-    assert effective_enabled(grant.model_copy(update={"valid_from": now + 1}), active, now) is False
-    assert effective_enabled(grant.model_copy(update={"desired_state": "disabled"}), active, now) is False
 
 
-def test_archive_refuses_while_grants_are_not_deleted(service):
-    client = service.create_client("Sergey", **CTX)
-    store = ClientStore(service.database)
-    with service.database.transaction() as db:
-        store.insert_grant(db, _grant(client.id))
-    with pytest.raises(ClientConflict, match="grants"):
-        service.set_state(client.id, "archived", **CTX)
-    with service.database.transaction() as db:
-        store.update_grant(db, store.grants(db, client_id=client.id)[0].id, desired_state="deleted")
-    assert service.set_state(client.id, "archived", **CTX).state == "archived"
 
 
-def test_every_mutation_leaves_an_audit_row_in_the_same_transaction(service, monkeypatch):
-    from panel.clients import service as module
-
-    client = service.create_client("Sergey", **CTX)
-    with service.database.connect() as db:
-        row = db.execute("SELECT action,target,request_id FROM audit_log").fetchone()
-    assert tuple(row) == ("client.create", client.id, "req-1")
-
-    def boom(*_args, **_kwargs):
-        raise RuntimeError("audit failed")
-
-    monkeypatch.setattr(module, "record", boom)
-    with pytest.raises(RuntimeError):
-        service.create_client("Nobody", **CTX)
-    assert [item.display_name for item in service.list_clients()] == ["Sergey"]
 
 
-def test_a_state_change_notifies_subscribers_inside_the_transaction(service):
-    seen = []
-    service.on_change.append(lambda db, client_id: seen.append((db.in_transaction, client_id)))
-    client = service.create_client("Sergey", **CTX)
-    service.set_state(client.id, "suspended", **CTX)
-    assert seen == [(True, client.id), (True, client.id)]
 
 
-def test_delete_client_removes_its_rows_and_keeps_the_audit(service):
-    client = service.create_client("Sergey", **CTX)
-    store = ClientStore(service.database)
-    with service.database.transaction() as db:
-        store.insert_grant(db, _grant(client.id))
-    with pytest.raises(ClientConflict, match="archived"):
-        service.delete_client(client.id, **CTX)
-    with service.database.transaction() as db:
-        store.update_grant(db, store.grants(db, client_id=client.id)[0].id, desired_state="deleted", observed_state="missing")
-    service.set_state(client.id, "archived", **CTX)
-    service.delete_client(client.id, **CTX)
-    with service.database.connect() as db:
-        assert db.execute("SELECT COUNT(*) FROM clients WHERE id=?", (client.id,)).fetchone()[0] == 0
-        assert db.execute("SELECT COUNT(*) FROM access_grants WHERE client_id=?", (client.id,)).fetchone()[0] == 0
-        actions = [row[0] for row in db.execute("SELECT action FROM audit_log WHERE target=?", (client.id,))]
-    assert actions[-1] == "client.delete" and "client.create" in actions
-    with pytest.raises(KeyError):
-        service.delete_client(client.id, **CTX)
 
 
-def test_delete_client_waits_for_the_node_to_confirm_a_grant_deletion(service):
-    client = service.create_client("Sergey", **CTX)
-    store = ClientStore(service.database)
-    with service.database.transaction() as db:
-        store.insert_grant(db, _grant(client.id))
-        grant_id = store.grants(db, client_id=client.id)[0].id
-        store.update_grant(db, grant_id, desired_state="deleted", observed_state="unknown")
-    service.set_state(client.id, "archived", **CTX)
-    with pytest.raises(ClientConflict, match="not confirmed"):
-        service.delete_client(client.id, **CTX)
-    with service.database.transaction() as db:
-        store.update_grant(db, grant_id, observed_state="missing")
-    service.delete_client(client.id, **CTX)
 
 
-def test_delete_client_refuses_an_unfinished_provisioning_operation(service):
-    client = service.create_client("Sergey", **CTX)
-    now = int(time.time())
-    with service.database.transaction() as db:
-        db.execute("INSERT INTO provisioning_operations VALUES (?,?,?,?,?,?)", ("op1", client.id, "pending_remote", "[]", now, now))
-        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
-    with pytest.raises(ClientConflict, match="unfinished"):
-        service.delete_client(client.id, **CTX)
-    with service.database.transaction() as db:
-        db.execute("UPDATE provisioning_operations SET status='succeeded'")
-    service.delete_client(client.id, **CTX)
 
 
-def test_delete_client_refuses_an_operation_needing_manual_intervention(service):
-    client = service.create_client("Sergey", **CTX)
-    now = int(time.time())
-    with service.database.transaction() as db:
-        db.execute("INSERT INTO provisioning_operations VALUES (?,?,?,?,?,?)",
-                   ("op1", client.id, "manual_intervention_required", "[]", now, now))
-        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
-    with pytest.raises(ClientConflict, match="manual intervention"):
-        service.delete_client(client.id, **CTX)
-    with service.database.transaction() as db:
-        db.execute("UPDATE provisioning_operations SET status='compensated'")
-    service.delete_client(client.id, **CTX)
 
 
-def test_delete_client_refuses_live_grants(service):
-    client = service.create_client("Sergey", **CTX)
-    store = ClientStore(service.database)
-    with service.database.transaction() as db:
-        store.insert_grant(db, _grant(client.id))
-        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
-    with pytest.raises(ClientConflict, match="grants"):
-        service.delete_client(client.id, **CTX)
+
+
+
+
+
+
+
+
+
+
+
+

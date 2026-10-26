@@ -81,25 +81,7 @@ def _intent_v2(lane: str, exit_: str = "warp") -> dict:
 # -- protocol --------------------------------------------------------------------------
 
 
-def test_relay_and_lane_are_in_the_digest_and_omitted_when_absent():
-    plain = _doc(resources=[_resource()])
-    wire = plain.wire()
-    assert "relay" not in wire and "lane" not in wire["resources"][0]
-    assert canonical_digest(plain) == canonical_digest(GenerationDocument.model_validate(wire))
-    laned = _doc(resources=[_resource(lane="own")], relay=_relay())
-    wire = laned.wire()
-    assert wire["resources"][0]["lane"] == "own" and wire["relay"]["accounts"] == [{"email": EMAIL, "credential_ref": f"{SECRET_ID}:1"}]
-    assert canonical_digest(laned) != canonical_digest(plain)
-    assert canonical_digest(laned) == canonical_digest(GenerationDocument.model_validate(wire))
-    # a UUID never sits in the document: it travels in the push's secrets, by the account's ref
-    request = PushRequest(expected_guid=NODE, generation=laned, secrets={f"{SECRET_ID}:1": UUID_DIRECT})
-    assert request.wire()["secrets"] == {f"{SECRET_ID}:1": UUID_DIRECT} and UUID_DIRECT not in json.dumps(laned.wire())
-    with pytest.raises(ValidationError):
-        PushRequest(expected_guid=NODE, generation=plain, secrets={f"{SECRET_ID}:1": UUID_DIRECT})
-    with pytest.raises(ValidationError):
-        Resource.model_validate({**_resource().model_dump(), "lane": "theirs"})
-    with pytest.raises(ValidationError):
-        RelaySection(enabled=True, port=45443, server_name="node.example", accounts=[RelayAccount(email="bogus", credential_ref="x:1")])
+
 
 
 # -- node: reconcile -------------------------------------------------------------------

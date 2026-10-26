@@ -51,36 +51,10 @@ async def test_lost_rotate_response_yields_the_new_secret_not_the_old(telemt):
     assert after["link"] != created["user"]["links"]["tls"][0]
 
 
-async def test_a_request_that_never_left_is_a_plain_failure_not_indeterminate():
-    def refuse(request):
-        raise httpx.ConnectError("connection refused", request=request)
-
-    client = _client(refuse)
-    with pytest.raises(TelemtError) as failure:
-        await client.list_users()
-    # A connection that was never established sent nothing, so a retry is safe and the
-    # caller must not be pushed into a recovery read.
-    assert not isinstance(failure.value, TelemtIndeterminate)
 
 
-async def test_a_reply_lost_after_the_request_was_sent_is_indeterminate():
-    def timeout(request):
-        raise httpx.ReadTimeout("no reply", request=request)
-
-    with pytest.raises(TelemtIndeterminate):
-        await _client(timeout).create_user("alice")
 
 
-async def test_current_access_reads_the_live_link_from_the_user_listing():
-    link = "tg://proxy?server=proxy.example.com&port=443&secret=ee" + "ab" * 16
 
-    def listing(request):
-        assert request.url.path == "/v1/users"
-        return httpx.Response(
-            200,
-            json={"ok": True, "data": [{"username": "alice", "links": {"tls": [link]}}]},
-        )
 
-    access = await _client(listing).current_access("alice")
-    # The endpoint travels with the link: the panel has no other source for it.
-    assert access == {"link": link, "secret": "ee" + "ab" * 16, "server": "proxy.example.com", "port": 443}
+

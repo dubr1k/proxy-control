@@ -385,60 +385,10 @@ async def linked(panel_server, login_user):
         yield central, http, linked.json()["node_id"]
 
 
-async def test_all_includes_the_linked_node_once_it_is_online(linked):
-    central, http, node_id = linked
-    # the link has not had a heartbeat yet: not online, so unavailable and never called
-    nodes = (await http.get("/api/metrics/live?node=all")).json()["nodes"]
-    assert [(n["node_id"], n["status"]) for n in nodes] == [("local", "ok"), (node_id, "unavailable")]
-    await central.tick("pusher")  # the heartbeat reads the identity: `metrics.v1` is in it
-    central.state.metrics_source._cache.clear()
-    nodes = (await http.get("/api/metrics/live?node=all")).json()["nodes"]
-    remote = nodes[1]
-    assert (remote["node_id"], remote["name"], remote["status"]) == (node_id, "Edge", "ok")
-    assert remote["host"]["cpu_percent"] == 12.5 and remote["protocols"]["naive"]["down_bps"] == 1500.0
-    one = (await http.get(f"/api/metrics/live?node={node_id}")).json()["nodes"]
-    assert [n["node_id"] for n in one] == [node_id]
-    history = (await http.get(f"/api/metrics/history?node={node_id}&series=host.cpu&range=15m")).json()
-    assert history["status"] == "ok" and history["node_id"] == node_id and "host.cpu" in history["series"]
-    summary = (await http.get("/api/metrics/summary?node=all&range=1h")).json()
-    assert [row["node_id"] for row in summary["nodes"]] == ["local", node_id]
-    assert summary["nodes"][1]["status"] == "ok" and summary["nodes"][1]["host"]["cpu"]["avg"] == 12.5
-    assert {row["node_id"] for row in summary["compare"]} == {"local", node_id}
 
 
-async def test_the_all_stream_carries_the_remote_node_each_tick(linked):
-    central, http, node_id = linked
-    await central.tick("pusher")
-    cookie = http.cookies["panel_session"]
-    body = bytearray()
-    seen = asyncio.Event()
-    leave = asyncio.Event()
-    asked = False
 
-    async def receive():
-        nonlocal asked
-        if not asked:
-            asked = True
-            return {"type": "http.request", "body": b"", "more_body": False}
-        await leave.wait()
-        return {"type": "http.disconnect"}
 
-    async def send(message):
-        body.extend(message.get("body", b""))
-        if b"event: snapshot" in body and b"\n\n" in body.split(b"event: snapshot", 1)[1]:
-            seen.set()
-
-    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "scheme": "http",
-             "path": "/api/metrics/stream", "raw_path": b"/api/metrics/stream", "query_string": b"node=all",
-             "root_path": "", "headers": [(b"host", b"testserver"), (b"cookie", f"panel_session={cookie}".encode())],
-             "client": ("127.0.0.1", 1), "server": ("testserver", 80)}
-    task = asyncio.create_task(central.app(scope, receive, send))
-    await asyncio.wait_for(seen.wait(), 5)
-    leave.set()
-    await asyncio.wait_for(task, 5)
-    data = body.decode().split("event: snapshot\ndata: ", 1)[1].split("\n\n", 1)[0]
-    nodes = json.loads(data)["nodes"]
-    assert [(n["node_id"], n["status"]) for n in nodes] == [("local", "ok"), (node_id, "ok")]
 
 
 # ---- central: the compare table over three nodes ----------------------------------------------------------

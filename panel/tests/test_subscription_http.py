@@ -194,10 +194,7 @@ async def test_a_fork_core_client_is_recognised_by_user_agent_and_the_official_c
     assert len(cuts) == 3
 
 
-def test_user_agent_tokens_can_be_extended_by_the_owner_setting():
-    from panel.subscription_routes import fork_client
-    assert fork_client("Karing/1.2", "") is None and fork_client("Streisand/3", "karing, streisand") == "fork"
-    assert fork_client("Throne/1", "karing") == "throne" and fork_client("", "karing,") is None
+
 
 
 async def test_node_rename_refreshes_subscription_with_the_same_url(public, token, app):

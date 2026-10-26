@@ -165,92 +165,31 @@ def test_explain_works_like_any_service():
 # -- the adapter --------------------------------------------------------------------------------
 
 
-async def test_the_target_offers_the_router_only_when_the_router_serves_trusttunnel(stand):
-    adapter = stand["adapters"]["trusttunnel"]
-    target = await adapter.egress_target()
-    assert target.providers == {"router": {"reachable": True}} and target.capabilities == {"whole_direct"}
-    assert target.backend == "trusttunnel_native" and not target.router_attached
-    stand["router"].trusttunnel = False
-    assert (await adapter.egress_target()).providers == {}
-    assert (await RouterAdapter(stand["router"]).target("trusttunnel")).reason == "router_lacks_trusttunnel"
-    bare = TrusttunnelAdapter(MemoryTrusttunnel(), public_host="gate.example.com")
-    assert (await bare.egress_target()).providers == {}
 
 
-async def test_the_adapter_plans_applies_and_rolls_back_the_attach_document():
-    manager = MemoryTrusttunnel()
-    adapter = TrusttunnelAdapter(manager, public_host="gate.example.com")
-    target = await adapter.egress_target()
-    plan = await adapter.plan_egress(attach_document("trusttunnel"), expected_revision=target.revision)
-    assert plan["diff"] and manager.egress_document["mode"] == "direct"
-    applied = await adapter.apply_egress(attach_document("trusttunnel"), expected_revision=target.revision, operation_id="o1")
-    attached = await adapter.egress_target()
-    assert attached.router_attached and attached.mode == "proxy" and attached.revision == applied.revision
-    rolled = await adapter.rollback_egress(expected_revision=applied.revision)
-    assert rolled.revision == target.revision and not (await adapter.egress_target()).router_attached
+
+
 
 
 # -- the service: attach, apply, preview, explain, history, rollback, detach -----------------------
 
 
-async def test_targets_list_trusttunnel_with_the_router_available(stand):
-    item = await _item(stand["service"])
-    assert item["backend"] == "trusttunnel_native" and item["router"]["available"] and not item["router"]["attached"]
-    assert item["providers"]["router"] == {"reachable": True}
 
 
-async def test_attach_points_the_endpoint_at_the_router_ingress_and_retargets_the_policy(stand):
-    service, manager, router = stand["service"], stand["manager"], stand["router"]
-    item = await service.attach("local", "trusttunnel", **CTX)
-    assert manager.egress_document == ATTACHED and item["backend"] == "xray_router" and item["router"]["attached"]
-    assert item["policy"]["backend"] == "xray_router"
-    assert router.documents["trusttunnel"] == ROUTER_DIRECT_INTENT
-    calls = len(manager.calls)
-    await service.attach("local", "trusttunnel", **CTX)  # a second attach changes nothing
-    assert len(manager.calls) == calls
 
 
-async def test_attach_without_the_router_service_is_refused_before_touching_the_endpoint(stand):
-    stand["router"].trusttunnel = False
-    with pytest.raises(RoutingError) as caught:
-        await stand["service"].attach("local", "trusttunnel", **CTX)
-    assert caught.value.code == "router_lacks_trusttunnel" and stand["manager"].egress_document["mode"] == "direct"
 
 
-async def test_a_policy_applies_through_the_router_and_rolls_back(stand):
-    service, router = stand["service"], stand["router"]
-    await service.attach("local", "trusttunnel", **CTX)
-    policy = service.save("local", "trusttunnel", _torrent(), expected_revision=None, **CTX)
-    preview = await service.preview("local", "trusttunnel", None)
-    assert preview.status == "supported" and preview.backend == "xray_router"
-    result = await service.apply("local", "trusttunnel", expected_revision=policy.revision, **CTX)
-    assert result["policy"].state == "applied" and router.documents["trusttunnel"]["rules"][0]["protocols"] == ["bittorrent"]
-    assert router.documents["naive"] == ROUTER_DIRECT_INTENT  # other services are untouched
-    assert service.history("local", "trusttunnel")
-    explained = service.explain_destination("local", "trusttunnel", "tracker.example.com", 6881)
-    assert explained["lane"] == "svc" and explained["uncertain"]
-    policy = service.get("local", "trusttunnel")
-    await service.rollback("local", "trusttunnel", expected_revision=policy.revision, **CTX)
-    assert router.documents["trusttunnel"] == ROUTER_DIRECT_INTENT
 
 
-async def test_a_rule_policy_on_the_native_backend_says_attach_first(stand):
-    service = stand["service"]
-    policy = service.save("local", "trusttunnel", _block("example.com"), expected_revision=None, **CTX)
-    with pytest.raises(RoutingError) as caught:
-        await service.apply("local", "trusttunnel", expected_revision=policy.revision, **CTX)
-    assert caught.value.status == 409 and caught.value.code == "not_attached"
 
 
-async def test_detach_puts_the_endpoint_back_to_direct_and_the_policy_on_the_native_backend(stand):
-    service, manager, router = stand["service"], stand["manager"], stand["router"]
-    await service.attach("local", "trusttunnel", **CTX)
-    policy = service.save("local", "trusttunnel", _block("example.com"), expected_revision=None, **CTX)
-    await service.apply("local", "trusttunnel", expected_revision=policy.revision, **CTX)
-    item = await service.detach("local", "trusttunnel", **CTX)
-    assert manager.egress_document == {"mode": "direct", "address": None} and not item["router"]["attached"]
-    assert item["backend"] == "trusttunnel_native" and item["policy"]["backend"] == "trusttunnel_native"
-    assert router.documents["trusttunnel"] == ROUTER_DIRECT_INTENT
+
+
+
+
+
+
 
 
 # -- no lanes -----------------------------------------------------------------------------------

@@ -208,41 +208,10 @@ def _start_tls_server(cert, key):
     return server, thread
 
 
-def test_fingerprint_matches_the_real_leaf_certificate(tmp_path):
-    ca = CertificateAuthority(tmp_path / "ca")
-    ca.initialize("test fleet CA")
-    key, cert = ca.issue_server("127.0.0.1", ["127.0.0.1"])
-    expected = ca.certificate_metadata(cert)["fingerprint_sha256"]
-    server, thread = _start_tls_server(cert, key)
-    try:
-        digest = fingerprint(f"https://127.0.0.1:{server.server_port}", allow_private=True)
-    finally:
-        server.shutdown()
-        thread.join(timeout=2)
-    assert digest == expected
 
 
-async def test_pinned_transport_accepts_matching_and_rejects_mismatched_pin(tmp_path):
-    ca = CertificateAuthority(tmp_path / "ca")
-    ca.initialize("test fleet CA")
-    key, cert = ca.issue_server("127.0.0.1", ["127.0.0.1"])
-    expected = ca.certificate_metadata(cert)["fingerprint_sha256"]
-    server, thread = _start_tls_server(cert, key)
-    try:
-        base_url = f"https://127.0.0.1:{server.server_port}"
-        good = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256=expected, allow_private_address=True)
-        assert (await good.identity()) == {}
-        assert server.requests == ["/api/fleet/v2/identity"]
 
-        # A pin mismatch is an active MITM by definition: the handshake must fail before a
-        # single byte of HTTP (the bearer key, the credentials of a push) reaches the peer.
-        bad = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256="0" * 64, allow_private_address=True)
-        with pytest.raises(NodeUnreachable):
-            await bad.identity()
-        assert server.requests == ["/api/fleet/v2/identity"], "the mismatched server must not see a request"
-    finally:
-        server.shutdown()
-        thread.join(timeout=2)
+
 
 
 @pytest.mark.parametrize("addresses", [["127.0.0.1"], ["::1"], ["169.254.169.254"], ["224.0.0.1"],

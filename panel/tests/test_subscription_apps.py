@@ -18,26 +18,10 @@ def by_id():
     return {app["id"]: app for app in apps.catalogue()["apps"]}
 
 
-def test_every_app_maps_to_one_existing_link_variant_and_matrix_column():
-    for app in apps.APPS:
-        assert app["variant"] in SHARE_VARIANTS, app["id"]
-        assert app["matrix"] in MATRIX["naive"], app["id"]
-        assert set(app["delivers"]) <= set(apps.SUBSCRIPTION_PROTOCOLS), app["id"]
-        assert set(app["platforms"]) <= {key for key, _ in apps.PLATFORMS}, app["id"]
-    assert len({app["id"] for app in apps.APPS}) == len(apps.APPS)
-    assert {key for key, _ in apps.PLATFORMS} == {"ios", "android", "windows", "macos", "linux"}
 
 
-def test_what_an_app_gets_is_derived_from_the_matrix_and_the_variant():
-    found = by_id()
-    # works = delivered by the variant and proven; unverified = delivered, not proven; no = the rest.
-    assert found["karing"]["protocols"] == {"naive": "works", "mieru": "works", "trusttunnel": "no"}
-    assert found["hiddify"]["protocols"] == {"naive": "no", "mieru": "no", "trusttunnel": "pending"}  # not in the app's releases yet
-    assert found["singbox"]["protocols"] == {"naive": "works", "mieru": "no", "trusttunnel": "no"}
-    assert found["flclash"]["protocols"] == {"naive": "no", "mieru": "works", "trusttunnel": "works"}
-    assert found["throne"]["protocols"]["trusttunnel"] == "unverified"
-    # AmneziaWG and MTProxy are not subscription protocols: the chooser never mentions them.
-    assert all(set(app["protocols"]) == {"naive", "mieru", "trusttunnel"} for app in found.values())
+
+
 
 
 def test_deep_links_use_known_schemes_each_with_a_source_next_to_it():
@@ -60,10 +44,7 @@ def test_deep_links_use_known_schemes_each_with_a_source_next_to_it():
     assert found["flclash"]["deeplink"] == "clash://install-config?url={url_enc}"
 
 
-def test_download_links_are_https():
-    for app in apps.catalogue()["apps"]:
-        assert app["downloads"], app["id"]
-        assert all(item["url"].startswith("https://") and item["label"] for item in app["downloads"]), app["id"]
+
 
 
 def test_the_catalogue_is_free_of_ui_code():

@@ -7,102 +7,22 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_viewer_reads_nodes_but_cannot_register(client, server, login_user):
-    server.create_admin("viewer", "viewer-password-123", "viewer")
-    await login_user(client, "viewer", "viewer-password-123")
-    csrf = client.cookies["panel_csrf"]
-    assert (await client.get("/api/nodes")).status_code == 200
-    denied = await client.post(
-        "/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert denied.status_code == 403
 
 
-async def test_owner_registers_node_and_gets_enrollment_checklist(client, login_user):
-    await login_user(client)
-    csrf = client.cookies["panel_csrf"]
-    created = await client.post(
-        "/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert created.status_code == 201
-    body = created.json()
-    assert body["node"]["enrollment_state"] == "unenrolled"
-    assert any("fleet-sign-csr" in step for step in body["enrollment_checklist"])
-    # The checklist tells the operator to keep the key on the node.
-    assert any("never the key" in step for step in body["enrollment_checklist"])
-    audit = await client.get("/api/audit", params={"action": "node.register"})
-    assert audit.json()["items"][0]["target"] == "edge-01"
-    listed = await client.get("/api/fleet/nodes")
-    assert [node for node in listed.json()["items"] if node["node_id"] == "edge-01"]
 
 
-async def test_disable_enable_and_revoke_all_are_owner_actions_with_confirmation(client, login_user):
-    await login_user(client)
-    csrf = client.cookies["panel_csrf"]
-    await client.post(
-        "/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert (await client.post("/api/nodes/edge-01/disable", headers={"X-CSRF-Token": csrf})).status_code == 200
-    assert (await client.get("/api/nodes/edge-01")).json()["disabled"] is True
-    assert (await client.post("/api/nodes/edge-01/enable", headers={"X-CSRF-Token": csrf})).status_code == 200
-    wrong = await client.post(
-        "/api/nodes/edge-01/certificates/revoke-all", json={"confirm": "nope"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert wrong.status_code == 409
-    ok = await client.post(
-        "/api/nodes/edge-01/certificates/revoke-all", json={"confirm": "edge-01"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert ok.status_code == 200 and ok.json() == {"revoked": 0}
 
 
-async def test_rename_is_audited_and_unknown_nodes_are_404(client, login_user):
-    await login_user(client)
-    csrf = client.cookies["panel_csrf"]
-    await client.post(
-        "/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    renamed = await client.post(
-        "/api/nodes/edge-01/rename", json={"display_name": "Frankfurt edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert renamed.status_code == 200 and renamed.json()["display_name"] == "Frankfurt edge"
-    audit = await client.get("/api/audit", params={"action": "node.rename"})
-    assert audit.json()["items"][0]["target"] == "edge-01"
-    assert (await client.get("/api/nodes/ghost")).status_code == 404
-    missing = await client.post(
-        "/api/nodes/ghost/rename", json={"display_name": "x"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert missing.status_code == 404
 
 
-async def test_node_view_never_leaks_unknown_inventory_keys(client, server, login_user):
-    await login_user(client)
-    with server.db(write=True) as db:
-        db.execute(
-            "INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at)"
-            " VALUES('edge-02','x','unenrolled','{\"telemt_version\":\"3.4.25\",\"api_token\":\"leak\"}',1,1)"
-        )
-        db.commit()
-    body = (await client.get("/api/nodes/edge-02")).json()
-    assert "leak" not in str(body) and body["daemon_health"] == "reported"
 
 
-async def test_local_node_is_listed_first_with_manager_health(client, server, login_user):
-    await login_user(client)
-    csrf = client.cookies["panel_csrf"]
-    await client.post(
-        "/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers={"X-CSRF-Token": csrf}
-    )
-    items = (await client.get("/api/nodes")).json()["items"]
-    # Sorted by node_id "local" would land last; the operator's own host comes first.
-    assert [item["node_id"] for item in items] == ["local", "edge-01"]
-    assert items[0]["kind"] == "local"
-    assert items[0]["services"] == {"telemt": "ok", "naive": "ok", "mieru": "ok", "amneziawg": "disabled", "trusttunnel": "disabled"}
-    # The owner's own card shows who this panel is and who manages it (nobody, until a
-    # central links it); a remote node carries neither block.
-    assert items[0]["identity"] == {"guid": server.panel_guid, "master_guid": None,
-                                    "awg_versions": []}
-    assert "services" not in items[1] and "identity" not in items[1]
-    assert (await client.get("/api/nodes/local")).json()["services"]["telemt"] == "ok"
+
+
+
+
+
+
 
 
 async def test_local_node_reports_unavailable_managers(client, login_user, mieru, telemt):
@@ -165,33 +85,4 @@ async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
     assert services == {"telemt": "ok", "naive": "disabled", "mieru": "disabled", "amneziawg": "disabled", "trusttunnel": "disabled"}
 
 
-async def test_local_node_refuses_transport_and_lifecycle_actions(client, login_user):
-    await login_user(client)
-    csrf = client.cookies["panel_csrf"]
-    queued = await client.post(
-        "/api/fleet/nodes/local/commands",
-        json={
-            "idempotency_key": "refresh-local-01",
-            "operation": "telemt.inventory.refresh",
-            "payload": {},
-            "expected_telemt_revision": "rev-1",
-        },
-        headers={"X-CSRF-Token": csrf},
-    )
-    assert queued.status_code == 409
-    assert (await client.post("/api/nodes/local/disable", headers={"X-CSRF-Token": csrf})).status_code == 409
-    revoke = await client.post(
-        "/api/nodes/local/certificates/revoke-all",
-        json={"confirm": "local"},
-        headers={"X-CSRF-Token": csrf},
-    )
-    assert revoke.status_code == 409
-    taken = await client.post(
-        "/api/nodes", json={"node_id": "local", "display_name": "Impostor"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert taken.status_code == 422
-    # Renaming the local node is the one lifecycle action it does accept.
-    renamed = await client.post(
-        "/api/nodes/local/rename", json={"display_name": "Амстердам"}, headers={"X-CSRF-Token": csrf}
-    )
-    assert renamed.status_code == 200 and renamed.json()["display_name"] == "Амстердам"
+

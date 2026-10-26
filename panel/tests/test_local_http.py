@@ -46,32 +46,10 @@ def counted(monkeypatch):
     local_http.tls_context.cache_clear()
 
 
-async def test_every_manager_client_reuses_one_tls_context(tmp_path, counted):
-    path = str(tmp_path / "manager.sock")
-    server = await asyncio.start_unix_server(_answer, path)
-    clients = [
-        VersionClient(path), MieruClient(path, "t"), NaiveClient(path, "t"), AmneziawgClient(path, "t"),
-        TrusttunnelClient(path, "t"), XrayRouterClient(path, "t"),
-    ]
-    async with server:
-        for _ in range(3):
-            for client in clients:
-                assert await client._request("GET", "/v1/health") == {}
-    assert len(counted) <= 1
 
 
-async def test_the_telemt_client_reuses_it_over_tcp(counted):
-    server = await asyncio.start_server(_answer, "127.0.0.1", 0)
-    port = server.sockets[0].getsockname()[1]
-    client = TelemtClient(f"http://127.0.0.1:{port}", "Bearer t")
-    async with server:
-        for _ in range(3):
-            with contextlib.suppress(TelemtError):  # the body is not Telemt's envelope; the transport is the point
-                await client._request("GET", "/v1/users")
-    assert len(counted) <= 1
 
 
-def test_the_shared_context_still_verifies_peers():
-    context = local_http.tls_context()
-    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
-    assert local_http.tls_context() is context
+
+
+

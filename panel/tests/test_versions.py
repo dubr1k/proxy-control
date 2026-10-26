@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from panel.versions import MemoryVersions
+from panel.tests.harness.memories.versions import MemoryVersions
 
 
 @pytest.mark.anyio
@@ -14,162 +14,79 @@ async def test_versions_are_visible_and_owner_can_update(client, login_user):
 
 
 @pytest.mark.anyio
-async def test_version_update_requires_owner_and_current_revision(
-    tmp_path, telemt, naive, mieru, login_user
-):
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
+async def test_version_update_requires_owner_and_current_revision(telemt, naive, mieru, login_user, panel_server):
     versions = MemoryVersions()
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    app.create_admin('viewer', 'correct horse battery staple', 'viewer')
+    async with app.http() as client:
         await login_user(client)
-        listed = await client.get("/api/versions")
+        listed = await client.get('/api/versions')
         assert listed.status_code == 200
-        assert listed.json()["components"]["telemt"]["current"] == "3.4.24"
-        assert "3.36.0" in {
-            item["version"] for item in listed.json()["components"]["mita"]["available"]
-        }
-        csrf = client.cookies["panel_csrf"]
-        response = await client.post(
-            "/api/versions/telemt/update",
-            json={"version": "3.4.25", "expected_current": "3.4.24"},
-            headers={"X-CSRF-Token": csrf},
-        )
+        assert listed.json()['components']['telemt']['current'] == '3.4.24'
+        assert '3.36.0' in {item['version'] for item in listed.json()['components']['mita']['available']}
+        csrf = client.cookies['panel_csrf']
+        response = await client.post('/api/versions/telemt/update', json={'version': '3.4.25', 'expected_current': '3.4.24'}, headers={'X-CSRF-Token': csrf})
         assert response.status_code == 200
-        assert versions.calls == [("telemt", "3.4.25", "3.4.24")]
-        stale = await client.post(
-            "/api/versions/telemt/update",
-            json={"version": "3.4.24", "expected_current": "3.4.24"},
-            headers={"X-CSRF-Token": csrf},
-        )
+        assert versions.calls == [('telemt', '3.4.25', '3.4.24')]
+        stale = await client.post('/api/versions/telemt/update', json={'version': '3.4.24', 'expected_current': '3.4.24'}, headers={'X-CSRF-Token': csrf})
         assert stale.status_code == 409
 
 
 @pytest.mark.anyio
-async def test_version_update_rejects_viewer(tmp_path, telemt, naive, mieru, login_user):
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=MemoryVersions()
-    )
-    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
-        await login_user(client, username="viewer")
-        response = await client.post(
-            "/api/versions/telemt/update",
-            json={"version": "3.4.25", "expected_current": "3.4.24"},
-            headers={"X-CSRF-Token": client.cookies["panel_csrf"]},
-        )
+async def test_version_update_rejects_viewer(telemt, naive, mieru, login_user, panel_server):
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=MemoryVersions(), **settings)
+    app.create_admin('viewer', 'correct horse battery staple', 'viewer')
+    async with app.http() as client:
+        await login_user(client, username='viewer')
+        response = await client.post('/api/versions/telemt/update', json={'version': '3.4.25', 'expected_current': '3.4.24'}, headers={'X-CSRF-Token': client.cookies['panel_csrf']})
         assert response.status_code == 403
 
 
 @pytest.mark.anyio
-async def test_overview_reports_host_resources_from_the_agent(
-    tmp_path, telemt, naive, mieru, login_user
-):
+async def test_overview_reports_host_resources_from_the_agent(telemt, naive, mieru, login_user, panel_server):
     """The panel cannot measure the host itself, so the card must come from the agent.
 
     The container runs read-only with ALL capabilities dropped and mounts
     nothing from the host but the agent socket, so CPU/RAM/disk have exactly one
     honest source. The overview carries them alongside the protocol cards.
     """
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
     versions = MemoryVersions()
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    async with app.http() as client:
         await login_user(client)
-        host = (await client.get("/api/dashboard")).json()["host"]
-
-    assert host["available"] is True
-    assert host["cpu"]["used_percent"] == 12.5 and host["cpu"]["cores"] == 4
-    assert host["cpu"]["load_average"] == [0.5, 0.4, 0.3]
-    assert host["memory"]["used_percent"] == 27.4
-    assert host["disk"]["available_bytes"] == 71_940_702_208
-    # Only the mapped contract travels: a future agent field must not reach the UI.
-    assert set(host) == {"available", "cpu", "memory", "swap", "disk"}
+        host = (await client.get('/api/dashboard')).json()['host']
+    assert host['available'] is True
+    assert host['cpu']['used_percent'] == 12.5 and host['cpu']['cores'] == 4
+    assert host['cpu']['load_average'] == [0.5, 0.4, 0.3]
+    assert host['memory']['used_percent'] == 27.4
+    assert host['disk']['available_bytes'] == 71940702208
+    assert set(host) == {'available', 'cpu', 'memory', 'swap', 'disk'}
 
 
 @pytest.mark.anyio
-async def test_host_resources_are_polled_alone_and_follow_the_agent(
-    tmp_path, telemt, naive, mieru, login_user
-):
+async def test_host_resources_are_polled_alone_and_follow_the_agent(telemt, naive, mieru, login_user, panel_server):
     """v0.15: the overview refreshes its resource card from `GET /api/host` — the same
     mapped contract as the dashboard's `host`, fresh on every call, read-only for any role."""
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
     versions = MemoryVersions()
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
-        assert (await client.get("/api/host")).status_code == 401
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    async with app.http() as client:
+        assert (await client.get('/api/host')).status_code == 401
         await login_user(client)
-        first = (await client.get("/api/host")).json()
-        versions.host_metrics["cpu"]["used_percent"] = 81.25
-        versions.host_metrics["cpu"]["secret_field"] = "never"
-        second = (await client.get("/api/host")).json()
-        dashboard = (await client.get("/api/dashboard")).json()["host"]
-
-    assert first["available"] is True and first["cpu"]["used_percent"] == 12.5
-    assert second["cpu"]["used_percent"] == 81.2
-    assert "secret_field" not in second["cpu"]
+        first = (await client.get('/api/host')).json()
+        versions.host_metrics['cpu']['used_percent'] = 81.25
+        versions.host_metrics['cpu']['secret_field'] = 'never'
+        second = (await client.get('/api/host')).json()
+        dashboard = (await client.get('/api/dashboard')).json()['host']
+    assert first['available'] is True and first['cpu']['used_percent'] == 12.5
+    assert second['cpu']['used_percent'] == 81.2
+    assert 'secret_field' not in second['cpu']
     assert second == dashboard
 
 
@@ -198,141 +115,84 @@ async def test_overview_degrades_to_a_reason_when_the_host_agent_is_silent(
 
 
 @pytest.mark.anyio
-async def test_owner_checks_upstream_and_sees_the_candidate(
-    tmp_path, telemt, naive, mieru, login_user
-):
+async def test_owner_checks_upstream_and_sees_the_candidate(telemt, naive, mieru, login_user, panel_server):
     """`POST /api/versions/check` (v0.11): the owner asks the agent to poll upstream; the
     reply is the same shape as `GET /api/versions`, now with upstream candidates and, on a
     host with the Xray-router, the `xray` component that the update route accepts."""
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
     versions = MemoryVersions(router=True)
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    app.create_admin('viewer', 'correct horse battery staple', 'viewer')
+    async with app.http() as client:
         await login_user(client)
-        csrf = client.cookies["panel_csrf"]
-        checked = await client.post("/api/versions/check", headers={"X-CSRF-Token": csrf})
+        csrf = client.cookies['panel_csrf']
+        checked = await client.post('/api/versions/check', headers={'X-CSRF-Token': csrf})
         assert checked.status_code == 200 and versions.checks == 1
         body = checked.json()
-        assert body["enabled"] is True and body["checked_at"] == 1
-        assert {"version": "3.37.0", "kind": "binary", "source": "upstream"} in body["components"]["mita"]["available"]
-        assert body["components"]["xray"]["current"] == "26.3.27"
-        updated = await client.post(
-            "/api/versions/xray/update",
-            json={"version": "26.4.1", "expected_current": "26.3.27"},
-            headers={"X-CSRF-Token": csrf},
-        )
-        assert updated.status_code == 200 and versions.calls[-1] == ("xray", "26.4.1", "26.3.27")
-        with app.state.database.connect() as db:
-            actions = [row["action"] for row in db.execute("SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%' ORDER BY id")]
-        assert actions == ["runtime.version.check", "runtime.version.update"]
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
-        await login_user(client, username="viewer")
-        refused = await client.post("/api/versions/check", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+        assert body['enabled'] is True and body['checked_at'] == 1
+        assert {'version': '3.37.0', 'kind': 'binary', 'source': 'upstream'} in body['components']['mita']['available']
+        assert body['components']['xray']['current'] == '26.3.27'
+        updated = await client.post('/api/versions/xray/update', json={'version': '26.4.1', 'expected_current': '26.3.27'}, headers={'X-CSRF-Token': csrf})
+        assert updated.status_code == 200 and versions.calls[-1] == ('xray', '26.4.1', '26.3.27')
+        with app.db() as db:
+            actions = [row['action'] for row in db.execute("SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%' ORDER BY id")]
+        assert actions == ['runtime.version.check', 'runtime.version.update']
+    async with app.http() as client:
+        await login_user(client, username='viewer')
+        refused = await client.post('/api/versions/check', headers={'X-CSRF-Token': client.cookies['panel_csrf']})
         assert refused.status_code == 403 and versions.checks == 1
 
 
 @pytest.mark.anyio
-async def test_owner_updates_the_panel_itself_and_the_answer_is_async(
-    tmp_path, telemt, naive, mieru, login_user
-):
+async def test_owner_updates_the_panel_itself_and_the_answer_is_async(telemt, naive, mieru, login_user, panel_server):
     """`POST /api/versions/panel/update` (v0.11): the agent accepts the panel's own update
     and answers before the panel restarts; the browser then polls `GET /api/versions`."""
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
     versions = MemoryVersions()
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="naive.example.com",
-        naive_enabled=True,
-        mieru_enabled=True,
-    )
-    app = panel_app(
-        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    async with app.http() as client:
         await login_user(client)
-        listed = await client.get("/api/versions")
-        panel = listed.json()["components"]["panel"]
-        assert panel["current"] == "0.10.0-beta.1" and panel["status"] == "ready"
-        csrf = client.cookies["panel_csrf"]
-        response = await client.post(
-            "/api/versions/panel/update",
-            json={"version": "0.11.0-beta.1", "expected_current": "0.10.0-beta.1"},
-            headers={"X-CSRF-Token": csrf},
-        )
+        listed = await client.get('/api/versions')
+        panel = listed.json()['components']['panel']
+        assert panel['current'] == '0.10.0-beta.1' and panel['status'] == 'ready'
+        csrf = client.cookies['panel_csrf']
+        response = await client.post('/api/versions/panel/update', json={'version': '0.11.0-beta.1', 'expected_current': '0.10.0-beta.1'}, headers={'X-CSRF-Token': csrf})
         assert response.status_code == 200
-        assert response.json() == {"component": "panel", "version": "0.11.0-beta.1", "changed": True, "async": True}
-        assert versions.calls == [("panel", "0.11.0-beta.1", "0.10.0-beta.1")]
-        after = (await client.get("/api/versions")).json()["components"]["panel"]
-        assert after["current"] == "0.11.0-beta.1" and after["status"] == "ready"
-        with app.state.database.connect() as db:
-            actions = [row["action"] for row in db.execute("SELECT action, target FROM audit_log WHERE action = 'runtime.version.update'")]
-        assert actions == ["runtime.version.update"]
+        assert response.json() == {'component': 'panel', 'version': '0.11.0-beta.1', 'changed': True, 'async': True}
+        assert versions.calls == [('panel', '0.11.0-beta.1', '0.10.0-beta.1')]
+        after = (await client.get('/api/versions')).json()['components']['panel']
+        assert after['current'] == '0.11.0-beta.1' and after['status'] == 'ready'
+        with app.db() as db:
+            actions = [row['action'] for row in db.execute("SELECT action, target FROM audit_log WHERE action = 'runtime.version.update'")]
+        assert actions == ['runtime.version.update']
 
 
 @pytest.mark.anyio
-async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_update_is_409(
-    tmp_path, telemt, naive, mieru, login_user
-):
-    from httpx import ASGITransport, AsyncClient
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
-
+async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_update_is_409(telemt, naive, mieru, login_user, panel_server):
     versions = MemoryVersions()
-    versions.components["panel"]["pending_rebuild"] = ["naive_manager", "docker"]
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3", session_cookie_secure=False,
-        allowed_hosts=("testserver",), naive_public_host="naive.example.com",
-        naive_enabled=True, mieru_enabled=True,
-    )
-    app = panel_app(settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions)
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
-        await login_user(client, username="viewer")
-        refused = await client.post(
-            "/api/versions/panel/rebuild-managers", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+    versions.components['panel']['pending_rebuild'] = ['naive_manager', 'docker']
+    settings = dict(hosts=('testserver',), naive_public_host='naive.example.com', naive_enabled=True, mieru_enabled=True)
+    app = panel_server(telemt=telemt, naive=naive, mieru=mieru, versions=versions, **settings)
+    app.create_admin('owner', 'correct horse battery staple', 'owner')
+    app.create_admin('viewer', 'correct horse battery staple', 'viewer')
+    async with app.http() as client:
+        await login_user(client, username='viewer')
+        refused = await client.post('/api/versions/panel/rebuild-managers', headers={'X-CSRF-Token': client.cookies['panel_csrf']})
         assert refused.status_code == 403 and versions.calls == []
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+    async with app.http() as client:
         await login_user(client)
-        csrf = {"X-CSRF-Token": client.cookies["panel_csrf"]}
-        versions.components["panel"]["status"] = "updating"
-        busy = await client.post("/api/versions/panel/rebuild-managers", headers=csrf)
+        csrf = {'X-CSRF-Token': client.cookies['panel_csrf']}
+        versions.components['panel']['status'] = 'updating'
+        busy = await client.post('/api/versions/panel/rebuild-managers', headers=csrf)
         assert busy.status_code == 409
-        versions.components["panel"]["status"] = "ready"
-        done = await client.post("/api/versions/panel/rebuild-managers", headers=csrf)
-        assert done.status_code == 200 and done.json()["pending_rebuild"] == ["docker"]
-        with app.state.database.connect() as db:
-            actions = [row["action"] for row in db.execute(
-                "SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%'")]
-        assert actions == ["runtime.version.managers_rebuild"]
+        versions.components['panel']['status'] = 'ready'
+        done = await client.post('/api/versions/panel/rebuild-managers', headers=csrf)
+        assert done.status_code == 200 and done.json()['pending_rebuild'] == ['docker']
+        with app.db() as db:
+            actions = [row['action'] for row in db.execute("SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%'")]
+        assert actions == ['runtime.version.managers_rebuild']
 
 
 def test_memory_versions_offer_xray_only_with_a_router():

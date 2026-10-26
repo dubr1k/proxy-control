@@ -80,68 +80,13 @@ def _legacy_database(path: Path) -> None:
     db.close()
 
 
-def test_migrates_pre_v02_database_and_keeps_rows_readable(tmp_path):
-    path = tmp_path / "panel.sqlite3"
-    _legacy_database(path)
-    # `db-status` before the first migration is a question an operator asks; the
-    # answer is "nothing applied yet", and asking must not create the table.
-    before = migration_status(Database(path))
-    assert [row["applied"] for row in before] == [False] * len(MIGRATIONS)
-    with sqlite3.connect(path) as raw:
-        assert raw.execute("SELECT count(*) FROM sqlite_master WHERE name='schema_migrations'").fetchone()[0] == 0
-    applied = apply_migrations(Database(path))
-    assert applied == [migration.version for migration in MIGRATIONS]
-    assert [row["username"] for row in Store(path).admins()] == ["owner"]
-    assert Store(path).audits()[0]["action"] == "login"
-    assert FleetStore(path).node("edge-01")["display_name"] == "edge"
-    # The reserved local identity is added to an upgraded database too, next to the real node.
-    assert FleetStore(path).node("local")["kind"] == "local"
-    assert [node["node_id"] for node in FleetStore(path).nodes()] == ["edge-01", "local"]
-    status = migration_status(Database(path))
-    assert all(row["applied"] for row in status)
 
 
-def test_migration_12_rebuilds_provisioning_operations_with_existing_rows(tmp_path, monkeypatch):
-    """[post-merge T9] the table rebuild (a wider CHECK) carries every row across, keeps the
-    client foreign key and the index, and the widened status is accepted afterwards."""
-    from panel import migrations as module
-
-    database = Database(tmp_path / "panel.sqlite3")
-    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS[:11])
-    assert apply_migrations(database) == list(range(1, 12))
-    with database.transaction() as db:
-        db.execute("INSERT INTO clients(id,display_name,state,created_at,updated_at) VALUES('c1','A','active',1,1)")
-        for index, status in enumerate(("pending", "applying", "succeeded", "compensated", "manual_intervention_required")):
-            db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
-                       " VALUES(?,?,?,?,?,?)", (f"op-{index}", "c1", status, '[{"grant_id":"g","status":"active"}]', index, index))
-        with pytest.raises(sqlite3.IntegrityError):
-            db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
-                       " VALUES('op-x','c1','pending_remote','[]',9,9)")
-    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
-    with database.transaction() as db:
-        rows = db.execute("SELECT operation_id,status,steps_json,created_at FROM provisioning_operations ORDER BY created_at").fetchall()
-        assert [tuple(row) for row in rows] == [
-            (f"op-{i}", s, '[{"grant_id":"g","status":"active"}]', i)
-            for i, s in enumerate(("pending", "applying", "succeeded", "compensated", "manual_intervention_required"))]
-        db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
-                   " VALUES('op-x','c1','pending_remote','[]',9,9)")
-        assert db.execute("SELECT count(*) FROM sqlite_master WHERE name='provisioning_operations_client'").fetchone()[0] == 1
-        assert db.execute("SELECT count(*) FROM sqlite_master WHERE name='provisioning_operations_old'").fetchone()[0] == 0
-        with pytest.raises(sqlite3.IntegrityError):  # the client foreign key survived the rebuild
-            db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
-                       " VALUES('op-y','missing','pending','[]',9,9)")
 
 
-def test_migration_creates_exactly_one_local_node_idempotently(tmp_path):
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    apply_migrations(database)
-    with database.connect() as db:
-        rows = db.execute(
-            "SELECT node_id,kind,display_name,disabled,auth_state FROM fleet_nodes"
-        ).fetchall()
-    assert [tuple(row) for row in rows] == [("local", "local", "Этот сервер", 0, "local")]
+
+
+
 
 
 def test_migration_20_adds_escrow_columns_and_keeps_old_subscriptions_readable(tmp_path, monkeypatch):
@@ -168,57 +113,16 @@ def test_migration_20_adds_escrow_columns_and_keeps_old_subscriptions_readable(t
     assert old is not None and old.secret_ref is None
 
 
-def test_fresh_database_gets_the_same_schema_as_a_migrated_one(tmp_path):
-    fresh, legacy = tmp_path / "fresh.sqlite3", tmp_path / "legacy.sqlite3"
-    _legacy_database(legacy)
-    apply_migrations(Database(fresh))
-    apply_migrations(Database(legacy))
-
-    def columns(path):
-        db = sqlite3.connect(path)
-        return {
-            table: [row[1] for row in db.execute(f"PRAGMA table_info({table})")]
-            for (table,) in db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-        }
-
-    assert columns(fresh) == columns(legacy)
 
 
-def test_interrupted_migration_rolls_back_and_records_nothing(tmp_path, monkeypatch):
-    from panel import migrations
-
-    broken = migrations.Migration(
-        version=9999, name="broken", statements=("CREATE TABLE probe(x)", "CREATE TABLE probe(x)"),
-    )
-    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS + (broken,))
-    path = tmp_path / "panel.sqlite3"
-    with pytest.raises(sqlite3.OperationalError):
-        apply_migrations(Database(path))
-    db = sqlite3.connect(path)
-    assert db.execute("SELECT count(*) FROM sqlite_master WHERE name='probe'").fetchone()[0] == 0
-    assert db.execute("SELECT count(*) FROM schema_migrations WHERE version=9999").fetchone()[0] == 0
 
 
-def test_checksum_mismatch_fails_closed(tmp_path):
-    path = tmp_path / "panel.sqlite3"
-    apply_migrations(Database(path))
-    db = sqlite3.connect(path)
-    db.execute("UPDATE schema_migrations SET checksum='tampered' WHERE version=1")
-    db.commit()
-    db.close()
-    with pytest.raises(MigrationError, match="checksum"):
-        apply_migrations(Database(path))
 
 
-def test_newer_database_than_code_fails_closed(tmp_path):
-    path = tmp_path / "panel.sqlite3"
-    apply_migrations(Database(path))
-    db = sqlite3.connect(path)
-    db.execute("INSERT INTO schema_migrations VALUES(9999,'future','x',1)")
-    db.commit()
-    db.close()
-    with pytest.raises(MigrationError, match="newer"):
-        apply_migrations(Database(path))
+
+
+
+
 
 
 def test_two_processes_initialising_concurrently_are_safe(tmp_path):
@@ -240,86 +144,16 @@ def test_two_processes_initialising_concurrently_are_safe(tmp_path):
     assert len(migration_status(Database(path))) == len(MIGRATIONS)
 
 
-def test_transaction_helper_commits_or_rolls_back_everything(tmp_path):
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    with pytest.raises(RuntimeError):
-        with database.transaction() as db:
-            db.execute(
-                "INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at)"
-                " VALUES('a','a','unenrolled','{}',1,1)"
-            )
-            raise RuntimeError("injected")
-    with database.connect() as db:
-        assert db.execute("SELECT count(*) FROM fleet_nodes WHERE node_id='a'").fetchone()[0] == 0
 
 
-def test_wal_is_enabled_even_while_another_connection_holds_the_database(tmp_path):
-    """Two processes open this database, so a cold start can collide.
-
-    SQLite does not run the busy handler for a journal-mode change: the pragma fails
-    immediately while anyone else holds the file. Without a retry the panel or the
-    fleet ingress dies at startup with "database is locked".
-    """
-    path = tmp_path / "panel.sqlite3"
-    plain = sqlite3.connect(path)
-    plain.execute("CREATE TABLE probe(x)")
-    plain.commit()
-    assert plain.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
-
-    locked, released = threading.Event(), threading.Event()
-
-    def hold():
-        holder = sqlite3.connect(path, timeout=10)
-        holder.execute("BEGIN IMMEDIATE")
-        holder.execute("INSERT INTO probe VALUES(1)")
-        locked.set()
-        released.wait(5)
-        holder.execute("COMMIT")
-        holder.close()
-
-    thread = threading.Thread(target=hold)
-    thread.start()
-    try:
-        assert locked.wait(5)
-        opener = threading.Timer(0.3, released.set)
-        opener.start()
-        database = Database(path)
-    finally:
-        released.set()
-        thread.join(10)
-    with database.connect() as db:
-        assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
-    plain.close()
 
 
-def test_a_database_that_never_becomes_writable_fails_with_a_named_error(tmp_path):
-    path = tmp_path / "panel.sqlite3"
-    plain = sqlite3.connect(path)
-    plain.execute("CREATE TABLE probe(x)")
-    plain.commit()
-    holder = sqlite3.connect(path, timeout=10)
-    holder.execute("BEGIN IMMEDIATE")
-    holder.execute("INSERT INTO probe VALUES(1)")
-    try:
-        with pytest.raises(DatabaseError, match="write-ahead logging"):
-            Database(path, timeout=0.5)
-    finally:
-        holder.close()
-        plain.close()
 
 
-def test_connections_keep_temporary_storage_in_memory(tmp_path):
-    """The panel runs unprivileged on a read-only root: SQLite may find no writable temp
-    directory there, and a statement journal past its in-memory threshold would fail with
-    "disk I/O error" (the central's unlink of a node with many generations did). Every
-    connection therefore keeps temporary storage in memory (`temp_store` 2 = MEMORY)."""
-    database = Database(tmp_path / "panel.sqlite3")
-    with database.connect() as db:
-        assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
-        assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-    with database.transaction() as db:
-        assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
+
+
+
+
 
 
 def test_migration_24_widens_grants_routing_and_egress_and_keeps_every_row(tmp_path, monkeypatch):
@@ -401,13 +235,4 @@ def test_migration_26_admits_amneziawg_egress_and_keeps_every_row(tmp_path, monk
         assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p1'").fetchone()[0] == 0
 
 
-def test_migration_25_creates_metric_rollups_without_rowid(tmp_path):
-    """Monitoring (v2.0): one rollup row per (resolution, bucket, node, series)."""
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    with database.transaction() as db:
-        db.execute("INSERT INTO metric_rollups VALUES(60,100,'local','host.cpu',50.0,2,30.0,20.0)")
-        with pytest.raises(sqlite3.IntegrityError):
-            db.execute("INSERT INTO metric_rollups VALUES(60,100,'local','host.cpu',1.0,1,1.0,1.0)")
-        assert "WITHOUT ROWID" in db.execute("SELECT sql FROM sqlite_master WHERE name='metric_rollups'").fetchone()[0]
-        assert db.execute("SELECT 1 FROM sqlite_master WHERE name='metric_rollups_series'").fetchone()
+

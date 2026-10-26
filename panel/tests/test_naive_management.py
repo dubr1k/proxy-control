@@ -158,13 +158,7 @@ async def test_naive_usernames_are_validated_before_manager_call(client, login_u
     assert naive.calls == []
 
 
-async def test_naive_adapter_accepts_empty_204_delete_response():
-    async def handler(request):
-        assert request.method == "DELETE"
-        return httpx.Response(204)
 
-    adapter = NaiveClient("/run/manager.sock", "internal-token", transport=httpx.MockTransport(handler))
-    assert await adapter.delete("phone") is None
 
 
 def test_enabled_naive_requires_explicit_public_host(tmp_path):

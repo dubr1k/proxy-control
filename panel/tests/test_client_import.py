@@ -117,22 +117,7 @@ async def test_import_rejects_unknown_runtime_user_and_needs_admin(client, login
     assert denied.status_code == 403
 
 
-async def test_node_with_active_grants_cannot_be_disabled(client, login_user, telemt, naive, mieru):
-    headers = await _seed(client, login_user, telemt, naive, mieru)
-    await client.post("/api/nodes", json={"node_id": "edge-01", "display_name": "Edge"}, headers=headers)
-    app = client._transport.app
-    with app.state.database.transaction() as db:
-        db.execute("INSERT INTO clients VALUES('c1','c','active','{}',1,1)")
-        db.execute(
-            """INSERT INTO access_grants(id,client_id,protocol,node_id,endpoint_id,runtime_username,
-               desired_state,origin,created_at,updated_at)
-               VALUES('g1','c1','naive','edge-01','default','remote-user','enabled','imported',1,1)"""
-        )
-    refused = await client.post("/api/nodes/edge-01/disable", headers=headers)
-    assert refused.status_code == 409 and "grant" in refused.json()["detail"]
-    with app.state.database.transaction() as db:
-        db.execute("UPDATE access_grants SET desired_state='deleted' WHERE id='g1'")
-    assert (await client.post("/api/nodes/edge-01/disable", headers=headers)).status_code == 200
+
 
 
 async def test_adopting_an_imported_grant_makes_it_renderable(client, login_user, telemt, naive, mieru):

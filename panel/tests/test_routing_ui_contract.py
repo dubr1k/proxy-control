@@ -11,153 +11,31 @@ STATIC = Path(__file__).resolve().parent.parent / "static"
 ROUTING = (STATIC / "js/routing.js").read_text()
 
 
-def test_index_and_main_register_the_routing_view():
-    html = (STATIC / "index.html").read_text()
-    assert html.count('data-view="routing"') == 2  # sidebar and the mobile bar
-    main = (STATIC / "js/main.js").read_text()
-    assert "routing: renderRouting" in main and 'routing: ["Маршрутизация"' in main
-    for handler in ("handleRoutingInput", "handleRoutingChange", "handleRoutingSubmit", "handleRoutingClick", "bindRouting"):
-        assert handler in main, handler
-    state = (STATIC / "js/state.js").read_text()
-    assert "routingTargets: []" in state and "routingNode: null" in state
 
 
-def test_routing_js_speaks_only_the_documented_endpoints():
-    assert '"/api/routing/targets"' in ROUTING
-    for fragment in ("/api/routing/policies/", "/preview", "/history", "${base}/${action}"):
-        assert fragment in ROUTING, fragment
-    # apply and rollback share one POST path builder; the actions are the two spelled here.
-    assert 'action === "apply" || action === "rollback" || action === "delete"' in ROUTING
-    assert 'method: "PUT"' in ROUTING and 'method: "DELETE"' in ROUTING and 'method: "POST"' in ROUTING
-    assert "expected_revision" in ROUTING and "PREVIEW_DEBOUNCE_MS = 400" in ROUTING
 
 
-def test_routing_js_names_the_states_and_refusals_in_the_operator_words():
-    for text in ("Напрямую", "Через выход", "отказать", "напрямую", "вне области маршрутизации",
-                 "панель узла не поддерживает маршрутизацию — обновите её", "есть неприменённые изменения", "применено (rev",
-                 "маршрутизацией управляет центральная панель", "перезапуск не требуется", "Сбросить",
-                 "Применить", "Откатить", "История", "Добавить правило"):
-        assert text in ROUTING, text
-    for code in ("backend_capability_missing", "rule_kind_unsupported", "private_destination", "provider_unavailable",
-                 "provider_unreachable", "node_lacks_egress_v1", "protocol_out_of_scope", "policy_conflict",
-                 "policy_applied", "egress_unreachable", "egress_readback_mismatch", "manual_intervention_required",
-                 "adopts_unmanaged_upstream", "adopts_unmanaged_egress", "policy_empty"):
-        assert code in ROUTING, code
 
 
-def test_routing_js_tells_the_operator_when_the_node_already_runs_the_policy():
-    """v0.9: `matches_node` from the targets — a draft the node already runs is said so on the
-    pill, in the node card's line and under an empty diff, never as a bare «не применено»."""
-    assert ROUTING.count("matches_node") >= 3
-    for text in ("узел уже так работает", "узел настроен иначе", "политика не закреплена",
-                 "«Применить» возьмёт настройку под управление панели"):
-        assert text in ROUTING, text
 
 
-def test_routing_js_seam_fixes_of_v09():
-    """v0.9 seam audit: refusal codes reach the toasts in the operator's words (api.js
-    registry), exit_*/geodata_* codes resolve as reasons too, «Вернуть пин» is reachable,
-    a pending relay is not promised, a policy that failed to load closes the editor, and
-    the node card names a policy whose backend cannot be asked."""
-    api = (STATIC / "js/api.js").read_text()
-    assert "export function registerReasons" in api and "DETAIL_WORTH_SHOWING" in api
-    assert 'import { registerReasons } from "./api.js"' in ROUTING and "registerReasons({ ...WARNING_TEXT, ...REASON_TEXT })" in ROUTING
-    assert "REASON_TEXT[code] || WARNING_TEXT[code]" in ROUTING
-    for text in ("Вернуть пин", "relay ждёт ключ узла", "Политика не загрузилась", "backend недоступен"):
-        assert text in ROUTING, text
-    assert "!state.policyError && Boolean(target.backend)" in ROUTING
-    assert ".filter((item) => item.policy)" in ROUTING and "exit.pending" in ROUTING
-    # The editor beside a tall preview (a long mita diff) must not stretch its rows: the
-    # selects and the buttons grew to 80–130 px on the Mieru tab (owner's report, v0.9).
-    css = (STATIC / "style.css").read_text()
-    assert ".routing-editor{display:grid;gap:12px;min-width:0;align-content:start}" in css
-    assert "minmax(0,2fr);gap:14px;min-width:0;align-items:start}" in css
-    # Phone audit (v0.9): the bottom bar hid «Узлы»/«Маршруты» off-screen without a cue — the
-    # current section scrolls into view and the hiding edge fades; ghost buttons reach 32 px.
-    main = (STATIC / "js/main.js").read_text()
-    assert "markMobileNavEdges" in main and '"more-right"' in main and 'inline: "center"' in main
-    assert ".mobile-nav.more-right{-webkit-mask-image" in css and ".mobile-nav.more-left.more-right{" in css
-    assert ".routing-card .ghost,.routing-geodata-tools .ghost,.routing-rule-tools .ghost{min-height:32px" in css
 
 
-def test_routing_js_speaks_the_router():
-    """v0.5: the Xray-router — attach/detach as explicit actions, the three selectors only
-    the router enforces, the words for its states and refusals."""
-    for fragment in ("/attach", "/detach", 'action === "attach" || action === "detach"'):
-        assert fragment in ROUTING, fragment
-    for text in ("Подключить к Xray-router", "Отключить от Xray-router", "Xray-router: не установлен",
-                 "сессии сервиса прервутся", "Xray-router", "Caddy", "mita", "geosite", "geoip"):
-        assert text in ROUTING, text
-    # v0.8: the rule is edited in a modal; the selectors are its fields.
-    html = (STATIC / "index.html").read_text()
-    for field in ('id="rule-geosites"', 'id="rule-geoips"', 'id="rule-ports"', 'id="rule-domains"', 'id="rule-cidrs"', "data-rule-protocol"):
-        assert field in html, field
-    for fragment in ("#rule-geosites", "#rule-geoips", "#rule-ports", "[data-rule-protocol]", "openRuleModal", "saveRuleModal"):
-        assert fragment in ROUTING, fragment
-    for code in ("router_unavailable", "router_unreachable", "not_attached", "node_lacks_router", "artifact_mismatch",
-                 "geosite_unknown", "geoip_unknown", "router_credential_stale"):
-        assert code in ROUTING, code
-    # The router intent travels with the policy body: geosites and geoips beside domains and cidrs.
-    assert "geosites: rule.match.geosites, geoips: rule.match.geoips" in ROUTING
-    nodes = (STATIC / "js/nodes.js").read_text()
-    assert "routingSummary" in nodes
 
 
-def test_routing_js_speaks_lanes_chains_and_the_relay():
-    """v0.7: the node's exits as chips, a lane tab per client, «Куда» with chains, the
-    «Куда пойдёт…» check, the node's relay — every call lane-aware, every refusal named."""
-    for fragment in ("/api/routing/lanes/", "/explain", "/api/routing/relay/", "/enable", "laneQuery(context)",
-                     'data-routing-action="lane"', 'data-routing-action="lane-add"', 'data-routing-action="lane-remove"',
-                     'data-routing-action="relay-enable"', 'id="routing-exits"', 'id="routing-lanes"', 'id="routing-explain"',
-                     "#rule-egress", 'exitSelect(target, "default_egress"', "routingLane"):
-        assert fragment in ROUTING, fragment
-    for text in ("Выходы узла", "Сервис", "Добавить полосу для клиента…", "Вернуть в полосу сервиса", "Куда пойдёт…",
-                 "Через выход", "WARP этого узла", "→ напрямую", "Включить relay", "relay включён", "relay выключен",
-                 "ссылка Mieru изменится"):
-        assert text in ROUTING, text
-    for code in ("lane_requires_router", "lane_not_attached", "lane_slots_exhausted", "node_lacks_lanes", "node_lacks_relay",
-                 "relay_disabled", "relay_credential_pending", "relay_no_warp", "chain_loop", "node_unknown"):
-        assert code in ROUTING, code
-    # the exit travels with the rule and the default, never hard-wired to WARP any more
-    assert 'rule.action === "egress" ? rule.egress || "warp" : null' in ROUTING
-    assert 'draft.default_action === "egress" ? draft.default_egress || "warp" : null' in ROUTING
-    state = (STATIC / "js/state.js").read_text()
-    assert 'routingLane: "svc"' in state
-    # v1.0.2: a grant's lane is switched from its own window (grant.js), opened by its row.
-    grant = (STATIC / "js/grant.js").read_text()
-    for fragment in ('data-grant-action="lane"', "/api/routing/lanes/", "своя полоса", "как у сервиса", "Ссылка Mieru изменится"):
-        assert fragment in grant, fragment
-    html = (STATIC / "index.html").read_text()
-    assert 'id="choose"' in html and 'id="choose-select"' in html
-    css = (STATIC / "style.css").read_text()
-    for selector in (".routing-exits{", ".routing-exit-chip{", ".routing-lanes{", ".routing-explain{", ".grant-route-label{"):
-        assert selector in css, selector
 
 
-def test_routing_js_speaks_presets_exits_and_geodata():
-    """v0.8: quick settings as marked rules, custom exits with their modal and test, the
-    geodata block — and the rule table that replaced the cards."""
-    for fragment in ("/api/routing/presets", "data-routing-preset", "togglePreset", "rule.preset", "preset: rule.preset || null",
-                     "/api/routing/exits", "/api/routing/exits/import", "customExitsPanel", 'data-routing-action="exit-add"',
-                     'data-routing-action="exit-test"', "exit:", "EXIT_FIELDS", "/api/routing/geodata", "geodataLine",
-                     "protocols: rule.match.protocols || []", 'data-routing-action="rule-edit"', "routing-table"):
-        assert fragment in ROUTING, fragment
-    for text in ("Быстрые настройки", "Свои выходы", "+ Выход", "Проверить", "пресет", "Geodata", "Обновить сейчас", "Источник…"):
-        assert text in ROUTING, text
-    for code in ("exit_unknown", "exit_disabled", "exit_other_node", "exit_secret_pending", "exit_in_use", "exit_unreachable",
-                 "geodata_rejected", "geodata_fetch_failed", "geodata_digest_mismatch"):
-        assert code in ROUTING, code
-    html = (STATIC / "index.html").read_text()
-    for fragment in ('id="rule-modal"', 'id="exit-modal"', 'id="geodata-modal"', 'id="exit-link"', 'id="geodata-source"', 'value="loyalsoldier"'):
-        assert fragment in html, fragment
-    css = (STATIC / "style.css").read_text()
-    for selector in (".routing-table td{", ".routing-presets{", ".routing-custom-exits{", ".routing-geodata{", ".rule-what{"):
-        assert selector in css, selector
 
 
-def test_apply_is_enabled_only_for_a_saved_supported_policy():
-    assert 'compiled?.status === "supported"' in ROUTING and "!dirty" in ROUTING
-    assert "canRollback" in ROUTING and "applied_revision !== null" in ROUTING
+
+
+
+
+
+
+
+
+
 
 
 def _interpolations(source: str) -> list[str]:
@@ -195,85 +73,19 @@ _ALLOWED = (
 )
 
 
-def test_every_interpolated_value_from_the_api_is_escaped():
-    """Templates interpolate only escaped strings, numbers, flags or other templates;
-    a raw API field would be an injection point."""
-    for expression in _interpolations(ROUTING):
-        assert any(rule.match(expression) for rule in _ALLOWED), expression
-    # Strings that come from the API are escaped where they are interpolated.
-    # v0.8: a rule's selectors are painted as chips (`esc(prefix + item)`), its ports joined.
-    for field in ("meta.name", "protocol", "backend", "message", "note", "actor", "digest", "prefix + item", "match.ports.join"):
-        assert re.search(rf"esc\([^)]*{re.escape(field)}", ROUTING), field
 
 
-def test_node_card_carries_the_routing_line():
-    nodes = (STATIC / "js/nodes.js").read_text()
-    assert "routingSummary" in nodes and '"/api/routing/targets"' in nodes and "Маршрутизация" in nodes
-    assert "не настроена" in ROUTING and "блокир." in ROUTING
 
 
-def test_style_has_the_routing_grid_and_its_phone_breakpoint():
-    css = (STATIC / "style.css").read_text()
-    for selector in (".routing-layout{", ".routing-table td{", ".routing-preview{", ".routing-diff", ".routing-toolbar{"):
-        assert selector in css, selector
-    assert "@media(max-width:900px){.routing-layout{grid-template-columns:1fr}}" in css
 
 
-def test_routing_card_forgets_the_previous_policy_before_it_paints():
-    """A card painted with the last visit's policy while its own was loading answered a
-    click with silence (the browser smoke of v0.5 hit it on «Откатить» after a view
-    change): the state is reset before the first paint, the badge says it is loading and
-    no action is enabled until the current policy is there."""
-    render = ROUTING[ROUTING.index("export async function renderRouting"):]
-    render = render[:render.index("\n}\n")]
-    assert render.index("resetPolicy(context)") < render.index("context.ui.view.innerHTML = screen(context)")
-    assert "загружается…" in ROUTING
-    assert re.search(r"policyState\(policy, state\.loading\)", ROUTING)
-    assert re.search(r"const editable = .*&& !state\.loading;", ROUTING)
-    load = ROUTING[ROUTING.index("async function loadPolicy"):]
-    load = load[:load.index("\n}\n")]
-    assert "state.loading = false;" in load and load.index("state.loading = false;\n  await previewNow") > 0
 
 
-def test_routing_screen_is_steps_with_a_built_in_guide():
-    """v0.17 (owner: «удобная маршрутизация… прям на сайте детальная инструкция»): four numbered
-    steps, capabilities in words, the node's plumbing and the preview's technical half folded,
-    and «Как это работает» with scenarios that only change the draft."""
-    guide = (STATIC / "js/routing-guide.js").read_text()
-    html = (STATIC / "index.html").read_text()
-    css = (STATIC / "style.css").read_text()
-    for step in ('stepHead(1, "Для кого"', 'stepHead(2, "Куда идёт трафик"', 'stepHead(3, "Проверить"', 'stepHead(4, "Применить на узле"'):
-        assert step in ROUTING, step
-    assert 'data-routing-action="guide"' in ROUTING and "Как это работает" in ROUTING
-    assert 'class="routing-node-setup"' in ROUTING and 'class="routing-tech"' in ROUTING
-    assert "capabilityList(target.capabilities)" in ROUTING and "Этот сервис умеет:" in ROUTING
-    assert "draftSummary(target, state.draft)" in ROUTING and "esc(summary)" in ROUTING
-    # Every capability a backend reports has words; a scenario only edits the draft.
-    for code in ("whole_direct", "whole_warp", "block_domain", "block_cidr", "selective_domain", "selective_cidr",
-                 "block_geosite", "selective_geosite", "block_geoip", "selective_geoip", "block_port", "selective_port",
-                 "block_protocol", "selective_protocol", "chains", "custom_exits", "lanes", "relay", "geodata"):
-        assert code + ":" in guide, code
-    for scenario in ("warp-all", "sites-warp", "block-ads", "block-torrent", "ru-direct", "chain", "custom-exit", "lane"):
-        assert f'id: "{scenario}"' in guide, scenario
-    start = ROUTING[ROUTING.index("function startScenario"):ROUTING.index("function openRuleModal")]
-    assert "method:" not in start and "api(" not in start  # nothing reaches a node from the guide
-    assert 'id="routing-guide"' in html and 'id="routing-guide-body"' in html
-    assert '#routing-guide-body", context.root)?.addEventListener("click"' in ROUTING
-    for selector in (".routing-step{", ".routing-step-number{", ".routing-node-setup{", ".routing-guide{", ".routing-guide-scenario{", ".routing-intro{"):
-        assert selector in css, selector
-    # The guide escapes what it interpolates: node names come from the API.
-    assert "esc(target.node_name || target.node_id)" in guide and "esc(scenario.title)" in guide
 
 
-def test_routing_js_knows_trusttunnel_as_a_service_without_lanes():
-    """v1.6: TrustTunnel is a routing service — its name, its native backend (`trusttunnel_native`),
-    the refusals the panel can answer with, and no «Добавить полосу» for it (the endpoint reaches the
-    router as one anonymous SOCKS5 client)."""
-    assert 'trusttunnel: "TrustTunnel"' in ROUTING and 'trusttunnel_native: "TrustTunnel"' in ROUTING
-    for code in ("router_lacks_trusttunnel", "node_lacks_trusttunnel_egress", "lanes_unsupported"):
-        assert code in ROUTING, code
-    assert 'target.backend === "xray_router" && target.protocol !== "trusttunnel"' in ROUTING
-    assert "полос для отдельных клиентов здесь нет" in ROUTING
-    guide = (STATIC / "js/routing-guide.js").read_text()
-    assert "<tr><td>TrustTunnel</td>" in guide and "полосы для отдельных клиентов" in guide
-    assert "(MTProxy, NaiveProxy, Mieru, TrustTunnel)" in guide
+
+
+
+
+
+

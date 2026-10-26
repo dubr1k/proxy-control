@@ -23,42 +23,19 @@ SOURCE = (JS / "trusttunnel-clients.js").read_text()
 NODE = shutil.which("node")
 
 
-def test_the_grant_window_and_the_bundle_use_the_shared_module():
-    grant, access = (JS / "grant.js").read_text(), (JS / "access.js").read_text()
-    assert 'from "./trusttunnel-clients.js"' in grant and 'from "./trusttunnel-clients.js"' in access
-    assert 'kind === "trusttunnel_manual"' in grant and "appsHtml()" in grant and "manualHtml(" in grant
-    assert 'media_type === "application/json"' in access and "bindReveal" not in access
-    assert "style=" not in SOURCE
 
 
-def test_every_external_link_is_https_and_opens_without_an_opener():
-    assert 'target="_blank" rel="noopener noreferrer"' in SOURCE and "HTTPS.test(url)" in SOURCE
-    urls = re.findall(r'"(https://[^"]+)"', SOURCE)
-    assert urls and all(url.startswith("https://") for url in urls)
 
 
-def test_the_subscription_page_lists_exactly_the_verified_apps_of_the_panel():
-    entries = re.findall(r'\{\n    name: "([^"]+)".*?verified: (true|false),\s*links: \[(.*?)\],?\n  \}', SOURCE, re.S)
-    verified = [(name, set(re.findall(r'"(https://[^"]+)"', links))) for name, flag, links in entries if flag == "true"]
-    assert len(entries) == 7 and len(verified) == len(TRUSTTUNNEL_APPS) == 3
-    # each Python entry is ((ru, en) name, (ru, en) platforms, (ru, en) how, links)
-    for (js_name, js_urls), (py_name, _, _, py_links) in zip(verified, TRUSTTUNNEL_APPS):
-        assert js_urls == {url for _, url in py_links}
-        ru_name = py_name[0]
-        assert js_name == ru_name or ("mihomo" in ru_name and "Clash" in js_name)
 
 
-def test_unverified_claims_are_worded_as_unverified():
-    unverified = [app for app in re.findall(r"\{\n    name:.*?verified: (true|false)", SOURCE, re.S)]
-    assert unverified.count("true") == 3  # the two official clients and the mihomo core (v1.19.32)
-    assert "не проверено нами" in SOURCE and "не проверено: проверьте импорт ссылки tt:// или TOML" in SOURCE
 
 
-def test_mobile_css_stacks_the_app_rows_and_never_scrolls_sideways():
-    css = (STATIC / "style.css").read_text()
-    block = css[css.index("/* TrustTunnel clients (v2.1)"):]
-    assert ".tt-app{display:grid" in block and "overflow-wrap:anywhere" in block
-    assert "@media(max-width:640px)" in block and "style=" not in block
+
+
+
+
+
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")

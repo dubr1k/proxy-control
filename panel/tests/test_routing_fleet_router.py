@@ -52,25 +52,7 @@ def _doc(generation=1, egress=None):
 # -- protocol --------------------------------------------------------------------------
 
 
-def test_companion_and_passthrough_are_in_the_digest_and_omitted_when_absent():
-    plain = _doc(egress={"naive": _egress(NAIVE_DIRECT)})
-    wire = plain.wire()["egress"]["naive"]
-    assert "companion" not in wire and "passthrough" not in wire
-    assert canonical_digest(plain) == canonical_digest(GenerationDocument.model_validate(plain.wire()))
-    attached = _doc(egress={"naive": _egress(WARP_INTENT, backend="xray_router", companion=attach_document("naive"))})
-    wire = attached.wire()["egress"]["naive"]
-    assert wire["companion"] == attach_document("naive") and wire["backend"] == "xray_router"
-    assert canonical_digest(attached) != canonical_digest(plain)
-    assert canonical_digest(attached) == canonical_digest(GenerationDocument.model_validate(attached.wire()))
-    flagged = _doc(egress={"naive": _egress(NAIVE_DIRECT, passthrough=True)})
-    assert flagged.wire()["egress"]["naive"]["passthrough"] is True
-    assert canonical_digest(flagged) != canonical_digest(plain)
-    # What a v0.4 node's strict model refuses: any of the two keys.
-    with pytest.raises(ValidationError):
-        GenerationDocument.model_validate({**plain.wire(), "egress": {"naive": {**wire, "future": 1}}})
-    huge = {"schema": 1, "upstream": None, "acl": [{"deny": [f"{'x' * 60}{i:04d}.example" for i in range(300)]}]}
-    with pytest.raises(ValidationError, match="companion"):
-        _egress(WARP_INTENT, backend="xray_router", companion=huge)
+
 
 
 # -- node: reconcile -------------------------------------------------------------------

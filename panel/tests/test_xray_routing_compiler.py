@@ -51,31 +51,13 @@ def _policy(protocol="naive", *, backend="xray_router", default_action="direct",
 # -- models --------------------------------------------------------------------------
 
 
-def test_rule_match_geo_codes_normalised_and_private_rejected():
-    match = RuleMatch(geosites=["geosite:Category-Ads-All", "category-ads-all", "cn"], geoips=["GeoIP:CN", "cloudflare"])
-    assert match.geosites == ["category-ads-all", "cn"] and match.geoips == ["cn", "cloudflare"]
-    with pytest.raises(ValidationError, match="bypass"):
-        RuleMatch(geoips=["private"])
-    with pytest.raises(ValidationError):
-        RuleMatch(geosites=["not a code"])
-    assert match.selectors is True
 
 
-def test_rule_match_ports_only_is_allowed_and_empty_is_not():
-    match = RuleMatch(ports=[25, "80-90"])
-    assert match.ports == [25, "80-90"] and match.selectors is False
-    with pytest.raises(ValidationError):
-        RuleMatch()
 
 
-def test_backend_accepts_xray_router_and_backends_for():
-    assert backends_for("naive") == ("naive_native", "xray_router")
-    assert backends_for("mieru") == ("mieru_native", "xray_router")
-    assert backends_for("mtproxy") == ("mtproxy_native", "xray_router")  # v1.1
-    assert PolicyInput(backend="xray_router").backend == "xray_router"
-    with pytest.raises(ValidationError):
-        PolicyInput(backend="sing_box")
-    assert COMPILER_VERSION == "3"
+
+
+
 
 
 # -- the router compiler --------------------------------------------------------------

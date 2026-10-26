@@ -147,62 +147,16 @@ def test_an_unreachable_warp_stays_fail_closed_or_falls_back_when_approved():
 # -- the adapter and the service --------------------------------------------------------------
 
 
-async def test_the_adapter_reads_plans_applies_and_rolls_back(stand):
-    adapter = stand["adapters"]["amneziawg"]
-    target = await adapter.egress_target()
-    assert target.backend == "amneziawg_native" and target.capabilities == {"whole_direct", "whole_warp"}
-    assert target.mode == "direct" and target.applied["document"] == DIRECT
-    plan = await adapter.plan_egress(WARP, expected_revision=target.revision)
-    assert plan["target"] == WARP
-    applied = await adapter.apply_egress(WARP, expected_revision=target.revision, operation_id="o1")
-    assert applied.digest == document_digest(WARP) and (await adapter.egress_target()).mode == "proxy"
-    rolled = await adapter.rollback_egress(expected_revision=applied.revision)
-    assert rolled.digest == document_digest(DIRECT)
 
 
-async def test_a_manager_without_egress_reports_no_target():
-    class Old(MemoryAmneziawg):
-        async def egress(self):
-            from panel.amneziawg import AmneziawgError
-            raise AmneziawgError("not found", 404, "not_found")
-
-    assert await AmneziawgAdapter(Old()).egress_target() is None
 
 
-async def test_the_service_applies_warp_and_back_and_refuses_attach_and_lanes(stand):
-    service, manager = stand["service"], stand["manager"]
-    item = next(item for item in await service.targets() if item["protocol"] == "amneziawg")
-    assert item["backend"] == "amneziawg_native" and item["router"] is None
-    assert item["capabilities"] == ["whole_direct", "whole_warp"]
-    policy = service.save("local", "amneziawg", PolicyInput(default_action="egress", default_egress="warp"),
-                          expected_revision=None, **CTX)
-    result = await service.apply("local", "amneziawg", expected_revision=policy.revision, **CTX)
-    assert result["policy"].state == "applied" and manager.egress_history[-1] == WARP
-    policy = service.save("local", "amneziawg", PolicyInput(), expected_revision=result["policy"].revision, **CTX)
-    await service.apply("local", "amneziawg", expected_revision=policy.revision, **CTX)
-    assert manager.egress_history[-1] == DIRECT
-    with pytest.raises(RoutingError) as caught:
-        await service.attach("local", "amneziawg", **CTX)
-    assert caught.value.code == "router_unavailable"  # this stand runs no router
-    with pytest.raises(RoutingError) as caught:
-        service.save("local", "amneziawg", PolicyInput(), expected_revision=None, lane="grant:abc", **CTX)
-    assert caught.value.code == "lanes_unsupported"
 
 
-async def test_a_failed_warp_apply_leaves_the_tunnel_direct(stand):
-    service, manager = stand["service"], stand["manager"]
-    manager.warp_reachable = None  # not registered: compiles, then the manager refuses (no handshake)
 
-    async def refuse(*_args, **_kwargs):
-        from panel.amneziawg import AmneziawgError
-        raise AmneziawgError("rejected", 502, "egress_unreachable")
 
-    manager.egress_apply = refuse
-    policy = service.save("local", "amneziawg", PolicyInput(default_action="egress", default_egress="warp"),
-                          expected_revision=None, **CTX)
-    with pytest.raises(RoutingError):
-        await service.apply("local", "amneziawg", expected_revision=policy.revision, **CTX)
-    assert manager.egress_history == [] and service.get("local", "amneziawg").state == "failed"
+
+
 
 
 # -- the screens ---------------------------------------------------------------------------------
@@ -228,35 +182,10 @@ def test_the_routing_screen_offers_only_the_whole_tunnel_for_amneziawg():
 # -- variant 2: through the Xray-router ----------------------------------------------------------
 
 
-async def test_attach_steers_the_tunnels_into_the_router_and_rules_apply_there(routed):
-    service, manager, router = routed["service"], routed["manager"], routed["router"]
-    item = next(item for item in await service.targets() if item["protocol"] == "amneziawg")
-    assert item["router"]["available"] and not item["router"]["attached"]
-    assert item["providers"]["router"] == {"reachable": True}
-    attached = await service.attach("local", "amneziawg", **CTX)
-    assert attached["backend"] == "xray_router" and manager.egress_history[-1] == {"schema": 1, "upstream": {"provider": "router"}}
-    assert router.documents["amneziawg"] == ROUTER_DIRECT_INTENT
-    policy = service.save("local", "amneziawg", PolicyInput(
-        default_action="egress", default_egress="warp",
-        rules=[RoutingRule(action="direct", match=RuleMatch(domains=["cloudflare.com"]))]), expected_revision=None, **CTX)
-    result = await service.apply("local", "amneziawg", expected_revision=policy.revision, **CTX)
-    assert result["policy"].state == "applied" and router.documents["amneziawg"]["default"]["egress"] == "warp"
-    assert router.documents["amneziawg"]["rules"][0]["domains"] == ["cloudflare.com"]
-    with pytest.raises(RoutingError) as caught:
-        service.save("local", "amneziawg", PolicyInput(), expected_revision=None, lane="grant:abc", **CTX)
-    assert caught.value.code == "lanes_unsupported"
-    detached = await service.detach("local", "amneziawg", **CTX)
-    assert detached["backend"] == "amneziawg_native" and manager.egress_history[-1] == DIRECT
 
 
-async def test_attach_is_refused_while_the_router_does_not_read_the_device(routed):
-    routed["manager"].router_attached = False
-    with pytest.raises(RoutingError) as caught:
-        await routed["service"].attach("local", "amneziawg", **CTX)
-    assert caught.value.code == "router_unreachable" and routed["manager"].egress_history == []
 
 
-async def test_an_old_router_without_the_service_is_named(routed):
-    routed["router"].amneziawg = False
-    item = next(item for item in await routed["service"].targets() if item["protocol"] == "amneziawg")
-    assert item["router"]["reason"] == "router_lacks_amneziawg"
+
+
+

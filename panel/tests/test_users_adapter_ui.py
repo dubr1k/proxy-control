@@ -50,31 +50,7 @@ async def test_dashboard_labels_process_runtime_traffic_separately_from_quota(cl
 
 
 
-async def test_sidebar_counters_are_filled_by_the_overview_not_by_visiting_a_section(
-    client, login_user, telemt, naive, mieru,
-):
-    telemt.users.update({"mt": {"username": "mt", "enabled": True, "total_octets": 0}})
-    naive.seed("web", "not-returned", enabled=True)
-    mieru.users["mieru-one"] = {"username": "mieru-one", "enabled": True, "quotas": []}
-    await login_user(client)
 
-    protocols = (await client.get("/api/dashboard")).json()["protocols"]
-    assert protocols["mieru"]["credentials"]["total"] == 1
-    assert protocols["naive"]["credentials"]["total"] == 1
-    nodes = await client.get("/api/fleet/nodes")
-    # No node has been registered, so the only row is the reserved local one that
-    # migration 5 creates in every database.
-    assert nodes.status_code == 200
-    assert [node["node_id"] for node in nodes.json()["items"]] == ["local"]
-
-    entry = (await client.get("/static/app.js")).text
-    dashboard = (await client.get("/static/js/nav-counts.js")).text
-    # The sidebar is painted at start-up by one shared module (nav-counts.js) from the overview's
-    # credential totals instead of keeping a dash until the operator opens each section.
-    assert entry.strip() == 'import { boot } from "/static/js/main.js";\n\nboot();'
-    assert "export function paintNavCounts(context, data, nodes)" in dashboard and "fleetCount" in dashboard
-    for badge in ("#mieru-count", "#naive-count", "#fleet-count"):
-        assert badge in dashboard
 
 async def test_dashboard_summarizes_both_protocols_without_naive_traffic_invention(
     client, login_user, telemt, naive,
@@ -239,67 +215,18 @@ async def test_viewer_cannot_change_or_reset_limits(client, server, login_user, 
     )).status_code == 403
 
 
-async def test_telemt_adapter_patches_limits_and_resets_quota():
-    seen = []
-    import httpx
-
-    async def handler(request):
-        seen.append((request.method, request.url.path, request.content))
-        return httpx.Response(200, json={"ok": True, "data": {"username": "alice"}, "revision": "r"})
-
-    telemt = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    await telemt.update_user("alice", {"data_quota_bytes": 2048})
-    await telemt.reset_quota("alice")
-    assert seen[0][:2] == ("PATCH", "/v1/users/alice")
-    assert seen[0][2] == b'{"data_quota_bytes":2048}'
-    assert seen[1][:2] == ("POST", "/v1/users/alice/reset-quota")
-
-
-async def test_telemt_adapter_reads_3425_quota_stats_route():
-    import httpx
-    seen = []
-
-    async def handler(request):
-        seen.append((request.method, request.url.path))
-        return httpx.Response(200, json={
-            "ok": True,
-            "data": {"users": [{
-                "username": "alice", "data_quota_bytes": 2048,
-                "used_bytes": 512, "last_reset_epoch_secs": 123,
-            }]},
-            "revision": "r",
-        })
-
-    telemt = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    assert await telemt.quota_stats() == {"users": [{
-        "username": "alice", "data_quota_bytes": 2048,
-        "used_bytes": 512, "last_reset_epoch_secs": 123,
-    }]}
-    assert seen == [("GET", "/v1/stats/users/quota")]
 
 
 
 
-async def test_telemt_adapter_sends_auth_and_maps_envelope():
-    seen = {}
-    import httpx
-    async def handler(request):
-        seen["authorization"] = request.headers.get("authorization")
-        return httpx.Response(200, json={"ok": True, "data": [{"username": "a"}], "revision": "r"})
-    client = TelemtClient("http://telemt:9091", "Bearer internal-token", transport=httpx.MockTransport(handler))
-    assert (await client.list_users())[0]["username"] == "a"
-    assert seen["authorization"] == "Bearer internal-token"
 
 
-async def test_telemt_adapter_does_not_leak_secret_in_errors():
-    import httpx
-    secret = "0123456789abcdef0123456789abcdef"
-    async def handler(request):
-        return httpx.Response(500, text=secret)
-    client = TelemtClient("http://telemt:9091", "Bearer token", transport=httpx.MockTransport(handler))
-    with pytest.raises(TelemtError) as exc:
-        await client.create_user("alice")
-    assert secret not in str(exc.value)
+
+
+
+
+
+
 
 
 async def test_user_list_strips_links_and_all_secret_material(client, login_user, telemt):

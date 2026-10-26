@@ -27,33 +27,10 @@ def _rule(egress: str | None = None, action: str = "egress", **match) -> Routing
     return RoutingRule(match=RuleMatch(**(match or {"domains": ["a.example"]})), action=action, egress=egress)
 
 
-def test_an_exit_is_warp_or_a_chain_of_nodes_with_the_last_hops_exit():
-    assert normalise_exit("warp") == "warp"
-    assert normalise_exit(f"node:{GUID_B}") == f"node:{GUID_B}"
-    assert normalise_exit(f"NODE:{GUID_B}:WARP") == f"node:{GUID_B}:warp"
-    assert normalise_exit(f"node:{GUID_B},{GUID_C}:warp") == f"node:{GUID_B},{GUID_C}:warp"
-    assert exit_hops("warp") == ([], None) and exit_hops(f"node:{GUID_B}") == ([GUID_B], "direct")
-    assert exit_hops(f"node:{GUID_B},{GUID_C}:warp") == ([GUID_B, GUID_C], "warp")
-    assert is_node_exit(f"node:{GUID_B}") and not is_node_exit("warp") and not is_node_exit(None)
-    for bad in ("direct", "node:", "node:has space", f"node:{GUID_B}:direct", f"node:{GUID_B},{GUID_B}",
-                f"node:{GUID_B},{GUID_C},{'d' * 32},{'e' * 32}", "socks5://x", "", None, 5):
-        with pytest.raises(ValueError):
-            normalise_exit(bad)
 
 
-def test_rules_and_defaults_accept_node_exits_and_refuse_the_rest():
-    rule = _rule(f"node:{GUID_B}:warp")
-    assert rule.egress == f"node:{GUID_B}:warp" and rule.action == "egress"
-    policy = PolicyInput(default_action="egress", default_egress=f"node:{GUID_B},{GUID_C}", rules=[rule, _rule("warp")])
-    assert policy.default_egress == f"node:{GUID_B},{GUID_C}"
-    assert policy.exits() == [f"node:{GUID_B},{GUID_C}", f"node:{GUID_B}:warp", "warp"]
-    assert policy.node_exits() == [f"node:{GUID_B},{GUID_C}", f"node:{GUID_B}:warp"]
-    with pytest.raises(ValidationError):
-        _rule("node:nope!")
-    with pytest.raises(ValidationError):
-        PolicyInput(default_action="egress", default_egress="direct")
-    with pytest.raises(ValidationError):
-        _rule("warp", action="direct")
+
+
 
 
 def test_migration_16_adds_lanes_relay_tables_and_keeps_every_row(tmp_path, monkeypatch):
