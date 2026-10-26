@@ -22,12 +22,19 @@ use crate::error::Error;
 #[cfg(test)]
 pub(crate) mod example;
 
+pub mod amneziawg;
 pub mod certificates;
 pub mod core;
 pub mod firewall;
 pub mod nginx;
 pub mod packages;
 pub mod three_xui;
+pub mod trusttunnel;
+mod vpn;
+#[cfg(test)]
+mod vpn_smoke;
+#[cfg(test)]
+mod vpn_tests;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
@@ -57,6 +64,8 @@ pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
         Arc::new(firewall::FirewallAdapter::new(context)),
         Arc::new(nginx::NginxAdapter::new(context)),
         Arc::new(core::CoreAdapter::new(context)),
+        Arc::new(amneziawg::AmneziaWgAdapter::new(context)),
+        Arc::new(trusttunnel::TrustTunnelAdapter::new(context)),
     ]
 }
 
