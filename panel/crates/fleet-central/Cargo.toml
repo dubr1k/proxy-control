@@ -1,0 +1,38 @@
+[package]
+name = "panel-fleet-central"
+description = "The central side of fleet v2: secure linked-panel HTTP, links, desired generations, delivery, import and metrics fan-in."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_fleet_central"
+
+[features]
+test-hooks = []
+
+[dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+indexmap = "2"
+log = "0.4"
+panel-clients = { path = "../clients" }
+panel-core = { path = "../core" }
+panel-fleet = { path = "../fleet" }
+panel-metrics = { path = "../metrics" }
+panel-model = { path = "../model" }
+panel-nodes = { path = "../nodes" }
+panel-routing = { path = "../routing" }
+panel-secrets = { path = "../secrets" }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
+url = "2"
+
+[dev-dependencies]
+rcgen = "0.14"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros", "io-util"] }

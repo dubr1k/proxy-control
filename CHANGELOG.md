@@ -6,6 +6,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 - The Rust panel routing engine preserves policy preview/apply/rollback, custom exits, per-grant lanes, relays, chains and destination explanations. Escaped protocol-manager errors retain their HTTP status and protocol-specific response; actual runtime crashes remain HTTP 500.
+- The Rust panel's Fleet v2 central keeps the existing link/import/generation API, encrypted node-key escrow, heartbeat delivery, routing readback and linked-node metrics. HTTPS uses system CA/hostname verification or a leaf-DER SHA-256 pin checked before sending credentials; every DNS answer is checked in full before connecting, with private networks requiring explicit opt-in.
 
 ## [3.3.0] - 2026-10-25
 
