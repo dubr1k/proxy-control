@@ -201,7 +201,7 @@ fn an_empty_database_migrates_to_pythons_exact_schema() {
 fn a_python_migrated_database_is_accepted_and_left_untouched() {
     let scratch = Scratch::new("python");
     let path = scratch.path("panel.sqlite3");
-    std::fs::copy(Path::new(FIXTURES).join("python-v26.sqlite3"), &path).unwrap();
+    std::fs::copy(Path::new(FIXTURES).join("python-v26.db"), &path).unwrap();
     let before = std::fs::read(&path).unwrap();
     let (schema, rows) = canonical_dump(&path, None);
     assert_eq!(schema, read_json("schema-v26.json"));

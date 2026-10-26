@@ -8,7 +8,7 @@ Run from the repository root with the panel's Python environment:
 Writes:
 - `migrations.json`: every migration's version, name, statements (verbatim) and checksum;
 - `schema-v26.json`: `sqlite_master` of an empty database migrated to the last version;
-- `python-v26.sqlite3`: a database migrated and seeded by Python (the Rust runner must accept it
+- `python-v26.db`: a database migrated and seeded by Python (the Rust runner must accept it
   and leave it untouched);
 - `python-v26.json`: the canonical dump of its rows;
 - `snapshot-vNN.sql` + `expected-vNN.json`: a seeded database at version NN (Python's `iterdump`)
@@ -186,12 +186,12 @@ def main(out: Path) -> None:
         schema = canonical_dump(fresh)["schema"]
         write_json(out / "schema-v26.json", schema)
 
-        full = work / "python-v26.sqlite3"
+        full = work / "python-v26.db"
         migrate(full, len(MIGRATIONS))
         seed(full, len(MIGRATIONS))
         for leftover in (full.with_name(full.name + "-wal"), full.with_name(full.name + "-shm")):
             assert not leftover.exists(), leftover
-        shutil.copyfile(full, out / "python-v26.sqlite3")
+        shutil.copyfile(full, out / "python-v26.db")
         seeded = canonical_dump(full)
         assert seeded.pop("schema") == schema
         write_json(out / "python-v26.json", seeded, indent=None)

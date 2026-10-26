@@ -700,7 +700,7 @@ fn database_written_by_the_python_collector_is_read_and_continued() {
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, python_log()).unwrap();
     let db = dir.join("traffic.sqlite3");
-    std::fs::write(&db, include_bytes!("testdata/python-traffic.sqlite3")).unwrap();
+    std::fs::write(&db, include_bytes!("testdata/python-traffic.db")).unwrap();
     std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o600)).unwrap();
     // The fixture tracked the log by the identity it had on the machine that wrote it.
     let info = std::fs::metadata(&log).unwrap();
@@ -747,7 +747,7 @@ fn legacy_database_gains_the_columns_the_python_collector_added() {
     let log = dir.join("access.json");
     std::fs::write(&log, "").unwrap();
     let db = dir.join("legacy.sqlite3");
-    std::fs::write(&db, include_bytes!("testdata/legacy.sqlite3")).unwrap();
+    std::fs::write(&db, include_bytes!("testdata/legacy.db")).unwrap();
     open(&log, &db, &[], Options::default()).close();
     assert_eq!(schema_of(&db), include_str!("testdata/legacy-migrated-schema.txt"));
     let journal: String =
