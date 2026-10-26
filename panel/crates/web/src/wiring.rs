@@ -77,12 +77,50 @@ pub fn build(settings: Settings, static_dir: PathBuf) -> Result<AppState, String
 /// The other packages' services, in `create_app`'s order (`app.py:146-252`): protocol adapters
 /// (WP6), clients/provisioning/facade/lifecycle (WP7), subscriptions (WP9), versions (WP8), the
 /// fleet (WP11/WP12), routing and lanes (WP10), metrics (WP13). Each adds `services.insert(…)`.
-pub fn services(_core: &Arc<Core>) -> Result<Services, String> {
-    let services = Services::new();
+pub fn services(core: &Arc<Core>) -> Result<Services, String> {
+    let mut services = Services::new();
+    // `app.state.adapters` and `app.state.router` (`app.py:150-171`): one adapter set for the whole
+    // panel (WP12a builds it; the clients and routing packages take their adapters from it).
+    let runtime = Arc::new(panel_fleet::node::ManagerRuntime::from_settings(&core.settings, bridge_probe(core)));
+    // The node side of fleet v2 (`ManagedStore`, `Reconciler`, `app.py:174,206-209`).
+    let node = panel_fleet::node::FleetNode::new(
+        core.database.clone(),
+        core.secrets.clone(),
+        runtime.clone(),
+        Arc::new(core.managers.versions.clone()),
+        panel_fleet::node::NodeConfig::from_settings(&core.settings),
+        core.panel_guid.clone(),
+        core.panel_version.clone(),
+        core.clock.clone(),
+    );
+    // The WP7 clients domain over that adapter set, its enforcer ticking the node's reconciler.
+    crate::routes::clients::wire(core, &mut services, &runtime, &node);
+    services.insert(runtime);
+    services.insert(node);
     Ok(services)
+}
+
+/// The MTProxy ingress probe: the real one, unless a `test-hooks` build was told the answer
+/// (`POST /__test/probe-bridge`).
+fn bridge_probe(core: &Arc<Core>) -> Option<panel_protocols::telemt::BridgeProbe> {
+    if !crate::TEST_HOOKS {
+        return None;
+    }
+    let core = Arc::downgrade(core);
+    let real = panel_protocols::telemt::default_bridge_probe();
+    Some(Arc::new(move |ingress| {
+        let forced = core.upgrade().and_then(|core| core.test.bridge_answer());
+        match forced {
+            Some(answer) => Box::pin(async move { answer }),
+            None => real(ingress),
+        }
+    }))
 }
 
 /// Background loops and pre-serve work (`_lifespan`, `app.py:70-89`): the access enforcer's
 /// `tick(force=True)` before serving (WP7), then the loops `pusher` (WP12), `enforcer` (WP7) and
 /// `metrics` (WP13, only when `PANEL_METRICS_ENABLED`), registered in that order.
-pub fn register_lifespan(_state: &AppState) {}
+pub fn register_lifespan(state: &AppState) {
+    // (pusher: WP12) — the enforcer's pre-serve tick and loop (WP7) — (metrics: WP13)
+    crate::routes::clients::register_lifespan(state);
+}
