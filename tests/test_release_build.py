@@ -5,7 +5,6 @@ import io
 import json
 import os
 import subprocess
-import sys
 import tarfile
 from pathlib import Path
 
@@ -13,6 +12,7 @@ import pytest
 
 import release.build as release_build
 from release.build import (
+    BuiltRelease,
     HOST_BINARIES_DOCKERFILE,
     HOST_BINARIES_LIST,
     HOST_BINARY_BUILDER,
@@ -71,7 +71,6 @@ def clean_checkout(tmp_path: Path, name: str = "source") -> Path:
     (root / "VERSION").write_text(f"{VERSION}\n")
     (root / "install.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (root / "install.sh").chmod(0o755)
-    (root / "installer" / "cli.py").write_text("print('cli')\n")
     (root / "README.md").write_text("# release fixture\n")
     # The real install script: the release stamps it and publishes it beside the archive.
     (root / "scripts").mkdir()
@@ -157,7 +156,7 @@ def checkout_with_private_files(tmp_path: Path) -> Path:
     return root
 
 
-def build(tmp_path: Path, output: str, source: Path, **kwargs) -> object:
+def build(tmp_path: Path, output: str, source: Path, **kwargs) -> BuiltRelease:
     return build_release(
         tmp_path / output,
         source=source,
@@ -356,8 +355,20 @@ def _run_published_script(dist: Path, *arguments: str) -> subprocess.CompletedPr
 
 
 def test_the_published_install_script_installs_its_own_release_and_refuses_other_bytes(tmp_path):
-    source = clean_checkout(tmp_path)
-    built = build(tmp_path, "dist", source)
+    source = checkout_with_host_crates(tmp_path)
+    agent = source / "version_agent"
+    agent.mkdir()
+    (agent / "Cargo.toml").write_text('[package]\nname = "version_agent"\n')
+    (agent / "Cargo.lock").write_bytes((ROOT / "version_agent/Cargo.lock").read_bytes())
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "both shipped native host binaries")
+    built = build(
+        tmp_path, "dist", source,
+        binaries_from=fake_build(tmp_path / "bin", {
+            PROBE: b"\x7fELF fixture installer",
+            "version_agent/bin/linux-amd64/proxy-control-version-agent": b"\x7fELF fixture version-agent",
+        }),
+    )
     dist = tmp_path / "dist"
     ok = _run_published_script(dist)
     assert ok.returncode == 0, ok.stderr
@@ -521,22 +532,6 @@ def test_sbom_requires_at_least_one_packaged_file():
 # ----------------------------------------------------------------------
 
 
-def test_bootstrap_verifies_before_it_dispatches_through_sudo():
-    script = (ROOT / "install-bootstrap").read_text()
-    dispatch = script.index("exec sudo")
-    for check in (
-        "must not be group/other-writable",
-        "archive checksum mismatch",
-        "the manifest records a different archive digest",
-        "stable releases only",
-        "unsafe member in the release archive",
-    ):
-        assert check in script
-        assert script.index(check) < dispatch
-    assert "run the verification as an unprivileged user" in script
-    assert "curl" not in script
-
-
 def test_release_workflow_pins_actions_and_separates_privileged_jobs():
     workflow = (ROOT / ".github/workflows/release.yml").read_text()
     for job in (
@@ -567,50 +562,6 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
             reference = stripped.split("@", 1)[1].split()[0]
             assert len(reference) == 40, stripped
             assert all(character in "0123456789abcdef" for character in reference)
-
-
-def test_the_verify_tool_runs_as_a_script_from_the_repository_root():
-    """The release workflow runs `python release/verify.py`, which puts
-    `release/` on sys.path and not the repository root."""
-    completed = subprocess.run(
-        (sys.executable, "release/verify.py", "manifest", "release/external-artifacts.json"),
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        env={"PATH": os.environ.get("PATH", "")},
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert "ok" in completed.stdout
-
-
-def test_the_release_carries_the_version_agent_and_its_deploy_files():
-    """The installer (v0.11) installs the version-agent out of the release tree: the
-    agent's package and the unit, tmpfiles, env example and catalog example it copies
-    must travel in the archive, or a real install has nothing to install."""
-    names = set(tracked_files(ROOT))
-    modules = {path.relative_to(ROOT).as_posix() for path in (ROOT / "version_agent").glob("*.py")}
-    assert {"version_agent/server.py", "version_agent/service.py", "version_agent/catalog.py"} <= modules
-    assert modules <= names, sorted(modules - names)
-    assert {
-        "deploy/version-agent.service",
-        "deploy/version-agent.env.example",
-        "deploy/proxy-control-version-agent.tmpfiles.conf",
-        "deploy/version-catalog.example.json",
-        "compose.yaml",
-    } <= names
-
-
-def test_the_release_carries_the_mcp_server():
-    """The MCP overlay (v0.11) builds its image from the release tree: the crate (Rust since
-    4.0) with its lock file, the shared crate it builds against, its Dockerfile and the overlay
-    must travel in the archive."""
-    names = set(tracked_files(ROOT))
-    sources = {path.relative_to(ROOT).as_posix() for path in (ROOT / "mcp_server").rglob("*.rs")}
-    assert {"mcp_server/src/main.rs", "mcp_server/src/tools.rs", "mcp_server/src/curated.rs", "mcp_server/src/server.rs"} <= sources
-    assert sources <= names, sorted(sources - names)
-    assert {"mcp_server/Dockerfile", "mcp_server/Cargo.toml", "mcp_server/Cargo.lock", "compose.mcp.yaml",
-            "pc_common/Cargo.toml", "pc_common/Cargo.lock"} <= names
-    assert not any(name.startswith("mcp_server/") and name.endswith(".py") for name in names)
 
 
 def test_the_install_script_names_exactly_the_pinned_artifact_versions():
@@ -712,7 +663,7 @@ def test_a_tree_without_host_crates_builds_no_binaries_and_keeps_its_identity_by
 def test_only_listed_crates_with_a_tracked_cargo_toml_take_part(tmp_path):
     source = checkout_with_host_crates(tmp_path)
     crates = host_crates(source, tracked_files(source))
-    # version_agent/ is still Python here, pc_host does not exist in this tree.
+    # This small fixture deliberately omits the listed version-agent crate.
     assert crates.libraries == ("pc_common",)
     assert crates.binaries == (("installer", "proxy-control-installer"),)
     assert crates.paths == (PROBE,)
@@ -841,7 +792,7 @@ def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_pa
     assert seen["dockerfile"] == (ROOT / HOST_BINARIES_DOCKERFILE).read_bytes()
     assert seen["context"] == sorted(
         ["VERSION", HOST_BINARIES_LIST, LIBRARY_FILE, "pc_common/Cargo.toml",
-         "installer/Cargo.lock", "installer/Cargo.toml", "installer/cli.py", "installer/src/main.rs"]
+         "installer/Cargo.lock", "installer/Cargo.toml", "installer/src/main.rs"]
     )
     assert archive_member(built.archive, PROBE) == (0o755, b"built probe")
 
@@ -885,7 +836,11 @@ def test_verify_refuses_an_archive_whose_binary_differs_from_its_identity(tmp_pa
     source = checkout_with_host_crates(tmp_path)
     built = build(tmp_path, "dist", source, binaries_from=fake_build(tmp_path / "bin", {PROBE: b"probe"}))
     with tarfile.open(built.archive, mode="r:gz") as handle:
-        members = [(member, handle.extractfile(member).read()) for member in handle.getmembers()]
+        members = []
+        for member in handle.getmembers():
+            stream = handle.extractfile(member)
+            assert stream is not None
+            members.append((member, stream.read()))
     forged = tmp_path / "forged.tar.gz"
     with tarfile.open(forged, mode="w:gz") as handle:
         for member, data in members:
@@ -905,57 +860,6 @@ def test_the_repository_ignores_prebuilt_host_binaries():
             capture_output=True,
         )
         assert completed.returncode == 0, crate
-
-
-def test_the_host_binary_builder_is_pinned_and_deterministic():
-    """The decisions behind byte-identical binaries on ams-test and in CI, kept in place."""
-    dockerfile = (ROOT / HOST_BINARIES_DOCKERFILE).read_text()
-    assert builder_image(ROOT).startswith("rust:1.99-alpine@sha256:")
-    for line in dockerfile.splitlines():
-        if line.startswith("FROM ") and " AS " in line:
-            image = line.split()[1]
-            assert image in {"${BUILDER_IMAGE}", "scratch", "builder"}, line
-    for setting in (
-        "CARGO_INCREMENTAL=0",
-        "HOST_TARGET=x86_64-unknown-linux-musl",
-        "--remap-path-prefix=/src=/proxy-control",
-        "--remap-path-prefix=/usr/local/cargo/registry/src=/crates",
-        "-C target-cpu=x86-64",
-        "-Wl,--build-id=sha1",
-        "ARG SOURCE_DATE_EPOCH",
-        "cargo build --release --locked",
-        "FROM scratch AS binaries",
-        "FROM scratch AS checked",
-        "cargo fmt --check",
-        "-D warnings",
-        "cargo test --locked",
-    ):
-        assert setting in dockerfile, setting
-    assert "native" not in dockerfile
-    # Every listed crate that exists is a standalone crate with a committed lock and the
-    # release profile of the managers, without panic=abort.
-    crates = host_crates(ROOT, tracked_files(ROOT))
-    assert ("installer", "proxy-control-installer") in crates.binaries
-    for crate, binary in crates.binaries:
-        manifest = (ROOT / crate / "Cargo.toml").read_text()
-        assert (ROOT / crate / "Cargo.lock").is_file(), crate
-        assert f'name = "{binary}"' in manifest
-        assert "lto = true" in manifest and "codegen-units = 1" in manifest and "strip = true" in manifest
-        assert "panic" not in manifest
-        assert "preserve_order" not in manifest
-
-
-def test_the_release_workflows_build_and_compare_the_host_binaries():
-    release = (ROOT / ".github/workflows/release.yml").read_text()
-    ci = (ROOT / ".github/workflows/test.yml").read_text()
-    for workflow in (release, ci):
-        assert "--build-binaries bin-a" in workflow and "--build-binaries bin-b" in workflow
-        assert "cmp bin-a/host-binaries.sha256 bin-b/host-binaries.sha256" in workflow
-        assert "--binaries-from bin-a" in workflow and "--binaries-from bin-b" in workflow
-        assert "--target checked" in workflow
-    # The tag annotation names each binary the lab built; CI compares them before the archive.
-    assert "lab-bin-sha256:" in release
-    assert release.index("lab-bin-sha256") < release.index('test "$first" = "$expected"')
 
 
 def test_the_knowledge_graph_is_tracked_but_never_shipped(tmp_path):

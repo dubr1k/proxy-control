@@ -2,7 +2,7 @@
 
 Proxy Control product naming does not rename deployed runtime contracts.
 
-The following remain supported unchanged: `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, `.mtproxy-backup`, `/var/lib/mtproxy-panel`, `/opt/mtproxy-panel`, `/etc/mtproxy-agent`, `/var/lib/mtproxy-agent`, unit filenames `mtproxy-agent.service` and `mtproxy-fleet-ingress.service`, fleet URI `urn:mtproxy-panel:node:`, and installed `scripts/mtproxy-deploy`.
+The installed path `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, `.mtproxy-backup`, `/var/lib/mtproxy-panel` and `/opt/mtproxy-panel` keep their names. Fleet v1 units/paths and `scripts/mtproxy-deploy`, `scripts/proxyctl.py`, `scripts/check-deployment.sh` are retired in 4.0. Move every Fleet v1 node to v2 before updating. The 3.3.0 → 4.0 transition is supported only through verified `install-release.sh --update`, not the 3.3.0 UI button.
 
 **3.0 renamed the stack.** The Compose project is `proxy_panel_by_dubr1k` (it was `mtproxy`), and with it the network, the images (`proxy_panel_by_dubr1k-<service>`) and the volumes (`proxy_panel_by_dubr1k_panel-data`, `proxy_panel_by_dubr1k_telemt-config`, …). Container names (`proxy-control-*`) did not change. `scripts/update-host.sh` moves an installed host once, at the end of the update (`scripts/migrate-compose-project.sh`): it tags the running images with the new names, copies the data volumes while the stack stops for under a minute, and keeps the old `mtproxy_*` volumes and images as the way back. Until a host is moved, the version-agent, `update-host.sh` and the installer address the project the panel runs in.
 

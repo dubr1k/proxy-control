@@ -2,17 +2,16 @@
 
 [English](INSTALL.en.md) · **Русский**
 
-Root-only `install.sh` вызывает транзакционный `scripts/proxyctl.py install`. Поддерживаются команды:
+Root-only `install.sh` вызывает проверенный нативный `proxy-control-installer`. Поддерживаются команды:
 
 ```text
-audit → plan → install → repair → uninstall
+wizard → plan → install → status/resume/repair → uninstall
 ```
 
 Установщик всегда разворачивает Telemt/MTProxy и панель, а в выбранных профилях
 в той же транзакции добавляет NaiveProxy и/или Mieru после успешной приёмки
 core. Связанные панели (Fleet v2) настраиваются из интерфейса панели
-после установки — [FLEET.ru.md](FLEET.ru.md); legacy Fleet v1 остаётся
-отдельной ручной интеграцией.
+после установки — [FLEET.ru.md](FLEET.ru.md). Fleet v1 снят: до 4.0 переведите все узлы v1 на v2.
 
 В режиме `fresh` свой Nginx сохраняет IP клиентов панели через приватные Unix-сокеты
 без новых TCP-портов. Для `coexist` нужен операторский PROXY bridge: установщик
@@ -21,13 +20,16 @@ core. Связанные панели (Fleet v2) настраиваются из
 
 ## Основной путь установки: проверенный релиз
 
-После первого обновления старым version-agent перед `repair` требуется
-`reconcile-panel-update` с точным архивом и SHA-256: он согласует владение
-файлами Core и кодом агента. См. [команды установщика](docs/INSTALLER_REFERENCE.ru.md#команды).
+Релиз содержит статические нативные бинарники хоста; Python и Cargo не нужны.
+Проверка выполняется без привилегий в Bash/awk до запуска проверенного бинарника от root.
+Для 3.3.0 → 4.0 используйте только `bash install-release.sh --update`: сначала миграция
+агента, `status=ok`, `implementation=rust` и точная целевая `version`, затем панель,
+менеджеры, ingress и Compose и repair хостовых обёрток. При отказе восстанавливаются
+прежний агент и активный журнал владения, env, директивы unit и drop-in сохраняются.
+См. [переход и откат](docs/UPGRADING.ru.md).
 
-Это поддерживаемый способ установки Proxy Control. Он заменяет ручную
-последовательность `scripts/proxyctl.py` ниже, которая остаётся в документации
-для уже развёрнутых систем и для разбора того, что делает установщик.
+Это поддерживаемый способ установки Proxy Control. Старые точки входа `proxyctl`,
+`mtproxy-deploy` и `check-deployment.sh` сняты; используйте нативный транзакционный CLI.
 
 Короче всего — скрипт установки, опубликованный рядом с архивом (с v1.0.3): в нём записаны
 версия и SHA-256 архива своего выпуска, он работает без привилегий, скачивает и проверяет
@@ -73,7 +75,7 @@ chmod 700 install-bootstrap
 отклоняет. Для них используйте опубликованный с такой версией `install-release.sh`: в ссылках
 выше замените `releases/latest/download/` на `releases/download/v<версия>/`. Он выполняет
 ту же сверку `SHA256SUMS` и манифеста, распаковывает архив и запускает мастер
-`python3 -m installer.cli wizard` из распакованного каталога `proxy-control/`.
+`sudo bash install.sh wizard` из распакованного каталога `proxy-control/`.
 
 Копия сценария в репозитории — [`scripts/install-release.sh`](scripts/install-release.sh) —
 принимает `--version X.Y.Z` и при желании `--sha256 <lab-sha256>` из аннотации тега или
@@ -101,6 +103,7 @@ digest плана. Полная поверхность — профили, вс�
 
 - Ubuntu 24.04 + systemd;
 - root/sudo;
+- Bash, awk, curl, tar и sha256sum; Python и компилятор Rust не требуются;
 - DNS A/AAAA для proxy и panel names указывает напрямую на host; для необязательного TrustTunnel — ещё и его
   собственное имя (отдельный домен, A-запись на host, только DNS, без CDN-proxy);
 - TCP/80 доступен для ACME HTTP-01;
@@ -142,7 +145,7 @@ capabilities и `no-new-privileges`. Ошибка любого секрета о
 релиза.
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/core.toml --json
+sudo bash install.sh plan --config examples/installer/core.toml --json
 ```
 
 Вместо примера укажите путь к своему файлу — тому, который написал мастер.
@@ -172,7 +175,7 @@ python3 -m installer.cli plan --config examples/installer/core.toml --json
 У плана есть digest, и установка не начнётся, пока вы не подтвердите именно его:
 
 ```bash installer-check
-sudo python3 -m installer.cli install --config examples/installer/core.toml --accept-plan DIGEST
+sudo bash install.sh install --config examples/installer/core.toml --accept-plan DIGEST
 ```
 
 Установщик:
@@ -212,9 +215,9 @@ ss -lntup
 ## 5. Состояние, продолжение и repair
 
 ```bash installer-check
-sudo python3 -m installer.cli status --json
-sudo python3 -m installer.cli resume --json
-sudo python3 -m installer.cli repair --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
 ```
 
 `resume` продолжает прерванную установку с сохранённой фазы. `repair` читает
@@ -225,8 +228,8 @@ sudo python3 -m installer.cli repair --json
 ## 6. Удаление
 
 ```bash installer-check
-sudo python3 -m installer.cli uninstall --json
-sudo python3 -m installer.cli uninstall --purge-data --json
+sudo bash install.sh uninstall --json
+sudo bash install.sh uninstall --purge-data --json
 ```
 
 Удаление фиксирует фазы в журнале, убирает только принадлежащие установщику
@@ -241,7 +244,7 @@ sudo python3 -m installer.cli uninstall --purge-data --json
 ## Отказ и прерванный SSH
 
 Код выхода SSH `255` доказывает только обрыв связи. На целевом хосте проверьте
-`sudo python3 -m installer.cli status --json`, фазу, принадлежащие установщику
+`sudo bash install.sh status --json`, фазу, принадлежащие установщику
 файлы, службы и результат приёмки. Не запускайте установку повторно вслепую.
 
 ## Следующие интеграции

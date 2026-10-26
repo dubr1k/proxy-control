@@ -1,38 +1,12 @@
 #!/usr/bin/env bash
-# Verify a downloaded Proxy Control release, then hand it to the installer.
-#
-# Everything this script checks happens without privilege: ownership, mode,
-# the archive checksum, the release manifest identity, and a safe extraction
-# into a private directory. Only after all of that does it dispatch through
-# sudo. It never downloads and executes in one step, and it never selects a
-# prerelease.
+# Stable-only unprivileged verification; no code from the archive runs before verification.
 set -Eeuo pipefail
-
-ARCHIVE=
-CHECKSUM=
-MANIFEST=
-PROVENANCE=
-DESTINATION=
-
+ARCHIVE='' CHECKSUM='' MANIFEST='' PROVENANCE='' DESTINATION=''
+fail() { printf 'install-bootstrap: %s\n' "$*" >&2; exit 1; }
 usage() {
-    cat >&2 <<'USAGE'
-usage: install-bootstrap --archive FILE --checksum FILE --manifest FILE
-                        [--provenance FILE] [--destination DIR] [-- ARGS...]
-
-  --archive     the release tar.gz to verify
-  --checksum    the SHA256SUMS file published beside it
-  --manifest    release-manifest.json published beside it
-  --provenance  an already verified provenance marker (optional)
-  --destination where to extract; defaults to a private mktemp directory
-USAGE
+    printf 'usage: install-bootstrap --archive FILE --checksum FILE --manifest FILE [--provenance FILE] [--destination DIR] [-- ARGS...]\n' >&2
     exit 2
 }
-
-fail() {
-    printf 'install-bootstrap: %s\n' "$*" >&2
-    exit 1
-}
-
 while (($#)); do
     case $1 in
         --archive) ARCHIVE=${2:?}; shift 2 ;;
@@ -45,71 +19,90 @@ while (($#)); do
     esac
 done
 [[ -n $ARCHIVE && -n $CHECKSUM && -n $MANIFEST ]] || usage
-
-[[ ${EUID:-$(id -u)} -ne 0 ]] || fail "run the verification as an unprivileged user"
-
+[[ ${EUID:-$(id -u)} -ne 0 ]] || fail 'run the verification as an unprivileged user'
 check_file() {
-    local path=$1 label=$2 owner mode
-    [[ -f $path && ! -L $path ]] || fail "$label must be a regular file: $path"
+    local path=$1 owner mode
+    [[ -f $path && ! -L $path ]] || fail "not a regular file: $path"
     owner=$(stat -c '%u' -- "$path" 2>/dev/null || stat -f '%u' -- "$path")
     mode=$(stat -c '%a' -- "$path" 2>/dev/null || stat -f '%Lp' -- "$path")
-    [[ $owner == "${EUID:-$(id -u)}" ]] || fail "$label must be owned by you: $path"
-    (( (8#$mode & 0022) == 0 )) || fail "$label must not be group/other-writable: $path"
+    [[ $owner == "${EUID:-$(id -u)}" ]] || fail "must be owned by you: $path"
+    (( (8#$mode & 0022) == 0 )) || fail "must not be group/other-writable: $path"
 }
-
-check_file "$ARCHIVE" "the release archive"
-check_file "$CHECKSUM" "the checksum file"
-check_file "$MANIFEST" "the release manifest"
-[[ -z $PROVENANCE ]] || check_file "$PROVENANCE" "the provenance marker"
-
 sha256_of() {
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum -- "$1" | cut -d' ' -f1
-    else
-        shasum -a 256 -- "$1" | cut -d' ' -f1
-    fi
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum -- "$1" | cut -d' ' -f1
+    else shasum -a 256 -- "$1" | cut -d' ' -f1; fi
 }
-
+# Published manifests are canonical indent-2 scalar objects. Refuse ambiguity, escapes,
+# duplicate keys and noncanonical JSON rather than guessing at untrusted JSON with regexes.
+manifest_fields() {
+    LC_ALL=C awk '
+        NR == 1 { if ($0 != "{") exit 1; next }
+        closed { exit 1 }
+        $0 == "}" { if (comma) exit 1; closed=1; next }
+        { if (count && !comma) exit 1
+          if ($0 !~ /^  "[a-z_][a-z_0-9]*": ("[^"\\]*"|[0-9]+),?$/) exit 1
+          comma=($0 ~ /,$/); count++
+          line=$0; sub(/^  "/,"",line); key=line; sub(/".*/,"",key)
+          if (seen[key]++) exit 1
+          sub(/^[^"]*": /,"",line); sub(/,$/,"",line)
+          if (line ~ /^"/) { sub(/^"/,"",line); sub(/"$/,"",line) }
+          value[key]=line }
+        END { if (!closed || !value["archive"] || !value["archive_sha256"] || !value["version"] || !value["tag"]) exit 1
+              print value["archive"]; print value["archive_sha256"]; print value["version"]; print value["tag"] }
+    ' "$1"
+}
+archive_preflight() {
+    # Reject links, devices and special entries before extraction, not after following them.
+    tar -tvzf "$1" | LC_ALL=C awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' || return 1
+    tar -tzf "$1" | LC_ALL=C awk '
+        { if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /[[:cntrl:]]/) bad=1; count++ }
+        END { exit bad || !count }
+    '
+}
+verify_host_binaries() {
+    local root=$1 rows path expected mode count=0
+    rows=$(LC_ALL=C awk '
+        /^  "binaries": \{$/ { if (seen++) exit 1; inside=1; next }
+        inside && /^  },?$/ { if (comma) exit 1; inside=0; done=1; next }
+        inside { if (count && !comma) exit 1
+                 if ($0 !~ /^    "[a-zA-Z0-9_./-]+": "[0-9a-f]+",?$/) exit 1
+                 comma=($0 ~ /,$/)
+                 line=$0; sub(/^    "/,"",line); path=line; sub(/".*/,"",path)
+                 sub(/^[^"]*": "/,"",line); sub(/",?$/,"",line)
+                 if (length(line)!=64 || paths[path]++) exit 1
+                 if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent") exit 1
+                 print path " " line; count++ }
+        END { if (!done || inside || count!=2) exit 1 }
+    ' "$root/release/release.json") || return 1
+    while read -r path expected; do
+        [[ -f $root/$path && ! -L $root/$path ]] || return 1
+        mode=$(stat -c '%a' -- "$root/$path" 2>/dev/null || stat -f '%Lp' -- "$root/$path")
+        [[ $mode == 755 && $(sha256_of "$root/$path") == "$expected" ]] || return 1
+        count=$((count + 1))
+    done <<< "$rows"
+    ((count == 2))
+}
+check_file "$ARCHIVE"; check_file "$CHECKSUM"; check_file "$MANIFEST"
+[[ -z $PROVENANCE ]] || check_file "$PROVENANCE"
 archive_name=$(basename -- "$ARCHIVE")
-expected=$(awk -v name="$archive_name" '$2 == name || $2 == "*"name {print $1}' "$CHECKSUM" | head -n 1)
-[[ -n $expected ]] || fail "the checksum file does not name $archive_name"
+expected=$(awk -v name="$archive_name" '$2 == name || $2 == "*"name { if (seen++) exit 1; value=$1 } END { if (!seen) exit 1; print value }' "$CHECKSUM") || fail 'checksum file must name the archive exactly once'
+[[ $expected =~ ^[0-9a-f]{64}$ ]] || fail 'invalid archive checksum'
 actual=$(sha256_of "$ARCHIVE")
-[[ $actual == "$expected" ]] || fail "archive checksum mismatch"
-
-python3 - "$MANIFEST" "$archive_name" "$actual" <<'PYEOF'
-import json, sys
-manifest = json.load(open(sys.argv[1], encoding="utf-8"))
-if manifest.get("archive") != sys.argv[2]:
-    raise SystemExit("the manifest names a different archive")
-if manifest.get("archive_sha256") != sys.argv[3]:
-    raise SystemExit("the manifest records a different archive digest")
-version = str(manifest.get("version", ""))
-if manifest.get("tag") != f"v{version}":
-    raise SystemExit("the manifest tag and version disagree")
-if any(marker in version for marker in ("-rc", "-alpha", "-beta", "-dev")):
-    raise SystemExit("this bootstrap installs stable releases only")
-PYEOF
-
-if [[ -z $DESTINATION ]]; then
-    DESTINATION=$(mktemp -d "${TMPDIR:-/tmp}/proxy-control-release.XXXXXX")
+[[ $actual == "$expected" ]] || fail 'archive checksum mismatch'
+fields=$(manifest_fields "$MANIFEST") || fail 'release manifest is not canonical or is incomplete'
+mapfile -t identity <<< "$fields"
+[[ ${identity[0]} == "$archive_name" && ${identity[1]} == "$actual" && ${identity[3]} == "v${identity[2]}" ]] || fail 'the manifest does not describe this archive'
+[[ ${identity[2]} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'this bootstrap installs stable releases only'
+archive_preflight "$ARCHIVE" || fail 'the release archive failed its extraction preflight'
+if [[ -z $DESTINATION ]]; then DESTINATION=$(mktemp -d "${TMPDIR:-/tmp}/proxy-control-release.XXXXXX")
+else
+    [[ ! -e $DESTINATION ]] || fail 'the destination must not already exist'
+    mkdir -m 0700 -- "$DESTINATION"
 fi
-[[ -d $DESTINATION && ! -L $DESTINATION ]] || fail "the destination must be a real directory"
 chmod 0700 -- "$DESTINATION"
-
-tar -tzf "$ARCHIVE" | python3 -c '
-import sys
-for line in sys.stdin:
-    name = line.rstrip("\n")
-    if name.startswith("/") or ".." in name.split("/"):
-        raise SystemExit(f"unsafe member in the release archive: {name}")
-    if not name.startswith("proxy-control/"):
-        raise SystemExit(f"member outside the release prefix: {name}")
-' || fail "the release archive failed its extraction preflight"
-
 tar -xzf "$ARCHIVE" -C "$DESTINATION"
 root=$DESTINATION/proxy-control
-[[ -f $root/install.sh && -f $root/release/release.json ]] || fail "the extracted release is incomplete"
-
-printf 'verified %s (%s)\n' "$archive_name" "$actual"
-printf 'extracted to %s\n' "$root"
+[[ -f $root/install.sh && ! -L $root/install.sh && -f $root/release/release.json ]] || fail 'the extracted release is incomplete'
+verify_host_binaries "$root" || fail 'release host binary verification failed'
+printf 'verified %s (%s)\nextracted to %s\n' "$archive_name" "$actual" "$root"
 exec sudo -- bash "$root/install.sh" "$@"

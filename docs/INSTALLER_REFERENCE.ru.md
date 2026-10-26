@@ -71,7 +71,7 @@ Gzip-обёртку вокруг архива делает локальный zl
 Без аргументов установщик запускает двуязычный мастер:
 
 ```bash installer-check
-python3 -m installer.cli wizard --lang ru --config-output proxy-control.toml
+sudo bash install.sh wizard --lang ru --config-output proxy-control.toml
 ```
 
 Мастер спрашивает по порядку: язык, режим хоста, профиль, каждый обязательный
@@ -92,6 +92,23 @@ AmneziaWG (и тогда его версии и публичное имя), ст
 
 ## Команды
 
+Команды хоста выполняются тем же проверенным бинарником, что и `install.sh`; Python
+и компилятор Rust на хосте не нужны. Дерево релиза определяется по пути бинарника;
+команды перехода принимают `--source RELEASE` для явного источника.
+
+| Нативная команда хоста | Контракт |
+| --- | --- |
+| `update-host` | `--version X.Y.Z --sha256 DIGEST [--lang ru|en]`; сначала миграция агента и versioned Rust health, затем панель/менеджеры, ingress и Compose, repair обёрток. Обычно запускается через `install-release.sh --update`. |
+| `migrate-agent` | `[--version X.Y.Z] [--lang ru|en]`; источник — проверенное дерево релиза, env/drop-in и директивы unit сохраняются, меняется лишь распознанный ExecStart, активный журнал перебазируется; при отказе откат. |
+| `migrate-compose-project` | `[--dir DIR] [--lang ru|en] [--check]`; проверка полной модели и bind, копирование данных при остановке; прежние тома сохраняются, при отказе возвращается прежний проект. |
+| `ingress-upgrade` | `--project-dir DIR [--apply]`; просмотр или применение точных прежних шаблонов, чужой ingress не меняется. |
+| `verify-release` | Нативная проверка файлов релиза; параметры артефактов и attestation: `sudo bash install.sh verify-release --help`. |
+
+Shell-проверка отвергает ссылки и специальные члены архива, сверяет SHA-256 и
+права `0755` обоих бинарников хоста до выполнения кода из архива.
+Порядок перехода 3.3.0 → 4.0 и откат описаны в [UPGRADING](UPGRADING.ru.md).
+
+
 | Команда | Что делает |
 | --- | --- |
 | `wizard` | Задаёт вопросы, пишет конфигурацию, показывает план и применяет его после подтверждения digest |
@@ -105,9 +122,9 @@ AmneziaWG (и тогда его версии и публичное имя), ст
 | `uninstall` | Удаляет владеемое поколение; `--purge-data` удаляет и persistent-состояние |
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
-python3 -m installer.cli status --json
-python3 -m installer.cli report --config examples/installer/full-three-xui.toml --output /var/lib/proxy-control/reports
+sudo bash install.sh plan --config examples/installer/full-three-xui.toml --json
+sudo bash install.sh status --json
+sudo bash install.sh report --config examples/installer/full-three-xui.toml --output /var/lib/proxy-control/reports
 ```
 
 `plan` доступен только на чтение. `install` отвергает digest, не совпадающий с
@@ -290,7 +307,7 @@ server: `proxy_protocol on` не должен попадать на raw TLS back
 TCP-портов нет. Не включайте PROXY глобально на чужом frontend без проверки соседей.
 
 Обновление одной командой мигрирует только точные прежние fresh-шаблоны установщика.
-`python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443` выводит
+`sudo bash install.sh ingress-upgrade --project-dir /opt/mtproxy-shared443` выводит
 план без записи; `--apply` от root сохраняет оба конфига, заменяет их, выполняет
 `nginx -t` и reload, затем ждёт новое живое поколение Nginx workers. Занятые пути
 новых Unix-сокетов отвергаются без удаления. Ошибка проверки или reload восстанавливает оба файла и старую
@@ -333,11 +350,11 @@ profile = "full"        # Telemt, панель, NaiveProxy и Mieru вместе
 Готовые примеры лежат в `examples/installer/`:
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/core.toml --json
-python3 -m installer.cli plan --config examples/installer/core-naive.toml --json
-python3 -m installer.cli plan --config examples/installer/core-mieru.toml --json
-python3 -m installer.cli plan --config examples/installer/core-trusttunnel.toml --json
-python3 -m installer.cli plan --config examples/installer/existing-three-xui.toml --json
+sudo bash install.sh plan --config examples/installer/core.toml --json
+sudo bash install.sh plan --config examples/installer/core-naive.toml --json
+sudo bash install.sh plan --config examples/installer/core-mieru.toml --json
+sudo bash install.sh plan --config examples/installer/core-trusttunnel.toml --json
+sudo bash install.sh plan --config examples/installer/existing-three-xui.toml --json
 ```
 
 Управляемый 3x-ui **3.10.2** публикует три эталонных inbound: **VLESS Reality TCP** и
@@ -557,10 +574,10 @@ Python-прерывании runner завершает группу, дожида
 отмену Docker build проверяют отдельной приёмкой.
 
 ```bash installer-check
-python3 -m installer.cli status --json
-python3 -m installer.cli resume --json
-python3 -m installer.cli repair --json
-python3 -m installer.cli uninstall --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
+sudo bash install.sh uninstall --json
 ```
 
 `resume` продолжает по durable-журналу и выполняет каждую зафиксированную
