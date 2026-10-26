@@ -208,3 +208,28 @@ fn framework_probes_match_python() {
     }
     assert!(failures.is_empty(), "{} of {} probes differ:\n{}", failures.len(), expected.len(), failures.join("\n"));
 }
+
+#[test]
+fn nested_json_is_bounded_before_validation_and_keeps_http_workers_alive() {
+    let panel = common::start(&[]);
+    for (depth, expected_status) in [(9997, 400), (129, 400), (128, 422)] {
+        let body = format!("{}0{}", r#"{"a":"#.repeat(depth), "}".repeat(depth));
+        let request = format!(
+            "POST /api/auth/login HTTP/1.1\r\nHost: testserver\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (status, _, response) = common::parse(&common::exchange(&panel.socket, request.as_bytes()), false);
+        assert_eq!(status, expected_status, "JSON container depth {depth}");
+        if status == 400 {
+            assert_eq!(
+                serde_json::from_slice::<Value>(&response).unwrap(),
+                json!({"detail": "There was an error parsing the body"})
+            );
+        }
+        let health = common::exchange(
+            &panel.socket,
+            b"GET /healthz HTTP/1.1\r\nHost: testserver\r\nConnection: close\r\n\r\n",
+        );
+        assert_eq!(common::parse(&health, false).0, 200, "worker health after depth {depth}");
+    }
+}
