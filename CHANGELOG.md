@@ -17,6 +17,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Removed
 - Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
 
+### Installer
+- Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.
+
 ## [3.3.0] - 2026-10-25
 
 ### Added

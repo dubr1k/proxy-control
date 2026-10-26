@@ -32,8 +32,8 @@ Claude Code / Desktop ──https://<mcp-domain>/mcp (Bearer mcp-token)──> n
 The installer sets the server up when the wizard is given an **MCP domain** (the eleventh
 domain, after the subscription one; `domains.mcp` in the configuration,
 [INSTALLER_REFERENCE](INSTALLER_REFERENCE.en.md)). It issues the panel key
-(`panel cli api-key-create --name mcp --scope admin`), writes the secrets
-`secrets/mcp-panel-key` and `secrets/mcp-token` (0600) and `.env.mcp` (`MCP_DOMAIN`,
+(`/usr/local/bin/panel cli api-key-create --name mcp --scope admin`), writes the secrets
+`secrets/mcp-panel-key` and `secrets/mcp-token` (root:10007, 0440) and `.env.mcp` (0600; `MCP_DOMAIN`,
 `MCP_PANEL_HOST`), adds the vhost on the SNI router and brings up the `compose.mcp.yaml`
 overlay. The token and the address `https://<domain>/mcp` land in the root-only install handoff.
 
@@ -46,11 +46,13 @@ cd /opt/mtproxy-shared443         # the project directory
   set -o pipefail
   umask 077
   od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > secrets/mcp-token
-  docker compose exec -T panel panel cli api-key-create --name mcp --scope admin \
+  docker compose exec -T panel /usr/local/bin/panel cli api-key-create --name mcp --scope admin \
     | awk -F '"' '{for(i=2;i<NF;i+=2) if($i=="plaintext"){print $(i+2); found=1}} END{if(!found) exit 1}' > secrets/mcp-panel-key
-  chmod 0600 secrets/mcp-token secrets/mcp-panel-key
+  chown root:10007 secrets/mcp-token secrets/mcp-panel-key
+  chmod 0440 secrets/mcp-token secrets/mcp-panel-key
 ) &&
 printf 'MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=panel.example.com\n' > .env.mcp &&
+chmod 0600 .env.mcp &&
 docker compose --env-file .env --env-file .env.mcp -f compose.yaml -f compose.mcp.yaml up -d --build --wait mcp
 ```
 

@@ -1,0 +1,46 @@
+[Unit]
+Description=Proxy Control privileged version update agent
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=-/etc/proxy-control/version-agent.env
+# `docker build` (the Caddy rebuild, v0.11) writes buildx state under $DOCKER_CONFIG;
+# ProtectHome makes /root read-only, so it lives in the agent's own state directory.
+Environment=DOCKER_CONFIG=/var/lib/proxy-control/version-agent/docker
+WorkingDirectory=/opt/proxy-control
+ExecStartPre=/usr/bin/chown root:10001 /run/proxy-control
+ExecStartPre=/usr/bin/install -d -o root -g root -m 0750 /opt/mtproxy-shared443/version-overrides
+ExecStart=/usr/bin/python3 -m version_agent.server
+Restart=on-failure
+RestartSec=3s
+StateDirectory=proxy-control/version-agent
+StateDirectoryMode=0700
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# Staging and atomic replacement happen in the target's directory, so the
+# directories must be writable; naming the binaries alone leaves them read-only.
+# /var/log/naive-proxy and /var/log/caddy: `caddy adapt --validate` opens the Caddyfile's log
+# writers before the new build is swapped in; a read-only log directory fails that check, and
+# the rollback check with it (found live, again for Caddy 2.11.7).
+# The panel's self-update (v0.11) syncs the agent's own code into /opt/proxy-control and
+# restores the panel database inside the Docker volume on rollback.
+# `-` marks a path a host may not have (no router, no NaiveProxy): systemd otherwise refuses
+# to start the unit at all («Failed to set up mount namespacing», seen on a node without the router).
+ReadWritePaths=/run/proxy-control /var/lib/proxy-control /etc/proxy-control /opt/mtproxy-shared443 /usr/local/bin /usr/bin -/usr/local/lib/proxy-control -/var/log/naive-proxy -/var/log/caddy -/opt/proxy-control -/var/lib/docker/volumes
+
+[Install]
+WantedBy=multi-user.target

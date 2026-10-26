@@ -1,6 +1,5 @@
-//! The route table against the served OpenAPI document: every (method, path) the router lists in
-//! the schema must be an operation of the document, and — once every package has landed — the two
-//! sets must be equal (`router_matches_the_openapi_document`, ignored until the cutover, WP14).
+//! The published OpenAPI operation set must equal the router's documented operations.
+//! MCP builds tools from this document, so retired or unimplemented operations cannot linger.
 
 use std::collections::BTreeSet;
 
@@ -31,13 +30,6 @@ fn router_operations() -> BTreeSet<(String, String)> {
 }
 
 #[test]
-fn every_router_operation_is_documented() {
-    let extra: Vec<_> = router_operations().difference(&document_operations()).cloned().collect();
-    assert!(extra.is_empty(), "routes missing from the OpenAPI document: {extra:?}");
-}
-
-#[test]
-#[ignore = "until every work package registered its routes (WP14 removes this attribute)"]
 fn router_matches_the_openapi_document() {
     assert_eq!(router_operations(), document_operations());
 }
