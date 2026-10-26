@@ -333,3 +333,23 @@ async def test_rendering_never_logs_or_persists_delivery_credentials(public, tok
     logs = server.log_path.read_text()
     assert all(secret not in stored and secret not in logs for secret in secrets)
     assert client_id in stored
+
+
+async def test_a_pending_credential_version_is_not_rendered(pair_factory):
+    from panel.tests.test_fleet_v2_delivery import answer, converge, linked, provision
+
+    pair = pair_factory(central={"hosts": ("testserver", "central.example", SUB_HOST),
+                                 "subscription_url": f"https://{SUB_HOST}"})
+    node, central, node_id = await linked(pair)
+    client_id, _ = await provision(central, node_id, protocol="mtproxy")
+    issued = await answer(central.client, "POST", f"/api/clients/{client_id}/subscription", status=201)
+    revealed = await answer(central.client, "GET", "/api/reveal/" + issued["reveal_token"])
+    path = urlsplit(revealed["url"]).path
+    async with central.http(SUB_HOST) as public:
+        pending = await public.get(path, params={"format": "raw"})
+        assert pending.status_code == 200
+        assert "tg://proxy" not in pending.text
+        await converge(node, central)
+        active = await public.get(path, params={"format": "raw"})
+        assert active.status_code == 200 and "tg://proxy" in active.text
+        assert (await node.telemt.current_access("alice"))["secret"] in active.text

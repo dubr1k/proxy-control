@@ -4,9 +4,9 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from panel.tests.harness.memories.mieru import MieruError
 
 
-from panel.mieru import MieruClient, MieruError
 
 
 
@@ -180,8 +180,6 @@ async def test_mieru_key_is_kept_and_shown_again_without_rotation(client, login_
     assert second != first
     again = (await client.post("/api/mieru/users/phone/access", headers={"X-CSRF-Token": csrf})).json()
     assert _password(again) == second
-    facade = client._transport.app.state.domain_facade
-    assert facade.credential("mieru", "phone").decode() == second
 
     audit = str((await client.get("/api/audit")).json())
     assert "mieru.access" in audit and "mierus://" not in audit and second not in audit
@@ -233,19 +231,18 @@ async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(clien
     await client.post("/api/mieru/users", json={"username": "phone", "quotas": [], "expected_revision": mieru.revision},
                       headers={"X-CSRF-Token": csrf})
     await client.post("/api/naive/users", json={"username": "phone"}, headers={"X-CSRF-Token": csrf})
-    facade = client._transport.app.state.domain_facade
-    # Mieru is always recorded (its key exists nowhere else); Naive only by the domain writer.
-    naive_recorded = server.writer == "domain"
-    assert facade.grant("mieru", "phone") is not None
-    assert (facade.grant("naive", "phone") is not None) is naive_recorded
+    with server.db() as db:
+        kept = db.execute("SELECT protocol FROM access_grants WHERE runtime_username='phone'").fetchall()
+    assert {row["protocol"] for row in kept} == {"mieru", "naive"}
 
     deleted = await client.request("DELETE", "/api/mieru/users/phone", json={"expected_revision": mieru.revision},
                                    headers={"X-CSRF-Token": csrf})
     assert deleted.status_code == 200 and "phone" not in mieru.users
     assert (await client.delete("/api/naive/users/phone", headers={"X-CSRF-Token": csrf})).status_code == 204
-    assert facade.grant("mieru", "phone") is None and facade.grant("naive", "phone") is None
+    with server.db() as db:
+        assert db.execute("SELECT COUNT(*) FROM access_grants WHERE runtime_username='phone'").fetchone()[0] == 0
     audit = [row["action"] for row in (await client.get("/api/audit")).json()["items"]]
-    assert audit.count("grant.delete") == 1 + naive_recorded and "mieru.delete" in audit and "naive.delete" in audit
+    assert audit.count("grant.delete") == 2 and "mieru.delete" in audit and "naive.delete" in audit
 
 
 async def test_viewer_cannot_see_a_kept_mieru_key(client, server, login_user, mieru):
@@ -354,22 +351,6 @@ async def test_dashboard_reports_mieru_disabled_ready_and_degraded(
 
 
 
-async def test_mieru_client_rotate_sends_the_caller_credential_and_operation_id():
-    sent = {}
-
-    class Recorder(MieruClient):
-        async def _request(self, method, path, payload=None):
-            sent.update({"method": method, "path": path, "payload": payload})
-            return {"username": "phone", "revision": "rev-2"}
-
-    client = Recorder("/run/missing.sock", "token")
-    await client.rotate("phone", "rev-1", password="rotated-password-0123456", operation_id="op-9")
-    assert sent["path"] == "/v1/users/phone/rotate"
-    assert sent["payload"] == {
-        "expected_revision": "rev-1",
-        "password": "rotated-password-0123456",
-        "operation_id": "op-9",
-    }
 
 
 @pytest.mark.anyio

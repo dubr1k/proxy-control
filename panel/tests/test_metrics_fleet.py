@@ -3,14 +3,14 @@ the central `FleetMetricsSource` (cache, single flight, concurrency cap, budget,
 from __future__ import annotations
 
 import asyncio
+import json
+
+from panel.tests.test_fleet_v2_delivery import answer, linked
 
 
-import httpx
 import pytest
 
 from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
-from panel.fleet_v2.client import NodeClient, NodeRejected, NodeUnreachable
-from panel.fleet_v2.metrics_source import FleetMetricsSource
 from panel.tests.harness.memories.mieru import MemoryMieru
 from panel.tests.harness.memories.fakes import FakeClock, MemoryAgentMetrics
 from panel.tests.harness.memories.naive import MemoryNaive
@@ -22,231 +22,6 @@ ACTOR = {"id": 1, "username": "owner"}
 PASSWORD = "correct horse battery staple"
 
 
-# ---- doubles for the source -----------------------------------------------------------------------
-def entry(cpu=10.0, status="ok", age=0.0, **extra):
-    return {"node_id": "local", "name": "local", "status": status, "age_seconds": age,
-            "host": {"cpu_percent": cpu}, "protocols": {}, "top_clients": [], "kernel_counters": "ok",
-            "alerts": [], **extra}
-
-
-class FakeNode:
-    """What `NodeClient` answers for one node: a body, a failure, or a delay."""
-
-    def __init__(self, body=None, delay=0.0):
-        self.body, self.delay, self.fail = body if body is not None else entry(), delay, None
-        self.calls = 0
-        self.history_body = None
-        self.summary_body = {"range": "1h", "host": {"cpu": {"avg": 5.0}}, "protocols": {}, "hours_of_day": {},
-                             "alerts": []}
-        self.timeouts = []
-
-
-class Harness:
-    def __init__(self, nodes: dict[str, FakeNode], *, caps=("metrics.v1",), online=True, **options):
-        self.nodes, self.caps, self.online = nodes, {n: list(caps) for n in nodes}, {n: online for n in nodes}
-        self.clock = FakeClock()
-        self.active = self.peak = 0
-        self.clients_built = 0
-        self.source = FleetMetricsSource(names=self._names, link_state=self._state, node_client=self._client,
-                                         clock=self.clock, **options)
-
-    def _names(self):
-        return [{"node_id": n, "name": n.title()} for n in self.nodes]
-
-    def _state(self, node_id):
-        if node_id not in self.nodes:
-            return None
-        return {"online": self.online[node_id], "capabilities": self.caps[node_id]}
-
-    def _client(self, node_id):
-        self.clients_built += 1
-        return _Client(self, self.nodes[node_id])
-
-
-class _Client:
-    def __init__(self, harness, node):
-        self.h, self.node = harness, node
-
-    async def _answer(self, body, timeout):
-        self.node.calls += 1
-        self.node.timeouts.append(timeout)
-        self.h.active += 1
-        self.h.peak = max(self.h.peak, self.h.active)
-        try:
-            if self.node.delay:
-                await asyncio.sleep(self.node.delay)
-            if self.node.fail is not None:
-                raise self.node.fail
-            return body
-        finally:
-            self.h.active -= 1
-
-    async def metrics(self, timeout=3.0):
-        return await self._answer(self.node.body, timeout)
-
-    async def metrics_history(self, series, range, points, timeout=10.0):
-        return await self._answer(self.node.history_body or {"node_id": "local", "range": range, "step": 60,
-                                                              "series": {n: [[1, 2.0, 3.0]] for n in series}}, timeout)
-
-    async def metrics_summary(self, range, timeout=10.0):
-        return await self._answer(self.node.summary_body, timeout)
-
-
-# ---- capability gating and mapping -------------------------------------------------------------------
-async def test_a_node_without_the_capability_is_unsupported_and_never_called():
-    h = Harness({"berlin": FakeNode()}, caps=("generation.v1",))
-    got = await h.source.live("berlin")
-    assert got["status"] == "unsupported" and got["node_id"] == "berlin" and got["host"] is None
-    assert h.nodes["berlin"].calls == 0
-    assert (await h.source.history("berlin", ["host.cpu"], "1h", 240))["status"] == "unsupported"
-    assert (await h.source.summary("berlin", "1h"))["status"] == "unsupported"
-    assert (await h.source.live("stranger"))["status"] == "unsupported"  # no v2 link at all
-
-
-async def test_a_node_whose_link_is_not_online_is_unavailable_without_a_call():
-    h = Harness({"berlin": FakeNode()}, online=False)
-    got = await h.source.live("berlin")
-    assert got["status"] == "unavailable" and h.nodes["berlin"].calls == 0
-    assert (await h.source.history("berlin", ["host.cpu"], "1h", 240))["status"] == "unavailable"
-    assert (await h.source.summary("berlin", "1h"))["status"] == "unavailable"
-
-
-async def test_remote_entries_carry_the_registry_id_and_name_and_a_3s_timeout():
-    h = Harness({"berlin": FakeNode(entry(cpu=33.0))})
-    got = await h.source.live("berlin")
-    assert (got["node_id"], got["name"], got["status"], got["host"]) == ("berlin", "Berlin", "ok", {"cpu_percent": 33.0})
-    assert h.nodes["berlin"].timeouts == [3.0]
-
-
-async def test_a_nodes_own_stale_status_is_passed_through():
-    h = Harness({"berlin": FakeNode(entry(status="stale", age=12.0))})
-    got = await h.source.live("berlin")
-    assert got["status"] == "stale" and got["age_seconds"] == 12.0
-
-
-async def test_a_404_from_the_node_means_unsupported():
-    h = Harness({"berlin": FakeNode()})
-    h.nodes["berlin"].fail = NodeRejected(404, None, "metrics_disabled")
-    assert (await h.source.live("berlin"))["status"] == "unsupported"
-
-
-# ---- cache, single flight, cap, budget -----------------------------------------------------------------
-async def test_the_answer_is_cached_for_two_seconds_per_node():
-    h = Harness({"berlin": FakeNode(), "oslo": FakeNode()})
-    await h.source.live("berlin")
-    h.clock.advance(1.9)
-    await h.source.live("berlin")
-    assert h.nodes["berlin"].calls == 1 and h.nodes["oslo"].calls == 0
-    h.clock.advance(0.2)
-    await h.source.live("berlin")
-    assert h.nodes["berlin"].calls == 2
-
-
-async def test_concurrent_callers_share_one_request():
-    h = Harness({"berlin": FakeNode(delay=0.05)})
-    results = await asyncio.gather(*(h.source.live("berlin") for _ in range(20)))
-    assert h.nodes["berlin"].calls == 1 and all(r["status"] == "ok" for r in results)
-    assert h.clients_built == 1
-
-
-async def test_a_caller_that_leaves_does_not_cancel_the_shared_request():
-    h = Harness({"berlin": FakeNode(delay=0.05)})
-    waiter = asyncio.ensure_future(h.source.live("berlin"))
-    await asyncio.sleep(0.01)
-    waiter.cancel()
-    await asyncio.sleep(0.1)
-    assert (await h.source.live("berlin"))["status"] == "ok" and h.nodes["berlin"].calls == 1
-
-
-async def test_at_most_eight_node_calls_run_at_once():
-    h = Harness({f"n{i}": FakeNode(delay=0.03) for i in range(20)})
-    got = await h.source.live_many([{"node_id": n, "name": n} for n in h.nodes], budget=5.0)
-    assert len(got) == 20 and all(r["status"] == "ok" for r in got)
-    assert h.peak == 8
-
-
-async def test_a_slow_node_does_not_hold_the_others_back_within_the_budget():
-    h = Harness({"fast": FakeNode(), "slow": FakeNode(delay=0.5)}, call_timeout=1.0)
-    started = asyncio.get_running_loop().time()
-    got = await h.source.live_many([{"node_id": "fast", "name": "Fast"}, {"node_id": "slow", "name": "Slow"}], budget=0.05)
-    assert asyncio.get_running_loop().time() - started < 0.3
-    assert [(r["node_id"], r["status"]) for r in got] == [("fast", "ok"), ("slow", "unavailable")]
-    await asyncio.sleep(0.6)  # the late call finished and fed the cache for the next tick
-    again = await h.source.live_many([{"node_id": "slow", "name": "Slow"}], budget=0.05)
-    assert again[0]["status"] == "ok" and h.nodes["slow"].calls == 1
-
-
-async def test_a_late_node_with_a_recent_good_sample_goes_out_as_stale():
-    h = Harness({"slow": FakeNode()}, call_timeout=1.0)
-    await h.source.live("slow")
-    h.clock.advance(30)
-    h.nodes["slow"].delay = 0.5
-    got = (await h.source.live_many([{"node_id": "slow", "name": "Slow"}], budget=0.05))[0]
-    assert got["status"] == "stale" and got["age_seconds"] == 30.0 and got["host"] == {"cpu_percent": 10.0}
-
-
-# ---- stale fallback ------------------------------------------------------------------------------------
-async def test_a_failing_node_keeps_its_last_good_sample_as_stale_for_120_seconds():
-    h = Harness({"berlin": FakeNode(entry(cpu=44.0, age=1.0))})
-    assert (await h.source.live("berlin"))["status"] == "ok"
-    h.nodes["berlin"].fail = NodeUnreachable("ConnectTimeout")
-    h.clock.advance(30)
-    got = await h.source.live("berlin")
-    assert got["status"] == "stale" and got["age_seconds"] == 31.0 and got["host"] == {"cpu_percent": 44.0}
-    assert (got["node_id"], got["name"]) == ("berlin", "Berlin")
-    h.clock.advance(100)  # 130 s since the last good sample
-    got = await h.source.live("berlin")
-    assert got["status"] == "unavailable" and got["host"] is None and got["age_seconds"] is None
-
-
-async def test_a_node_that_never_answered_is_unavailable():
-    h = Harness({"berlin": FakeNode()})
-    h.nodes["berlin"].fail = NodeRejected(503, "x", "metrics_warming_up")
-    assert (await h.source.live("berlin"))["status"] == "unavailable"
-
-
-async def test_a_node_slower_than_the_call_timeout_is_cut_off():
-    h = Harness({"berlin": FakeNode(delay=1.0)}, call_timeout=0.05)
-    assert (await h.source.live("berlin"))["status"] == "unavailable"
-
-
-# ---- history and summary on demand ---------------------------------------------------------------------
-async def test_history_and_summary_are_fetched_from_the_node_and_tagged():
-    h = Harness({"berlin": FakeNode()})
-    history = await h.source.history("berlin", ["host.cpu"], "6h", 120)
-    assert (history["node_id"], history["status"], history["range"]) == ("berlin", "ok", "6h")
-    assert history["series"] == {"host.cpu": [[1, 2.0, 3.0]]}
-    summary = await h.source.summary("berlin", "1h")
-    assert (summary["node_id"], summary["name"], summary["status"]) == ("berlin", "Berlin", "ok")
-    assert summary["host"] == {"cpu": {"avg": 5.0}}
-    h.nodes["berlin"].fail = NodeUnreachable("x")
-    assert (await h.source.history("berlin", ["host.cpu"], "1h", 120))["status"] == "unavailable"
-    assert (await h.source.summary("berlin", "1h"))["status"] == "unavailable"
-
-
-async def test_concurrent_identical_history_requests_share_one_call():
-    h = Harness({"berlin": FakeNode(delay=0.05)})
-    await asyncio.gather(*(h.source.history("berlin", ["host.cpu"], "1h", 240) for _ in range(5)))
-    assert h.nodes["berlin"].calls == 1
-
-
-# ---- NodeClient ----------------------------------------------------------------------------------------
-async def test_the_client_calls_the_three_meter_routes_with_a_shorter_timeout():
-    seen = []
-
-    def handler(request):
-        seen.append((request.url.path, dict(request.url.params), request.extensions["timeout"]))
-        return httpx.Response(200, json={"ok": True})
-
-    client = NodeClient("https://node.example", "pc_k", transport=httpx.MockTransport(handler))
-    await client.metrics()
-    await client.metrics_history(["host.cpu", "net.rx_bps"], "6h", 120)
-    await client.metrics_summary("7d")
-    assert [(p, q) for p, q, _ in seen] == [
-        ("/api/fleet/v2/metrics", {}),
-        ("/api/fleet/v2/metrics/history", {"series": "host.cpu,net.rx_bps", "range": "6h", "points": "120"}),
-        ("/api/fleet/v2/metrics/summary", {"range": "7d"})]
-    assert seen[0][2]["read"] == 3.0 and seen[1][2]["read"] == 10.0
 
 
 # ---- the node endpoints --------------------------------------------------------------------------------
@@ -368,33 +143,77 @@ async def test_the_status_reports_amneziawg_traffic(panel_server):
 
 # ---- central: a real link, the routes and the stream ----------------------------------------------------
 
+async def all_nodes(pair_factory):
+    agent = MemoryAgentMetrics(FakeClock())
+    node, central, node_id = await linked(pair_factory(node={"versions": agent}))
+    node.clock.set(agent.clock.now)
+    central.clock.set(agent.clock.now)
+    await tick(node, agent.clock, 2)
+    await central.tick("pusher")
+    return node, central, node_id, agent
 
 
+async def test_all_includes_the_linked_node_once_it_is_online(pair_factory):
+    _, central, node_id, _ = await all_nodes(pair_factory)
+    body = await answer(central.client, "GET", "/api/metrics/live?node=all")
+    assert [entry["node_id"] for entry in body["nodes"]] == ["local", node_id]
+    remote = body["nodes"][1]
+    assert remote["name"] == "Edge" and remote["status"] == "ok"
+    assert remote["host"]["cpu_percent"] == 12.5
+    one = await answer(central.client, "GET", f"/api/metrics/live?node={node_id}")
+    assert one["nodes"] == [remote]
 
 
+async def test_the_all_stream_carries_the_remote_node_each_tick(pair_factory):
+    node, central, node_id, agent = await all_nodes(pair_factory)
+    async with central.client.stream("GET", "/api/metrics/stream?node=all") as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        assert response.headers["cache-control"] == "no-store"
+        lines = response.aiter_lines()
 
+        async def snapshot():
+            async with asyncio.timeout(10):
+                async for line in lines:
+                    if line.startswith("data:"):
+                        return json.loads(line.removeprefix("data:").strip())
+            pytest.fail("metrics stream ended before a snapshot")
 
-
+        first = await snapshot()
+        for payload in (first,):
+            assert [entry["node_id"] for entry in payload["nodes"]] == ["local", node_id]
+            assert payload["nodes"][1]["status"] == "ok"
+        await tick(node, agent.clock)
+        central.clock.advance(3)
+        second = await snapshot()
+        assert [entry["node_id"] for entry in second["nodes"]] == ["local", node_id]
+        assert second["nodes"][1]["host"]["cpu_percent"] == 12.5
+        assert second["nodes"][1]["status"] == "ok"
 
 # ---- central: the compare table over three nodes ----------------------------------------------------------
 async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server, login_user):
-    central, clock, _ = make_app(panel_server, "central")
+    remotes = {}
+    for name, rate in (("alpha", 10), ("bravo", 5000), ("charlie", 700)):
+        server, clock, agent = make_app(panel_server, name)
+        agent.set_protocol("naive", rate, 0)
+        await tick(server, clock, 3)
+        remotes[name] = server
+    central, clock, _ = make_app(panel_server, "central",
+        node_routes={f"{name}.example": server for name, server in remotes.items()})
     await tick(central, clock, 3)
-    for node_id, name in (("a", "Alpha"), ("b", "Bravo"), ("c", "Charlie")):
-        central.state.nodes.register(node_id, name, actor=ACTOR, ip="x")
-    nodes = {"a": FakeNode(), "b": FakeNode(), "c": FakeNode()}
-    for node_id, total in (("a", 10), ("b", 5000), ("c", 700)):
-        nodes[node_id].summary_body = {
-            "range": "1h", "host": {"cpu": {"avg": 20.0}, "mem": {"avg": 30.0}},
-            "protocols": {"naive": {"total_bytes": total, "peak_bps": total / 10}}, "hours_of_day": {}, "alerts": [{}]}
-    nodes["c"].fail = NodeUnreachable("x")  # c cannot answer: it sorts last, as unavailable
-    harness = Harness(nodes)
-    central.state.metrics_source = harness.source
-    async with central.http() as http:
-        await login_user(http)
-        body = (await http.get("/api/metrics/summary?node=all&range=1h")).json()
-    assert [(r["node_id"], r["status"]) for r in body["compare"]] == [
-        ("b", "ok"), ("a", "ok"), ("local", "ok"), ("c", "unavailable")]
-    assert [r["total_bytes"] for r in body["compare"][:2]] == [5000, 10] and body["compare"][3]["total_bytes"] is None
-    assert body["compare"][0]["peak_bps"] == 500.0 and body["compare"][0]["alerts"] == 1
-    assert body["compare"][-1]["node_id"] == "c" and body["nodes"][-1]["protocols"] == {}
+    central.client.headers["Authorization"] = "Bearer " + central.create_api_key("operator", "admin")
+    ids = {}
+    for name, server in remotes.items():
+        result = await answer(central.client, "POST", "/api/nodes/link", {
+            "display_name": name.title(), "url": f"https://{name}.example",
+            "api_key": server.create_api_key("central", "node-sync")}, 201)
+        ids[name] = result["node_id"]
+    await central.tick("pusher")
+    await remotes["charlie"].aclose()
+    body = await answer(central.client, "GET", "/api/metrics/summary?node=all&range=1h")
+    rows = body["compare"]
+    assert [(row["node_id"], row["status"]) for row in rows] == [
+        (ids["bravo"], "ok"), (ids["alpha"], "ok"), ("local", "ok"), (ids["charlie"], "unavailable")]
+    assert rows[0]["total_bytes"] > rows[1]["total_bytes"] > rows[2]["total_bytes"] == 0
+    assert rows[0]["peak_bps"] == 5000 and rows[-1]["total_bytes"] is None
+    assert body["nodes"][-1]["protocols"] == {}

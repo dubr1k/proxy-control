@@ -39,7 +39,7 @@ async def test_client_api_keeps_legacy_full_list_and_exposes_validated_pages(cli
 
 
 @pytest.mark.anyio
-async def test_client_delete_route_refuses_then_removes_and_the_token_stops_resolving(client, login_user):
+async def test_client_delete_route_refuses_then_removes_and_the_token_stops_resolving(client, server, login_user):
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     made = (await client.post("/api/clients", json={"display_name": "Лишний"}, headers=headers)).json()
@@ -51,7 +51,7 @@ async def test_client_delete_route_refuses_then_removes_and_the_token_stops_reso
     assert (await client.delete(f"/api/clients/{client_id}", headers=headers)).json() == {"deleted": client_id}
     assert (await client.get(f"/api/clients/{client_id}")).status_code == 404
     assert (await client.delete(f"/api/clients/{client_id}", headers=headers)).status_code == 404
-    with client._transport.app.state.database.connect() as db:  # noqa: SLF001
+    with server.db() as db:
         assert db.execute("SELECT COUNT(*) FROM audit_log WHERE action='client.delete' AND target=?", (client_id,)).fetchone()[0] == 1
 
 

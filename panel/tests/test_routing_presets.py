@@ -15,7 +15,6 @@ import pytest
 
 
 
-from panel.routing.presets import PRESET_IDS
 
 
 pytestmark = pytest.mark.anyio
@@ -51,7 +50,7 @@ async def test_the_presets_endpoint_lists_the_definitions(client, login_user):
     response = await client.get("/api/routing/presets")
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["id"] for item in items] == list(PRESET_IDS)
+    assert [item["id"] for item in items] == ["torrent", "ads", "ru_direct", "ru_blocked_warp", "cn_direct", "ir_direct"]
     assert items[0]["rule"]["match"] == {"protocols": ["bittorrent"]} and items[0]["placement"] == "first"
 
 

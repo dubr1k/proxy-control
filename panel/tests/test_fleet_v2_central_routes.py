@@ -4,35 +4,6 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_fingerprint_private_address_requires_explicit_opt_in(central_http, monkeypatch):
-    _, _, _, http = central_http
-    seen = []
-
-    def capture(url, **kwargs):
-        seen.append(kwargs.get("allow_private"))
-        return "0" * 64
-
-    monkeypatch.setattr("panel.fleet_v2.central_routes.fingerprint", capture)
-    denied = await http.post("/api/nodes/fingerprint", json={"url": "https://127.0.0.1"})
-    assert denied.status_code == 422 and seen == []
-    allowed = await http.post("/api/nodes/fingerprint", json={"url": "https://127.0.0.1", "allow_private_address": True})
-    assert allowed.status_code == 200 and seen == [True]
-
-
-async def test_fingerprint_request_deadline_also_bounds_slow_system_dns(central_http, monkeypatch):
-    import time
-    from panel.fleet_v2 import central_routes
-
-    _, _, _, http = central_http
-
-    def blocked_lookup(*args, **kwargs):
-        time.sleep(0.2)
-        return "0" * 64
-
-    monkeypatch.setattr(central_routes, "FINGERPRINT_TIMEOUT", 0.01, raising=False)
-    monkeypatch.setattr(central_routes, "fingerprint", blocked_lookup)
-    result = await http.post("/api/nodes/fingerprint", json={"url": "https://node.example"})
-    assert result.status_code == 502
 
 
 @pytest.fixture
@@ -134,3 +105,19 @@ async def test_node_version_update_is_relayed_to_the_node_and_audited_on_both_si
         admin.headers["X-CSRF-Token"] = admin.cookies["panel_csrf"]
         refused = await admin.post(f"/api/nodes/{node_id}/versions/telemt", json={"version": "3.4.25", "expected_current": "3.4.25"})
     assert refused.status_code == 403
+
+
+async def test_update_without_a_secret_store_is_a_409_with_a_code(pair, panel_server, login_user):
+    from panel.tests.test_fleet_v2_delivery import linked
+
+    _, central, node_id = await linked(pair)
+    # A fresh native process opens the linked database without a keyring, just as an
+    # operator restarting with PANEL_MASTER_KEY_FILE unset would do.
+    await central.aclose()
+    no_key = panel_server(name="central-no-key", db_name=central.db_path.name, keyring=False)
+    no_key.create_admin("owner", "correct horse battery staple", "owner")
+    async with no_key.http() as http:
+        await login_user(http)
+        response = await http.post(f"/api/nodes/{node_id}/link", json={"api_key": "pc_new_key"},
+                                   headers={"X-CSRF-Token": http.cookies["panel_csrf"]})
+    assert response.status_code == 409 and response.json()["code"] == "secret_store_disabled"

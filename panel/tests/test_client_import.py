@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import copy
 
-import httpx
+import json
+
+from panel.tests.test_fleet_v2_delivery import answer, converge, linked
 
 import pytest
 
@@ -96,7 +98,7 @@ async def test_import_can_attach_to_an_existing_client(client, login_user, telem
     assert [grant["runtime_username"] for grant in listed["grants"]] == ["bob"]
 
 
-async def test_import_rejects_unknown_runtime_user_and_needs_admin(client, login_user, telemt, naive, mieru):
+async def test_import_rejects_unknown_runtime_user_and_needs_admin(client, server, login_user, telemt, naive, mieru):
     headers = await _seed(client, login_user, telemt, naive, mieru)
     bad = await client.post(
         "/api/clients/import",
@@ -106,8 +108,7 @@ async def test_import_rejects_unknown_runtime_user_and_needs_admin(client, login
     assert bad.status_code == 422
     # A refused decision leaves nothing behind: the whole import is one transaction.
     assert (await client.get("/api/clients")).json()["items"] == []
-    app = client._transport.app
-    app.state.store.create_admin("viewer", "viewer-password-123", "viewer")
+    server.create_admin("viewer", "viewer-password-123", "viewer")
     await login_user(client, "viewer", "viewer-password-123")
     assert (await client.get("/api/clients")).status_code == 200
     assert (await client.get("/api/clients/import/inventory")).status_code == 403
@@ -225,16 +226,14 @@ async def test_a_username_the_runtime_already_uses_is_refused_before_anything_is
     assert (await client.get(f"/api/clients/{client_id}")).json()["grants"] == []
 
 
-def _render(app, client_id: str) -> dict[str, str]:
-    """Every link of the client's subscription bundle, by runtime username."""
-    from panel.fleet_v2.central_routes import public_hosts_for
-    from panel.subscriptions.renderers.base import resolve_artifacts
-    subscription, _token = app.state.subscriptions.create(client_id, actor={"id": 1, "username": "owner"}, ip="x")
-    manifest = app.state.subscriptions.effective_manifest(subscription, 10**9)
-    with app.state.database.connect() as db:
-        artifacts = resolve_artifacts(manifest, app.state.secrets, app.state.adapters, db,
-                                      public_hosts=lambda node_id: public_hosts_for(app.state, node_id))
-    return {grant.runtime_username: artifacts[grant.grant_id][0].value for grant in manifest.grants}
+async def _render(client, client_id: str) -> dict[str, str]:
+    """Resolve the same escrowed artifacts through the public one-time bundle API."""
+    issued = await client.post(f"/api/clients/{client_id}/links",
+                              headers={"X-CSRF-Token": client.cookies.get("panel_csrf", "")})
+    assert issued.status_code == 200, issued.text
+    revealed = await client.get("/api/reveal/" + issued.json()["reveal_token"])
+    assert revealed.status_code == 200, revealed.text
+    return {grant["runtime_username"]: grant["artifacts"][0]["value"] for grant in revealed.json()["grants"]}
 
 
 async def test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(client, login_user, telemt, naive, mieru):
@@ -249,7 +248,7 @@ async def test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(cl
     assert (grant["options"]["host"], grant["options"]["port"]) == ("relay.example.net", 8443)
     adopted = await client.post(f"/api/clients/grants/{grant['id']}/adopt", json={"allow_rotation": False}, headers=headers)
     assert adopted.status_code == 200 and adopted.json()["adopted"] is True
-    link = _render(client._transport.app, item["client"]["id"])["alice"]
+    link = (await _render(client, item["client"]["id"]))["alice"]
     assert "server=relay.example.net" in link and "port=8443" in link and "testserver" not in link
     assert (await telemt.current_access("alice"))["secret"] in link
 
@@ -257,45 +256,45 @@ async def test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(cl
 async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_link_host(pair):
     """The same for a linked panel: the node's inventory carries the endpoint from the link,
     the imported grant records it, and the node's adoption re-teaches it as `learned`."""
-    from panel.fleet_v2.importing import ImportItem, import_resources
-    actor = {"id": 1, "username": "owner"}
-    node, central, plaintext = pair
+    node, central, node_id = await linked(pair)
     node.telemt.public_host, node.telemt.public_port = "relay.node.example", 8443
     await node.telemt.create_user("dave")
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=actor, ip="x")
-    result = await import_resources(central.state, node_id, [ImportItem("mtproxy", "dave", "new")], actor=actor, ip="x")
+    result = await answer(central.client, "POST", f"/api/nodes/{node_id}/import", {
+        "resources": [{"protocol": "mtproxy", "runtime_username": "dave", "client": "new"}]})
     assert result["without_credential"] == []
-    grant = central.state.clients.client_with_grants(result["imported"][0]["client_id"])[1][0]
-    assert (grant.options.host, grant.options.port) == ("relay.node.example", 8443)
-    link = _render(central, grant.client_id)["dave"]
+    client_id = result["imported"][0]["client_id"]
+    grant = (await answer(central.client, "GET", f"/api/clients/{client_id}"))["grants"][0]
+    assert (grant["options"]["host"], grant["options"]["port"]) == ("relay.node.example", 8443)
+    link = (await _render(central.client, client_id))["dave"]
     assert "server=relay.node.example&port=8443&" in link  # Telemt's endpoint, not the panel's host
     assert "server=testserver" not in link and "server=node.example" not in link
     # The node adopts the user on the next push and reports what its runtime taught.
-    await central.tick("pusher")
-    with node.state.database.connect() as db:
-        learned = node.state.managed.resources(db)[("mtproxy", "dave")]["learned_json"]
+    await converge(node, central)
+    with node.db() as db:
+        learned = db.execute("SELECT learned_json FROM managed_resources WHERE protocol='mtproxy' AND runtime_username='dave'").fetchone()[0]
     assert '"host": "relay.node.example"' in learned and '"port": 8443' in learned
-    grant = central.state.clients.client_with_grants(grant.client_id)[1][0]
-    assert (grant.options.host, grant.options.port, grant.observed_state) == ("relay.node.example", 8443, "enabled")
+    grant = (await answer(central.client, "GET", f"/api/clients/{client_id}"))["grants"][0]
+    assert (grant["options"]["host"], grant["options"]["port"], grant["observed_state"]) == ("relay.node.example", 8443, "enabled")
 
 
-async def test_an_interrupted_operation_is_resumed_through_the_api(client, login_user, telemt, naive, mieru):
+async def test_an_interrupted_operation_is_resumed_through_the_api(client, server, login_user, telemt, naive, mieru):
     """`POST /api/operations/{id}/resume` (v0.2): a grant operation that crashed mid-flight
     (journalled, not applied) is picked up by the route and finished; a second resume
     changes nothing, an unknown id is 404 and a viewer is refused."""
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
-    app = client._transport.app
     created = await client.post("/api/clients", json={"display_name": "Sergey"}, headers=headers)
     client_id = created.json()["id"]
-    service = app.state.provisioning
-    from panel.clients.models import GrantIntent, NaiveOptions
-    intents = [GrantIntent(protocol="naive", runtime_username="laptop", options=NaiveOptions())]
-    service.faults["before_first_apply"] = True
-    operation_id = await service.start(client_id, intents, actor={"id": 1, "username": "owner", "role": "owner"}, ip="127.0.0.1")
-    with pytest.raises(RuntimeError):
-        await service.run(operation_id)
-    service.faults.clear()
+    # The persisted journal is the process-restart contract. The native saga tests inject
+    # before_first_apply; seed its committed pre-apply state here to exercise the real route.
+    operation_id, grant_id = "op-interrupted", "grant-interrupted"
+    with server.db(write=True) as db:
+        db.execute("""INSERT INTO access_grants
+            (id,client_id,protocol,node_id,runtime_username,desired_state,observed_state,origin,options_json,created_at,updated_at)
+            VALUES(?,?,'naive','local','laptop','enabled','pending','provisioned','{}',0,0)""", (grant_id, client_id))
+        steps = [{"grant_id": grant_id, "protocol": "naive", "status": "pending", "error": ""}]
+        db.execute("INSERT INTO provisioning_operations VALUES(?,?,'pending',?,0,0)",
+                   (operation_id, client_id, json.dumps(steps)))
     assert (await client.get(f"/api/operations/{operation_id}")).json()["status"] in {"pending", "applying"}
     assert "laptop" not in naive.users
 
@@ -306,8 +305,8 @@ async def test_an_interrupted_operation_is_resumed_through_the_api(client, login
     again = await client.post(f"/api/operations/{operation_id}/resume", headers=headers)
     assert again.json()["status"] == "succeeded" and [u["username"] for u in await naive.list_users()].count("laptop") == 1
     assert (await client.post("/api/operations/op-does-not-exist/resume", headers=headers)).status_code == 404
-    app.state.store.create_admin("watcher", "correct horse battery staple", "viewer")
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as viewer:
+    server.create_admin("watcher", "correct horse battery staple", "viewer")
+    async with server.http() as viewer:
         page = await viewer.get("/login")
         await viewer.post("/api/auth/login", json={"username": "watcher", "password": "correct horse battery staple"},
                           headers={"X-CSRF-Token": page.cookies["panel_csrf"]})

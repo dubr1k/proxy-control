@@ -827,3 +827,29 @@ async fn replay(name: &str) {
         assert!(queue.lock().unwrap().is_empty(), "{name}: the bridge probe of {id} was asked less often");
     }
 }
+
+#[tokio::test]
+async fn telemt_adapter_wraps_a_failing_readback() {
+    for action in ["enable", "disable", "update_options"] {
+        let first = if action == "update_options" {
+            json!({"method":"update_user", "args":["alice", {"max_tcp_conns":3}], "kwargs":{}, "result":{}})
+        } else {
+            json!({"method":"set_enabled", "args":["alice", action == "enable"], "kwargs":{}, "result":{}})
+        };
+        let failure = json!({"method":"current_access", "args":["alice"], "kwargs":{},
+            "error":{"class":"TelemtError", "message":"Telemt API error (502)", "status_code":502}});
+        let queues = Arc::new(Mutex::new(HashMap::from([
+            ("telemt".into(), VecDeque::from([first, failure])),
+        ])));
+        let adapter = TelemtAdapter::new(Replay { id: "telemt".into(), queues: queues.clone() });
+        let grant = grant_ref(&json!({"protocol":"mtproxy", "runtime_username":"alice"}));
+        let error = match action {
+            "enable" => adapter.enable(&grant).await.unwrap_err(),
+            "disable" => adapter.disable(&grant).await.unwrap_err(),
+            _ => adapter.update_options(&grant, &object(&json!({"max_tcp_conns":3}))).await.unwrap_err(),
+        };
+        assert!(runtime_failure(&error).is_none(), "{action}: {error:?}");
+        assert_eq!(error.to_string(), "Telemt refused the request");
+        assert!(queues.lock().unwrap()["telemt"].is_empty(), "{action}");
+    }
+}

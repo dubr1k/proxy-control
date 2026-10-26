@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import sqlite3
-
-import time
 from pathlib import Path
 
 import pytest
 
-from panel.store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
 

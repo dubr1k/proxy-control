@@ -39,15 +39,10 @@ async def test_local_node_reports_unavailable_managers(client, login_user, mieru
     assert services == {"telemt": "unavailable", "naive": "ok", "mieru": "unavailable", "amneziawg": "disabled", "trusttunnel": "disabled"}
 
 
-async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
-    import httpx
-
-    from panel.app import Settings
-    from panel.tests.harness.server import panel_app
+async def test_local_node_marks_switched_off_protocols_disabled(panel_server, login_user):
     from panel.tests.harness.memories.mieru import MemoryMieru
     from panel.tests.harness.memories.naive import MemoryNaive
     from panel.tests.harness.memories.telemt import MemoryTelemt
-    from panel.versions import VersionClient
 
     class MustNotBeAsked(MemoryNaive):
         async def health(self):
@@ -57,30 +52,11 @@ async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
         async def health(self):
             raise AssertionError("a disabled protocol was polled for node health")
 
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_enabled=False,
-        mieru_enabled=False,
-    )
-    app = panel_app(
-        settings,
-        telemt=MemoryTelemt(),
-        naive=MustNotBeAsked(),
-        mieru=MieruMustNotBeAsked(),
-        version_client=VersionClient(str(tmp_path / "missing-version-agent.sock")),
-    )
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://testserver", follow_redirects=False
-    ) as client:
-        page = await client.get("/login")
-        await client.post(
-            "/api/auth/login",
-            json={"username": "owner", "password": "correct horse battery staple"},
-            headers={"X-CSRF-Token": page.cookies["panel_csrf"]},
-        )
+    server = panel_server(name="disabled-protocols", naive_enabled=False, mieru_enabled=False,
+                          telemt=MemoryTelemt(), naive=MustNotBeAsked(), mieru=MieruMustNotBeAsked())
+    server.create_admin("owner", "correct horse battery staple", "owner")
+    async with server.http() as client:
+        await login_user(client)
         services = (await client.get("/api/nodes/local")).json()["services"]
     assert services == {"telemt": "ok", "naive": "disabled", "mieru": "disabled", "amneziawg": "disabled", "trusttunnel": "disabled"}
 

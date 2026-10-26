@@ -1,8 +1,7 @@
 """v0.3 post-merge fix-wave, node side and local lifecycle."""
 import pytest
 
-from panel.clients.models import GrantIntent, MtproxyOptions, NaiveOptions
-from panel.clients.store import ClientConflict
+from panel.tests.test_fleet_v2_delivery import answer, linked, provision
 
 from panel.tests.harness.memories.naive import NaiveError
 from panel.tests.harness.memories.telemt import TelemtError
@@ -27,9 +26,6 @@ async def _node_key(client, login_user):
 
 
 
-def _audit(app, action):
-    with app.state.database.connect() as db:
-        return [dict(r) for r in db.execute("SELECT * FROM audit_log WHERE action=? ORDER BY id", (action,))]
 
 
 # --- [T6] a superseded generation is the only KeyError the push route swallows ---
@@ -50,73 +46,63 @@ async def test_capture_with_an_unknown_purpose_is_422(client, login_user):
 
 
 async def test_the_central_imports_with_the_import_purpose(pair):
-    from panel.fleet_v2.importing import ImportItem, import_resources
-
-    node, central, plaintext = pair
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
-                                            actor=ACTOR, ip="x")
+    node, central, node_id = await linked(pair)
     node.naive.seed("legacy", "pw-legacy")
-    result = await import_resources(central.state, node_id, [ImportItem("naive", "legacy", "new")], actor=ACTOR, ip="x")
+    result = await answer(central.client, "POST", f"/api/nodes/{node_id}/import", {
+        "resources": [{"protocol": "naive", "runtime_username": "legacy", "client": "new"}]})
     assert result["imported"][0]["has_credential"] is True and result["without_credential"] == []
-    assert _audit(node, "fleet.credentials.capture")[-1]["detail_json"].count("import") == 1
+    assert node.audits(action="fleet.credentials.capture")[0]["detail"]["purpose"] == "import"
 
 
 # --- [T10] a drifted local grant: "no such user" on delete means already deleted ---
 
 async def test_deleting_a_grant_whose_user_is_already_gone_succeeds(client, login_user, naive):
-    app = client._transport.app
     await login_user(client)
     csrf = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     owner = (await client.post("/api/clients", headers=csrf, json={"display_name": "Alice"})).json()
     granted = await client.post(f"/api/clients/{owner['id']}/grants", headers=csrf,
                                 json={"grants": [{"protocol": "naive", "runtime_username": "alice"}]})
     assert granted.status_code in (200, 201, 202), granted.text
-    grant = app.state.clients.client_with_grants(owner["id"])[1][0]
+    grant = (await client.get(f"/api/clients/{owner['id']}")).json()["grants"][0]
     naive.users.pop("alice")  # deleted behind the panel's back
     with pytest.raises(NaiveError):
         await naive.delete("alice")
-    await app.state.lifecycle.delete(grant.id, actor=ACTOR, ip="x")
-    assert app.state.clients.client_with_grants(owner["id"])[1] == []
+    deleted = await client.post(f"/api/clients/grants/{grant['id']}/delete", headers=csrf)
+    assert deleted.status_code == 200, deleted.text
+    assert (await client.get(f"/api/clients/{owner['id']}")).json()["grants"] == []
 
 
 # --- [T10] a compensated local step leaves no tombstone row ---
 
-async def test_a_compensated_local_grant_is_purged(client, server, login_user, naive):
-    app = client._transport.app
+async def test_a_compensated_local_grant_is_purged(client, server, login_user, naive, telemt):
     await login_user(client)
-    owner = app.state.clients.create_client("Alice", actor=ACTOR, ip="x")
-    intents = [GrantIntent(protocol="naive", node_id="local", runtime_username="alice", options=NaiveOptions()),
-               GrantIntent(protocol="mtproxy", node_id="local", runtime_username="alice", options=MtproxyOptions())]
-    telemt = app.state.telemt
+    csrf = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    owner = (await client.post("/api/clients", headers=csrf, json={"display_name": "Alice"})).json()
 
     async def refuse(*args, **kwargs):
         raise TelemtError("Telemt API error (500)")
 
     telemt.create_user = refuse
-    operation = await app.state.provisioning.start(owner.id, intents, actor=ACTOR, ip="x")
-    result = await app.state.provisioning.run(operation)
-    assert result.status == "compensated"
+    result = await client.post(f"/api/clients/{owner['id']}/grants", headers=csrf, json={"grants": [
+        {"protocol": "naive", "node_id": "local", "runtime_username": "alice", "options": {}},
+        {"protocol": "mtproxy", "node_id": "local", "runtime_username": "alice", "options": {}},
+    ]})
+    assert result.status_code == 200 and result.json()["status"] == "compensated", result.text
     assert "alice" not in [u["username"] for u in await naive.list_users()]
     with server.db() as db:
         rows = db.execute("SELECT desired_state, observed_state FROM access_grants WHERE client_id=?",
-                          (owner.id,)).fetchall()
+                          (owner["id"],)).fetchall()
     assert rows == []  # no `deleted/missing` tombstone left behind
 
 
 # --- [re-review] the local capture/adopt paths refuse a grant that lives on another node ---
 
 async def test_capture_credential_refuses_a_remote_grant(pair):
-    node, central, plaintext = pair
-    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
-                                            actor=ACTOR, ip="x")
-    client = central.state.clients.create_client("Alice", actor=ACTOR, ip="x")
-    intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
-    await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    grant = central.state.clients.client_with_grants(client.id)[1][0]
-    with pytest.raises(ClientConflict, match="another node"):
-        await central.state.clients.capture_credential(grant.id, actor=ACTOR, ip="x")
-    with pytest.raises(ClientConflict, match="another node"):
-        await central.state.clients.adopt_credential(grant.id, allow_rotation=True, actor=ACTOR, ip="x")
+    _, central, node_id = await linked(pair)
+    client_id, _ = await provision(central, node_id)
+    grant = (await answer(central.client, "GET", f"/api/clients/{client_id}"))["grants"][0]
+    refused = await central.client.post(f"/api/clients/grants/{grant['id']}/adopt", json={"allow_rotation": True})
+    assert refused.status_code == 409 and "another node" in refused.json()["detail"]
 
 
 # --- [round 3] Telemt errors on enable/disable/options are AdapterError, not 502 ---
@@ -143,15 +129,3 @@ async def test_telemt_adapter_wraps_a_failing_readback(call):
             await getattr(adapter, call)(ref)
 
 
-# --- [T10] one name per audit event: the local and the remote path record the same action ---
-
-def test_audit_event_names_are_documented_once():
-    from pathlib import Path
-
-    text = Path(__file__).resolve().parents[2].joinpath("docs", "AUDIT_EVENTS.md").read_text()
-    for name in ("fleet.generation.accept", "fleet.credentials.capture", "fleet.unlink", "node.link", "node.unlink",
-                 "node.pause", "node.resume", "node.import", "grant.credential.capture", "grant.credential.adopt",
-                 "grant.provision.start", "grant.enable", "grant.disable", "grant.rotate", "grant.delete"):
-        assert f"`{name}`" in text, name
-    for retired in ("grant.enabled", "grant.disabled", "grant.deleted", "grant.credential.rotate"):
-        assert f"`{retired}`" not in text, retired

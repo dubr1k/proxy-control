@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from panel.routing.document import attach_document
+from panel.tests.harness.routing import attach_document
 
 pytestmark = pytest.mark.anyio
 

@@ -5,11 +5,8 @@ import subprocess
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
 import pytest
 
-from panel.app import Settings, create_app
-from panel.tests.harness.server import panel_app
 from panel.tests.harness.memories.naive import MemoryNaive, NaiveError
 from panel.tests.harness.memories.telemt import MemoryTelemt
 
@@ -161,19 +158,13 @@ async def test_naive_usernames_are_validated_before_manager_call(client, login_u
 
 
 
-def test_enabled_naive_requires_explicit_public_host(tmp_path):
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_public_host="",
-        naive_enabled=True,
-    )
-    with pytest.raises(ValueError, match="NAIVE_PUBLIC_HOST is required"):
-        create_app(settings, telemt=MemoryTelemt(), naive=MemoryNaive())
+def test_enabled_naive_requires_explicit_public_host(panel_server):
+    with pytest.raises(RuntimeError, match="NAIVE_PUBLIC_HOST is required"):
+        panel_server(name="invalid-naive", naive_public_host="", naive_enabled=True,
+                     telemt=MemoryTelemt(), naive=MemoryNaive())
 
 
-async def test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(tmp_path):
+async def test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(panel_server):
     class MustNotCallNaive(MemoryNaive):
         async def health(self):
             raise AssertionError("disabled dashboard called Naive health")
@@ -181,19 +172,10 @@ async def test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(tmp_
         async def list_users(self):
             raise AssertionError("disabled dashboard called Naive users")
 
-    settings = Settings(
-        database_path=tmp_path / "panel.sqlite3",
-        session_cookie_secure=False,
-        allowed_hosts=("testserver",),
-        naive_enabled=False,
-    )
-    app = panel_app(settings, telemt=MemoryTelemt(), naive=MustNotCallNaive())
-    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://testserver",
-        follow_redirects=False,
-    ) as client:
+    server = panel_server(name="disabled-naive", naive_enabled=False,
+                         telemt=MemoryTelemt(), naive=MustNotCallNaive())
+    server.create_admin("owner", "correct horse battery staple", "owner")
+    async with server.http() as client:
         login_page = await client.get("/login")
         login = await client.post(
             "/api/auth/login",
@@ -244,17 +226,17 @@ async def test_dashboard_stays_available_when_enabled_naive_manager_is_degraded(
     assert "internal details" not in response.text
 
 
-async def test_creating_reveal_purges_expired_password_bearing_entries(client, login_user, monkeypatch):
+async def test_creating_reveal_purges_expired_password_bearing_entries(client, server, login_user):
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
-    monkeypatch.setattr("panel.app.time.monotonic", lambda: 100.0)
+    server.clock.set(1_700_000_100)
     first = await client.post(
         "/api/naive/users",
         json={"username": "first"},
         headers={"X-CSRF-Token": csrf},
     )
     first_token = first.json()["reveal_token"]
-    monkeypatch.setattr("panel.app.time.monotonic", lambda: 1000.0)
+    server.clock.advance(900)
 
     await client.post(
         "/api/naive/users",
@@ -262,7 +244,7 @@ async def test_creating_reveal_purges_expired_password_bearing_entries(client, l
         headers={"X-CSRF-Token": csrf},
     )
 
-    assert first_token not in client._transport.app.state.reveals
+    assert (await client.get("/api/reveal/" + first_token)).status_code == 404
 
 
 async def test_naive_traffic_is_allowlisted_in_users_and_dashboard_and_admin_can_reset(
@@ -402,27 +384,20 @@ async def test_naive_create_accepts_quota_and_invalid_quota_never_reaches_manage
 
 
 async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, server, login_user, naive):
-    """A subscription serves the escrowed password: a rotation here must replace it,
-    or the client's feed keeps handing out the password the node no longer accepts. An
-    account the panel does not record (the legacy writer's create) stays unrecorded: the
-    manager keeps its password, and «Импорт существующих» captures it without a rotation."""
+    """Rotating on the protocol page also replaces the credential kept for subscriptions."""
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
-    await client.post("/api/naive/users", json={"username": "ios-phone"}, headers={"X-CSRF-Token": csrf})
-    facade = client._transport.app.state.domain_facade
-    recorded = server.writer == "domain"
-    first = facade.credential("naive", "ios-phone").decode() if recorded else None
-    assert (facade.grant("naive", "ios-phone") is not None) is recorded
+    created = await client.post("/api/naive/users", json={"username": "ios-phone"}, headers={"X-CSRF-Token": csrf})
+    first = urlsplit((await client.get("/api/reveal/" + created.json()["reveal_token"])).json()
+                     ["clients"]["native"]["config"]["proxy"]).password
 
     rotated = await client.post("/api/naive/users/ios-phone/rotate", headers={"X-CSRF-Token": csrf})
     reveal = (await client.get("/api/reveal/" + rotated.json()["reveal_token"])).json()
     second = urlsplit(reveal["clients"]["native"]["config"]["proxy"]).password
 
-    if recorded:
-        assert second != first
-        assert facade.credential("naive", "ios-phone").decode() == second
-    else:
-        assert facade.grant("naive", "ios-phone") is None
+    assert second != first
+    shown = await client.post("/api/naive/users/ios-phone/access", headers={"X-CSRF-Token": csrf})
+    assert urlsplit(shown.json()["clients"]["native"]["config"]["proxy"]).password == second
 
 
 async def test_viewer_cannot_change_naive_quota(client, server, login_user, naive):

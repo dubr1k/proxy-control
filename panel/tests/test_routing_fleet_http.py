@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from panel.routing.document import ROUTER_DIRECT_INTENT, attach_document, document_digest
+from panel.tests.harness.routing import ROUTER_DIRECT_INTENT, attach_document, document_digest
 from panel.tests.harness.routing import csrf, linked
 from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 

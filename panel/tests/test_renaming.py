@@ -3,16 +3,9 @@
 Only presentation changes — the account name, the endpoint and the credential stay as
 they were, and the subscription URL does not move.
 """
-import dataclasses
-import json
-from urllib.parse import quote
 
 import pytest
 
-from panel.migrations import MIGRATIONS
-from panel.protocols.base import AccessArtifact
-from panel.subscriptions.models import Manifest, ManifestGrant
-from panel.subscriptions.renderers import RENDERERS
 
 pytestmark = pytest.mark.anyio
 
@@ -64,19 +57,6 @@ async def test_a_grant_label_refuses_too_long_unknown_and_deleted(client, login_
     assert (await client.post(f"/api/clients/grants/{grant_id}/label", json={"label": "A"}, headers=csrf)).status_code == 404
 
 
-def _feed(label=""):
-    grants = [
-        ManifestGrant(grant_id=f"g{i}", protocol="naive", node_id=f"n{i}", endpoint_id="default",
-                      runtime_username="alice", secret_version=1, options={}, enabled=True,
-                      node_name="AMS", label=label if i == 0 else "")
-        for i in range(2)
-    ]
-    artifacts = {g.grant_id: [AccessArtifact("link", "Connection", "text/uri-list", f"https://u:p@{g.node_id}.example:443")] for g in grants}
-    return Manifest("c", "alice", 1, grants), artifacts
-
-
-def _tags(manifest, artifacts):
-    return [out["tag"] for out in json.loads(RENDERERS["singbox"].render(manifest, artifacts))["outbounds"]]
 
 
 

@@ -2,7 +2,6 @@
 
 import pytest
 
-from panel.fleet_v2.protocol import GenerationDocument, Resource
 from panel.tests.harness.memories.naive import NaiveError
 
 from panel.tests.harness.memories.telemt import TelemtError
@@ -21,18 +20,18 @@ async def _node_key(client, login_user):
 
 
 def _doc(guid, generation, users=("alice",), master=MASTER, state="enabled"):
-    return GenerationDocument(node_guid=guid, master_guid=master, generation=generation,
-                              previous_generation=generation - 1, created_at=1, created_by="c",
-                              resources=[Resource(ref=f"grant:{u}", protocol="naive", runtime_username=u,
-                                                  desired_state=state, credential_ref=f"grant:{u}:1",
-                                                  credential_origin="caller") for u in users])
+    return {"node_guid": guid, "master_guid": master, "generation": generation,
+            "previous_generation": generation - 1, "created_at": 1, "created_by": "c",
+            "resources": [{"ref": f"grant:{u}", "protocol": "naive", "runtime_username": u,
+                           "desired_state": state, "credential_ref": f"grant:{u}:1",
+                           "credential_origin": "caller"} for u in users]}
 
 
 async def _push(client, headers, guid, generation, **kw):
     doc = _doc(guid, generation, **kw)
     return await client.put("/api/fleet/v2/generation", headers=headers, json={
-        "expected_guid": guid, "generation": doc.model_dump(),
-        "secrets": {r.credential_ref: f"pw-{r.runtime_username}" for r in doc.resources if r.desired_state != "deleted"}})
+        "expected_guid": guid, "generation": doc,
+        "secrets": {r["credential_ref"]: f"pw-{r['runtime_username']}" for r in doc["resources"] if r["desired_state"] != "deleted"}})
 
 
 async def test_identity_status_and_inventory_are_secret_free(client, login_user, naive):
