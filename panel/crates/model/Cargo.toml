@@ -1,0 +1,18 @@
+[package]
+name = "panel-model"
+description = "Shared types and contracts of the Proxy Control panel: client and grant models, the protocol adapter trait, the routing policy and egress document, the fleet v2 wire documents with their canonical digest, and the seams between the domain packages. No I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_model"
+
+[dependencies]
+indexmap = "2"
+panel-core = { path = "../core" }
+# The same features as panel-core (unified across the workspace anyway): objects keep insertion
+# order like Python dicts, floats parse correctly rounded like `json.loads`.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
