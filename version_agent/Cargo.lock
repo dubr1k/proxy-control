@@ -277,6 +277,7 @@ dependencies = [
  "installer-core",
  "libc",
  "pc_host",
+ "serde",
  "serde_json",
 ]
 

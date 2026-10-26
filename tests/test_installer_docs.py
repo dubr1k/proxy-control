@@ -125,6 +125,8 @@ def test_every_checked_command_parses_against_the_shipped_cli():
             argv = argv[1:]
         if argv[:3] == ["python3", "-m", "installer.cli"]:
             arguments = argv[3:]
+        elif argv[:2] == ["bash", "install.sh"]:
+            arguments = argv[2:]
         elif argv[:1] == ["./install.sh"] or argv[:1] == ["install.sh"]:
             arguments = argv[1:]
         elif argv[:1] == ["./install-bootstrap"]:
@@ -187,6 +189,11 @@ def test_reference_documents_every_cli_subcommand(language):
         "repair",
         "report",
         "uninstall",
+        "update-host",
+        "migrate-agent",
+        "migrate-compose-project",
+        "ingress-upgrade",
+        "verify-release",
     ):
         assert f"`{command}`" in text, command
 
@@ -683,21 +690,23 @@ def test_the_release_note_for_3_2_0_names_the_installer_change():
     assert "(releases/v3.2.0.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")
 
 
-def test_installer_scripts_run_python_without_bytecode_and_pass_the_chosen_language():
-    """Task 10: root must leave no .pyc in the user's directory, and `--lang` reaches the wizard."""
+def test_installer_scripts_need_no_host_python_and_pass_the_chosen_language():
     script = (ROOT / "scripts" / "install-release.sh").read_text(encoding="utf-8")
-    assert script.count("PYTHONDONTWRITEBYTECODE=1") >= 2
+    assert "python3" not in script
     assert 'set -- wizard --lang "$LANGUAGE"' in script
-    assert "PYTHONDONTWRITEBYTECODE=1" in (ROOT / "install.sh").read_text(encoding="utf-8")
+    assert "proxy-control-installer" in (ROOT / "install.sh").read_text(encoding="utf-8")
+    for name in ("install.sh", "uninstall.sh", "install-bootstrap", "scripts/update-host.sh",
+                 "scripts/migrate-compose-project.sh", "probe/install.sh"):
+        assert "python3" not in (ROOT / name).read_text(encoding="utf-8"), name
 
 
 @pytest.mark.parametrize(("name", "phrases"), [
     ("README.md", ("install-release.sh --update", "`continue`", "rm -rf")),
     ("README.en.md", ("install-release.sh --update", "`continue`", "rm -rf")),
-    ("docs/INSTALLER_REFERENCE.ru.md", ("/opt/mtproxy-shared443/VERSION", "PYTHONDONTWRITEBYTECODE=1", "`continue`")),
-    ("docs/INSTALLER_REFERENCE.en.md", ("/opt/mtproxy-shared443/VERSION", "PYTHONDONTWRITEBYTECODE=1", "`continue`")),
+    ("docs/INSTALLER_REFERENCE.ru.md", ("/opt/mtproxy-shared443/VERSION", "migrate-agent", "`continue`")),
+    ("docs/INSTALLER_REFERENCE.en.md", ("/opt/mtproxy-shared443/VERSION", "migrate-agent", "`continue`")),
 ])
-def test_the_docs_describe_the_installed_host_notice_and_bytecode(name, phrases):
+def test_the_docs_describe_the_installed_host_notice_and_native_transition(name, phrases):
     text = (ROOT / name).read_text(encoding="utf-8")
     for phrase in phrases:
         assert phrase in text, (name, phrase)

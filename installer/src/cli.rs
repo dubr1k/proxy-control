@@ -284,6 +284,9 @@ pub fn run(
             }
         };
     }
+    if let Some(status) = crate::host_commands::cli(arguments, stdout, stderr) {
+        return status;
+    }
     if let Some(request) = parse_ingress(arguments, installer_core::argparse::terminal_width()) {
         return match request {
             Ok(request) => run_ingress(request, compose, stdout),
