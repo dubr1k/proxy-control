@@ -1,0 +1,31 @@
+[package]
+name = "installer"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+license = "MIT"
+description = "The Proxy Control host installer: the durable transaction engine, the adapter contract and the proxy-control-installer binary."
+publish = false
+
+[lib]
+name = "installer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "proxy-control-installer"
+path = "src/main.rs"
+
+[features]
+# Test seams for other crates' tests (the version-agent's handoff tests): fault injection into
+# the journal writes. Never enabled in a release build.
+test-fakes = []
+
+[dependencies]
+pc_host = { path = "../pc_host" }
+# Plain sorted maps: every journal is key-sorted (pc_host::json writes the bytes).
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

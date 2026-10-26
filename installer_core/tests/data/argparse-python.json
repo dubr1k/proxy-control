@@ -1,0 +1,1496 @@
+{
+ "installer": [
+  {
+   "argv": [],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: the following arguments are required: command\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only\n                        handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a\n                        verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard        start the\n                  interactive\n                  installer\n    plan          render a\n                  deterministic\n                  mutation plan\n    install       apply an accepted\n                  deterministic plan\n    status        show sanitized\n                  transaction status\n    resume        resume the owned\n                  transaction\n    repair        repair the owned\n                  transaction\n    report        write the public\n                  acceptance report\n                  and the root-only\n                  handoff\n    uninstall     remove the owned\n                  transaction\n    reconcile-panel-update\n                  reconcile Core and\n                  version-agent code\n                  ownership to a\n                  verified release\n                  archive\n\noptions:\n  -h, --help      show this help\n                  message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update} ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy\nControl release\ninstaller\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard\n    start the\n    interactive\n    installer\n    plan\n    render a\n    deterministic\n    mutation plan\n    install\n    apply an\n    accepted\n    deterministic\n    plan\n    status\n    show sanitized\n    transaction\n    status\n    resume\n    resume the\n    owned\n    transaction\n    repair\n    repair the\n    owned\n    transaction\n    report\n    write the\n    public\n    acceptance\n    report and the\n    root-only\n    handoff\n    uninstall\n    remove the\n    owned\n    transaction\n    reconcile-panel-update\n    reconcile Core\n    and version-\n    agent code\n    ownership to a\n    verified\n    release\n    archive\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "--help"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only\n                        handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a\n                        verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "--help"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard        start the\n                  interactive\n                  installer\n    plan          render a\n                  deterministic\n                  mutation plan\n    install       apply an accepted\n                  deterministic plan\n    status        show sanitized\n                  transaction status\n    resume        resume the owned\n                  transaction\n    repair        repair the owned\n                  transaction\n    report        write the public\n                  acceptance report\n                  and the root-only\n                  handoff\n    uninstall     remove the owned\n                  transaction\n    reconcile-panel-update\n                  reconcile Core and\n                  version-agent code\n                  ownership to a\n                  verified release\n                  archive\n\noptions:\n  -h, --help      show this help\n                  message and exit\n"
+  },
+  {
+   "argv": [
+    "--help"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update} ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "--help"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy\nControl release\ninstaller\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard\n    start the\n    interactive\n    installer\n    plan\n    render a\n    deterministic\n    mutation plan\n    install\n    apply an\n    accepted\n    deterministic\n    plan\n    status\n    show sanitized\n    transaction\n    status\n    resume\n    resume the\n    owned\n    transaction\n    repair\n    repair the\n    owned\n    transaction\n    report\n    write the\n    public\n    acceptance\n    report and the\n    root-only\n    handoff\n    uninstall\n    remove the\n    owned\n    transaction\n    reconcile-panel-update\n    reconcile Core\n    and version-\n    agent code\n    ownership to a\n    verified\n    release\n    archive\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "--he"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only\n                        handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a\n                        verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "--he"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard        start the\n                  interactive\n                  installer\n    plan          render a\n                  deterministic\n                  mutation plan\n    install       apply an accepted\n                  deterministic plan\n    status        show sanitized\n                  transaction status\n    resume        resume the owned\n                  transaction\n    repair        repair the owned\n                  transaction\n    report        write the public\n                  acceptance report\n                  and the root-only\n                  handoff\n    uninstall     remove the owned\n                  transaction\n    reconcile-panel-update\n                  reconcile Core and\n                  version-agent code\n                  ownership to a\n                  verified release\n                  archive\n\noptions:\n  -h, --help      show this help\n                  message and exit\n"
+  },
+  {
+   "argv": [
+    "--he"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update} ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "--he"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer\n       [-h]\n       {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n       ...\n\nTyped Proxy\nControl release\ninstaller\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard\n    start the\n    interactive\n    installer\n    plan\n    render a\n    deterministic\n    mutation plan\n    install\n    apply an\n    accepted\n    deterministic\n    plan\n    status\n    show sanitized\n    transaction\n    status\n    resume\n    resume the\n    owned\n    transaction\n    repair\n    repair the\n    owned\n    transaction\n    report\n    write the\n    public\n    acceptance\n    report and the\n    root-only\n    handoff\n    uninstall\n    remove the\n    owned\n    transaction\n    reconcile-panel-update\n    reconcile Core\n    and version-\n    agent code\n    ownership to a\n    verified\n    release\n    archive\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "foo"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: argument command: invalid choice: 'foo' (choose from 'wizard', 'plan', 'install', 'status', 'resume', 'repair', 'report', 'uninstall', 'reconcile-panel-update')\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--root"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: argument --root: expected one argument\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--root",
+    "/x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: the following arguments are required: command\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--root=/x",
+    "status"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "status",
+    "json": false,
+    "root": "/x"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--r",
+    "/x",
+    "status"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "status",
+    "json": false,
+    "root": "/x"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "-x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: the following arguments are required: command\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--",
+    "plan"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: argument command: invalid choice: '--' (choose from 'wizard', 'plan', 'install', 'status', 'resume', 'repair', 'report', 'uninstall', 'reconcile-panel-update')\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--=x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: ambiguous option: --=x could match --help, --root\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "-hfoo"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\n\nTyped Proxy Control release installer\n\npositional arguments:\n  {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n    wizard              start the interactive installer\n    plan                render a deterministic mutation plan\n    install             apply an accepted deterministic plan\n    status              show sanitized transaction status\n    resume              resume the owned transaction\n    repair              repair the owned transaction\n    report              write the public acceptance report and the root-only\n                        handoff\n    uninstall           remove the owned transaction\n    reconcile-panel-update\n                        reconcile Core and version-agent code ownership to a\n                        verified release archive\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "--root",
+    "",
+    "status"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "status",
+    "json": false,
+    "root": "."
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "--root",
+    "//a/./b/",
+    "status"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "status",
+    "json": false,
+    "root": "//a/b"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "status",
+    "--root",
+    "/"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: --root /\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "status",
+    "x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: x\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: the following arguments are required: --config\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument --config: expected one argument\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "x",
+    "--json=1"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument --json: ignored explicit argument '1'\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config=x",
+    "extra"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: extra\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--c",
+    "x"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "x",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--conf",
+    "x",
+    "--js"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "x",
+    "json": true,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "-x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument --config: expected one argument\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "-1"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "-1",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "a b"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "a b",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument --config: expected one argument\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "-hx"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\n\noptions:\n  -h, --help       show this help message and exit\n  --config CONFIG\n  --json\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "-h=x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument -h/--help: ignored explicit argument 'x'\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--help=x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument -h/--help: ignored explicit argument 'x'\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "x",
+    "--config",
+    "y"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "y",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--zzz"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: the following arguments are required: --config\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "x",
+    "--",
+    "y"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: -- y\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "./a//b.toml"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "a/b.toml",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    ""
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": ".",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--config",
+    "пример.toml"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "plan",
+    "config": "пример.toml",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "--json=",
+    "--config",
+    "x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: argument --json: ignored explicit argument ''\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "plan",
+    "-"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\nproxy-control-installer plan: error: the following arguments are required: --config\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "install",
+    "--config",
+    "x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer install [-h] --config CONFIG --accept-plan\n                                       ACCEPT_PLAN [--json]\nproxy-control-installer install: error: the following arguments are required: --accept-plan\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "install",
+    "--accept-plan",
+    "d"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer install [-h] --config CONFIG --accept-plan\n                                       ACCEPT_PLAN [--json]\nproxy-control-installer install: error: the following arguments are required: --config\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "install",
+    "--a",
+    "d",
+    "--c",
+    "x"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "accept_plan": "d",
+    "command": "install",
+    "config": "x",
+    "json": false,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "install",
+    "--config",
+    "x",
+    "--accept-plan=",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "accept_plan": "",
+    "command": "install",
+    "config": "x",
+    "json": true,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "wizard",
+    "config_output": "proxy-control.toml",
+    "json": false,
+    "lang": null,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--lang",
+    "de"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer wizard [-h] [--lang {en,ru}]\n                                      [--config-output CONFIG_OUTPUT] [--json]\nproxy-control-installer wizard: error: argument --lang: invalid choice: 'de' (choose from <Locale.EN: 'en'>, <Locale.RU: 'ru'>)\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--lang",
+    "en"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "wizard",
+    "config_output": "proxy-control.toml",
+    "json": false,
+    "lang": "en",
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--l",
+    "ru",
+    "--c",
+    "out"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "wizard",
+    "config_output": "out",
+    "json": false,
+    "lang": "ru",
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--config-output"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer wizard [-h] [--lang {en,ru}]\n                                      [--config-output CONFIG_OUTPUT] [--json]\nproxy-control-installer wizard: error: argument --config-output: expected one argument\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--json",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "wizard",
+    "config_output": "proxy-control.toml",
+    "json": true,
+    "lang": null,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "--lang=ru",
+    "--config-output=a/"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "wizard",
+    "config_output": "a",
+    "json": false,
+    "lang": "ru",
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "report"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer report [-h] --config CONFIG --output OUTPUT\n                                      [--json]\nproxy-control-installer report: error: the following arguments are required: --config, --output\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "report",
+    "--config",
+    "c"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer report [-h] --config CONFIG --output OUTPUT\n                                      [--json]\nproxy-control-installer report: error: the following arguments are required: --output\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "report",
+    "--o",
+    "o",
+    "--c",
+    "c",
+    "--j"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "report",
+    "config": "c",
+    "json": true,
+    "output": "o",
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "uninstall",
+    "--purge-data",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "uninstall",
+    "json": true,
+    "purge_data": true,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "uninstall",
+    "--p"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "uninstall",
+    "json": false,
+    "purge_data": true,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "uninstall",
+    "--purge-data=yes"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer uninstall [-h] [--purge-data] [--json]\nproxy-control-installer uninstall: error: argument --purge-data: ignored explicit argument 'yes'\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "reconcile-panel-update"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer reconcile-panel-update [-h] --archive ARCHIVE\n                                                      --sha256 SHA256 [--json]\nproxy-control-installer reconcile-panel-update: error: the following arguments are required: --archive, --sha256\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "--archive",
+    "a"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer reconcile-panel-update [-h] --archive ARCHIVE\n                                                      --sha256 SHA256 [--json]\nproxy-control-installer reconcile-panel-update: error: the following arguments are required: --sha256\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "--s",
+    "x",
+    "--a",
+    "y"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "archive": "y",
+    "command": "reconcile-panel-update",
+    "json": false,
+    "root": "/",
+    "sha256": "x"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "--a",
+    "y",
+    "--s",
+    "z",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "archive": "y",
+    "command": "reconcile-panel-update",
+    "json": true,
+    "root": "/",
+    "sha256": "z"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "resume",
+    "--json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "resume",
+    "json": true,
+    "root": "/"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "repair",
+    "-x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: -x\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "repair",
+    "--json",
+    "extra",
+    "--root",
+    "/"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer [-h]\n                               {wizard,plan,install,status,resume,repair,report,uninstall,reconcile-panel-update}\n                               ...\nproxy-control-installer: error: unrecognized arguments: extra --root /\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "wizard",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer wizard [-h] [--lang {en,ru}]\n                                      [--config-output CONFIG_OUTPUT] [--json]\n\noptions:\n  -h, --help            show this help message and exit\n  --lang {en,ru}\n  --config-output CONFIG_OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "wizard",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer wizard\n       [-h] [--lang {en,ru}]\n       [--config-output CONFIG_OUTPUT]\n       [--json]\n\noptions:\n  -h, --help      show this help\n                  message and exit\n  --lang {en,ru}\n  --config-output CONFIG_OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "wizard",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer wizard [-h] [--lang {en,ru}] [--config-output CONFIG_OUTPUT] [--json]\n\noptions:\n  -h, --help            show this help message and exit\n  --lang {en,ru}\n  --config-output CONFIG_OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "wizard",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer wizard\n       [-h]\n       [--lang {en,ru}]\n       [--config-output CONFIG_OUTPUT]\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --lang {en,ru}\n  --config-output CONFIG_OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\n\noptions:\n  -h, --help       show this help message and exit\n  --config CONFIG\n  --json\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer plan\n       [-h] --config CONFIG [--json]\n\noptions:\n  -h, --help      show this help\n                  message and exit\n  --config CONFIG\n  --json\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer plan [-h] --config CONFIG [--json]\n\noptions:\n  -h, --help       show this help message and exit\n  --config CONFIG\n  --json\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer plan\n       [-h]\n       --config\n       CONFIG\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --config CONFIG\n  --json\n"
+  },
+  {
+   "argv": [
+    "install",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer install [-h] --config CONFIG --accept-plan\n                                       ACCEPT_PLAN [--json]\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG\n  --accept-plan ACCEPT_PLAN\n  --json\n"
+  },
+  {
+   "argv": [
+    "install",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer install\n       [-h] --config CONFIG\n       --accept-plan ACCEPT_PLAN\n       [--json]\n\noptions:\n  -h, --help      show this help\n                  message and exit\n  --config CONFIG\n  --accept-plan ACCEPT_PLAN\n  --json\n"
+  },
+  {
+   "argv": [
+    "install",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer install [-h] --config CONFIG --accept-plan ACCEPT_PLAN [--json]\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG\n  --accept-plan ACCEPT_PLAN\n  --json\n"
+  },
+  {
+   "argv": [
+    "install",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer install\n       [-h]\n       --config\n       CONFIG\n       --accept-plan\n       ACCEPT_PLAN\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --config CONFIG\n  --accept-plan ACCEPT_PLAN\n  --json\n"
+  },
+  {
+   "argv": [
+    "status",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer status [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "status",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer status\n       [-h] [--json]\n\noptions:\n  -h, --help  show this help message\n              and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "status",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer status [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "status",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer status\n       [-h]\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "resume",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer resume [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "resume",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer resume\n       [-h] [--json]\n\noptions:\n  -h, --help  show this help message\n              and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "resume",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer resume [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "resume",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer resume\n       [-h]\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "repair",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer repair [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "repair",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer repair\n       [-h] [--json]\n\noptions:\n  -h, --help  show this help message\n              and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "repair",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer repair [-h] [--json]\n\noptions:\n  -h, --help  show this help message and exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "repair",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer repair\n       [-h]\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --json\n"
+  },
+  {
+   "argv": [
+    "report",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer report [-h] --config CONFIG --output OUTPUT\n                                      [--json]\n\noptions:\n  -h, --help       show this help message and exit\n  --config CONFIG\n  --output OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "report",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer report\n       [-h] --config CONFIG --output\n       OUTPUT [--json]\n\noptions:\n  -h, --help      show this help\n                  message and exit\n  --config CONFIG\n  --output OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "report",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer report [-h] --config CONFIG --output OUTPUT [--json]\n\noptions:\n  -h, --help       show this help message and exit\n  --config CONFIG\n  --output OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "report",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer report\n       [-h]\n       --config\n       CONFIG\n       --output\n       OUTPUT\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --config CONFIG\n  --output OUTPUT\n  --json\n"
+  },
+  {
+   "argv": [
+    "uninstall",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer uninstall [-h] [--purge-data] [--json]\n\noptions:\n  -h, --help    show this help message and exit\n  --purge-data\n  --json\n"
+  },
+  {
+   "argv": [
+    "uninstall",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer uninstall\n       [-h] [--purge-data] [--json]\n\noptions:\n  -h, --help    show this help message\n                and exit\n  --purge-data\n  --json\n"
+  },
+  {
+   "argv": [
+    "uninstall",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer uninstall [-h] [--purge-data] [--json]\n\noptions:\n  -h, --help    show this help message and exit\n  --purge-data\n  --json\n"
+  },
+  {
+   "argv": [
+    "uninstall",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer uninstall\n       [-h]\n       [--purge-data]\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --purge-data\n  --json\n"
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer reconcile-panel-update [-h] --archive ARCHIVE\n                                                      --sha256 SHA256 [--json]\n\noptions:\n  -h, --help         show this help message and exit\n  --archive ARCHIVE\n  --sha256 SHA256\n  --json\n"
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer reconcile-panel-update\n       [-h] --archive ARCHIVE --sha256\n       SHA256 [--json]\n\noptions:\n  -h, --help      show this help\n                  message and exit\n  --archive ARCHIVE\n  --sha256 SHA256\n  --json\n"
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer reconcile-panel-update [-h] --archive ARCHIVE --sha256 SHA256 [--json]\n\noptions:\n  -h, --help         show this help message and exit\n  --archive ARCHIVE\n  --sha256 SHA256\n  --json\n"
+  },
+  {
+   "argv": [
+    "reconcile-panel-update",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer reconcile-panel-update\n       [-h]\n       --archive\n       ARCHIVE\n       --sha256\n       SHA256\n       [--json]\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n  --archive ARCHIVE\n  --sha256 SHA256\n  --json\n"
+  }
+ ],
+ "verify": [
+  {
+   "argv": [],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release [-h] {manifest,artifact} ...\nproxy-control-installer verify-release: error: the following arguments are required: command\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release [-h] {manifest,artifact} ...\n\nOffline verification for pinned external release artifacts.\n\npositional arguments:\n  {manifest,artifact}\n    manifest           validate a release manifest\n    artifact           verify an artifact against a manifest pin\n\noptions:\n  -h, --help           show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release\n       [-h] {manifest,artifact} ...\n\nOffline verification for pinned\nexternal release artifacts.\n\npositional arguments:\n  {manifest,artifact}\n    manifest      validate a release\n                  manifest\n    artifact      verify an artifact\n                  against a manifest\n                  pin\n\noptions:\n  -h, --help      show this help\n                  message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release [-h] {manifest,artifact} ...\n\nOffline verification for pinned external release artifacts.\n\npositional arguments:\n  {manifest,artifact}\n    manifest           validate a release manifest\n    artifact           verify an artifact against a manifest pin\n\noptions:\n  -h, --help           show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release\n       [-h]\n       {manifest,artifact}\n       ...\n\nOffline\nverification for\npinned external\nrelease artifacts.\n\npositional arguments:\n  {manifest,artifact}\n    manifest\n    validate a\n    release\n    manifest\n    artifact\n    verify an\n    artifact\n    against a\n    manifest pin\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "x"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release [-h] {manifest,artifact} ...\nproxy-control-installer verify-release: error: argument command: invalid choice: 'x' (choose from 'manifest', 'artifact')\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "manifest"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release manifest [-h] manifest\nproxy-control-installer verify-release manifest: error: the following arguments are required: manifest\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "manifest",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release manifest [-h] manifest\n\npositional arguments:\n  manifest\n\noptions:\n  -h, --help  show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "manifest",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release manifest\n       [-h] manifest\n\npositional arguments:\n  manifest\n\noptions:\n  -h, --help  show this help message\n              and exit\n"
+  },
+  {
+   "argv": [
+    "manifest",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release manifest [-h] manifest\n\npositional arguments:\n  manifest\n\noptions:\n  -h, --help  show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "manifest",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release manifest\n       [-h]\n       manifest\n\npositional arguments:\n  manifest\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "manifest",
+    "m.json"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "command": "manifest",
+    "manifest": "m.json"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "manifest",
+    "m.json",
+    "extra"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release [-h] {manifest,artifact} ...\nproxy-control-installer verify-release: error: unrecognized arguments: extra\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "artifact",
+    "m",
+    "xray",
+    "i386",
+    "f"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release artifact [-h]\n                                                       manifest name\n                                                       {amd64,arm64} artifact\nproxy-control-installer verify-release artifact: error: argument architecture: invalid choice: 'i386' (choose from 'amd64', 'arm64')\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "artifact",
+    "m",
+    "xray",
+    "amd64"
+   ],
+   "columns": 80,
+   "exit": 2,
+   "stderr": "usage: proxy-control-installer verify-release artifact [-h]\n                                                       manifest name\n                                                       {amd64,arm64} artifact\nproxy-control-installer verify-release artifact: error: the following arguments are required: artifact\n",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "artifact",
+    "-h"
+   ],
+   "columns": 80,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release artifact [-h]\n                                                       manifest name\n                                                       {amd64,arm64} artifact\n\npositional arguments:\n  manifest\n  name\n  {amd64,arm64}\n  artifact\n\noptions:\n  -h, --help     show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "artifact",
+    "-h"
+   ],
+   "columns": 40,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release artifact\n       [-h]\n       manifest name {amd64,arm64}\n       artifact\n\npositional arguments:\n  manifest\n  name\n  {amd64,arm64}\n  artifact\n\noptions:\n  -h, --help     show this help\n                 message and exit\n"
+  },
+  {
+   "argv": [
+    "artifact",
+    "-h"
+   ],
+   "columns": 120,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release artifact [-h] manifest name {amd64,arm64} artifact\n\npositional arguments:\n  manifest\n  name\n  {amd64,arm64}\n  artifact\n\noptions:\n  -h, --help     show this help message and exit\n"
+  },
+  {
+   "argv": [
+    "artifact",
+    "-h"
+   ],
+   "columns": 20,
+   "exit": 0,
+   "stderr": "",
+   "stdout": "usage: proxy-control-installer verify-release artifact\n       [-h]\n       manifest\n       name\n       {amd64,arm64}\n       artifact\n\npositional arguments:\n  manifest\n  name\n  {amd64,arm64}\n  artifact\n\noptions:\n  -h, --help\n    show this help\n    message and\n    exit\n"
+  },
+  {
+   "argv": [
+    "artifact",
+    "m",
+    "n",
+    "arm64",
+    "f"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "architecture": "arm64",
+    "artifact": "f",
+    "command": "artifact",
+    "manifest": "m",
+    "name": "n"
+   },
+   "stderr": "",
+   "stdout": ""
+  },
+  {
+   "argv": [
+    "artifact",
+    "--",
+    "m",
+    "n",
+    "amd64",
+    "f"
+   ],
+   "columns": 80,
+   "exit": null,
+   "namespace": {
+    "architecture": "amd64",
+    "artifact": "f",
+    "command": "artifact",
+    "manifest": "m",
+    "name": "n"
+   },
+   "stderr": "",
+   "stdout": ""
+  }
+ ]
+}

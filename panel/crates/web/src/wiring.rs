@@ -82,13 +82,29 @@ pub fn build(settings: Settings, static_dir: PathBuf) -> Result<AppState, String
 /// fleet (WP11/WP12), routing and lanes (WP10), metrics (WP13). Each adds `services.insert(…)`.
 pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     let mut services = Services::new();
-    // `app.state.nodes = NodeLifecycleService(...)` (WP11), on the panel's clock.
+    // `app.state.nodes = NodeLifecycleService(...)` (WP11, `app.py:130`), on the panel's clock.
     let nodes = NodeLifecycleService::new(core.database.clone(), core.clock.clone());
     services.insert(nodes.clone());
-    // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13): the collector
-    // reads the host agent and the five protocol managers; the local node's name comes from the
-    // node store. The fleet source (WP12) is plugged in with `Metrics::set_source`; until then
-    // linked nodes answer `unsupported`.
+    // `app.state.adapters` and `app.state.router` (`app.py:150-171`): one adapter set for the whole
+    // panel (WP12a builds it; the clients and routing packages take their adapters from it).
+    let runtime = Arc::new(panel_fleet::node::ManagerRuntime::from_settings(&core.settings, bridge_probe(core)));
+    // The node side of fleet v2 (`ManagedStore`, `Reconciler`, `app.py:174,206-209`).
+    let node = panel_fleet::node::FleetNode::new(
+        core.database.clone(),
+        core.secrets.clone(),
+        runtime.clone(),
+        Arc::new(core.managers.versions.clone()),
+        panel_fleet::node::NodeConfig::from_settings(&core.settings),
+        core.panel_guid.clone(),
+        core.panel_version.clone(),
+        core.clock.clone(),
+    );
+    services.insert(runtime);
+    services.insert(node);
+    // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13, `app.py:252`):
+    // the collector reads the host agent and the five protocol managers; the local node's name
+    // comes from the node store. The fleet source (WP12b) is plugged in with
+    // `Metrics::set_source`; until then linked nodes answer `unsupported`.
     let managers = &core.managers;
     let local_name: LocalName = Arc::new(move || nodes.local().ok().map(|view| view.display_name));
     let meters = ManagerMeters {
@@ -100,9 +116,27 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
         naive: Some(Arc::new(managers.naive.clone())),
         local_name: Some(local_name),
     };
-    let metrics = Metrics::setup(&core.settings, core.database.clone(), Arc::new(meters), core.clock.clone());
+    let metrics: Arc<Metrics> =
+        Metrics::setup(&core.settings, core.database.clone(), Arc::new(meters), core.clock.clone());
     services.insert(metrics);
     Ok(services)
+}
+
+/// The MTProxy ingress probe: the real one, unless a `test-hooks` build was told the answer
+/// (`POST /__test/probe-bridge`).
+fn bridge_probe(core: &Arc<Core>) -> Option<panel_protocols::telemt::BridgeProbe> {
+    if !crate::TEST_HOOKS {
+        return None;
+    }
+    let core = Arc::downgrade(core);
+    let real = panel_protocols::telemt::default_bridge_probe();
+    Some(Arc::new(move |ingress| {
+        let forced = core.upgrade().and_then(|core| core.test.bridge_answer());
+        match forced {
+            Some(answer) => Box::pin(async move { answer }),
+            None => real(ingress),
+        }
+    }))
 }
 
 /// Background loops and pre-serve work (`_lifespan`, `app.py:70-89`): the access enforcer's

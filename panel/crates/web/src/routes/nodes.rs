@@ -8,7 +8,10 @@
 //! /api/nodes/{node_id}` (404 `node not found`) even once fleet v2 registers those paths for `POST`
 //! earlier in the table.
 
+use std::sync::Arc;
+
 use axum::extract::State;
+use panel_fleet::node::ManagerRuntime;
 use panel_model::protocols::BoxFuture;
 use panel_model::seams::SeamError;
 use panel_nodes::routes::{self as nodes, LocalManager, NodeRename, NodesState, RouteError};
@@ -65,9 +68,9 @@ impl NodesState for AppState {
 
     fn amneziawg_versions(&self) -> BoxFuture<'_, Result<Vec<String>, SeamError>> {
         Box::pin(async move {
-            // `adapters["amneziawg"].versions()`: the adapter is a thin view of the client.
-            let adapter = panel_protocols::amneziawg::AmneziawgAdapter::new(self.managers.amneziawg.clone(), "");
-            adapter.versions().await.map_err(|error| Box::new(error) as SeamError)
+            // `adapters["amneziawg"].versions()`: the panel's one adapter set.
+            let runtime = self.service::<Arc<ManagerRuntime>>();
+            runtime.amneziawg.versions().await.map_err(|error| Box::new(error) as SeamError)
         })
     }
 }
