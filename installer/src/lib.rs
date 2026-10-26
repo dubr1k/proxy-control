@@ -8,7 +8,11 @@
 //! | [`engine`] | `TransactionEngine`: apply, resume, repair, uninstall, rollback | `transaction.py:870-1410` |
 //! | [`adapter`] | the frozen `Adapter` trait, `compose_plan` | `adapters/base.py`, `planner.build_plan` |
 //! | [`adapters`] | the adapter registry and `AdapterContext` (the adapter packages plug in here) | `planner.adapter_factories`, `adapters/*.py` |
+//! | [`adapters::packages`], [`adapters::firewall`] | checkpointed package and UFW ownership; foreign state is preserved | `adapters/packages.py`, `adapters/firewall.py` |
+//! | [`adapters::nginx`], [`adapters::certificates`] | effective shared topology, atomic route edits, HTTP-01 and service lineage ownership | `adapters/nginx.py`, `adapters/certificates.py` |
+//! | [`adapters::core`] | owned Compose generation, panel bootstrap, TLS login/resPQ acceptance and recoverable cleanup | `adapters/core.py` |
 //! | [`handoff`] | `PanelOwnershipHandoff`: the panel self-update's ownership rebase | `transaction.py:483-699` |
+//! | [`ingress_upgrade`] | bounded migration of installer-owned pre-client-IP Nginx templates | `ingress_upgrade.py` |
 //! | [`migration`] | `AgentMigration`: the 3.x → 4.0 agent swap's ownership rebase | new (host inventory §9.4) |
 //! | [`cli`] | the binary's dispatch of `installer_core::cli::parse` | `cli.py:165-650` |
 //! | [`error`] | the installer error with Python class names and the rollback/stop distinction | the exception classes |
@@ -157,6 +161,7 @@ pub mod cli;
 pub mod engine;
 pub mod error;
 pub mod handoff;
+pub mod ingress_upgrade;
 pub mod journal;
 pub mod migration;
 pub mod store;

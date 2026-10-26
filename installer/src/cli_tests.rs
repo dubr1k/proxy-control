@@ -121,6 +121,7 @@ impl Fixture {
                 mcp.clone().ok_or_else(|| Error::other("McpError", "no MCP in this test"))
             }),
         )?;
+        services.engine = crate::engine::TransactionEngine::new(crate::store::TransactionStore::new(root)?);
         for adapter in &self.adapters {
             services.engine.register(adapter.clone());
         }
@@ -297,7 +298,7 @@ fn a_missing_adapter_is_blocked() {
     host.install_journal(&golden().join("installs/core/journal"));
     let before = read(&host.journal().join("state.json"));
     for command in [&["resume"][..], &["repair"], &["uninstall"], &["uninstall", "--purge-data", "--json"]] {
-        let ran = run_with(&[&["--root", host.root()][..], command].concat(), &Services::system);
+        let ran = fixture.run(&host, command);
         assert_eq!((ran.code, ran.stdout.as_str()), (2, ""), "{command:?}");
         assert_eq!(ran.stderr, "BLOCKED: adapter is unavailable: packages\n", "{command:?}");
     }
