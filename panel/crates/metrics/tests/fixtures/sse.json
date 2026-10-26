@@ -1,0 +1,93 @@
+{
+ "retry": "retry: 3000\n\n",
+ "ping": ": ping\n\n",
+ "frames": [
+  {
+   "event": "snapshot",
+   "payload": "{\"reason\":\"max_age\"}",
+   "frame": "event: snapshot\ndata: {\"reason\":\"max_age\"}\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "{\"reason\":\"session_ended\"}",
+   "frame": "event: snapshot\ndata: {\"reason\":\"session_ended\"}\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "{\"ts\":1800000000.123,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Узел «1» ✓\",\"age_seconds\":0.0,\"host\":{\"load\":[0.42,0.4,0.3],\"big\":1e+16,\"small\":1e-05,\"sum\":0.30000000000000004,\"int\":7,\"neg\":-3.5},\"emoji\":\"🙂\",\"ctl\":\"a\\tb\\n\\\"q\\\"\\\\\",\"none\":null,\"t\":true}]}",
+   "frame": "event: snapshot\ndata: {\"ts\":1800000000.123,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"\\u0423\\u0437\\u0435\\u043b \\u00ab1\\u00bb \\u2713\",\"age_seconds\":0.0,\"host\":{\"load\":[0.42,0.4,0.3],\"big\":1e+16,\"small\":1e-05,\"sum\":0.30000000000000004,\"int\":7,\"neg\":-3.5},\"emoji\":\"\\ud83d\\ude42\",\"ctl\":\"a\\tb\\n\\\"q\\\"\\\\\",\"none\":null,\"t\":true}]}\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "[]",
+   "frame": "event: snapshot\ndata: []\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "{}",
+   "frame": "event: snapshot\ndata: {}\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "\"plain\"",
+   "frame": "event: snapshot\ndata: \"plain\"\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "12",
+   "frame": "event: snapshot\ndata: 12\n\n"
+  },
+  {
+   "event": "snapshot",
+   "payload": "1.5",
+   "frame": "event: snapshot\ndata: 1.5\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "{\"reason\":\"max_age\"}",
+   "frame": "event: bye\ndata: {\"reason\":\"max_age\"}\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "{\"reason\":\"session_ended\"}",
+   "frame": "event: bye\ndata: {\"reason\":\"session_ended\"}\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "{\"ts\":1800000000.123,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Узел «1» ✓\",\"age_seconds\":0.0,\"host\":{\"load\":[0.42,0.4,0.3],\"big\":1e+16,\"small\":1e-05,\"sum\":0.30000000000000004,\"int\":7,\"neg\":-3.5},\"emoji\":\"🙂\",\"ctl\":\"a\\tb\\n\\\"q\\\"\\\\\",\"none\":null,\"t\":true}]}",
+   "frame": "event: bye\ndata: {\"ts\":1800000000.123,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"\\u0423\\u0437\\u0435\\u043b \\u00ab1\\u00bb \\u2713\",\"age_seconds\":0.0,\"host\":{\"load\":[0.42,0.4,0.3],\"big\":1e+16,\"small\":1e-05,\"sum\":0.30000000000000004,\"int\":7,\"neg\":-3.5},\"emoji\":\"\\ud83d\\ude42\",\"ctl\":\"a\\tb\\n\\\"q\\\"\\\\\",\"none\":null,\"t\":true}]}\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "[]",
+   "frame": "event: bye\ndata: []\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "{}",
+   "frame": "event: bye\ndata: {}\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "\"plain\"",
+   "frame": "event: bye\ndata: \"plain\"\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "12",
+   "frame": "event: bye\ndata: 12\n\n"
+  },
+  {
+   "event": "bye",
+   "payload": "1.5",
+   "frame": "event: bye\ndata: 1.5\n\n"
+  }
+ ],
+ "limits": {
+  "per_session": 4,
+  "global": 24,
+  "ping": 15.0,
+  "max_age": 3300.0,
+  "recheck": 60.0
+ }
+}
