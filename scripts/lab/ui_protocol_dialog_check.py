@@ -26,7 +26,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.parse
 import urllib.request
 
 if __name__ == "__main__":
@@ -394,13 +393,15 @@ def check_remote_issuance(browser, protocol):
     browser.can_capture = False
     browser.click(f"#create-{short}")
     browser.wait(f"document.querySelector('#{short}-modal')?.open === false", "grant request accepted")
-    asyncio.run(fixture.central.state.pusher.tick())
+    asyncio.run_coroutine_threadsafe(fixture.central.tick("pusher"), fixture.loop).result(30)
+    asyncio.run_coroutine_threadsafe(fixture.remote.settle(), fixture.loop).result(30)
+    asyncio.run_coroutine_threadsafe(fixture.central.tick("pusher"), fixture.loop).result(30)
     if short == "awg":
-        remote_table = fixture.remote.state.amneziawg.peer_table
-        local_table = fixture.central.state.amneziawg.peer_table
+        remote_table = fixture.remote.amneziawg.peer_table
+        local_table = fixture.central.amneziawg.peer_table
     else:
-        remote_table = fixture.remote.state.trusttunnel.client_table
-        local_table = fixture.central.state.trusttunnel.client_table
+        remote_table = fixture.remote.trusttunnel.client_table
+        local_table = fixture.central.trusttunnel.client_table
     require(username in remote_table and username not in local_table,
             f"{protocol} issuance must reach the chosen remote manager, not the local manager")
     entries = fixture.api("/api/clients")["items"]
@@ -444,6 +445,30 @@ def check_overview_attention(browser):
         fixture.api(f"/api/nodes/{fixture.paused_id}/pause", "POST")
 
 
+def check_english_grant_node_label(browser):
+    """Render the shipped grant row in English without rewriting the operator's account name."""
+    browser.js("localStorage.setItem('proxy-control.lang', 'en')")
+    browser.dt.call("Page.navigate", {"url": f"{browser.fixture.base}/?i18n={secrets.token_hex(4)}#clients"})
+    browser.wait("document.documentElement.lang === 'en' && !!document.querySelector('#view')", "English panel loaded")
+    translated = browser.js("""(async () => {
+        const { grantRowHtml } = await import('/static/js/grant.js');
+        const list = document.createElement('ul');
+        list.innerHTML = grantRowHtml({
+          id: 'i18n-probe', protocol: 'naive', runtime_username: 'Имя клиента',
+          node_id: 'local', desired_state: 'enabled', observed_state: 'enabled',
+          secret_ref: null
+        });
+        document.body.append(list);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const label = list.querySelector('.grant-node [data-translate]')?.textContent;
+        const account = list.querySelector('.grant-account > span')?.textContent;
+        list.remove();
+        return label === 'This server' && account === 'Имя клиента';
+    })()""")
+    require(translated is True, "local node label must translate without changing the account name")
+    browser.healthy()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--screenshots", type=Path, help="empty states and unsubmitted dialogs only")
@@ -458,6 +483,7 @@ def main():
             check_overview_attention(browser)
             for protocol in PROTOCOLS:
                 check_remote_issuance(browser, protocol)
+            check_english_grant_node_label(browser)
     print("PROTOCOL_DIALOG_SMOKE_OK: AWG+TrustTunnel; fresh nodes; capability selection; remote issuance; desktop/mobile rows")
     return 0
 

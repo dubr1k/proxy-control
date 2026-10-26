@@ -7,12 +7,11 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
-JS = Path(__file__).resolve().parent.parent / "static/js"
+pytestmark = pytest.mark.anyio
+
 NODE = shutil.which("node")
 
 # page module -> (view name, protocol, the expression that names the user in the cell)
@@ -31,12 +30,12 @@ NODE = shutil.which("node")
 
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_the_painter_shows_split_total_and_averaged_rates_and_clears_idle_users():
-    tmp = Path(tempfile.mkdtemp())
+async def test_the_painter_shows_split_total_and_averaged_rates_and_clears_idle_users(server, tmp_path):
     for name in ("common", "charts", "live-rates"):
-        text = (JS / f"{name}.js").read_text().replace("./common.js", "./common.mjs").replace("./charts.js", "./charts.mjs")
-        (tmp / f"{name}.mjs").write_text(text)
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        text = response.text.replace("./common.js", "./common.mjs").replace("./charts.js", "./charts.mjs")
+        (tmp_path / f"{name}.mjs").write_text(text)
     code = """
 import * as mod from %s;
 const cell = (user) => ({ dataset: { liveRate: user }, textContent: "stale", title: "" });
@@ -54,7 +53,8 @@ const live = Object.fromEntries(Object.entries(cells).map(([k, v]) => [k, v.text
 context.state.liveRatesLast = { live: false, clients };
 mod.repaintLiveRates(context);
 console.log(JSON.stringify({ live, naive: cells.alice.textContent, title: cells.alice.title, quiet: cells.quiet.textContent }));
-""" % json.dumps((tmp / "live-rates.mjs").as_uri())
+""" % json.dumps((tmp_path / "live-rates.mjs").as_uri())
+    assert NODE is not None
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["live"]["alice"] == "Сейчас ↓ 3,00 МБ/с · ↑ 2,00 КБ/с" or out["live"]["alice"].startswith("Сейчас ↓ 3")
     assert out["live"]["bob"].startswith("Сейчас 1") and out["live"]["total"].startswith("Сейчас 5")

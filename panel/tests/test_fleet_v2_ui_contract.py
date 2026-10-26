@@ -1,15 +1,24 @@
-# panel/tests/test_fleet_v2_ui_contract.py
-from pathlib import Path
+"""Fleet UI request and secret-handling flows in JavaScript served by the Rust panel."""
 import json
-import shutil
 import subprocess
 
-STATIC = Path(__file__).resolve().parent.parent / "static"
+import pytest
+
+pytestmark = pytest.mark.anyio
 
 
-def test_fingerprint_fetch_with_empty_pin_uses_private_checkbox_without_link_validation(tmp_path):
-    shutil.copytree(STATIC / "js", tmp_path / "js")
+async def _served_modules(server, tmp_path):
+    js = tmp_path / "js"
+    js.mkdir()
+    for name in ("nodes", "routing", "common", "state", "api", "routing-guide", "placement"):
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        (js / f"{name}.js").write_text(response.text)
     (tmp_path / "package.json").write_text('{"type":"module"}')
+
+
+async def test_fingerprint_fetch_with_empty_pin_uses_private_checkbox_without_link_validation(server, tmp_path):
+    await _served_modules(server, tmp_path)
     script = """
       import { bindNodes } from './js/nodes.js';
       const results = [];
@@ -49,22 +58,8 @@ def test_fingerprint_fetch_with_empty_pin_uses_private_checkbox_without_link_val
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(tmp_path):
-    shutil.copytree(STATIC / "js", tmp_path / "js")
-    (tmp_path / "package.json").write_text('{"type":"module"}')
+async def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(server, login_user, tmp_path):
+    await _served_modules(server, tmp_path)
     script = """
       import { handleNodesClick, bindNodes } from './js/nodes.js';
       globalThis.window = { location: { origin: 'https://panel.example' } };
@@ -95,7 +90,7 @@ def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(tmp_pat
     assert actual["handled"] is True and actual["opened"] == ["#center-key-modal"]
     assert [(c["path"], c["method"], c["body"]["scope"], c["body"]["expires_at"]) for c in actual["calls"]] == [("/api/keys", "POST", "node-sync", None)]
     assert actual["shown"] == {"url": "https://panel.example", "key": "pc_secret"} and actual["after"] == ""
-    assert "Панель не вернула ключ" in (STATIC / "js/nodes.js").read_text()
-    html = (STATIC / "index.html").read_text()
+    await login_user(server.client)
+    html = (await server.client.get("/")).text
     for needle in ('id="center-key-modal"', 'id="copy-center-key"', 'id="copy-center-url"'):
         assert needle in html

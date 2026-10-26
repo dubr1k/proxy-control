@@ -297,6 +297,8 @@ async def test_html_language_is_part_of_the_etag(public, token):
     english = await public.get(f"/s/{token}", params={"format": "html", "lang": "en"})
     assert 'lang="ru"' in russian.text and "Копировать ссылку подписки" in russian.text
     assert 'lang="en"' in english.text and "Copy the subscription link" in english.text
+    assert "Releases on GitHub" in english.text
+    assert "Выпуски на GitHub" not in english.text
     assert russian.headers["etag"] != english.headers["etag"]
     assert (await public.get(f"/s/{token}", params={"format": "html", "lang": "en"},
                              headers={"If-None-Match": english.headers["etag"]})).status_code == 304

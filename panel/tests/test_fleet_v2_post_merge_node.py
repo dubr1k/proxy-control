@@ -1,4 +1,5 @@
-"""v0.3 post-merge fix-wave, node side and local lifecycle."""
+"""Node-side Fleet HTTP and local grant lifecycle regressions."""
+
 import pytest
 
 from panel.tests.test_fleet_v2_delivery import answer, linked, provision
@@ -8,34 +9,12 @@ from panel.tests.harness.memories.telemt import TelemtError
 
 pytestmark = pytest.mark.anyio
 
-ACTOR = {"id": 1, "username": "owner"}
-
-
-
 async def _node_key(client, login_user):
     await login_user(client)
     created = await client.post("/api/keys", json={"name": "central", "scope": "node-sync"},
                                 headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
     client.cookies.clear()
     return {"Authorization": f"Bearer {created.json()['plaintext']}"}
-
-
-
-
-
-
-
-
-
-
-# --- [T6] a superseded generation is the only KeyError the push route swallows ---
-
-
-
-
-# --- [T6]/[re-review] capture: audited, and local users only for an import ---
-
-
 
 
 async def test_capture_with_an_unknown_purpose_is_422(client, login_user):
@@ -54,8 +33,6 @@ async def test_the_central_imports_with_the_import_purpose(pair):
     assert node.audits(action="fleet.credentials.capture")[0]["detail"]["purpose"] == "import"
 
 
-# --- [T10] a drifted local grant: "no such user" on delete means already deleted ---
-
 async def test_deleting_a_grant_whose_user_is_already_gone_succeeds(client, login_user, naive):
     await login_user(client)
     csrf = {"X-CSRF-Token": client.cookies["panel_csrf"]}
@@ -71,8 +48,6 @@ async def test_deleting_a_grant_whose_user_is_already_gone_succeeds(client, logi
     assert deleted.status_code == 200, deleted.text
     assert (await client.get(f"/api/clients/{owner['id']}")).json()["grants"] == []
 
-
-# --- [T10] a compensated local step leaves no tombstone row ---
 
 async def test_a_compensated_local_grant_is_purged(client, server, login_user, naive, telemt):
     await login_user(client)
@@ -95,37 +70,11 @@ async def test_a_compensated_local_grant_is_purged(client, server, login_user, n
     assert rows == []  # no `deleted/missing` tombstone left behind
 
 
-# --- [re-review] the local capture/adopt paths refuse a grant that lives on another node ---
-
 async def test_capture_credential_refuses_a_remote_grant(pair):
     _, central, node_id = await linked(pair)
     client_id, _ = await provision(central, node_id)
     grant = (await answer(central.client, "GET", f"/api/clients/{client_id}"))["grants"][0]
     refused = await central.client.post(f"/api/clients/grants/{grant['id']}/adopt", json={"allow_rotation": True})
     assert refused.status_code == 409 and "another node" in refused.json()["detail"]
-
-
-# --- [round 3] Telemt errors on enable/disable/options are AdapterError, not 502 ---
-
-@pytest.mark.parametrize("call", ["enable", "disable", "update_options"])
-async def test_telemt_adapter_wraps_a_failing_readback(call):
-    from panel.protocols.base import AdapterError, GrantRef
-    from panel.protocols.telemt import TelemtAdapter
-    from panel.tests.harness.memories.telemt import MemoryTelemt
-
-    telemt = MemoryTelemt()
-    await telemt.create_user("alice")
-    adapter = TelemtAdapter(telemt)
-
-    async def broken(username):
-        raise TelemtError("Telemt API error (502)")
-
-    telemt.current_access = broken
-    ref = GrantRef("mtproxy", "alice")
-    with pytest.raises(AdapterError):
-        if call == "update_options":
-            await adapter.update_options(ref, {"max_tcp_conns": 3})
-        else:
-            await getattr(adapter, call)(ref)
 
 

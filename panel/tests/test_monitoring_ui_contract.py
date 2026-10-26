@@ -1,7 +1,4 @@
-"""The monitoring screen (Proxy Control 2.0): «Мониторинг» is in the navigation for every role,
-the three modules export what the plan names, nothing in them or in the templates would be
-dropped by the CSP (`style-src 'self'`), every Russian string has an English line, and the pure
-parts of the charts library (units, ticks, gaps) and of the live feed (back-off) behave."""
+"""Monitoring chart, live-rate, and metadata behavior from JavaScript served by the Rust panel."""
 
 from __future__ import annotations
 
@@ -9,48 +6,11 @@ import json
 import re
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parent.parent / "static"
-JS = STATIC / "js"
-
-
-CHARTS = (JS / "charts.js").read_text()
-LIVE = (JS / "live.js").read_text()
-MONITORING = (JS / "monitoring.js").read_text()
-
 NODE = shutil.which("node")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pytestmark = pytest.mark.anyio
 
 CHARTS_HARNESS = r"""
 import * as charts from "./charts.mjs";
@@ -115,14 +75,14 @@ console.log(JSON.stringify(out));
 """
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_units_ticks_gaps_and_backoff_behave_in_node():
-    tmp = Path(tempfile.mkdtemp())
-    shutil.copy(JS / "common.js", tmp / "common.mjs")
-    (tmp / "charts.mjs").write_text(CHARTS.replace("./common.js", "./common.mjs"))
-    (tmp / "live.mjs").write_text(LIVE)
-    (tmp / "run.mjs").write_text(CHARTS_HARNESS)
-    result = subprocess.run([NODE, str(tmp / "run.mjs")], capture_output=True, text=True, timeout=60)
+async def test_units_ticks_gaps_and_backoff_behave_in_node(server, tmp_path):
+    for name in ("common", "charts", "live"):
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        (tmp_path / f"{name}.mjs").write_text(response.text.replace("./common.js", "./common.mjs"))
+    (tmp_path / "run.mjs").write_text(CHARTS_HARNESS)
+    assert NODE is not None
+    result = subprocess.run([NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     out = json.loads(result.stdout.strip().splitlines()[-1])
 
@@ -155,17 +115,12 @@ def test_units_ticks_gaps_and_backoff_behave_in_node():
 
 
 
-
-
-
-
-
-
-
-
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amneziawg():
-    source = re.search(r"function protoMeta\(entry\) \{.*?\n\}\n", MONITORING, re.S).group(0)
+async def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amneziawg(server, tmp_path):
+    response = await server.client.get("/static/js/monitoring.js")
+    assert response.status_code == 200
+    match = re.search(r"function protoMeta\(entry\) \{.*?\n\}\n", response.text, re.S)
+    assert match is not None
+    source = match.group(0)
     script = (
         "const finite = (v) => typeof v === 'number' && Number.isFinite(v); const number = (v) => String(v);\n"
         + source
@@ -173,9 +128,9 @@ def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amne
           " protoMeta({connections: 0, clients: 2}), protoMeta({connections: null, sessions: 3, clients: 1}),"
           " protoMeta({connections: null, sessions: null, clients: null})]));"
     )
-    tmp = Path(tempfile.mkdtemp())
-    (tmp / "run.mjs").write_text(script)
-    result = subprocess.run([NODE, str(tmp / "run.mjs")], capture_output=True, text=True, timeout=60)
+    (tmp_path / "run.mjs").write_text(script)
+    assert NODE is not None
+    result = subprocess.run([NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     with_conn, zero, peers, nothing = json.loads(result.stdout.strip().splitlines()[-1])
     assert "Соединений <b>5</b>" in with_conn and "Сессий" not in with_conn and "Клиентов" not in with_conn

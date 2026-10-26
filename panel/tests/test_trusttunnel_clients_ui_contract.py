@@ -1,8 +1,4 @@
-"""«Как подключить» and the manual-setup card (v2.1): the apps that take a TrustTunnel access, how each
-imports it, and the fields for those that import neither the link nor the TOML.
-
-The panel's JS (grant window, bundle) lists every app, the unverified ones marked; the subscription page's
-Python lists only the verified ones (owner rule, 3.0.0) — a test keeps the two in step. No inline `style=`, links open in a new tab without an opener."""
+"""Exercise the TrustTunnel access consumer JavaScript served by the Rust panel."""
 
 from __future__ import annotations
 
@@ -10,39 +6,18 @@ import json
 
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.anyio
 
-
-STATIC = Path(__file__).resolve().parent.parent / "static"
-JS = STATIC / "js"
-SOURCE = (JS / "trusttunnel-clients.js").read_text()
 NODE = shutil.which("node")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_the_markup_escapes_shows_every_value_and_drops_a_malformed_artifact():
-    tmp = Path(tempfile.mkdtemp())
-    shutil.copy(JS / "common.js", tmp / "common.mjs")
-    (tmp / "tt.mjs").write_text(SOURCE.replace("./common.js", "./common.mjs"))
+async def test_the_markup_escapes_shows_every_value_and_drops_a_malformed_artifact(server, tmp_path):
+    (tmp_path / "common.mjs").write_text((await server.client.get("/static/js/common.js")).text)
+    source = (await server.client.get("/static/js/trusttunnel-clients.js")).text
+    (tmp_path / "tt.mjs").write_text(source.replace("./common.js", "./common.mjs"))
     code = """
 import * as tt from %s;
 const good = JSON.stringify({ server: "gate.example.com", port: 443, username: "al<ice>", password: "pw-CANARY-1", sni: "gate.example.com",
@@ -64,7 +39,8 @@ console.log(JSON.stringify({
   inlineStyle: /style=/.test(html + apps),
   heading: apps.includes("Как подключить"),
 }));
-""" % json.dumps((tmp / "tt.mjs").as_uri())
+""" % json.dumps((tmp_path / "tt.mjs").as_uri())
+    assert NODE is not None
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["parsed"] == ["gate.example.com", "443", "al<ice>"]
     assert out["badJson"] is None and out["noPort"] is None and out["huge"] is None
