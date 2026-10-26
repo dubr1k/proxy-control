@@ -1,0 +1,50 @@
+{
+    admin 127.0.0.1:2019
+}
+:4443 {
+    bind 127.0.0.1
+    # BEGIN NAIVE-MANAGER ACCOUNTING
+    log naive_accounting {
+        output file /var/log/naive-proxy/access.json {
+            mode 0640
+            roll_size 10MiB
+            roll_keep 10
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+        format filter {
+            wrap json
+            fields {
+                request>headers>Proxy-Authorization delete
+                user_id regexp ^(invalidbase64|invalidformat|invalid):.*$ invalid
+            }
+        }
+    }
+    # END NAIVE-MANAGER ACCOUNTING
+    route {
+        # BEGIN NAIVE-MANAGER LANES
+        forward_proxy {
+            basic_auth phone caller-supplied-password-01
+            hide_ip
+            hide_via
+            probe_resistance
+            upstream socks5://grant-7f3a:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@127.0.0.1:45101
+        }
+        # END NAIVE-MANAGER LANES
+        forward_proxy {
+            # BEGIN NAIVE-MANAGER USERS
+            basic_auth old-user old-password
+            basic_auth second sécond-password
+            # END NAIVE-MANAGER USERS
+            hide_ip
+            hide_via
+            probe_resistance
+            # BEGIN NAIVE-MANAGER EGRESS
+            acl {
+                deny example.com 10.0.0.0/8
+            }
+            # END NAIVE-MANAGER EGRESS
+        }
+        file_server { root /var/www/naive }
+    }
+}

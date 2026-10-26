@@ -90,6 +90,8 @@ def host(tmp_path):
     (project / ".env").write_text("X=1\n")
     (project / ".env.xray-router").write_text("Y=1\n")
     (project / "compose.xray-router.yaml").write_text("services:\n  xray-router:\n    image: x\n  xray-router-ingress:\n    image: x\n")
+    # A 4.0 host: the agent already syncs the shared Rust crate.
+    shutil.copytree(ROOT / "pc_common", project / "pc_common", ignore=shutil.ignore_patterns("target"))
     env_file = tmp_path / "version-agent.env"
     env_file.write_text(f"PROXY_CONTROL_COMPOSE_DIR={project}\n"
                         "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.naive.yaml:compose.xray-router.yaml\n")
@@ -384,6 +386,17 @@ def test_rebuilt_managers_are_acknowledged_to_the_agent(host):
     result = _run(host, agent)
     assert result.returncode == 0, result.stderr
     assert agent.acks == [{"names": ["xray_router_manager"]}]
+
+
+def test_a_host_before_4_0_gets_pc_common_and_rebuilds_the_rust_naive_manager(host):
+    shutil.rmtree(host["project"] / "pc_common")
+    agent = Agent(pending=())
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert (host["project"] / "pc_common" / "Cargo.toml").is_file()
+    up = next(line for line in host["log"].read_text().splitlines() if " up -d --build --no-deps --wait " in line)
+    assert "naive-manager" in up.split(" --wait ", 1)[1].split()
+    assert agent.acks == [{"names": ["naive_manager"]}]
 
 
 def test_an_agent_without_the_ack_endpoint_does_not_fail_the_update(host):

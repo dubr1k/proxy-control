@@ -38,7 +38,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "python", "-m", "naive_manager.healthcheck"]
+      test: ["CMD", "/usr/local/bin/naive-manager", "healthcheck"]
       interval: 20s
       timeout: 5s
       retries: 3

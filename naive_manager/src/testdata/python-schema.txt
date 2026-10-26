@@ -1,0 +1,38 @@
+CREATE TABLE accounting_state (
+                singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+                error TEXT NOT NULL,
+                detected_at TEXT NOT NULL
+            )
+;
+CREATE TABLE traffic_archives (
+                username TEXT PRIMARY KEY,
+                upload_bytes INTEGER NOT NULL CHECK(upload_bytes >= 0),
+                download_bytes INTEGER NOT NULL CHECK(download_bytes >= 0),
+                period_start TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT NOT NULL
+            )
+;
+CREATE TABLE traffic_counters (
+                username TEXT PRIMARY KEY,
+                upload_bytes INTEGER NOT NULL CHECK(upload_bytes >= 0),
+                download_bytes INTEGER NOT NULL CHECK(download_bytes >= 0),
+                period_start TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+;
+CREATE TABLE traffic_files (
+                device INTEGER NOT NULL,
+                inode INTEGER NOT NULL,
+                offset INTEGER NOT NULL CHECK(offset >= 0),
+                path TEXT NOT NULL,
+                tail_digest BLOB,
+                discarding INTEGER NOT NULL DEFAULT 0 CHECK(discarding IN (0, 1)),
+                observed_mtime_ns INTEGER,
+                observed_ctime_ns INTEGER,
+                file_size INTEGER,
+                observed_head_digest BLOB,
+                observed_tail_digest BLOB,
+                consumed_prefix_digest BLOB,
+                PRIMARY KEY(device, inode)
+            )

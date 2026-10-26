@@ -783,7 +783,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | Dockerfile | Образ | База |
 |---|---|---|
 | `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
-| `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy | `python:3.13.5-slim` |
+| `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | MCP-сервер (Rust, только центральная панель) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |

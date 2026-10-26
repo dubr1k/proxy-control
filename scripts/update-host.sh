@@ -225,6 +225,10 @@ if [[ -d $RELEASE_DIR/pc_common && ! -L $DIR/pc_common ]] \
         services+=(mcp)
         acked+=(mcp_server)
     fi
+    if has compose.naive.yaml && [[ " ${services[*]:-} " != *" naive-manager "* ]]; then
+        services+=(naive-manager)
+        acked+=(naive_manager)
+    fi
 fi
 # v1.1: the router's MTProxy bridge comes with the router (a new service on an updated host).
 if has compose.xray-router.yaml && grep -q '^  xray-router-ingress:' compose.xray-router.yaml; then

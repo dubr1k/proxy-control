@@ -426,7 +426,7 @@ and every WARP policy previews as `provider_unavailable`.
 Unit: `panel/tests/test_routing_ir.py` (validation, the compiler against the capability
 matrix, the store), `test_routing_service.py`, `test_routing_routes.py`,
 `test_routing_fleet.py` (the generation section, the node, the pusher),
-`test_egress_adapters.py`, `tests/test_naive_egress.py`, `tests/test_naive_manager_egress.py`,
+`test_egress_adapters.py`, `naive_manager/src/egress.rs`, `naive_manager/src/tests_egress.rs`,
 `mieru_manager/src/tests.rs`; for the router `panel/tests/test_xray_routing_compiler.py`,
 `test_routing_router_service.py`, `test_routing_router_routes.py`,
 `test_routing_fleet_router.py`, `tests/test_xray_router_*.py`. Stand:
