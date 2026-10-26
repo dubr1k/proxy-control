@@ -1,0 +1,13 @@
+Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+  fresh   — a clean server: the installer sets up Nginx and takes TCP 80 and 443
+  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours
+  fresh preserves panel client IPs; coexist needs an operator-configured PROXY bridge (see INSTALLER_REFERENCE)
+Host mode (fresh/coexist) [fresh]:   core       — the panel and MTProxy (Telegram)
+  core-naive — the same plus NaiveProxy
+  core-mieru — the same plus Mieru
+  full       — the panel, MTProxy, NaiveProxy and Mieru
+  AmneziaWG and TrustTunnel are not part of a profile: they are separate questions further below
+Proxy Control profile (core/core-naive/core-mieru/full) [full]:   none        — no 3x-ui
+  existing    — 3x-ui is already installed: only routes to its VLESS Reality inbounds are added on 443
+  managed-new — the installer sets up its own 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+3x-ui mode (none/existing/managed-new) [none]: No changes were made.

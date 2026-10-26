@@ -1,0 +1,10 @@
+add table inet proxy_control_metrics
+delete table inet proxy_control_metrics
+table inet proxy_control_metrics {
+  chain input {
+    type filter hook input priority -300; policy accept;
+  }
+  chain output {
+    type filter hook output priority -300; policy accept;
+  }
+}

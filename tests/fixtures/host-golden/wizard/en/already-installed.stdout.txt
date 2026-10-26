@@ -1,0 +1,4 @@
+Proxy Control 3.2.1 is already installed on this server. To update it: bash install-release.sh --update
+  quit     — leave without changes (the default)
+  continue — go on with a reinstall
+What now (quit/continue) [quit]: No changes were made.

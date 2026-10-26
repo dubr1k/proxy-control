@@ -1,0 +1,145 @@
+[
+  {
+    "codepoints": [
+      "U+0070",
+      "U+006C",
+      "U+0061",
+      "U+0069",
+      "U+006E"
+    ],
+    "ensure_ascii_false": "\"plain\"",
+    "ensure_ascii_true": "\"plain\""
+  },
+  {
+    "codepoints": [
+      "U+0071",
+      "U+0075",
+      "U+006F",
+      "U+0074",
+      "U+0065",
+      "U+0022",
+      "U+0062",
+      "U+0061",
+      "U+0063",
+      "U+006B",
+      "U+005C",
+      "U+0073",
+      "U+006C",
+      "U+0061",
+      "U+0073",
+      "U+0068"
+    ],
+    "ensure_ascii_false": "\"quote\\\"back\\\\slash\"",
+    "ensure_ascii_true": "\"quote\\\"back\\\\slash\""
+  },
+  {
+    "codepoints": [
+      "U+0008",
+      "U+000C",
+      "U+000A",
+      "U+000D",
+      "U+0009"
+    ],
+    "ensure_ascii_false": "\"\\b\\f\\n\\r\\t\"",
+    "ensure_ascii_true": "\"\\b\\f\\n\\r\\t\""
+  },
+  {
+    "codepoints": [
+      "U+0000",
+      "U+0001",
+      "U+001F"
+    ],
+    "ensure_ascii_false": "\"\\u0000\\u0001\\u001f\"",
+    "ensure_ascii_true": "\"\\u0000\\u0001\\u001f\""
+  },
+  {
+    "codepoints": [
+      "U+007F"
+    ],
+    "ensure_ascii_false": "\"\"",
+    "ensure_ascii_true": "\"\\u007f\""
+  },
+  {
+    "codepoints": [
+      "U+0080",
+      "U+009F"
+    ],
+    "ensure_ascii_false": "\"\"",
+    "ensure_ascii_true": "\"\\u0080\\u009f\""
+  },
+  {
+    "codepoints": [
+      "U+00E9"
+    ],
+    "ensure_ascii_false": "\"é\"",
+    "ensure_ascii_true": "\"\\u00e9\""
+  },
+  {
+    "codepoints": [
+      "U+65E5",
+      "U+672C"
+    ],
+    "ensure_ascii_false": "\"日本\"",
+    "ensure_ascii_true": "\"\\u65e5\\u672c\""
+  },
+  {
+    "codepoints": [
+      "U+2028",
+      "U+2029"
+    ],
+    "ensure_ascii_false": "\"  \"",
+    "ensure_ascii_true": "\"\\u2028\\u2029\""
+  },
+  {
+    "codepoints": [
+      "U+1F600"
+    ],
+    "ensure_ascii_false": "\"😀\"",
+    "ensure_ascii_true": "\"\\ud83d\\ude00\""
+  },
+  {
+    "codepoints": [
+      "U+D7FF",
+      "U+E000"
+    ],
+    "ensure_ascii_false": "\"퟿\"",
+    "ensure_ascii_true": "\"\\ud7ff\\ue000\""
+  },
+  {
+    "codepoints": [
+      "U+002F",
+      "U+0073",
+      "U+006C",
+      "U+0061",
+      "U+0073",
+      "U+0068"
+    ],
+    "ensure_ascii_false": "\"/slash\"",
+    "ensure_ascii_true": "\"/slash\""
+  },
+  {
+    "codepoints": [
+      "U+003C",
+      "U+0073",
+      "U+0063",
+      "U+0072",
+      "U+0069",
+      "U+0070",
+      "U+0074",
+      "U+003E"
+    ],
+    "ensure_ascii_false": "\"<script>\"",
+    "ensure_ascii_true": "\"<script>\""
+  },
+  {
+    "codepoints": [
+      "U+00A0",
+      "U+006E",
+      "U+0062",
+      "U+0073",
+      "U+0070"
+    ],
+    "ensure_ascii_false": "\" nbsp\"",
+    "ensure_ascii_true": "\"\\u00a0nbsp\""
+  }
+]

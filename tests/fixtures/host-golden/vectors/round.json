@@ -1,0 +1,218 @@
+[
+  {
+    "input_repr": "0.5",
+    "json": "0",
+    "ndigits": null,
+    "round": 0,
+    "round_repr": "0",
+    "rust_f64_round_would_be": "1.0"
+  },
+  {
+    "input_repr": "1.5",
+    "json": "2",
+    "ndigits": null,
+    "round": 2,
+    "round_repr": "2",
+    "rust_f64_round_would_be": "2.0"
+  },
+  {
+    "input_repr": "2.5",
+    "json": "2",
+    "ndigits": null,
+    "round": 2,
+    "round_repr": "2",
+    "rust_f64_round_would_be": "3.0"
+  },
+  {
+    "input_repr": "-0.5",
+    "json": "0",
+    "ndigits": null,
+    "round": 0,
+    "round_repr": "0",
+    "rust_f64_round_would_be": "-1.0"
+  },
+  {
+    "input_repr": "-1.5",
+    "json": "-2",
+    "ndigits": null,
+    "round": -2,
+    "round_repr": "-2",
+    "rust_f64_round_would_be": "-2.0"
+  },
+  {
+    "input_repr": "0.125",
+    "json": "0.12",
+    "ndigits": 2,
+    "round": 0.12,
+    "round_repr": "0.12",
+    "rust_f64_round_would_be": "0.13"
+  },
+  {
+    "input_repr": "0.375",
+    "json": "0.38",
+    "ndigits": 2,
+    "round": 0.38,
+    "round_repr": "0.38",
+    "rust_f64_round_would_be": "0.38"
+  },
+  {
+    "input_repr": "2.675",
+    "json": "2.67",
+    "ndigits": 2,
+    "round": 2.67,
+    "round_repr": "2.67",
+    "rust_f64_round_would_be": "2.68"
+  },
+  {
+    "input_repr": "1.005",
+    "json": "1.0",
+    "ndigits": 2,
+    "round": 1.0,
+    "round_repr": "1.0",
+    "rust_f64_round_would_be": "1.0"
+  },
+  {
+    "input_repr": "0.045",
+    "json": "0.04",
+    "ndigits": 2,
+    "round": 0.04,
+    "round_repr": "0.04",
+    "rust_f64_round_would_be": "0.05"
+  },
+  {
+    "input_repr": "99.995",
+    "json": "100.0",
+    "ndigits": 2,
+    "round": 100.0,
+    "round_repr": "100.0",
+    "rust_f64_round_would_be": "100.0"
+  },
+  {
+    "input_repr": "12.3456",
+    "json": "12.3",
+    "ndigits": 1,
+    "round": 12.3,
+    "round_repr": "12.3",
+    "rust_f64_round_would_be": "12.3"
+  },
+  {
+    "input_repr": "12.35",
+    "json": "12.3",
+    "ndigits": 1,
+    "round": 12.3,
+    "round_repr": "12.3",
+    "rust_f64_round_would_be": "12.4"
+  },
+  {
+    "input_repr": "12.25",
+    "json": "12.2",
+    "ndigits": 1,
+    "round": 12.2,
+    "round_repr": "12.2",
+    "rust_f64_round_would_be": "12.3"
+  },
+  {
+    "input_repr": "0.05",
+    "json": "0.1",
+    "ndigits": 1,
+    "round": 0.1,
+    "round_repr": "0.1",
+    "rust_f64_round_would_be": "0.1"
+  },
+  {
+    "input_repr": "0.15",
+    "json": "0.1",
+    "ndigits": 1,
+    "round": 0.1,
+    "round_repr": "0.1",
+    "rust_f64_round_would_be": "0.2"
+  },
+  {
+    "input_repr": "0.25",
+    "json": "0.2",
+    "ndigits": 1,
+    "round": 0.2,
+    "round_repr": "0.2",
+    "rust_f64_round_would_be": "0.3"
+  },
+  {
+    "input_repr": "100.0",
+    "json": "100.0",
+    "ndigits": 1,
+    "round": 100.0,
+    "round_repr": "100.0",
+    "rust_f64_round_would_be": "100.0"
+  },
+  {
+    "input_repr": "33.33333333",
+    "json": "33.3",
+    "ndigits": 1,
+    "round": 33.3,
+    "round_repr": "33.3",
+    "rust_f64_round_would_be": "33.3"
+  },
+  {
+    "input_repr": "66.66666666",
+    "json": "66.7",
+    "ndigits": 1,
+    "round": 66.7,
+    "round_repr": "66.7",
+    "rust_f64_round_would_be": "66.7"
+  },
+  {
+    "input_repr": "1767225600.1235",
+    "json": "1767225600.124",
+    "ndigits": 3,
+    "round": 1767225600.124,
+    "round_repr": "1767225600.124",
+    "rust_f64_round_would_be": "1767225600.124"
+  },
+  {
+    "input_repr": "1767225600.0005",
+    "json": "1767225600.0",
+    "ndigits": 3,
+    "round": 1767225600.0,
+    "round_repr": "1767225600.0",
+    "rust_f64_round_would_be": "1767225600.001"
+  },
+  {
+    "input_repr": "1e+16",
+    "json": "1e+16",
+    "ndigits": 3,
+    "round": 1e+16,
+    "round_repr": "1e+16",
+    "rust_f64_round_would_be": "1e+16"
+  },
+  {
+    "input_repr": "5e-324",
+    "json": "0.0",
+    "ndigits": 3,
+    "round": 0.0,
+    "round_repr": "0.0",
+    "rust_f64_round_would_be": "0.0"
+  },
+  {
+    "input_repr": "1234567.891",
+    "json": "1234567.89",
+    "ndigits": 2,
+    "round": 1234567.89,
+    "round_repr": "1234567.89",
+    "rust_f64_round_would_be": "1234567.89"
+  },
+  {
+    "input_repr": "0.0",
+    "json": "0.0",
+    "ndigits": 1,
+    "round": 0.0,
+    "round_repr": "0.0",
+    "rust_f64_round_would_be": "0.0"
+  },
+  {
+    "input_repr": "-0.0",
+    "json": "-0.0",
+    "ndigits": 1,
+    "round": -0.0,
+    "round_repr": "-0.0",
+    "rust_f64_round_would_be": "0.0"
+  }
+]

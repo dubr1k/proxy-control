@@ -1,0 +1,7 @@
+plan_digest: 9d8b5e2ca49916102f96509bec480a01b057cca9154c7afeac1f5e0b03120c62
+packages.host: package=ca-certificates, package=certbot, package=curl, package=docker-compose-v2, package=docker.io, package=nginx-full, package=openssl, package=python3
+nginx.routes: mode=fresh, client_ip=proxy, panel_tls_backend=127.0.0.1:8443, stream_context=create, target=/etc/nginx/stream.d/proxy-control.conf, variable=$proxy_control_backend, path_kind=missing, resolved_path=/etc/nginx/stream.d/proxy-control.conf, symlink_target=-, route=relay.example.com 127.0.0.1:8445, route=panel.example.com 127.0.0.1:8443
+firewall.ufw: ssh=22, ipv6=true, enable=true, rule=tcp:80, rule=tcp:443
+certificate.proxy-control: service=proxy-control, certificate=relay.example.com, email=admin@example.com, name=panel.example.com, name=relay.example.com, webroot=/var/www/panel.example.com, webroot=/var/www/relay.example.com
+core.runtime: project=/opt/mtproxy-shared443, proxy-domain=relay.example.com, panel-domain=panel.example.com, subscription-domain=, mcp-domain=, users=owner, proxy-backend-port=8445, panel-app-port=8787, panel-tls-port=8443, probe=/usr/local/libexec/mtproxy-respq-probe, probe-image=mtproxy-respq-probe:1.0.0, prebuilt-tdlib=0.1008066.0, adjacent-sni=none
+version_agent.runtime: project=/opt/mtproxy-shared443, agent-dir=/opt/proxy-control, socket=/run/proxy-control/version-agent.sock, socket-gid=10001, compose-files=compose.yaml, router=off, naive=off, mieru=off, upstream=on

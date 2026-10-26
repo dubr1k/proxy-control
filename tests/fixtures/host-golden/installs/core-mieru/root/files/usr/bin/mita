@@ -1,0 +1,3 @@
+#!/bin/sh
+# golden stand-in mita
+echo 'mita 3.38.1'

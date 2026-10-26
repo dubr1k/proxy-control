@@ -1,0 +1,37 @@
+schema = 1
+host_mode = "fresh"
+profile = "full"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+naive = "edge.example.com"
+mieru = "mieru.example.com"
+subscription = "sub.example.com"
+mcp = "mcp.example.com"
+trusttunnel = "gate.example.org"
+
+[mieru]
+tcp_ports = [46001, 46003]
+udp_ports = [46002]
+
+[egress]
+warp = true
+router = true
+naive = "router"
+mieru = "warp"
+
+[amneziawg]
+enabled = true
+versions = ["1.5", "2.0", "3.1"]
+
+[trusttunnel]
+enabled = true
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

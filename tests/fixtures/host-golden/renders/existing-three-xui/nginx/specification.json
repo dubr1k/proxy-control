@@ -1,0 +1,29 @@
+{
+  "client_ip": "legacy",
+  "mode": "coexist",
+  "panel_tls_backend": "127.0.0.1:8443",
+  "path_kind": "file",
+  "resolved_path": "/etc/nginx/stream.d/routes.conf",
+  "routes": [
+    [
+      "relay.example.com",
+      "127.0.0.1:8445"
+    ],
+    [
+      "panel.example.com",
+      "127.0.0.1:8443"
+    ],
+    [
+      "vless.example.com",
+      "127.0.0.1:8449"
+    ],
+    [
+      "xhttp.example.com",
+      "127.0.0.1:8450"
+    ]
+  ],
+  "stream_context": "present",
+  "symlink_target": null,
+  "target": "/etc/nginx/stream.d/routes.conf",
+  "variable": "$sni_backend"
+}

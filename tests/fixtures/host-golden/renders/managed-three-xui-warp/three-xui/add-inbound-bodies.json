@@ -1,0 +1,32 @@
+[
+  {
+    "enable": true,
+    "listen": "127.0.0.1",
+    "port": 8449,
+    "protocol": "vless",
+    "remark": "managed-vless-reality-tcp",
+    "settings": "{\"decryption\":\"none\",\"fallbacks\":[],\"clients\":[{\"id\":\"37a7c0c1-9306-491a-8df6-635b2c5e4936\",\"email\":\"initial-0\",\"flow\":\"xtls-rprx-vision\",\"enable\":true,\"subId\":\"golden-subscription-id\"},{\"id\":\"4fa3642f-e08c-4934-88f3-03c1262f00cc\",\"email\":\"acceptance-0\",\"flow\":\"xtls-rprx-vision\",\"enable\":true}]}",
+    "sniffing": "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"],\"routeOnly\":true}",
+    "streamSettings": "{\"network\":\"tcp\",\"security\":\"reality\",\"externalProxy\":[{\"dest\":\"vless.example.com\",\"port\":443,\"forceTls\":\"same\"}],\"realitySettings\":{\"show\":false,\"dest\":\"127.0.0.1:8443\",\"xver\":0,\"serverNames\":[\"vless.example.com\"],\"privateKey\":\"golden-stand-in-reality-private-key-0000000\",\"publicKey\":\"golden-stand-in-reality-public-key-00000000\",\"shortIds\":[\"9f97d8adff868035\"]},\"tcpSettings\":{\"header\":{\"type\":\"none\"}}}"
+  },
+  {
+    "enable": true,
+    "listen": "127.0.0.1",
+    "port": 8450,
+    "protocol": "vless",
+    "remark": "managed-vless-reality-xhttp",
+    "settings": "{\"decryption\":\"none\",\"fallbacks\":[],\"clients\":[{\"id\":\"235066cb-5694-46ea-ae00-59b40370ed56\",\"email\":\"initial-1\",\"flow\":\"\",\"enable\":true,\"subId\":\"golden-subscription-id\"},{\"id\":\"a8a7c8e0-7123-4050-822f-c73e96d7228b\",\"email\":\"acceptance-1\",\"flow\":\"\",\"enable\":true}]}",
+    "sniffing": "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"],\"routeOnly\":true}",
+    "streamSettings": "{\"network\":\"xhttp\",\"security\":\"reality\",\"externalProxy\":[{\"dest\":\"xhttp.example.com\",\"port\":443,\"forceTls\":\"same\"}],\"realitySettings\":{\"show\":false,\"dest\":\"127.0.0.1:8443\",\"xver\":0,\"serverNames\":[\"xhttp.example.com\"],\"privateKey\":\"golden-stand-in-reality-private-key-0000000\",\"publicKey\":\"golden-stand-in-reality-public-key-00000000\",\"shortIds\":[\"dc2dcf744eca1a7f\"]},\"xhttpSettings\":{\"host\":\"\",\"path\":\"/assets/\",\"mode\":\"auto\"}}"
+  },
+  {
+    "enable": true,
+    "listen": "0.0.0.0",
+    "port": 443,
+    "protocol": "hysteria",
+    "remark": "managed-hysteria2-tls",
+    "settings": "{\"version\":2,\"clients\":[{\"email\":\"initial-2\",\"auth\":\"3mXqM23r1IQWIQ9C8eviIBmWG32XYL26\",\"enable\":true,\"subId\":\"golden-subscription-id\"},{\"email\":\"acceptance-2\",\"auth\":\"tGxveh4MlJxSniLYO5CLidqd7jfTKpTK\",\"enable\":true}]}",
+    "sniffing": "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"],\"routeOnly\":true}",
+    "streamSettings": "{\"externalProxy\":[{\"dest\":\"hy2.example.com\",\"port\":443,\"forceTls\":\"same\"}],\"network\":\"hysteria\",\"security\":\"tls\",\"hysteriaSettings\":{\"udpIdleTimeout\":60,\"version\":2},\"tlsSettings\":{\"alpn\":[\"h3\"],\"serverName\":\"hy2.example.com\",\"certificates\":[{\"certificateFile\":\"/etc/letsencrypt/live/hy2.example.com/fullchain.pem\",\"keyFile\":\"/etc/letsencrypt/live/hy2.example.com/privkey.pem\"}]}}"
+  }
+]

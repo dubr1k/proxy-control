@@ -1,0 +1,98 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "adapter": "packages",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "firewall.ufw",
+      "adapter": "firewall",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.naive",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.trusttunnel",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "warp.runtime",
+      "adapter": "warp",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "xray_router.runtime",
+      "adapter": "xray_router",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "naive.runtime",
+      "adapter": "naive",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "amneziawg.runtime",
+      "adapter": "amneziawg",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "trusttunnel.runtime",
+      "adapter": "trusttunnel",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "mcp.runtime",
+      "adapter": "mcp",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "phase": "verified",
+      "success": true
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "0018c37c75f20ad05584c25fb27d3511128f33a481ee012bca49ebb10eac9d40",
+  "schema": 1,
+  "status": "active"
+}

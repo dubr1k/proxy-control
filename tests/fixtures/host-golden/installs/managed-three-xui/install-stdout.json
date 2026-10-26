@@ -1,0 +1,86 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "adapter": "packages",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.naive",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.three-xui-hysteria",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.three-xui-panel",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.three-xui-subscription",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "naive.runtime",
+      "adapter": "naive",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "three_xui.routes",
+      "adapter": "three_xui",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "three_xui.runtime",
+      "adapter": "three_xui",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "phase": "verified",
+      "success": true
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "5ad9bb0d528764ea1ff11f659e8e6875bccf09f28437314de9ad90d0aae6f900",
+  "schema": 1,
+  "status": "active"
+}

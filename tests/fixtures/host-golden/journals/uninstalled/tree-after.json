@@ -1,0 +1,546 @@
+{
+  "/etc": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/default": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/default/ufw": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "1264ff4f600d2fcb55d6bec82f4e32817a115cc35e6d5017e9128531cd40e316",
+    "size": 9,
+    "uid": 0
+  },
+  "/etc/letsencrypt": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/archive": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/archive/edge.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/archive/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/edge.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/edge.example.com/cert.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "c67cdcca714e91d35c025be8eceee8c73a81777a7f8e7d7e4064e7c1f8632d80",
+    "size": 49,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/edge.example.com/chain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "c67cdcca714e91d35c025be8eceee8c73a81777a7f8e7d7e4064e7c1f8632d80",
+    "size": 49,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/edge.example.com/fullchain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "c67cdcca714e91d35c025be8eceee8c73a81777a7f8e7d7e4064e7c1f8632d80",
+    "size": 49,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/edge.example.com/privkey.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "f17dd17c44bb59a86a91b3df11b99d5a058c2f1f5968cf47bb0d88f25853e859",
+    "size": 41,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/cert.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/chain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/fullchain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/privkey.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "850e40fccc972e4d871fc735d14fb0d2f81c36fec48d75fb3c14a1ccf538dabd",
+    "size": 42,
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal-hooks": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal/edge.example.com.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "7da0a7255c15f6ea7bb38f13da8da740e138114166e1bb25ce1fe5820410641e",
+    "size": 24,
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal/relay.example.com.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "7da0a7255c15f6ea7bb38f13da8da740e138114166e1bb25ce1fe5820410641e",
+    "size": 24,
+    "uid": 0
+  },
+  "/etc/machine-id": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "6ed6653dba3d6aee8110c6e23de37f15c609b8a6e29aa164d1acace604e5cb7e",
+    "size": 33,
+    "uid": 0
+  },
+  "/etc/nginx": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/conf.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/mime.types": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "4319c53909aaa312bcbca667b603afc05881c123087b7bc03b28a9f145ae1129",
+    "size": 30,
+    "uid": 0
+  },
+  "/etc/nginx/modules-enabled": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/nginx.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3a25f8f1e6735bd8d79ecc0978eefca3e9c1b472a336936d77d36490c6fb52ea",
+    "size": 610,
+    "uid": 0
+  },
+  "/etc/nginx/nginx.conf.proxy-control-backup": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "55caa6454a0a67f0ddeebe1b579056f85e1b14054fa7b09d6ef68f623b8f04bf",
+    "size": 498,
+    "uid": 0
+  },
+  "/etc/nginx/sites-enabled": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/stream.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/proxy-control/naive-owned": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "d27341072b36f870ee0bbf445f20225d042c73cc8be510880a610a7bfb80bbc6",
+    "size": 33,
+    "uid": 0
+  },
+  "/etc/proxy-control/versions.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "8a4c72f05671844d8dd43797d45efe98f69acaa5de5b0a962668841a09dda47c",
+    "size": 38,
+    "uid": 0
+  },
+  "/etc/systemd": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/tmpfiles.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.mtproxy-owned": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "758b367d92745d72f97765a11453215b1c94ba482c83ce73cc920e567d23cac6",
+    "size": 33,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/naive-manager-token": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "ccc2224a8493744c23941df33a82b274f93dc3f1d1fa1b9695f15cfedabc57c7",
+    "size": 65,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/panel-bootstrap-password": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "a13255d40d3eb34a69c5715f0fbb8a049bd44dee562e77dd8fd7b7ff4010dd3d",
+    "size": 44,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/panel-master-key": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "85178691ffbc5b20878a4736304db7e55127959fa750cb62bd0241510d9a2a69",
+    "size": 236,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/telemt-api-token": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "c51b76bec801b8f2d2e4859477a61135f9890195cf316e33ebb06b771d08617e",
+    "size": 72,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/users.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "09c5122fa996f59fad6398aa32fa2352b5bfbdbf2f83116e0bd16bb355a3b3d7",
+    "size": 39,
+    "uid": 0
+  },
+  "/run": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/run/lock": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/run/lock/proxy-control.lock": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "uid": 0
+  },
+  "/run/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local/bin": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local/libexec": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib/naive-manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib/naive-manager/Caddyfile": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0640",
+    "sha256": "b50051330695ad9002ed831ad37404933f8098bb77920836e7117ce7feb1559d",
+    "size": 737,
+    "uid": 0
+  },
+  "/var/lib/naive-manager/manager-token": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0400",
+    "sha256": "ccc2224a8493744c23941df33a82b274f93dc3f1d1fa1b9695f15cfedabc57c7",
+    "size": 65,
+    "uid": 0
+  },
+  "/var/lib/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/backups": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/credentials": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/ownership.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "abbab33375f9b5d31eeb331a017b00687ce8b1319e5dd9f65c088cf461d2162b",
+    "size": 33,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/plan.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "ef08973b6037b623fca4d6e551aec554f55af3cf9b48035a925ee400c6e45ea5",
+    "size": 10413,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/report.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "f5e5d6f4553e49157f043ba603327e31ec2e55dbb34e8fead650257b0fc5abdc",
+    "size": 6791,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/state.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "82efafe3b421213a609de7bd69389c1e8f22a51a2dd934ed7cdb20dbb4f1db72",
+    "size": 50336,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/version-agent": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/version-agent/state.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "5b3a2a12accee04dbdfd6fb89e707936f88ef361a1ae1c93c883d9ea2711d184",
+    "size": 609,
+    "uid": 0
+  },
+  "/var/www": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/edge.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/edge.example.com/.well-known": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/edge.example.com/.well-known/acme-challenge": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/edge.example.com/index.html": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966",
+    "size": 54,
+    "uid": 0
+  },
+  "/var/www/html": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com/.well-known": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com/.well-known/acme-challenge": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com/.well-known": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com/.well-known/acme-challenge": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  }
+}

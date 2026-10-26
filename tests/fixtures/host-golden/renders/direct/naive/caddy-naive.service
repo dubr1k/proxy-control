@@ -1,0 +1,50 @@
+[Unit]
+Description=NaiveProxy Caddy (unprivileged, pinned build)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=naive-caddy
+Group=naive-accounting
+# Keep Caddy storage inside the private runtime directory: the service has
+# no home and ProtectSystem=strict leaves no other writable location.
+Environment=XDG_DATA_HOME=/run/caddy-naive
+Environment=XDG_CONFIG_HOME=/run/caddy-naive
+ExecStartPre=/usr/local/libexec/check-naive-caddy-build
+RuntimeDirectory=caddy-naive
+RuntimeDirectoryMode=0700
+ExecStartPre=+/usr/local/libexec/caddy-naive-adapt
+ExecStart=/usr/local/bin/caddy run --environ --config /run/caddy-naive/config.json
+ExecReload=+/usr/local/libexec/caddy-naive-adapt
+ExecReload=/usr/local/bin/caddy reload --config /run/caddy-naive/config.json --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+Restart=on-failure
+RestartSec=2s
+UMask=0027
+NoNewPrivileges=true
+ProtectProc=invisible
+ProcSubset=pid
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+InaccessiblePaths=/var/lib/naive-manager
+ReadWritePaths=/var/log/naive-proxy /run/caddy-naive
+
+[Install]
+WantedBy=multi-user.target

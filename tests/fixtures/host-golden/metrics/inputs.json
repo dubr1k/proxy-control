@@ -1,0 +1,72 @@
+{
+  "compose_files": [
+    "compose.yaml",
+    "compose.naive.yaml",
+    "compose.mieru.yaml",
+    "compose.xray-router.yaml",
+    "compose.amneziawg.yaml",
+    "compose.trusttunnel.yaml",
+    "compose.mcp.yaml"
+  ],
+  "env": "MTPROXY_DOMAIN=relay.example.com\nMTPROXY_BACKEND_PORT=8445\nMTPROXY_COVER_ROOT=/var/www/relay.example.com\nMTPROXY_LETSENCRYPT_ROOT=/etc/letsencrypt\nPANEL_ALLOWED_HOSTS=panel.example.com,sub.example.com\nPANEL_HEALTHCHECK_HOST=panel.example.com\nPANEL_SUBSCRIPTION_HOST=sub.example.com\nPANEL_SUBSCRIPTION_URL=https://sub.example.com\n",
+  "env.mieru": "MIERU_PUBLIC_HOST=mieru.example.com\nMIERU_MITA_BIN=/usr/bin/mita\nMIERU_MITA_SHA256=a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061\nMIERU_MITA_GID=998\nMIERU_MANAGER_STATE_DIR=/var/lib/mieru-manager\nMIERU_MANAGER_TOKEN_FILE=/etc/mieru-manager/token\nMIERU_EGRESS_WARP=socks5://127.0.0.1:40000\nMIERU_EGRESS_ROUTER=socks5://127.0.0.1:45102\nMIERU_EGRESS_ROUTER_CREDENTIAL_FILE=/var/lib/mieru-manager/xray-router-ingress\nMIERU_LANE_SLOTS=1:46101:/run/mita/lane-1.sock:/var/lib/mita/lanes/1,2:46102:/run/mita/lane-2.sock:/var/lib/mita/lanes/2,3:46103:/run/mita/lane-3.sock:/var/lib/mita/lanes/3,4:46104:/run/mita/lane-4.sock:/var/lib/mita/lanes/4\n",
+  "env.trusttunnel": "TRUSTTUNNEL_MANAGER_TOKEN_FILE=/opt/mtproxy-shared443/secrets/trusttunnel-manager-token\nTT_MANAGER_STATE_DIR=/var/lib/trusttunnel-manager\nTT_CERT_DIR=/etc/letsencrypt\nTT_HOSTNAME=gate.example.org\nTT_LISTEN=127.0.0.1:4453\nTT_VERSION=v1.1.0\nTT_SHA256_X86_64=91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7\nTT_SHA256_AARCH64=c2aee17a1ced349283cba4775202e2baba053b8ea835d4cc23dc67d16c6b9686\nTRUSTTUNNEL_MANAGER_SOCKET_GID=10008\nTRUSTTUNNEL_PUBLIC_HOST=gate.example.org\n",
+  "mita_server_config": {
+    "portBindings": [
+      {
+        "port": 46001,
+        "protocol": "TCP"
+      },
+      {
+        "port": 46003,
+        "protocol": "TCP"
+      },
+      {
+        "portRange": "46010-46012",
+        "protocol": "UDP"
+      },
+      {
+        "port": 46002,
+        "protocol": "UDP"
+      }
+    ]
+  },
+  "overrides": {
+    "bad-port": {
+      "naive": {
+        "tcp": [
+          70000
+        ],
+        "udp": []
+      }
+    },
+    "not-an-object": [
+      1,
+      2,
+      3
+    ],
+    "unknown-protocol": {
+      "telnet": {
+        "tcp": [
+          23
+        ],
+        "udp": []
+      }
+    },
+    "valid": {
+      "naive": {
+        "tcp": [
+          4443,
+          14443
+        ],
+        "udp": []
+      },
+      "trusttunnel": {
+        "tcp": [
+          5443
+        ],
+        "udp": []
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+schema = 1
+host_mode = "fresh"
+profile = "core"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+
+[amneziawg]
+enabled = true
+versions = ["1.5", "2.0", "3.1"]
+host = "panel.example.com"
+mtu = 1280
+dns = ["1.1.1.1", "1.0.0.1"]
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

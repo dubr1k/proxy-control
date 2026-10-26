@@ -1,0 +1,3 @@
+status: active
+plan_digest: 1342ab7e4534157ddac92ef3077ce4d5034b394175d8815a673a76744a23161a
+origin: installer-v1

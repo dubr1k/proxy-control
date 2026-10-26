@@ -1,0 +1,173 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "packages": [
+            "ca-certificates",
+            "certbot",
+            "curl",
+            "docker-compose-v2",
+            "docker.io",
+            "nginx-full",
+            "openssl",
+            "python3"
+          ]
+        },
+        "observations": [
+          "exact package set is installed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "firewall.ufw",
+      "evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "rules": [
+            "tcp:80",
+            "tcp:443"
+          ]
+        },
+        "observations": [
+          "selected-profile UFW rules are active"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.naive",
+      "evidence": {
+        "action_id": "certificate.naive",
+        "details": {
+          "certificate": "edge.example.com",
+          "names": [
+            "edge.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "naive.runtime",
+      "evidence": {
+        "action_id": "naive.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "admin_api_loopback": true,
+          "authenticated_connect_ok": true,
+          "connect_bytes": 4096,
+          "cover_https_ok": true,
+          "log_boundary_ok": true,
+          "manager_health_ok": true,
+          "panel_health_ok": true,
+          "private_listener_ok": true,
+          "recorded_bytes": 4096,
+          "temporary_state_removed": true,
+          "tunnel_closed_ok": true
+        },
+        "observations": [
+          "Naive listener, cover, authenticated CONNECT, and accounting passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "naive": "2.11.7",
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    }
+  ],
+  "error": null,
+  "plan_digest": "ef08973b6037b623fca4d6e551aec554f55af3cf9b48035a925ee400c6e45ea5",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "2030c84d93eb4d29962335b1314273ea"
+}

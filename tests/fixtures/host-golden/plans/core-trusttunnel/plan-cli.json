@@ -1,0 +1,521 @@
+{
+  "actions": [
+    {
+      "adapter": "packages",
+      "credentials_required": false,
+      "id": "packages.host",
+      "inverse": [
+        "remove only exact packages installed by this action; purge them only on uninstall --purge-data"
+      ],
+      "mutations": [
+        "package=ca-certificates",
+        "package=certbot",
+        "package=curl",
+        "package=docker-compose-v2",
+        "package=docker.io",
+        "package=nginx-full",
+        "package=openssl",
+        "package=python3"
+      ],
+      "owner": "proxy-control:packages",
+      "preconditions": [
+        "supported package manager and package status are observed"
+      ],
+      "verification": [
+        "every exact requested package is installed"
+      ]
+    },
+    {
+      "adapter": "nginx",
+      "credentials_required": false,
+      "id": "nginx.routes",
+      "inverse": [
+        "restore content, owner, group, mode, and symlink identity"
+      ],
+      "mutations": [
+        "mode=fresh",
+        "client_ip=proxy",
+        "panel_tls_backend=127.0.0.1:8443",
+        "stream_context=create",
+        "target=/etc/nginx/stream.d/proxy-control.conf",
+        "variable=$proxy_control_backend",
+        "path_kind=missing",
+        "resolved_path=/etc/nginx/stream.d/proxy-control.conf",
+        "symlink_target=-",
+        "route=relay.example.com 127.0.0.1:8445",
+        "route=panel.example.com 127.0.0.1:8443",
+        "route=gate.example.org 127.0.0.1:4453"
+      ],
+      "owner": "proxy-control:nginx",
+      "preconditions": [
+        "effective Nginx topology is observed and unambiguous",
+        "Nginx has no stream context: one including the router is added first"
+      ],
+      "verification": [
+        "the router path is included by the stream context",
+        "Nginx configuration test passes before reload"
+      ]
+    },
+    {
+      "adapter": "firewall",
+      "credentials_required": false,
+      "id": "firewall.ufw",
+      "inverse": [
+        "delete exact comment-scoped rules added by this action"
+      ],
+      "mutations": [
+        "ssh=22",
+        "ipv6=true",
+        "enable=true",
+        "rule=tcp:80",
+        "rule=tcp:443"
+      ],
+      "owner": "proxy-control:firewall",
+      "preconditions": [
+        "active SSH listener on tcp/22 has one unambiguous UFW allow rule",
+        "external cloud firewall reachability remains operator-verified"
+      ],
+      "verification": [
+        "exact selected-profile UFW rules are active"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.proxy-control",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=proxy-control",
+        "certificate=relay.example.com",
+        "email=admin@example.com",
+        "name=panel.example.com",
+        "name=relay.example.com",
+        "webroot=/var/www/panel.example.com",
+        "webroot=/var/www/relay.example.com"
+      ],
+      "owner": "proxy-control:certificate:proxy-control",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.trusttunnel",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=trusttunnel",
+        "certificate=gate.example.org",
+        "email=admin@example.com",
+        "name=gate.example.org",
+        "webroot=/var/www/gate.example.org"
+      ],
+      "owner": "proxy-control:certificate:trusttunnel",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "core",
+      "credentials_required": true,
+      "id": "core.runtime",
+      "inverse": [
+        "stop only the mtproxy Compose project",
+        "preserve credentials and named volumes unless data purge is explicit",
+        "remove only Core-owned artifacts and the owned probe"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "proxy-domain=relay.example.com",
+        "panel-domain=panel.example.com",
+        "subscription-domain=",
+        "mcp-domain=",
+        "users=owner",
+        "proxy-backend-port=8445",
+        "panel-app-port=8787",
+        "panel-tls-port=8443",
+        "probe=/usr/local/libexec/mtproxy-respq-probe",
+        "probe-image=mtproxy-respq-probe:1.0.0",
+        "prebuilt-tdlib=0.1008066.0",
+        "adjacent-sni=none"
+      ],
+      "owner": "proxy-control:core",
+      "preconditions": [
+        "Nginx routes and certificates are verified",
+        "the existing mtproxy project boundary is absent or explicitly owned"
+      ],
+      "verification": [
+        "Compose model and all service health checks pass",
+        "panel health and an HTTPS authenticated session pass",
+        "Telemt management API remains private to Compose",
+        "every temporary MTProto credential returns validated resPQ",
+        "adjacent SNI routes and bounded sensitive-data scan pass"
+      ]
+    },
+    {
+      "adapter": "trusttunnel",
+      "credentials_required": true,
+      "id": "trusttunnel.runtime",
+      "inverse": [
+        "stop and remove only the trusttunnel-manager Compose service",
+        "remove only the owned env overlay and marker",
+        "preserve the state directory (credentials) and the manager secret unless purge is explicit"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "state-dir=/var/lib/trusttunnel-manager",
+        "letsencrypt-dir=/etc/letsencrypt",
+        "hostname=gate.example.org",
+        "listen=127.0.0.1:4453",
+        "metrics=127.0.0.1:1987",
+        "version=1.1.0",
+        "sha256=91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+        "socket-gid=10008",
+        "container=proxy-control-trusttunnel-manager"
+      ],
+      "owner": "proxy-control:trusttunnel",
+      "preconditions": [
+        "the Core runtime is verified",
+        "the certificate of the TrustTunnel host name is issued by the certificates step and mounted read-only",
+        "the TrustTunnel host name has an A record to this server and is not proxied by a CDN",
+        "TCP/443 is shared with the other services through the Nginx SNI router (TCP only: no UDP port and no firewall rule are added)"
+      ],
+      "verification": [
+        "the trusttunnel-manager container is healthy",
+        "the manager answers /v1/health over its Unix socket and the endpoint is running",
+        "the endpoint listens on its loopback TCP port",
+        "the host name's certificate lineage is present and readable"
+      ]
+    },
+    {
+      "adapter": "version_agent",
+      "credentials_required": false,
+      "id": "version_agent.runtime",
+      "inverse": [
+        "disable the unit and remove only the owned unit, tmpfiles, env, code and marker",
+        "preserve the catalog and the agent state unless purge is explicit"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "agent-dir=/opt/proxy-control",
+        "socket=/run/proxy-control/version-agent.sock",
+        "socket-gid=10001",
+        "compose-files=compose.yaml:compose.trusttunnel.yaml",
+        "router=off",
+        "naive=off",
+        "mieru=off",
+        "upstream=on"
+      ],
+      "owner": "proxy-control:version-agent",
+      "preconditions": [
+        "the Core runtime is verified",
+        "no foreign version-agent unit, env or code directory exists without the ownership marker"
+      ],
+      "verification": [
+        "the version-agent unit is active and enabled",
+        "/v1/health answers ok over the group-10001 socket",
+        "/v1/versions lists the profile's components at the versions the installer recorded",
+        "the env names the profile's Compose overlays and the router flag"
+      ]
+    }
+  ],
+  "adapter_dependencies": {
+    "certificates": [
+      "nginx",
+      "packages"
+    ],
+    "core": [
+      "certificates"
+    ],
+    "firewall": [
+      "packages"
+    ],
+    "nginx": [
+      "packages"
+    ],
+    "packages": [],
+    "trusttunnel": [
+      "core"
+    ],
+    "version_agent": [
+      "core"
+    ]
+  },
+  "adapter_order": [
+    "packages",
+    "nginx",
+    "firewall",
+    "certificates",
+    "core",
+    "trusttunnel",
+    "version_agent"
+  ],
+  "audit_facts": {
+    "listeners": {
+      "owners": {
+        "22": [
+          "sshd"
+        ]
+      },
+      "ports": [
+        22
+      ],
+      "ssh_socket_tcp": [
+        22
+      ],
+      "tcp": [
+        22
+      ],
+      "udp": []
+    },
+    "ownership": {
+      "compose": {
+        "available": true,
+        "observation": "observed"
+      },
+      "docker": {
+        "available": true,
+        "observation": "observed",
+        "version": "26.1.3"
+      },
+      "identities": {
+        "gid": {},
+        "uid": {}
+      },
+      "installer": {
+        "present": false
+      },
+      "systemd": {
+        "available": true,
+        "observation": "observed",
+        "services": [
+          "docker.service",
+          "nginx.service",
+          "ssh.service",
+          "ufw.service"
+        ]
+      },
+      "three_xui": {
+        "mode": "none",
+        "present": false
+      },
+      "ufw": {
+        "active": false,
+        "available": true,
+        "ipv6_enabled": true,
+        "mode": "managed",
+        "observation": "observed"
+      }
+    },
+    "platform": {
+      "addresses": [
+        {
+          "address": "127.0.0.1",
+          "family": "inet",
+          "interface": "lo"
+        },
+        {
+          "address": "2001:db8::10",
+          "family": "inet6",
+          "interface": "eth0"
+        },
+        {
+          "address": "203.0.113.10",
+          "family": "inet",
+          "interface": "eth0"
+        },
+        {
+          "address": "::1",
+          "family": "inet6",
+          "interface": "lo"
+        }
+      ],
+      "architecture": "amd64",
+      "disks": [
+        {
+          "filesystem": "/dev/vda1",
+          "mount": "/",
+          "total_kib": 81000000
+        }
+      ],
+      "memory": {
+        "total_bytes": 4105519104
+      },
+      "os": "linux"
+    },
+    "prerequisites": {
+      "hard_stops": [],
+      "operator_prerequisites": [
+        {
+          "code": "cloud_firewall.reachability",
+          "message": "Verify required inbound ports in the external cloud firewall",
+          "status": "operator_required"
+        }
+      ]
+    },
+    "topology": {
+      "certificates": {
+        "gate.example.org": {
+          "covers_domain": false,
+          "present": false
+        },
+        "panel.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "relay.example.com": {
+          "covers_domain": false,
+          "present": false
+        }
+      },
+      "dns": {
+        "gate.example.org": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "gate.example.org"
+        },
+        "panel.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "panel.example.com"
+        },
+        "relay.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "relay.example.com"
+        }
+      },
+      "nginx": {
+        "available": true,
+        "duplicate_sni_domains": [],
+        "http_domains": [],
+        "observation": "observed",
+        "route_target": null,
+        "sni_map_count": 0,
+        "sni_map_files": {},
+        "sni_routes": {},
+        "stream_enabled": false,
+        "topology_error": "no effective stream listener on port 443"
+      },
+      "three_xui": {
+        "inbounds": [],
+        "installed": false
+      }
+    }
+  },
+  "config": {
+    "acme_email": "admin@example.com",
+    "amneziawg": null,
+    "domains": {
+      "mcp": null,
+      "mieru": null,
+      "mtproxy": "relay.example.com",
+      "naive": null,
+      "panel": "panel.example.com",
+      "subscription": null,
+      "trusttunnel": "gate.example.org"
+    },
+    "egress": null,
+    "firewall": {
+      "manage_ufw": true
+    },
+    "host_mode": "fresh",
+    "ingress": null,
+    "initial_user": "owner",
+    "mieru": null,
+    "profile": "core",
+    "schema": 1,
+    "three_xui": {
+      "hysteria_domain": null,
+      "mode": "none",
+      "panel_domain": null,
+      "subscription_domain": null,
+      "vless_tcp_domain": null,
+      "vless_xhttp_domain": null,
+      "warp": false,
+      "warp_domains": [],
+      "warp_port": 40000
+    },
+    "trusttunnel": {
+      "hostname": "gate.example.org",
+      "listen_port": 4453
+    }
+  },
+  "digest": "73eff47c4f49d1353083a472c766975b8b90c02e9421afbf8cf7c0df4146dda0",
+  "release": {
+    "artifacts": {
+      "mieru:amd64": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+      "mita:amd64": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+      "three_xui:amd64": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+      "trusttunnel:amd64": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+      "xray:amd64": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
+    },
+    "commit": "0000000000000000000000000000000000000000",
+    "components": {
+      "mieru": "3.38.1",
+      "mita": "3.38.1",
+      "three_xui": "3.10.2",
+      "trusttunnel": "1.1.0",
+      "xray": "26.10.17"
+    },
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "tag": "v3.3.0"
+  },
+  "schema": 1
+}

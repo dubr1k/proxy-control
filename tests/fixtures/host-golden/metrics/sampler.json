@@ -1,0 +1,157 @@
+{
+  "nft_calls": [
+    {
+      "args": [
+        "-f",
+        "-"
+      ],
+      "stdin": "add table inet proxy_control_metrics\ndelete table inet proxy_control_metrics\ntable inet proxy_control_metrics {\n    counter up_mieru_tcp_46001 { }\n    counter down_mieru_tcp_46001 { }\n    counter up_mieru_udp_46002 { }\n    counter down_mieru_udp_46002 { }\n    counter up_mtproxy_tcp_8445 { }\n    counter down_mtproxy_tcp_8445 { }\n    counter up_naive_tcp_4443 { }\n    counter down_naive_tcp_4443 { }\n  chain input {\n    type filter hook input priority -300; policy accept;\n    tcp dport 46001 counter name \"up_mieru_tcp_46001\"\n    udp dport 46002 counter name \"up_mieru_udp_46002\"\n    tcp dport 8445 counter name \"up_mtproxy_tcp_8445\"\n    tcp dport 4443 counter name \"up_naive_tcp_4443\"\n  }\n  chain output {\n    type filter hook output priority -300; policy accept;\n    tcp sport 46001 counter name \"down_mieru_tcp_46001\"\n    udp sport 46002 counter name \"down_mieru_udp_46002\"\n    tcp sport 8445 counter name \"down_mtproxy_tcp_8445\"\n    tcp sport 4443 counter name \"down_naive_tcp_4443\"\n  }\n}\n"
+    },
+    {
+      "args": [
+        "-j",
+        "list",
+        "counters",
+        "table",
+        "inet",
+        "proxy_control_metrics"
+      ],
+      "stdin": null
+    },
+    {
+      "args": [
+        "-j",
+        "list",
+        "counters",
+        "table",
+        "inet",
+        "proxy_control_metrics"
+      ],
+      "stdin": null
+    }
+  ],
+  "port_map": {
+    "mieru": {
+      "tcp": [
+        46001
+      ],
+      "udp": [
+        46002
+      ]
+    },
+    "mtproxy": {
+      "tcp": [
+        8445
+      ],
+      "udp": []
+    },
+    "naive": {
+      "tcp": [
+        4443
+      ],
+      "udp": []
+    }
+  },
+  "samples": [
+    null,
+    {
+      "host": {
+        "containers": [
+          {
+            "cpu_percent": 37.0,
+            "mem_bytes": 150000000,
+            "name": "proxy-control-awg-manager"
+          },
+          {
+            "cpu_percent": 24.7,
+            "mem_bytes": 100000000,
+            "name": "proxy-control-mtproxy"
+          },
+          {
+            "cpu_percent": 12.3,
+            "mem_bytes": 50000000,
+            "name": "proxy-control-panel"
+          }
+        ],
+        "cores": 2,
+        "cpu_percent": 35.7,
+        "disk": {
+          "busy_percent": 33.3,
+          "percent": 25.0,
+          "read_bps": 170496.0,
+          "total": 81920000000,
+          "used": 20480000000,
+          "write_bps": 397824.0
+        },
+        "load": [
+          0.14,
+          0.39,
+          2.67
+        ],
+        "mem": {
+          "available": 2737012736,
+          "percent": 33.3,
+          "total": 4105519104,
+          "used": 1368506368
+        },
+        "net": {
+          "interfaces": [
+            {
+              "name": "eth0",
+              "rx_bps": 123457.0,
+              "rx_bytes": 123457,
+              "tx_bps": 333333.0,
+              "tx_bytes": 333333
+            }
+          ],
+          "rx_bps": 123457.0,
+          "tx_bps": 333333.0
+        },
+        "swap": {
+          "available": 715825152,
+          "percent": 33.3,
+          "total": 1073737728,
+          "used": 357912576
+        },
+        "uptime_seconds": 12346
+      },
+      "interval": 1.0,
+      "kernel_counters": "ok",
+      "protocols": {
+        "amneziawg": {
+          "connections": null,
+          "down_bps": 1500.0,
+          "down_bytes": 1500,
+          "source": "interface",
+          "up_bps": 1000.0,
+          "up_bytes": 1000
+        },
+        "mieru": {
+          "connections": 1,
+          "down_bps": 0.0,
+          "down_bytes": 0,
+          "source": "kernel",
+          "up_bps": 2.0,
+          "up_bytes": 2
+        },
+        "mtproxy": {
+          "connections": 1,
+          "down_bps": 4000.0,
+          "down_bytes": 4000,
+          "source": "kernel",
+          "up_bps": 1500.0,
+          "up_bytes": 1500
+        },
+        "naive": {
+          "connections": 2,
+          "down_bps": 777.0,
+          "down_bytes": 777,
+          "source": "kernel",
+          "up_bps": 333.0,
+          "up_bytes": 333
+        }
+      },
+      "ts": 1767225600.123
+    }
+  ]
+}

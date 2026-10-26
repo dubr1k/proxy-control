@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "wizard",
+    "--config-output",
+    "<work>/proxy-control.toml",
+    "--lang",
+    "en"
+  ],
+  "environment": {
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": ""
+  },
+  "exit": 0,
+  "stderr": "",
+  "stdin": "",
+  "stdout": "Proxy Control 3.2.1 is already installed on this server. To update it: bash install-release.sh --update\n  quit     — leave without changes (the default)\n  continue — go on with a reinstall\nWhat now (quit/continue) [quit]: No changes were made.\n"
+}

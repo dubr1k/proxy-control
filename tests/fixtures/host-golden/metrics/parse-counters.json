@@ -1,0 +1,8 @@
+{
+  "input": "{\"nftables\": [{\"metainfo\": {\"version\": \"1.0.9\"}}, {\"counter\": {\"family\": \"inet\", \"name\": \"up_mtproxy_tcp_8445\", \"table\": \"proxy_control_metrics\", \"handle\": 1, \"packets\": 10, \"bytes\": 12345}}, {\"counter\": {\"family\": \"inet\", \"name\": \"down_mtproxy_tcp_8445\", \"table\": \"proxy_control_metrics\", \"handle\": 2, \"packets\": 10, \"bytes\": 67890}}, {\"counter\": {\"family\": \"inet\", \"name\": \"foreign\", \"table\": \"proxy_control_metrics\", \"handle\": 3, \"packets\": 1, \"bytes\": true}}]}",
+  "parsed": {
+    "down_mtproxy_tcp_8445": 67890,
+    "foreign": true,
+    "up_mtproxy_tcp_8445": 12345
+  }
+}

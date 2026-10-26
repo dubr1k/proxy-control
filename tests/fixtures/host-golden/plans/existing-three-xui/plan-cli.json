@@ -1,0 +1,549 @@
+{
+  "actions": [
+    {
+      "adapter": "nginx",
+      "credentials_required": false,
+      "id": "nginx.routes",
+      "inverse": [
+        "restore content, owner, group, mode, and symlink identity"
+      ],
+      "mutations": [
+        "mode=coexist",
+        "stream_context=present",
+        "target=/etc/nginx/stream.d/routes.conf",
+        "variable=$sni_backend",
+        "path_kind=file",
+        "resolved_path=/etc/nginx/stream.d/routes.conf",
+        "symlink_target=-",
+        "route=relay.example.com 127.0.0.1:8445",
+        "route=panel.example.com 127.0.0.1:8443",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450"
+      ],
+      "owner": "proxy-control:nginx",
+      "preconditions": [
+        "effective Nginx topology is observed and unambiguous"
+      ],
+      "verification": [
+        "Nginx configuration test passes before reload"
+      ]
+    },
+    {
+      "adapter": "certificates",
+      "credentials_required": false,
+      "id": "certificate.proxy-control",
+      "inverse": [
+        "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+      ],
+      "mutations": [
+        "service=proxy-control",
+        "certificate=relay.example.com",
+        "email=admin@example.com",
+        "name=panel.example.com",
+        "name=relay.example.com",
+        "webroot=/var/www/panel.example.com",
+        "webroot=/var/www/relay.example.com"
+      ],
+      "owner": "proxy-control:certificate:proxy-control",
+      "preconditions": [
+        "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+      ],
+      "verification": [
+        "owned port-80 HTTP-01 vhosts are active",
+        "certificate validity, trust, exact SANs, and key pair pass",
+        "Certbot renewal dry run succeeds for the exact lineage"
+      ]
+    },
+    {
+      "adapter": "core",
+      "credentials_required": true,
+      "id": "core.runtime",
+      "inverse": [
+        "stop only the mtproxy Compose project",
+        "preserve credentials and named volumes unless data purge is explicit",
+        "remove only Core-owned artifacts and the owned probe"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "proxy-domain=relay.example.com",
+        "panel-domain=panel.example.com",
+        "subscription-domain=",
+        "mcp-domain=",
+        "users=owner",
+        "proxy-backend-port=8445",
+        "panel-app-port=8787",
+        "panel-tls-port=8443",
+        "probe=/usr/local/libexec/mtproxy-respq-probe",
+        "probe-image=mtproxy-respq-probe:1.0.0",
+        "prebuilt-tdlib=0.1008066.0",
+        "adjacent-sni=legacy.example.net|127.0.0.1:10443"
+      ],
+      "owner": "proxy-control:core",
+      "preconditions": [
+        "Nginx routes and certificates are verified",
+        "the existing mtproxy project boundary is absent or explicitly owned"
+      ],
+      "verification": [
+        "Compose model and all service health checks pass",
+        "panel health and an HTTPS authenticated session pass",
+        "Telemt management API remains private to Compose",
+        "every temporary MTProto credential returns validated resPQ",
+        "adjacent SNI routes and bounded sensitive-data scan pass"
+      ]
+    },
+    {
+      "adapter": "three_xui",
+      "credentials_required": false,
+      "id": "three_xui.routes",
+      "inverse": [
+        "remove only the owned 3x-ui route block"
+      ],
+      "mutations": [
+        "mode=existing",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450"
+      ],
+      "owner": "nginx.routes.three_xui",
+      "preconditions": [
+        "the shared 443 router is owned and verified",
+        "every routed 3x-ui inbound answers on loopback"
+      ],
+      "verification": [
+        "each owned SNI route reaches its loopback 3x-ui backend"
+      ]
+    },
+    {
+      "adapter": "version_agent",
+      "credentials_required": false,
+      "id": "version_agent.runtime",
+      "inverse": [
+        "disable the unit and remove only the owned unit, tmpfiles, env, code and marker",
+        "preserve the catalog and the agent state unless purge is explicit"
+      ],
+      "mutations": [
+        "project=/opt/mtproxy-shared443",
+        "agent-dir=/opt/proxy-control",
+        "socket=/run/proxy-control/version-agent.sock",
+        "socket-gid=10001",
+        "compose-files=compose.yaml",
+        "router=off",
+        "naive=off",
+        "mieru=off",
+        "upstream=on"
+      ],
+      "owner": "proxy-control:version-agent",
+      "preconditions": [
+        "the Core runtime is verified",
+        "no foreign version-agent unit, env or code directory exists without the ownership marker"
+      ],
+      "verification": [
+        "the version-agent unit is active and enabled",
+        "/v1/health answers ok over the group-10001 socket",
+        "/v1/versions lists the profile's components at the versions the installer recorded",
+        "the env names the profile's Compose overlays and the router flag"
+      ]
+    }
+  ],
+  "adapter_dependencies": {
+    "certificates": [
+      "nginx",
+      "packages"
+    ],
+    "core": [
+      "certificates"
+    ],
+    "nginx": [
+      "packages"
+    ],
+    "packages": [],
+    "three_xui": [
+      "certificates"
+    ],
+    "version_agent": [
+      "core"
+    ]
+  },
+  "adapter_order": [
+    "packages",
+    "nginx",
+    "certificates",
+    "core",
+    "three_xui",
+    "version_agent"
+  ],
+  "audit_facts": {
+    "listeners": {
+      "owners": {
+        "2053": [
+          "x-ui"
+        ],
+        "22": [
+          "sshd"
+        ],
+        "443": [
+          "nginx"
+        ],
+        "80": [
+          "nginx"
+        ],
+        "8449": [
+          "xray-linux-amd64"
+        ],
+        "8450": [
+          "xray-linux-amd64"
+        ]
+      },
+      "ports": [
+        22,
+        80,
+        443,
+        2053,
+        8449,
+        8450
+      ],
+      "ssh_socket_tcp": [
+        22
+      ],
+      "tcp": [
+        22,
+        80,
+        443,
+        2053,
+        8449,
+        8450
+      ],
+      "udp": []
+    },
+    "ownership": {
+      "compose": {
+        "available": true,
+        "observation": "observed"
+      },
+      "docker": {
+        "available": true,
+        "observation": "observed",
+        "version": "26.1.3"
+      },
+      "identities": {
+        "gid": {},
+        "uid": {}
+      },
+      "installer": {
+        "present": false
+      },
+      "systemd": {
+        "available": true,
+        "observation": "observed",
+        "services": [
+          "docker.service",
+          "nginx.service",
+          "ssh.service",
+          "ufw.service",
+          "x-ui.service"
+        ]
+      },
+      "three_xui": {
+        "mode": "existing",
+        "present": true
+      },
+      "ufw": {
+        "active": false,
+        "available": true,
+        "ipv6_enabled": true,
+        "mode": "read_only",
+        "observation": "observed"
+      }
+    },
+    "platform": {
+      "addresses": [
+        {
+          "address": "127.0.0.1",
+          "family": "inet",
+          "interface": "lo"
+        },
+        {
+          "address": "2001:db8::10",
+          "family": "inet6",
+          "interface": "eth0"
+        },
+        {
+          "address": "203.0.113.10",
+          "family": "inet",
+          "interface": "eth0"
+        },
+        {
+          "address": "::1",
+          "family": "inet6",
+          "interface": "lo"
+        }
+      ],
+      "architecture": "amd64",
+      "disks": [
+        {
+          "filesystem": "/dev/vda1",
+          "mount": "/",
+          "total_kib": 81000000
+        }
+      ],
+      "memory": {
+        "total_bytes": 4105519104
+      },
+      "os": "linux"
+    },
+    "prerequisites": {
+      "hard_stops": [],
+      "operator_prerequisites": [
+        {
+          "code": "cloud_firewall.reachability",
+          "message": "Verify required inbound ports in the external cloud firewall",
+          "status": "operator_required"
+        }
+      ]
+    },
+    "topology": {
+      "certificates": {
+        "hy2.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "panel.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "relay.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "vless.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xhttp.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xui.example.com": {
+          "covers_domain": false,
+          "present": false
+        }
+      },
+      "dns": {
+        "hy2.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "hy2.example.com"
+        },
+        "panel.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "panel.example.com"
+        },
+        "relay.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "relay.example.com"
+        },
+        "vless.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "vless.example.com"
+        },
+        "xhttp.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xhttp.example.com"
+        },
+        "xui.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xui.example.com"
+        }
+      },
+      "nginx": {
+        "available": true,
+        "duplicate_sni_domains": [],
+        "http_domains": [],
+        "observation": "observed",
+        "route_target": {
+          "source_file": "/etc/nginx/stream.d/routes.conf",
+          "source_variable": "$ssl_preread_server_name",
+          "variable": "$sni_backend"
+        },
+        "sni_map_count": 1,
+        "sni_map_files": {
+          "/etc/nginx/stream.d/routes.conf": 1
+        },
+        "sni_routes": {
+          "legacy.example.net": "127.0.0.1:10443"
+        },
+        "stream_enabled": true,
+        "topology_error": null
+      },
+      "three_xui": {
+        "inbounds": [
+          {
+            "listen": "127.0.0.1",
+            "port": 8449,
+            "protocol": "vless",
+            "reality_server_names": [
+              "vless.example.com"
+            ],
+            "tag": "inbound-127.0.0.1:8449",
+            "transport_security": "reality"
+          },
+          {
+            "listen": "127.0.0.1",
+            "port": 8450,
+            "protocol": "vless",
+            "reality_server_names": [
+              "xhttp.example.com"
+            ],
+            "tag": "inbound-127.0.0.1:8450",
+            "transport_security": "reality"
+          }
+        ],
+        "installed": true
+      }
+    }
+  },
+  "config": {
+    "acme_email": "admin@example.com",
+    "amneziawg": null,
+    "domains": {
+      "mcp": null,
+      "mieru": null,
+      "mtproxy": "relay.example.com",
+      "naive": null,
+      "panel": "panel.example.com",
+      "subscription": null,
+      "trusttunnel": null
+    },
+    "egress": null,
+    "firewall": {
+      "manage_ufw": false
+    },
+    "host_mode": "coexist",
+    "ingress": null,
+    "initial_user": "owner",
+    "mieru": null,
+    "profile": "core",
+    "schema": 1,
+    "three_xui": {
+      "hysteria_domain": "hy2.example.com",
+      "mode": "existing",
+      "panel_domain": "xui.example.com",
+      "subscription_domain": null,
+      "vless_tcp_domain": "vless.example.com",
+      "vless_xhttp_domain": "xhttp.example.com",
+      "warp": false,
+      "warp_domains": [],
+      "warp_port": 40000
+    },
+    "trusttunnel": null
+  },
+  "digest": "ff25c8723165c15da68d94fa5cfa0891995910c629375576e9baa02a6baa4865",
+  "release": {
+    "artifacts": {
+      "mieru:amd64": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+      "mita:amd64": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+      "three_xui:amd64": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+      "trusttunnel:amd64": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+      "xray:amd64": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
+    },
+    "commit": "0000000000000000000000000000000000000000",
+    "components": {
+      "mieru": "3.38.1",
+      "mita": "3.38.1",
+      "three_xui": "3.10.2",
+      "trusttunnel": "1.1.0",
+      "xray": "26.10.17"
+    },
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "tag": "v3.3.0"
+  },
+  "schema": 1
+}

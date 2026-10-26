@@ -1,0 +1,8 @@
+MTPROXY_DOMAIN=relay.example.com
+MTPROXY_BACKEND_PORT=8445
+MTPROXY_COVER_ROOT=/var/www/relay.example.com
+MTPROXY_LETSENCRYPT_ROOT=/etc/letsencrypt
+PANEL_ALLOWED_HOSTS=panel.example.com,sub.example.com
+PANEL_HEALTHCHECK_HOST=panel.example.com
+PANEL_SUBSCRIPTION_HOST=sub.example.com
+PANEL_SUBSCRIPTION_URL=https://sub.example.com

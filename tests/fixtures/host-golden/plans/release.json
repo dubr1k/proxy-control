@@ -1,0 +1,21 @@
+{
+  "artifacts": {
+    "mieru:amd64": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+    "mita:amd64": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+    "three_xui:amd64": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+    "trusttunnel:amd64": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+    "xray:amd64": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
+  },
+  "commit": "0000000000000000000000000000000000000000",
+  "components": {
+    "mieru": "3.38.1",
+    "mita": "3.38.1",
+    "three_xui": "3.10.2",
+    "trusttunnel": "1.1.0",
+    "xray": "26.10.17"
+  },
+  "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "schema": 1,
+  "tag": "v3.3.0",
+  "version": "3.3.0"
+}

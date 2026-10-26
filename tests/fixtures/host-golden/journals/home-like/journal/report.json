@@ -1,0 +1,242 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "packages": [
+            "ca-certificates",
+            "certbot",
+            "curl",
+            "docker-compose-v2",
+            "docker.io",
+            "nginx-full",
+            "openssl",
+            "python3"
+          ]
+        },
+        "observations": [
+          "exact package set is installed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "firewall.ufw",
+      "evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "rules": [
+            "route:awg15",
+            "route:awg20",
+            "route:awg31",
+            "tcp:80",
+            "tcp:443",
+            "tcp:46001",
+            "udp:11892",
+            "udp:13013",
+            "udp:25076",
+            "udp:46001"
+          ]
+        },
+        "observations": [
+          "selected-profile UFW rules are active"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.naive",
+      "evidence": {
+        "action_id": "certificate.naive",
+        "details": {
+          "certificate": "edge.example.com",
+          "names": [
+            "edge.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "naive.runtime",
+      "evidence": {
+        "action_id": "naive.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "admin_api_loopback": true,
+          "authenticated_connect_ok": true,
+          "connect_bytes": 4096,
+          "cover_https_ok": true,
+          "log_boundary_ok": true,
+          "manager_health_ok": true,
+          "panel_health_ok": true,
+          "private_listener_ok": true,
+          "recorded_bytes": 4096,
+          "temporary_state_removed": true,
+          "tunnel_closed_ok": true
+        },
+        "observations": [
+          "Naive listener, cover, authenticated CONNECT, and accounting passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "mieru.runtime",
+      "evidence": {
+        "action_id": "mieru.runtime",
+        "details": {
+          "adjacent_listeners_ok": true,
+          "executable_digest_ok": true,
+          "lane_slots": [],
+          "manager_health_ok": true,
+          "mita_status_running": true,
+          "package_digest_ok": true,
+          "panel_health_ok": true,
+          "public_host_ok": true,
+          "send_queue_drained": true,
+          "temporary_state_removed": true,
+          "transports_expected": 2,
+          "transports_verified": 2,
+          "uds_boundary_ok": true
+        },
+        "observations": [
+          "pinned mita, UDS boundary, and official-client acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "amneziawg.runtime",
+      "evidence": {
+        "action_id": "amneziawg.runtime",
+        "details": {
+          "interfaces": [
+            "awg15",
+            "awg20",
+            "awg31"
+          ],
+          "ports": {
+            "1.5": 25076,
+            "2.0": 11892,
+            "3.1": 13013
+          },
+          "versions": [
+            "1.5",
+            "2.0",
+            "3.1"
+          ]
+        },
+        "observations": [
+          "the awg-manager container is healthy and answers over its Unix socket",
+          "every enabled AmneziaWG version is running and bound to its UDP port",
+          "IPv4 forwarding is enabled",
+          "the operator must keep the UDP ports open and forwarding allowed on the awg interfaces in any firewall the installer does not manage"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "mita": "3.38.1",
+            "naive": "2.11.7",
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    }
+  ],
+  "error": null,
+  "plan_digest": "7690f52b7abf006a06604d139a526326c6b884406bb1c240014ae02cb12ad613",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "168c27df9b904a78a1d9289ecdced5d3"
+}

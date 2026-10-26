@@ -1,0 +1,353 @@
+[
+  {
+    "audit_validate_domain": {
+      "ok": "panel.example.com"
+    },
+    "config_domain": {
+      "ok": "panel.example.com"
+    },
+    "input": "panel.example.com",
+    "wizard_domain": {
+      "ok": "panel.example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "panel.example.com"
+    },
+    "config_domain": {
+      "ok": "panel.example.com"
+    },
+    "input": "PANEL.Example.COM.",
+    "wizard_domain": {
+      "ok": "panel.example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "panel.example.com"
+    },
+    "config_domain": {
+      "ok": "panel.example.com"
+    },
+    "input": " panel.example.com ",
+    "wizard_domain": {
+      "ok": "panel.example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "panel.example.com"
+    },
+    "config_domain": {
+      "ok": "panel.example.com"
+    },
+    "input": "panel.example.com..",
+    "wizard_domain": {
+      "ok": "panel.example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a.b",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "ab.c"
+    },
+    "config_domain": {
+      "ok": "ab.c"
+    },
+    "input": "ab.c",
+    "wizard_domain": {
+      "ok": "ab.c"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "a.bc"
+    },
+    "config_domain": {
+      "ok": "a.bc"
+    },
+    "input": "a.bc",
+    "wizard_domain": {
+      "ok": "a.bc"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.example.com"
+    },
+    "config_domain": {
+      "ok": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.example.com"
+    },
+    "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.example.com",
+    "wizard_domain": {
+      "ok": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "-a.example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a-.example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "a.example.c0m"
+    },
+    "config_domain": {
+      "ok": "a.example.c0m"
+    },
+    "input": "a.example.c0m",
+    "wizard_domain": {
+      "ok": "a.example.c0m"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a.example.1com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "xn--d1acufc.xn--p1ai"
+    },
+    "config_domain": {
+      "ok": "xn--d1acufc.xn--p1ai"
+    },
+    "input": "xn--d1acufc.xn--p1ai",
+    "wizard_domain": {
+      "ok": "xn--d1acufc.xn--p1ai"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "пример.рф",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a_b.example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a..example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": ".example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "example.com"
+    },
+    "config_domain": {
+      "ok": "example.com"
+    },
+    "input": "example.com\n",
+    "wizard_domain": {
+      "ok": "example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "example.com"
+    },
+    "config_domain": {
+      "ok": "example.com"
+    },
+    "input": " example.com",
+    "wizard_domain": {
+      "ok": "example.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "1.2.3.4",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "localhost",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.com"
+    },
+    "config_domain": {
+      "ok": "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.com"
+    },
+    "input": "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.com",
+    "wizard_domain": {
+      "ok": "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.com"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "error": "ValueError",
+      "message": "a plain fully-qualified domain name is required"
+    },
+    "config_domain": {
+      "error": "ConfigError",
+      "message": "invalid domain: domains.panel"
+    },
+    "input": "İ.example.com",
+    "wizard_domain": {
+      "error": "PromptValidationError",
+      "message": "invalid_domain"
+    }
+  },
+  {
+    "audit_validate_domain": {
+      "ok": "panel.example.com"
+    },
+    "config_domain": {
+      "ok": "panel.example.com"
+    },
+    "input": "panel.EXAMPLE.com　",
+    "wizard_domain": {
+      "ok": "panel.example.com"
+    }
+  }
+]

@@ -1,0 +1,7 @@
+[Unit]
+Description=x-ui Service
+[Service]
+WorkingDirectory=/usr/local/x-ui/
+ExecStart=/usr/local/x-ui/x-ui
+[Install]
+WantedBy=multi-user.target

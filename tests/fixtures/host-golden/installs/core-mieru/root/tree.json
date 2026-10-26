@@ -1,0 +1,1056 @@
+{
+  "/etc": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/default": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/default/ufw": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "1264ff4f600d2fcb55d6bec82f4e32817a115cc35e6d5017e9128531cd40e316",
+    "size": 9,
+    "uid": 0
+  },
+  "/etc/letsencrypt": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/archive": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/archive/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/cert.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/chain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/fullchain.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3e225761ba773b5e51cda7f001a0a59bac0b99a4bd4b32bcdb334170c2bb91d4",
+    "size": 50,
+    "uid": 0
+  },
+  "/etc/letsencrypt/live/relay.example.com/privkey.pem": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "850e40fccc972e4d871fc735d14fb0d2f81c36fec48d75fb3c14a1ccf538dabd",
+    "size": 42,
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal-hooks": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal-hooks/deploy": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/letsencrypt/renewal/relay.example.com.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "7da0a7255c15f6ea7bb38f13da8da740e138114166e1bb25ce1fe5820410641e",
+    "size": 24,
+    "uid": 0
+  },
+  "/etc/machine-id": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "6ed6653dba3d6aee8110c6e23de37f15c609b8a6e29aa164d1acace604e5cb7e",
+    "size": 33,
+    "uid": 0
+  },
+  "/etc/mieru-manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/mieru-manager/token": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "e5fa82895807ac359f0b75a69e7a133c92d1eaf8e8e0dd7536be652aaf72c385",
+    "size": 65,
+    "uid": 0
+  },
+  "/etc/nginx": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/conf.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "9789b1e2ddf74d532a87c7f2c92d604f774b0bb2c100f063db1147750797ab86",
+    "size": 574,
+    "uid": 0
+  },
+  "/etc/nginx/conf.d/proxy-control-panel.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "6ad582af8347b04d8812d505dc4fec55cfa4e58fa223ab6506693398d5430dce",
+    "size": 549,
+    "uid": 0
+  },
+  "/etc/nginx/mime.types": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "4319c53909aaa312bcbca667b603afc05881c123087b7bc03b28a9f145ae1129",
+    "size": 30,
+    "uid": 0
+  },
+  "/etc/nginx/modules-enabled": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/nginx.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3a25f8f1e6735bd8d79ecc0978eefca3e9c1b472a336936d77d36490c6fb52ea",
+    "size": 610,
+    "uid": 0
+  },
+  "/etc/nginx/nginx.conf.proxy-control-backup": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "55caa6454a0a67f0ddeebe1b579056f85e1b14054fa7b09d6ef68f623b8f04bf",
+    "size": 498,
+    "uid": 0
+  },
+  "/etc/nginx/sites-enabled": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/stream.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/nginx/stream.d/proxy-control.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0640",
+    "sha256": "11c840e8b1717e2df7de62fe101dbafb949b0192176ee211ab085e20d695b99b",
+    "size": 537,
+    "uid": 0
+  },
+  "/etc/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/proxy-control/mieru-acceptance-owner": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "8887ee78566f6b661f09345dbdb9e3818c10db13f569072eafb4525b1f8c694c",
+    "size": 37,
+    "uid": 0
+  },
+  "/etc/proxy-control/mieru-owned": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "ade4a5d5beff3cca49f650900a3fdaa82235b07e95a8058fd732d7a176c11c81",
+    "size": 33,
+    "uid": 0
+  },
+  "/etc/proxy-control/version-agent-owned": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "b0af4351470faaa7c2446e8bb0af48999c100b895214855b88e0c3d7914d6410",
+    "size": 33,
+    "uid": 0
+  },
+  "/etc/proxy-control/version-agent.env": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "e15e8da350cd6f1c5390caf0753f613d09cf9cda53e645afbfd9e3cf609c1b8c",
+    "size": 2802,
+    "uid": 0
+  },
+  "/etc/proxy-control/versions.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "8a4c72f05671844d8dd43797d45efe98f69acaa5de5b0a962668841a09dda47c",
+    "size": 38,
+    "uid": 0
+  },
+  "/etc/systemd": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/systemd/system": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/systemd/system/mita.service": {
+    "copy_of_source": "deploy/mita.service",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "9eec865c0f33d9a8f844746228fde2534606efb82432d4df44c58f60e2d824ab",
+    "size": 1443,
+    "uid": 0
+  },
+  "/etc/systemd/system/mita@.service": {
+    "copy_of_source": "deploy/mita@.service",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "2ce26dc6dcd60a1aa71e69d5968655827d2a7a625966a6bbc4fd1ec6d2a85472",
+    "size": 1563,
+    "uid": 0
+  },
+  "/etc/systemd/system/version-agent.service": {
+    "copy_of_source": "deploy/version-agent.service",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "04d5448ff213652e981ce7fdce53c310a2fea673933babd026359c94cf6ef08b",
+    "size": 2130,
+    "uid": 0
+  },
+  "/etc/tmpfiles.d": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/etc/tmpfiles.d/mita.conf": {
+    "copy_of_source": "deploy/mita.tmpfiles.conf",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "58f3963a3b7240085b7b23aef7043c4c807a19644b220b83518f49376b35301d",
+    "size": 98,
+    "uid": 0
+  },
+  "/etc/tmpfiles.d/proxy-control-version-agent.conf": {
+    "copy_of_source": "deploy/proxy-control-version-agent.tmpfiles.conf",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "bb06672d82218a149086e2af726f85b2065c9051c971090c1100ea4aae8ad791",
+    "size": 113,
+    "uid": 0
+  },
+  "/opt": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.core-acceptance-owner": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "a609a495846d199892a7b693a9ade30f21de5bbc568dd9e26ff5cbf309916979",
+    "size": 31,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.env": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "cf10c2991d7f99abc298828a3fe6bf9e875e55c5d2f2cfaf7da011f6546115e4",
+    "size": 226,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.env.mieru": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "682f0e528d45f80a72e8c93c2e8be7461da11512bca91a3b5b1f659f645aaaff",
+    "size": 359,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.mtproxy-owned": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "7d85798c0a81dbab09711c9d2b8d86f7763204827196a78a00427c73d8fdfb71",
+    "size": 33,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/.panel-bootstrapped": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "bbdf27b7799fc2e8954e52e6564423b02999a68770b5940b17e6ee61d487513e",
+    "size": 65,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/VERSION": {
+    "copy_of_source": "VERSION",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "5eee6c0c5c6901f5e523f0a434bca4106e1ff7136deb451f982b0bb1a7b13716",
+    "size": 6,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/awg_manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/awg_manager/GOLDEN-STAND-IN": {
+    "copy_of_source": "awg_manager/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "bdb3b910117a4955cd67afa0dd5d4ba57ecd51480657f59554b662f8dbb32e83",
+    "size": 33,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.amneziawg.yaml": {
+    "copy_of_source": "compose.amneziawg.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "834210ac9e15d070b2249d4b0b6511013bc7de2c1470cae10de0163ea9300682",
+    "size": 3227,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.mcp.yaml": {
+    "copy_of_source": "compose.mcp.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "d6108bb8086555293a7a77a4fac4e67bec4e1ce463e6720d06ca7dda32b476fc",
+    "size": 2065,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.mieru.yaml": {
+    "copy_of_source": "compose.mieru.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "38477922094867314964c0a69f0cf0b73da33079bbc42003f29a37c12b6ad1bd",
+    "size": 3597,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.naive.yaml": {
+    "copy_of_source": "compose.naive.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "09e021bee268e33126201e89138e31249a2de853c504fe8aa90fa184d10b9035",
+    "size": 2397,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.trusttunnel.yaml": {
+    "copy_of_source": "compose.trusttunnel.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3ed2e4c14fadee470ae7f1edea646058d8c816b76039652bd7038e62764a9384",
+    "size": 3326,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.xray-router.yaml": {
+    "copy_of_source": "compose.xray-router.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "52ce0ec4d9f0cdc128cf8e362339be64c352218cd941f458b319ba4fdb98228c",
+    "size": 6440,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/compose.yaml": {
+    "copy_of_source": "compose.yaml",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "71af9e806d291da127e4e8e92322ae7d3dd8e0b1a5dc1d827294e23a72a41343",
+    "size": 4947,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/docker": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/docker/Caddyfile": {
+    "copy_of_source": "docker/Caddyfile",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "eff02f6e83cb29aeb39a4fdec807a4504cf26f90fb84f118b6f9456d93308988",
+    "size": 222,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/docker/Dockerfile.caddy-naive": {
+    "copy_of_source": "docker/Dockerfile.caddy-naive",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "f53ca5feb9a83acada242e0a4ecafd762d5d116473c80551ecfce9eb65b45612",
+    "size": 402,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/docker/links.py": {
+    "copy_of_source": "docker/links.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "c51fadb0a1486e83ebe114403b7081a3d51a34f37def5ad817305d9aa51bf4fc",
+    "size": 1134,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/docker/telemt-entrypoint.sh": {
+    "copy_of_source": "docker/telemt-entrypoint.sh",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0755",
+    "sha256": "aafea833f771a44ab93c8536546949a8184bc6fc1d04f6588e4babf599e18646",
+    "size": 2102,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/installer": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/installer/GOLDEN-STAND-IN": {
+    "copy_of_source": "installer/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "2c01811e4e1cb711dac8026e35a9a319a0cb63921ca9b51cba43815b645a9336",
+    "size": 31,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/mcp_server": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/mcp_server/GOLDEN-STAND-IN": {
+    "copy_of_source": "mcp_server/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "937368c7177587aef698bad6e3ac32d2ac4c5a8d4fc50b6ba8e66df16ed53404",
+    "size": 32,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/mieru_manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/mieru_manager/GOLDEN-STAND-IN": {
+    "copy_of_source": "mieru_manager/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "816993512013a08f3570a01b65cca7f0b0bb7138bee0b9bbfe00c06e3461df15",
+    "size": 35,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/naive_manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/naive_manager/GOLDEN-STAND-IN": {
+    "copy_of_source": "naive_manager/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3bd231b0fd37165a1ce4952aa8623c539db36692900a13074ce60add4b1b27a2",
+    "size": 35,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/panel": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/panel/GOLDEN-STAND-IN": {
+    "copy_of_source": "panel/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "a5e5d278c2bf8b149a081a6d785754caee4a78795bce08989c596970de4f62f2",
+    "size": 27,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/pc_common": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/pc_common/GOLDEN-STAND-IN": {
+    "copy_of_source": "pc_common/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "09e8b687e9882789987c9e86eed666130ce574be333d194367dedb9b445baa71",
+    "size": 31,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/scripts": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/scripts/proxyctl.py": {
+    "copy_of_source": "scripts/proxyctl.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "d3e3ff0dddec2296051c81bf989a40bed251825c5eb7cbf13e26d7eb20a652de",
+    "size": 63224,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/panel-bootstrap-password": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "59728439f1039f5ed8d0b1692f40ce8159813debddc8f377e117a64878f2418e",
+    "size": 44,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/panel-master-key": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "5f6243f23eea18c7797895fd8aeb175d8c9b7c2a93cd5a713d54c91787c78837",
+    "size": 236,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/telemt-api-token": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "e706f51b8ab1d99111a64dbff47da2cd28659ddb37d9ea0e9462b520eff89bd1",
+    "size": 72,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/secrets/users.conf": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "6f7c14fa02cc5fbb49cdd41969e83725fe63d4ed5cc115259beb0828a07d66ed",
+    "size": 39,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/trusttunnel_manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/trusttunnel_manager/GOLDEN-STAND-IN": {
+    "copy_of_source": "trusttunnel_manager/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "0cc2feb012de8f3eb275053fff4779a7be24ad9b36e90b32fe95ea9e5191e0f1",
+    "size": 41,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/uninstall.sh": {
+    "copy_of_source": "uninstall.sh",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0755",
+    "sha256": "7f6b4c6e0b756ba8c7b17a9b59e873b5fdb2c79486d73b063490bbbdcf5d8886",
+    "size": 276,
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/xray_router_manager": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/mtproxy-shared443/xray_router_manager/GOLDEN-STAND-IN": {
+    "copy_of_source": "xray_router_manager/GOLDEN-STAND-IN",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "07430f0db9b515aca5c9abdddad54776a9277a91867b90e81c96662b9991a8db",
+    "size": 41,
+    "uid": 0
+  },
+  "/opt/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/__init__.py": {
+    "copy_of_source": "version_agent/__init__.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "b687e3f1a9c1f73842ade086814994a0567a268f12d6bc2ffa335cd5cd78ec35",
+    "size": 48,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/artifacts.py": {
+    "copy_of_source": "version_agent/artifacts.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "e04c5aa66e0b7e1a25a420246cf51d5bdb7942d102bd44142d91eb565e7e946b",
+    "size": 49,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/catalog.py": {
+    "copy_of_source": "version_agent/catalog.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "20de3a6f2dae7b3e191e7f472b3f0c2eaca751d8d5c400bed8ec4ac1913d5092",
+    "size": 47,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/host.py": {
+    "copy_of_source": "version_agent/host.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "d95c0d71be8ffa32422c016f624cb082f84af248c3ba5581ead21069b72004d8",
+    "size": 44,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/hostmetrics.py": {
+    "copy_of_source": "version_agent/hostmetrics.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "bcff92618ec0d3c6976d840397f9752b9b87f4a94c7e95cbc9e70e99afa3943c",
+    "size": 51,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/metrics_ports.py": {
+    "copy_of_source": "version_agent/metrics_ports.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "2b5d5552d0589f3def53cb35ee1c2edd52fda2f94e50631dbc3fcde5f8ff5a9b",
+    "size": 53,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/server.py": {
+    "copy_of_source": "version_agent/server.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "43dcfce1b123b7af02a4eb51d3bd4ba97631580291a4905cb3388d63c0b88254",
+    "size": 46,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/service.py": {
+    "copy_of_source": "version_agent/service.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "48cbfe1f161ea83ef14555aeafa73870df8972bdf155ceb49c1c71f383cccc29",
+    "size": 47,
+    "uid": 0
+  },
+  "/opt/proxy-control/version_agent/upstream.py": {
+    "copy_of_source": "version_agent/upstream.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "331c2ee4b90b80d1f1283eb77b9a58a684e9cbd0602cbe8e59d9db2428c582c1",
+    "size": 48,
+    "uid": 0
+  },
+  "/run": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/run/lock": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/run/lock/proxy-control.lock": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "uid": 0
+  },
+  "/run/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/run/proxy-control/version-agent.sock": {
+    "kind": "other",
+    "mode": "0660"
+  },
+  "/usr": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/bin": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/bin/mita": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0755",
+    "sha256": "a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061",
+    "size": 52,
+    "uid": 0
+  },
+  "/usr/local": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local/bin": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local/libexec": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/local/libexec/mtproxy-respq-probe": {
+    "copy_of_source": "probe/mtproxy-respq-probe",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0750",
+    "sha256": "700bf29d8e60a806bfc4c4f80f09c11aa84e6ce5732354a03674cb6fd10efe7f",
+    "size": 1203,
+    "uid": 0
+  },
+  "/usr/local/libexec/prepare-mieru-state": {
+    "copy_of_source": "scripts/prepare-mieru-state.sh",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0755",
+    "sha256": "411c305ee191cef5f10e348da0b1bc35063a24c165177d90710261fea3187f03",
+    "size": 4460,
+    "uid": 0
+  },
+  "/usr/local/libexec/prepare-mieru-token": {
+    "copy_of_source": "scripts/prepare_mieru_token.py",
+    "gid": 0,
+    "kind": "file",
+    "mode": "0755",
+    "sha256": "86bf7e23b67d5eb4071e27c13c8956b5ffef917a7f33cc7a20c2845198c70c59",
+    "size": 3543,
+    "uid": 0
+  },
+  "/usr/share": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/share/doc": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/share/doc/mita": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/usr/share/doc/mita/copyright": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "54f5959110332e1e7034f2afc2683be90f96fd69b794d25da70a2494bfebe1af",
+    "size": 418,
+    "uid": 0
+  },
+  "/var": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib/mita": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/backups": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/credentials": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/ownership.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "baf27bf9737bcd5bca94b717906bc3977155de4a74ebac0310433ea9964386c7",
+    "size": 16919,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/plan.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "bb6f625e3f29860026ef57bf0abc619f1781134e3581dd0ac69efaad90a410fd",
+    "size": 10000,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/report.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "60d866a3ec5105b8a96f29e066a6631fe07cfc2ff593091f9dcd6fea2527f145",
+    "size": 4225,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/installer/state.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "f4e5bef45341af43172f12bc4c6f8df6ce5b6541190cb6f6cb0dc4765b8f2515",
+    "size": 44716,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/mieru_3.38.1_amd64.deb": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "66ecb1f3403ec3734c6caa2c1ada6447999ea4150e0d46b233141648fde83c8c",
+    "size": 39,
+    "uid": 0
+  },
+  "/var/lib/proxy-control/version-agent": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0700",
+    "uid": 0
+  },
+  "/var/lib/proxy-control/version-agent/state.json": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0600",
+    "sha256": "04bccc6dcf37771b11902a397bf6a07e32fb29415b961dd4e481e1567446bc73",
+    "size": 525,
+    "uid": 0
+  },
+  "/var/www": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/html": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com/.well-known": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com/.well-known/acme-challenge": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/panel.example.com/index.html": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "f34798ed348f0cb080b86799f50479e0592f6f132767530e0aa97946f79873d9",
+    "size": 58,
+    "uid": 0
+  },
+  "/var/www/relay.example.com": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com/.well-known": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com/.well-known/acme-challenge": {
+    "gid": 0,
+    "kind": "dir",
+    "mode": "0755",
+    "uid": 0
+  },
+  "/var/www/relay.example.com/index.html": {
+    "gid": 0,
+    "kind": "file",
+    "mode": "0644",
+    "sha256": "3a652623a206f66a9b3df714ac89619df3af90872952851a35175aab24efe966",
+    "size": 54,
+    "uid": 0
+  }
+}

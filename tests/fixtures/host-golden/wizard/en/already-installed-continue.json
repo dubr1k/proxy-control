@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "wizard",
+    "--config-output",
+    "<work>/proxy-control.toml",
+    "--lang",
+    "en"
+  ],
+  "environment": {
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": ""
+  },
+  "exit": 0,
+  "stderr": "",
+  "stdin": "continue\nquit\n",
+  "stdout": "Proxy Control 3.2.1 is already installed on this server. To update it: bash install-release.sh --update\n  quit     — leave without changes (the default)\n  continue — go on with a reinstall\nWhat now (quit/continue) [quit]: Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.\n  fresh   — a clean server: the installer sets up Nginx and takes TCP 80 and 443\n  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours\n  fresh preserves panel client IPs; coexist needs an operator-configured PROXY bridge (see INSTALLER_REFERENCE)\nHost mode (fresh/coexist) [fresh]: No changes were made.\n"
+}

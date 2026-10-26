@@ -1,0 +1,146 @@
+[
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "1.2"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "1.2.3"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "1.2.3.4"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": false,
+    "_VERSION": true,
+    "input": "1.2.3.4.5"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": false,
+    "_VERSION": true,
+    "input": "1"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": false,
+    "_VERSION": true,
+    "input": "v1.2"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "1.2-rc1"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "1.2.3-rc.1"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": false,
+    "input": "١.٢"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": false,
+    "input": "1.2\n"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": false,
+    "_VERSION": true,
+    "input": "1.2.3-"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "26.10.17"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "3.10.2"
+  },
+  {
+    "AMNEZIAWG_VERSION": false,
+    "AMNEZIAWG_VERSION_match": false,
+    "TELEMT_RELEASE_VERSION": false,
+    "TRUSTTUNNEL_VERSION": false,
+    "TRUSTTUNNEL_VERSION_match": false,
+    "_VERSION": true,
+    "input": "1.1.0-beta.1+x"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "0.0"
+  },
+  {
+    "AMNEZIAWG_VERSION": true,
+    "AMNEZIAWG_VERSION_match": true,
+    "TELEMT_RELEASE_VERSION": true,
+    "TRUSTTUNNEL_VERSION": true,
+    "TRUSTTUNNEL_VERSION_match": true,
+    "_VERSION": true,
+    "input": "01.02"
+  }
+]

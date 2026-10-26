@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "wizard",
+    "--config-output",
+    "<work>/proxy-control.toml",
+    "--lang",
+    "ru"
+  ],
+  "environment": {
+    "LANG": "ru_RU.UTF-8",
+    "LC_ALL": ""
+  },
+  "exit": 0,
+  "stderr": "",
+  "stdin": "",
+  "stdout": "На этом сервере уже установлен Proxy Control 3.2.1. Для обновления: bash install-release.sh --update\n  quit     — выйти без изменений (по умолчанию)\n  continue — продолжить переустановку\nЧто дальше (quit/continue) [quit]: Изменения не внесены.\n"
+}

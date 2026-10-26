@@ -1,0 +1,136 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "packages": [
+            "ca-certificates",
+            "certbot",
+            "curl",
+            "docker-compose-v2",
+            "docker.io",
+            "nginx-full",
+            "openssl",
+            "python3"
+          ]
+        },
+        "observations": [
+          "exact package set is installed"
+        ],
+        "success": true
+      },
+      "phase": "rolled_back",
+      "rollback_evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "removed": [
+            "certbot"
+          ]
+        },
+        "observations": [
+          "installer-owned packages were removed"
+        ],
+        "success": true
+      }
+    },
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "rolled_back",
+      "rollback_evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route rolled back"
+        ],
+        "success": true
+      }
+    },
+    {
+      "action_id": "firewall.ufw",
+      "evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "rules": [
+            "tcp:80",
+            "tcp:443"
+          ]
+        },
+        "observations": [
+          "selected-profile UFW rules are active"
+        ],
+        "success": true
+      },
+      "phase": "rolled_back",
+      "rollback_evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "disabled": true
+        },
+        "observations": [
+          "the firewall this installation enabled is off again"
+        ],
+        "success": true
+      }
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "rolled_back",
+      "rollback_evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com"
+        },
+        "observations": [
+          "owned HTTP-01 vhost removed; valid certificates and webroots preserved"
+        ],
+        "success": true
+      }
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": null,
+      "phase": "rolled_back",
+      "rollback_evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "persistent_data_preserved": true,
+          "temporary_cleanup_pending": false
+        },
+        "observations": [
+          "Core runtime was removed",
+          "persistent data was preserved"
+        ],
+        "success": true
+      }
+    }
+  ],
+  "error": "AcceptanceError",
+  "plan_digest": "1342ab7e4534157ddac92ef3077ce4d5034b394175d8815a673a76744a23161a",
+  "schema": 1,
+  "status": "rolled_back",
+  "transaction_id": "6a64eb2caa3740d2bf8f7bb9b3bd4a5b"
+}

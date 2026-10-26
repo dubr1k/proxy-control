@@ -1,0 +1,148 @@
+name: proxy_panel_by_dubr1k
+
+services:
+  mask:
+    container_name: proxy-control-mask
+    init: true
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    environment:
+      MTPROXY_DOMAIN: ${MTPROXY_DOMAIN}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /config
+      - /data
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${MTPROXY_LETSENCRYPT_ROOT:-/etc/letsencrypt}:/etc/letsencrypt:ro
+      # Cover-site content is intentionally stored outside Git.
+      - ${MTPROXY_COVER_ROOT}:/srv/tga:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --no-check-certificate --header='Host: ${MTPROXY_DOMAIN}' --spider https://${MTPROXY_DOMAIN}:443/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    networks:
+      default:
+        aliases:
+          - ${MTPROXY_DOMAIN}
+
+  mtproxy:
+    container_name: proxy-control-mtproxy
+    image: ghcr.io/samnet-dev/mtproxymax-telemt@sha256:7c843f370ec519cd30e98c686f7fe409c76272f8865ba29a64f6f7099877bc81
+    entrypoint: ["/usr/local/bin/telemt-entrypoint.sh"]
+    restart: unless-stopped
+    depends_on:
+      mask:
+        condition: service_healthy
+    environment:
+      FAKE_TLS_DOMAIN: ${MTPROXY_DOMAIN}
+      SECRETS_FILE: /run/secrets/mtproxy-secrets
+      API_TOKEN_FILE: /run/secrets/telemt-api-token
+    secrets:
+      - mtproxy-secrets
+      - telemt-api-token
+    expose:
+      # The authenticated Telemt API is reachable only by services on this
+      # Compose network. It must never be published on a host interface.
+      - "9091"
+    ports:
+      - "127.0.0.1:${MTPROXY_BACKEND_PORT}:443/tcp"
+    read_only: true
+    volumes:
+      - ./docker/telemt-entrypoint.sh:/usr/local/bin/telemt-entrypoint.sh:ro
+      - telemt-config:/var/lib/telemt
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "test -r /proc/net/tcp && grep -qi ':01BB ' /proc/net/tcp"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  panel:
+    container_name: proxy-control-panel
+    build:
+      context: ./panel
+    restart: unless-stopped
+    depends_on:
+      mtproxy:
+        condition: service_healthy
+    group_add:
+      - "10001"
+    environment:
+      PANEL_DATABASE: /data/panel.sqlite3
+      PANEL_VNEXT_WRITER: ${PANEL_VNEXT_WRITER:-legacy}
+      PANEL_SUBSCRIPTION_URL: ${PANEL_SUBSCRIPTION_URL:-}
+      PANEL_SUBSCRIPTION_HOST: ${PANEL_SUBSCRIPTION_HOST:-}
+      PANEL_SINGBOX_FORK_CLIENTS: ${PANEL_SINGBOX_FORK_CLIENTS:-}
+      PANEL_ALLOWED_HOSTS: ${PANEL_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      PANEL_HEALTHCHECK_HOST: ${PANEL_HEALTHCHECK_HOST:-localhost}
+      PANEL_COOKIE_SECURE: ${PANEL_COOKIE_SECURE:-true}
+      # The MTProxy endpoint for links the panel cannot learn from Telemt, and what it
+      # reports to a central panel as `protocols.mtproxy.public_host`.
+      MTPROXY_DOMAIN: ${MTPROXY_DOMAIN}
+      TELEMT_API_URL: http://mtproxy:9091
+      TELEMT_API_TOKEN_SOURCE: /run/secrets/telemt-api-token
+      VERSION_AGENT_SOCKET: /run/proxy-control/version-agent.sock
+      PANEL_SUPPLEMENTARY_GROUPS: "10001"
+    secrets:
+      - telemt-api-token
+      - panel-master-key
+    ports:
+      - "127.0.0.1:8787:8787/tcp"
+    volumes:
+      - panel-data:/data
+      # Read-only: connecting to the agent socket needs no write access, and a
+      # writable mount would let the panel unlink it.
+      - /run/proxy-control:/run/proxy-control:ro
+      # The release version the panel reports to a central panel (Fleet v2 identity).
+      - ./VERSION:/app/VERSION:ro
+    read_only: true
+    tmpfs:
+      # Owned by the panel user (uid 10001, gid 101): the process runs unprivileged on a
+      # read-only root, and a root-only /tmp would leave it no writable temp directory.
+      - /tmp:size=16m,mode=1777,uid=10001,gid=101
+      - /run/panel:size=1m,mode=0700
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - /bin/bash
+        - -ec
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8787;
+          printf 'GET /healthz HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$${PANEL_HEALTHCHECK_HOST}" >&3;
+          IFS=' ' read -r -t 5 protocol status_code reason <&3;
+          [[ "$$protocol" == HTTP/* && "$$status_code" == 200 ]]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+secrets:
+  mtproxy-secrets:
+    file: ./secrets/users.conf
+  telemt-api-token:
+    file: ./secrets/telemt-api-token
+  # The panel's master keyring: it encrypts stored credentials and is deliberately
+  # kept outside the database volume, so a stolen backup of one is useless alone.
+  panel-master-key:
+    file: ./secrets/panel-master-key
+
+volumes:
+  telemt-config:
+  panel-data:

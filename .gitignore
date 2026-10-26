@@ -43,6 +43,10 @@ secrets/*
 # протокольные overlay установки (.env.naive, .env.mieru, .env.xray-router, .env.mcp) — конфигурация хоста, не репозитория
 .env.*
 !.env.*.example
+# Host golden fixtures (scripts/dev/record-host-goldens.py) keep the overlays a fake install
+# renders; every value in them is a seeded stand-in.
+!tests/fixtures/host-golden/**/.env
+!tests/fixtures/host-golden/**/.env.*
 *.log
 __pycache__/
 *.py[cod]

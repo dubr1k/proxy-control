@@ -1,0 +1,77 @@
+Language / Язык (en/ru) [en]: Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+  fresh   — a clean server: the installer sets up Nginx and takes TCP 80 and 443
+  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours
+  fresh preserves panel client IPs; coexist needs an operator-configured PROXY bridge (see INSTALLER_REFERENCE)
+Host mode (fresh/coexist) [fresh]:   core       — the panel and MTProxy (Telegram)
+  core-naive — the same plus NaiveProxy
+  core-mieru — the same plus Mieru
+  full       — the panel, MTProxy, NaiveProxy and Mieru
+  AmneziaWG and TrustTunnel are not part of a profile: they are separate questions further below
+Proxy Control profile (core/core-naive/core-mieru/full) [full]:   none        — no 3x-ui
+  existing    — 3x-ui is already installed: only routes to its VLESS Reality inbounds are added on 443
+  managed-new — the installer sets up its own 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+3x-ui mode (none/existing/managed-new) [none]: Panel domain: MTProxy Fake-TLS domain: Client subscription domain (blank to keep subscriptions off): MCP server domain — central panel only (blank to keep MCP off): NaiveProxy domain: Mieru hostname: Mieru TCP ports (comma-separated) [46001]: Mieru UDP ports (comma-separated) [46001]: Enable WARP routing [y/N]: Install the Xray-router (pinned Xray-core 26.10.17; the archive is fetched unless staged in /var/lib/proxy-control; MTProxy can be routed through it from the panel too) [y/N]: Send all NaiveProxy traffic through the Xray-router [Y/n]: Send all Mieru traffic through the Xray-router [Y/n]: Send all Mieru traffic through WARP [Y/n]: AmneziaWG is obfuscated WireGuard 1.5 / 2.0 / 3.1. Clients connect over UDP straight to this server,
+so it needs no new domain: the panel domain works if it points at this server and is not proxied.
+Install AmneziaWG [y/N]: AmneziaWG versions (comma-separated from 1.5, 2.0, 3.1) [1.5,2.0,3.1]: Name or IPv4 address clients dial for AmneziaWG (not proxied) [panel.example.com]: One UDP port per version, in this order, from 1024 to 65535. The free random ports shown are not
+well-known, so Enter is the sensible choice.
+AmneziaWG UDP ports for versions 1.5, 2.0, 3.1 (3, comma-separated) [25076,11892,13013]: TrustTunnel is AdGuard's HTTP/2 over TLS VPN, TCP only. It shares TCP/443 with the other services
+through SNI, so no port and no UDP rule are added. It needs a domain of its own with an A record to this
+server, DNS only: do not put a CDN proxy in front of it.
+Install TrustTunnel [y/N]: TrustTunnel domain (an A record to this server, DNS only; its own name, not one used above): ACME email: Name of the first MTProxy and Mieru user (the panel login is always owner): Password of the panel login owner (blank to generate one): Repeat the panel password: Open the installer's ports in UFW (fresh host only) [Y/n]: 
+Configuration review
+field | value
+ACME email | admin@example.com
+AmneziaWG: host clients dial | panel.example.com
+AmneziaWG: UDP ports | 25076,11892,13013
+AmneziaWG: versions | 1.5,2.0,3.1
+Mieru hostname | mieru.example.com
+MTProxy Fake-TLS domain | relay.example.com
+NaiveProxy domain | edge.example.com
+Panel domain | panel.example.com
+Client subscription domain | sub.example.com
+TrustTunnel domain | gate.example.org
+Mieru egress | warp
+NaiveProxy egress | router
+Xray-router relay port | 45443
+Xray-router | yes
+WARP for NaiveProxy and Mieru | yes
+Open ports in UFW | yes
+Host mode | fresh
+First MTProxy and Mieru user | owner
+Mieru lane slots | 4
+Mieru TCP ports | 46001,46003
+Mieru UDP ports | 46001
+Profile | full
+3x-ui mode | none
+Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+Action (apply/back/edit/save/quit) [apply]: Plan / План
+digest | e2d9db0787acdba2df176c6b5563c8c7bd8b57858b2ea761226294ac92157a34
+packages.host | package=ca-certificates, package=certbot, package=curl, package=docker-compose-v2, package=docker.io, package=nginx-full, package=openssl, package=python3
+rollback:packages.host | remove only exact packages installed by this action; purge them only on uninstall --purge-data
+nginx.routes | mode=fresh, client_ip=proxy, panel_tls_backend=127.0.0.1:8443, stream_context=create, target=/etc/nginx/stream.d/proxy-control.conf, variable=$proxy_control_backend, path_kind=missing, resolved_path=/etc/nginx/stream.d/proxy-control.conf, symlink_target=-, route=relay.example.com 127.0.0.1:8445, route=panel.example.com 127.0.0.1:8443, route=sub.example.com 127.0.0.1:8443, route=edge.example.com 127.0.0.1:4443, route=gate.example.org 127.0.0.1:4453
+rollback:nginx.routes | restore content, owner, group, mode, and symlink identity
+firewall.ufw | ssh=22, ipv6=true, enable=true, rule=route:awg15, rule=route:awg20, rule=route:awg31, rule=tcp:80, rule=tcp:443, rule=tcp:45443, rule=tcp:46001, rule=tcp:46003, rule=tcp:46101, rule=tcp:46102, rule=tcp:46103, rule=tcp:46104, rule=udp:11892, rule=udp:13013, rule=udp:25076, rule=udp:46001
+rollback:firewall.ufw | delete exact comment-scoped rules added by this action
+certificate.naive | service=naive, certificate=edge.example.com, email=admin@example.com, name=edge.example.com, webroot=/var/www/edge.example.com
+rollback:certificate.naive | remove only the exact owned HTTP-01 vhost and preserve ACME data
+certificate.proxy-control | service=proxy-control, certificate=relay.example.com, email=admin@example.com, name=panel.example.com, name=relay.example.com, name=sub.example.com, webroot=/var/www/panel.example.com, webroot=/var/www/relay.example.com, webroot=/var/www/sub.example.com
+rollback:certificate.proxy-control | remove only the exact owned HTTP-01 vhost and preserve ACME data
+certificate.trusttunnel | service=trusttunnel, certificate=gate.example.org, email=admin@example.com, name=gate.example.org, webroot=/var/www/gate.example.org
+rollback:certificate.trusttunnel | remove only the exact owned HTTP-01 vhost and preserve ACME data
+core.runtime | project=/opt/mtproxy-shared443, proxy-domain=relay.example.com, panel-domain=panel.example.com, subscription-domain=sub.example.com, mcp-domain=, users=owner, proxy-backend-port=8445, panel-app-port=8787, panel-tls-port=8443, probe=/usr/local/libexec/mtproxy-respq-probe, probe-image=mtproxy-respq-probe:1.0.0, prebuilt-tdlib=0.1008066.0, adjacent-sni=none
+rollback:core.runtime | stop only the mtproxy Compose project, preserve credentials and named volumes unless data purge is explicit, remove only Core-owned artifacts and the owned probe
+warp.runtime | port=40000
+rollback:warp.runtime | remove only the installer-owned WARP package and registration
+xray_router.runtime | project=/opt/mtproxy-shared443, xray-version=26.10.17, architecture=amd64, archive=/var/lib/proxy-control/Xray-linux-64.zip, archive-url=https://github.com/XTLS/Xray-core/releases/download/v26.10.17/Xray-linux-64.zip, archive-digest=0961cee3a173e11ba0568c679480d5b4fd3863236ad296ba7aeaaf0da0f6b51b, xray-digest=a2ac2de8bcfdc9295ab3ce1156f4812f53937e91cadd71ff5e49fb4e16ba0cf2, geoip.dat-digest=11ed793e8aebec0accf6e11cc7d1a3bc4d8305949154b97d93315ab77664ee67, geosite.dat-digest=8aacb4eb32a80e86f50c1493c74787098c83d496321d61a45eefed8d84590fa8, bin-dir=/usr/local/lib/proxy-control/xray-router, state-dir=/var/lib/xray-router, router-uid=10006, router-gid=10006, port-naive=45101, port-mieru=45102, port-trusttunnel=45104, warp-provider=socks5://127.0.0.1:40000, relay-port=45443, relay-server-name=panel.example.com, mtproxy-bridge=xray-router-ingress:45103
+rollback:xray_router.runtime | stop and remove only the xray-router and xray-router-ingress Compose services, remove only the owned binaries, helpers and env overlay, preserve manager state and secrets unless purge is explicit
+naive.runtime | project=/opt/mtproxy-shared443, naive-domain=edge.example.com, panel-domain=panel.example.com, data-dir=/var/lib/naive-manager, log-dir=/var/log/naive-proxy, caddy-binary=/usr/local/bin/caddy, caddy-build=v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=, unit=/etc/systemd/system/caddy-naive.service, private-port=4443, caddy-uid=10003, accounting-gid=10004, manager-uid=10002, manager-gid=101, adjacent-sni=none, egress=router, warp-port=40000, warp-provider=socks5://127.0.0.1:40000, router-provider=socks5://127.0.0.1:45101
+rollback:naive.runtime | stop only the Caddy unit and the naive-manager service, preserve manager state and credentials unless purge is explicit, restore binary, unit, helper, hook, and identity ownership
+mieru.runtime | project=/opt/mtproxy-shared443, mieru-host=mieru.example.com, panel-domain=panel.example.com, mita-version=3.38.1, architecture=amd64, package-url=https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb, package-digest=3fce5f1ff9ef42cda14d32c6197e8b2da033a2adb4da0cd00b32d5c7376647dc, executable-digest=a7aab52960c69b2327db66fe4593fcec4f896b8e7e0d67c6144b7307ba134061, binary=/usr/bin/mita, unit=/etc/systemd/system/mita.service, socket=/run/mita/mita.sock, manager-uid=10005, manager-gid=10005, bootstrap-user=owner, transports=TCP:46001;TCP:46003;UDP:46001, egress=proxy, warp-port=40000, warp-provider=socks5://127.0.0.1:40000, router-provider=socks5://127.0.0.1:45102, lane-slots=4
+rollback:mieru.runtime | stop only the mita unit, the lane slot units and the mieru-manager service, preserve manager state, token, and mita config unless purge, remove only the owned binary, units, tmpfiles, and helpers
+amneziawg.runtime | project=/opt/mtproxy-shared443, state-dir=/var/lib/awg-manager, sysctl-file=/etc/sysctl.d/99-proxy-control-amneziawg.conf, ip-forward=1, versions=1.5,2.0,3.1, ports=1.5:25076,2.0:11892,3.1:13013, interfaces=awg15,awg20,awg31, host=panel.example.com, mtu=1280, dns=1.1.1.1,1.0.0.1, socket-gid=10007, container=proxy-control-awg-manager
+rollback:amneziawg.runtime | stop and remove only the awg-manager Compose service, remove only the owned env overlay, sysctl file and marker, preserve the state directory (server keys) and the manager secret unless purge is explicit
+trusttunnel.runtime | project=/opt/mtproxy-shared443, state-dir=/var/lib/trusttunnel-manager, letsencrypt-dir=/etc/letsencrypt, hostname=gate.example.org, listen=127.0.0.1:4453, metrics=127.0.0.1:1987, version=1.1.0, sha256=91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7, socket-gid=10008, container=proxy-control-trusttunnel-manager
+rollback:trusttunnel.runtime | stop and remove only the trusttunnel-manager Compose service, remove only the owned env overlay and marker, preserve the state directory (credentials) and the manager secret unless purge is explicit
+version_agent.runtime | project=/opt/mtproxy-shared443, agent-dir=/opt/proxy-control, socket=/run/proxy-control/version-agent.sock, socket-gid=10001, compose-files=compose.yaml:compose.naive.yaml:compose.mieru.yaml:compose.xray-router.yaml:compose.amneziawg.yaml:compose.trusttunnel.yaml, router=on, naive=on, mieru=on, upstream=on
+rollback:version_agent.runtime | disable the unit and remove only the owned unit, tmpfiles, env, code and marker, preserve the catalog and the agent state unless purge is explicit
+Type the first 12 plan digest characters (e2d9db0787ac), or quit: No changes were made.

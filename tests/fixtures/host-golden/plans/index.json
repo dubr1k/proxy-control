@@ -1,0 +1,173 @@
+{
+  "host": {
+    "ipv4": "203.0.113.10",
+    "ipv6": "2001:db8::10",
+    "machine_id": "0123456789abcdef0123456789abcdef"
+  },
+  "plans": {
+    "coexist-ingress": {
+      "actions": [
+        "nginx.routes",
+        "certificate.naive",
+        "certificate.proxy-control",
+        "core.runtime",
+        "naive.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "plans/coexist-ingress/config.toml",
+      "digest": "096bd1ec7fa1c13c3821a0fc7d05a487ec9269a4406513d7c4e71fc23ecb9015"
+    },
+    "core": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.proxy-control",
+        "core.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/core.toml",
+      "digest": "9d8b5e2ca49916102f96509bec480a01b057cca9154c7afeac1f5e0b03120c62"
+    },
+    "core-amneziawg": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.proxy-control",
+        "core.runtime",
+        "amneziawg.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/core-amneziawg.toml",
+      "digest": "c4b79f71e12a6909bef237e5526d8a4df798877ee153c6a1af96a0bc636f6162"
+    },
+    "core-mieru": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.proxy-control",
+        "core.runtime",
+        "mieru.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/core-mieru.toml",
+      "digest": "0b8649229552114e3cea78fc1e4c196cbe4913f00611cd767edfc46ed229245a"
+    },
+    "core-naive": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.naive",
+        "certificate.proxy-control",
+        "core.runtime",
+        "naive.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/core-naive.toml",
+      "digest": "e73b50dddefbaf7af26b70fbaf5d429e8f1a755d7bde7f2acb3a79a22be50143"
+    },
+    "core-trusttunnel": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.proxy-control",
+        "certificate.trusttunnel",
+        "core.runtime",
+        "trusttunnel.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/core-trusttunnel.toml",
+      "digest": "73eff47c4f49d1353083a472c766975b8b90c02e9421afbf8cf7c0df4146dda0"
+    },
+    "existing-three-xui": {
+      "actions": [
+        "nginx.routes",
+        "certificate.proxy-control",
+        "core.runtime",
+        "three_xui.routes",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/existing-three-xui.toml",
+      "digest": "ff25c8723165c15da68d94fa5cfa0891995910c629375576e9baa02a6baa4865"
+    },
+    "full-three-xui": {
+      "actions": [
+        "nginx.routes",
+        "certificate.naive",
+        "certificate.proxy-control",
+        "core.runtime",
+        "naive.runtime",
+        "mieru.runtime",
+        "three_xui.routes",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/full-three-xui.toml",
+      "digest": "a7876459e9f627009a0fce4d18324cf752d5fae22204c0ebad9dcbf8bbd7c9ef"
+    },
+    "kitchen-sink": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "firewall.ufw",
+        "certificate.naive",
+        "certificate.proxy-control",
+        "certificate.trusttunnel",
+        "core.runtime",
+        "warp.runtime",
+        "xray_router.runtime",
+        "naive.runtime",
+        "mieru.runtime",
+        "amneziawg.runtime",
+        "trusttunnel.runtime",
+        "mcp.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "plans/kitchen-sink/config.toml",
+      "digest": "35650d94d3f12598c8863fb89dfc677f1b4947bd94c4a88ba63c9a4514196ee9"
+    },
+    "managed-three-xui": {
+      "actions": [
+        "packages.host",
+        "nginx.routes",
+        "certificate.naive",
+        "certificate.proxy-control",
+        "certificate.three-xui-hysteria",
+        "certificate.three-xui-panel",
+        "certificate.three-xui-subscription",
+        "core.runtime",
+        "naive.runtime",
+        "mieru.runtime",
+        "three_xui.routes",
+        "three_xui.runtime",
+        "version_agent.runtime"
+      ],
+      "config": "examples/installer/managed-three-xui.toml",
+      "digest": "c567e6234a10f0879b20b007d1c903d48f7737b791a8d1a0b393ab010ddea81f"
+    }
+  },
+  "release_json": {
+    "artifacts": {
+      "mieru:amd64": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+      "mita:amd64": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+      "three_xui:amd64": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+      "trusttunnel:amd64": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+      "xray:amd64": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
+    },
+    "commit": "0000000000000000000000000000000000000000",
+    "components": {
+      "mieru": "3.38.1",
+      "mita": "3.38.1",
+      "three_xui": "3.10.2",
+      "trusttunnel": "1.1.0",
+      "xray": "26.10.17"
+    },
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "schema": 1,
+    "tag": "v3.3.0",
+    "version": "3.3.0"
+  }
+}

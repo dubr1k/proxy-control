@@ -1,0 +1,176 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.naive",
+      "evidence": {
+        "action_id": "certificate.naive",
+        "details": {
+          "certificate": "edge.example.com",
+          "names": [
+            "edge.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "naive.runtime",
+      "evidence": {
+        "action_id": "naive.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "admin_api_loopback": true,
+          "authenticated_connect_ok": true,
+          "connect_bytes": 4096,
+          "cover_https_ok": true,
+          "log_boundary_ok": true,
+          "manager_health_ok": true,
+          "panel_health_ok": true,
+          "private_listener_ok": true,
+          "recorded_bytes": 4096,
+          "temporary_state_removed": true,
+          "tunnel_closed_ok": true
+        },
+        "observations": [
+          "Naive listener, cover, authenticated CONNECT, and accounting passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "mieru.runtime",
+      "evidence": {
+        "action_id": "mieru.runtime",
+        "details": {
+          "adjacent_listeners_ok": true,
+          "executable_digest_ok": true,
+          "lane_slots": [],
+          "manager_health_ok": true,
+          "mita_status_running": true,
+          "package_digest_ok": true,
+          "panel_health_ok": true,
+          "public_host_ok": true,
+          "send_queue_drained": true,
+          "temporary_state_removed": true,
+          "transports_expected": 2,
+          "transports_verified": 2,
+          "uds_boundary_ok": true
+        },
+        "observations": [
+          "pinned mita, UDS boundary, and official-client acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "three_xui.routes",
+      "evidence": {
+        "action_id": "three_xui.routes",
+        "details": {
+          "installed": true,
+          "routes": 2
+        },
+        "observations": [
+          "owned 3x-ui routes reach audited loopback inbounds"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "mita": "3.38.1",
+            "naive": "2.11.7",
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    }
+  ],
+  "error": null,
+  "plan_digest": "5977f21ce4ade9b0cebd5acdc6097928a1dd6de40e52aaaf3d3581763e819328",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "c77392725a6e4732b3a71606ab4c34a0"
+}

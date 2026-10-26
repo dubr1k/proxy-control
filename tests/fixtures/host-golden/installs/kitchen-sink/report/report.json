@@ -1,0 +1,193 @@
+{
+  "actions": [
+    {
+      "action_id": "packages.host",
+      "facts": {},
+      "observations": [
+        "exact package set is installed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "facts": {},
+      "observations": [
+        "owned Nginx route verified"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "firewall.ufw",
+      "facts": {},
+      "observations": [
+        "selected-profile UFW rules are active"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.naive",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "certificate.trusttunnel",
+      "facts": {},
+      "observations": [
+        "owned HTTP-01 vhost and service certificate are valid"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "compose_config_ok": true,
+        "expected_services": 3,
+        "healthy_services": 3,
+        "panel_health_ok": true,
+        "panel_login_ok": true,
+        "respq_expected": 2,
+        "respq_verified": 2,
+        "sensitive_scan_ok": true,
+        "telemt_api_internal": true,
+        "temporary_state_removed": true
+      },
+      "observations": [
+        "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "warp.runtime",
+      "facts": {},
+      "observations": [
+        "official WARP has distinct tunneled egress"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "xray_router.runtime",
+      "facts": {},
+      "observations": [
+        "pinned Xray members, verified artifacts and a running generation",
+        "all three SOCKS ingresses (naive, mieru, trusttunnel) are loopback-only and the NaiveProxy ingress relays",
+        "the MTProxy ingress bridge answers",
+        "the relay inbound is up on its public port behind the panel name"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "naive.runtime",
+      "facts": {
+        "adjacent_sni_ok": true,
+        "admin_api_loopback": true,
+        "authenticated_connect_ok": true,
+        "connect_bytes": 4096,
+        "cover_https_ok": true,
+        "log_boundary_ok": true,
+        "manager_health_ok": true,
+        "panel_health_ok": true,
+        "private_listener_ok": true,
+        "recorded_bytes": 4096,
+        "temporary_state_removed": true,
+        "tunnel_closed_ok": true
+      },
+      "observations": [
+        "Naive listener, cover, authenticated CONNECT, and accounting passed",
+        "temporary acceptance state was removed"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "mieru.runtime",
+      "facts": {
+        "adjacent_listeners_ok": true,
+        "executable_digest_ok": true,
+        "manager_health_ok": true,
+        "mita_status_running": true,
+        "package_digest_ok": true,
+        "panel_health_ok": true,
+        "public_host_ok": true,
+        "send_queue_drained": true,
+        "temporary_state_removed": true,
+        "transports_expected": 3,
+        "transports_verified": 3,
+        "uds_boundary_ok": true
+      },
+      "observations": [
+        "pinned mita, UDS boundary, and official-client acceptance passed",
+        "temporary acceptance state was removed",
+        "4 lane slot daemon(s) answer on their sockets"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "amneziawg.runtime",
+      "facts": {},
+      "observations": [
+        "the awg-manager container is healthy and answers over its Unix socket",
+        "every enabled AmneziaWG version is running and bound to its UDP port",
+        "IPv4 forwarding is enabled",
+        "the operator must keep the UDP ports open and forwarding allowed on the awg interfaces in any firewall the installer does not manage"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "trusttunnel.runtime",
+      "facts": {},
+      "observations": [
+        "the trusttunnel-manager container is healthy and answers over its Unix socket",
+        "the TrustTunnel endpoint is running and bound to its loopback TCP port",
+        "TrustTunnel shares TCP/443 through the SNI router: no UDP port was opened and no firewall rule added",
+        "the host name needs an A record to this server and must not be proxied by a CDN"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "mcp.runtime",
+      "facts": {
+        "public_host_ok": true,
+        "response_status": 200
+      },
+      "observations": [
+        "the proxy-control-mcp container is healthy",
+        "the MCP name refuses an anonymous request and answers initialize with a bearer"
+      ],
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "facts": {},
+      "observations": [
+        "the version-agent is active, enabled and healthy over its socket",
+        "it lists the profile's components at the recorded versions"
+      ],
+      "success": true
+    }
+  ],
+  "operator_notes": [
+    "compose files: compose.yaml compose.naive.yaml compose.mieru.yaml compose.xray-router.yaml compose.amneziawg.yaml compose.trusttunnel.yaml compose.mcp.yaml",
+    "MCP server: enabled on mcp.example.com",
+    "AmneziaWG: enabled, versions 1.5 (udp/25076, awg15), 2.0 (udp/11892, awg20), 3.1 (udp/13013, awg31)",
+    "AmneziaWG: the exit is direct; «Routing» can send the whole tunnel through WARP (the manager's own WireGuard tunnel, TCP and UDP), which needs outbound api.cloudflareclient.com:443 and UDP 2408",
+    "TrustTunnel: enabled on gate.example.org (TCP/443 through the SNI router, endpoint on 127.0.0.1:4453; no UDP port is opened). The name needs an A record to this server and must not be proxied by a CDN"
+  ],
+  "profile": "full",
+  "release": {
+    "digest": "0018c37c75f20ad05584c25fb27d3511128f33a481ee012bca49ebb10eac9d40",
+    "tag": "installer-v1"
+  },
+  "schema": 1
+}

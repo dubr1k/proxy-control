@@ -1,0 +1,20 @@
+schema = 1
+host_mode = "fresh"
+profile = "core"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+trusttunnel = "gate.example.org"
+
+[trusttunnel]
+enabled = true
+listen_port = 4453
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

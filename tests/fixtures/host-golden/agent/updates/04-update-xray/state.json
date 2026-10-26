@@ -1,0 +1,111 @@
+{
+  "components": {
+    "mita": {
+      "archive": {
+        "format": "tar.gz",
+        "member": "mita"
+      },
+      "image": null,
+      "kind": "binary",
+      "runtime_version": null,
+      "sha256": "5c74159e9969add02c91081ce0270ccd52b02fb908f657df6c807058f1250c90",
+      "source": "upstream",
+      "updated_at": 1767225600,
+      "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+      "version": "3.39.0"
+    },
+    "naive": {
+      "kind": "build",
+      "runtime_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "sha256": "3f2224279f1e4425f19cf53681eed582506715d5491a62bd611e792ef112bc19",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "2.11.7"
+    },
+    "telemt": {
+      "archive": null,
+      "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "image",
+      "runtime_version": null,
+      "sha256": null,
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "url": null,
+      "version": "3.5.15"
+    },
+    "xray": {
+      "archive": {
+        "format": "zip",
+        "members": {
+          "geoip.dat": "geoip.dat",
+          "geosite.dat": "geosite.dat",
+          "xray": "xray"
+        }
+      },
+      "image": null,
+      "kind": "binary",
+      "members": {
+        "geoip.dat": "4708fae1805df21fdb9b2826c4dc63d890cb7348259494611f7923982476451a",
+        "geosite.dat": "4ceee246f58d7ecdda37882cb6a56c800a8129822c7cbeeee067e376ef069099",
+        "xray": "558fc826540cc82c0afd339acf2b84445590b44df1b17c975fb4895c6b3dfcf5"
+      },
+      "runtime_version": null,
+      "sha256": "7e6a7cc24b251fa0d8a3dfc1a019fed8652fe7ba4791ed72af6188ce0b874c17",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "url": "https://github.com/XTLS/Xray-core/releases/download/v26.11.1/Xray-linux-64.zip",
+      "version": "26.11.1"
+    }
+  },
+  "schema": 2,
+  "upstream": {
+    "checked_at": 1767225600,
+    "components": {
+      "mita": {
+        "candidates": [
+          {
+            "archive": {
+              "format": "tar.gz",
+              "member": "mita"
+            },
+            "kind": "binary",
+            "published_at": "2026-01-01T00:00:00Z",
+            "sha256": "177ff860d3b4b9e8ddbbeabbffc1a3fa99859e29654d0d6ed610c479dc8405c5",
+            "source": "upstream",
+            "tag": "v3.39.0",
+            "url": "https://github.com/enfein/mieru/releases/download/v3.39.0/mita_3.39.0_linux_amd64.tar.gz",
+            "version": "3.39.0"
+          }
+        ],
+        "installable": true,
+        "latest": "3.39.0",
+        "reason": null
+      },
+      "naive": {
+        "candidates": [],
+        "installable": false,
+        "last_error": "upstream answered 403 for /repos/caddyserver/caddy/releases",
+        "latest": null,
+        "reason": null
+      },
+      "panel": {
+        "candidates": [],
+        "installable": false,
+        "latest": null,
+        "reason": "no_releases"
+      },
+      "telemt": {
+        "candidates": [],
+        "installable": false,
+        "latest": null,
+        "reason": "no_releases"
+      },
+      "xray": {
+        "candidates": [],
+        "installable": true,
+        "latest": "26.11.1",
+        "reason": null
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "components": {
+    "naive": {
+      "kind": "build",
+      "runtime_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "sha256": "3f2224279f1e4425f19cf53681eed582506715d5491a62bd611e792ef112bc19",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "2.11.7"
+    },
+    "telemt": {
+      "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:7c843f370ec519cd30e98c686f7fe409c76272f8865ba29a64f6f7099877bc81",
+      "kind": "image",
+      "source": "catalog",
+      "updated_at": 1767225600,
+      "version": "sha256:7c843f370ec5"
+    }
+  },
+  "schema": 2
+}

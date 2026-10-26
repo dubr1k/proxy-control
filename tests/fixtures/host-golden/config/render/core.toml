@@ -1,0 +1,15 @@
+schema = 1
+host_mode = "fresh"
+profile = "core"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

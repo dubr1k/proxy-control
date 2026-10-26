@@ -1,0 +1,50 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "adapter": "packages",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "nginx.routes",
+      "adapter": "nginx",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "firewall.ufw",
+      "adapter": "firewall",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "adapter": "certificates",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "core.runtime",
+      "adapter": "core",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "mieru.runtime",
+      "adapter": "mieru",
+      "phase": "verified",
+      "success": true
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "adapter": "version_agent",
+      "phase": "verified",
+      "success": true
+    }
+  ],
+  "origin": "installer-v1",
+  "plan_digest": "bb6f625e3f29860026ef57bf0abc619f1781134e3581dd0ac69efaad90a410fd",
+  "schema": 1,
+  "status": "active"
+}

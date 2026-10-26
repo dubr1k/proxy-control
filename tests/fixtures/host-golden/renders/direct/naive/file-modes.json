@@ -1,0 +1,15 @@
+{
+  "/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": "0755",
+  "/etc/proxy-control/caddy-naive.pin": "0644",
+  "/etc/proxy-control/naive-acceptance-owner": "0600",
+  "/etc/proxy-control/naive-acceptance-pending": "0600",
+  "/etc/proxy-control/naive-owned": "0600",
+  "/etc/systemd/system/caddy-naive.service": "0644",
+  "/opt/mtproxy-shared443/.env.naive": "0600",
+  "/opt/mtproxy-shared443/secrets/naive-manager-token": "0600",
+  "/usr/local/libexec/caddy-naive-adapt": "0755",
+  "/usr/local/libexec/check-naive-caddy-build": "0755",
+  "/usr/local/libexec/prepare-naive-state": "0755",
+  "/var/lib/naive-manager/Caddyfile": "0640",
+  "/var/lib/naive-manager/manager-token": "0400"
+}

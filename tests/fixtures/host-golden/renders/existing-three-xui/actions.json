@@ -1,0 +1,145 @@
+[
+  {
+    "adapter": "nginx",
+    "credentials_required": false,
+    "id": "nginx.routes",
+    "inverse": [
+      "restore content, owner, group, mode, and symlink identity"
+    ],
+    "mutations": [
+      "mode=coexist",
+      "stream_context=present",
+      "target=/etc/nginx/stream.d/routes.conf",
+      "variable=$sni_backend",
+      "path_kind=file",
+      "resolved_path=/etc/nginx/stream.d/routes.conf",
+      "symlink_target=-",
+      "route=relay.example.com 127.0.0.1:8445",
+      "route=panel.example.com 127.0.0.1:8443",
+      "route=vless.example.com 127.0.0.1:8449",
+      "route=xhttp.example.com 127.0.0.1:8450"
+    ],
+    "owner": "proxy-control:nginx",
+    "preconditions": [
+      "effective Nginx topology is observed and unambiguous"
+    ],
+    "verification": [
+      "Nginx configuration test passes before reload"
+    ]
+  },
+  {
+    "adapter": "certificates",
+    "credentials_required": false,
+    "id": "certificate.proxy-control",
+    "inverse": [
+      "remove only the exact owned HTTP-01 vhost and preserve ACME data"
+    ],
+    "mutations": [
+      "service=proxy-control",
+      "certificate=relay.example.com",
+      "email=admin@example.com",
+      "name=panel.example.com",
+      "name=relay.example.com",
+      "webroot=/var/www/panel.example.com",
+      "webroot=/var/www/relay.example.com"
+    ],
+    "owner": "proxy-control:certificate:proxy-control",
+    "preconditions": [
+      "strict local A, handled AAAA, and HTTP-01 CAA facts pass"
+    ],
+    "verification": [
+      "owned port-80 HTTP-01 vhosts are active",
+      "certificate validity, trust, exact SANs, and key pair pass",
+      "Certbot renewal dry run succeeds for the exact lineage"
+    ]
+  },
+  {
+    "adapter": "core",
+    "credentials_required": true,
+    "id": "core.runtime",
+    "inverse": [
+      "stop only the mtproxy Compose project",
+      "preserve credentials and named volumes unless data purge is explicit",
+      "remove only Core-owned artifacts and the owned probe"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "proxy-domain=relay.example.com",
+      "panel-domain=panel.example.com",
+      "subscription-domain=",
+      "mcp-domain=",
+      "users=owner",
+      "proxy-backend-port=8445",
+      "panel-app-port=8787",
+      "panel-tls-port=8443",
+      "probe=/usr/local/libexec/mtproxy-respq-probe",
+      "probe-image=mtproxy-respq-probe:1.0.0",
+      "prebuilt-tdlib=0.1008066.0",
+      "adjacent-sni=legacy.example.net|127.0.0.1:10443"
+    ],
+    "owner": "proxy-control:core",
+    "preconditions": [
+      "Nginx routes and certificates are verified",
+      "the existing mtproxy project boundary is absent or explicitly owned"
+    ],
+    "verification": [
+      "Compose model and all service health checks pass",
+      "panel health and an HTTPS authenticated session pass",
+      "Telemt management API remains private to Compose",
+      "every temporary MTProto credential returns validated resPQ",
+      "adjacent SNI routes and bounded sensitive-data scan pass"
+    ]
+  },
+  {
+    "adapter": "three_xui",
+    "credentials_required": false,
+    "id": "three_xui.routes",
+    "inverse": [
+      "remove only the owned 3x-ui route block"
+    ],
+    "mutations": [
+      "mode=existing",
+      "route=vless.example.com 127.0.0.1:8449",
+      "route=xhttp.example.com 127.0.0.1:8450"
+    ],
+    "owner": "nginx.routes.three_xui",
+    "preconditions": [
+      "the shared 443 router is owned and verified",
+      "every routed 3x-ui inbound answers on loopback"
+    ],
+    "verification": [
+      "each owned SNI route reaches its loopback 3x-ui backend"
+    ]
+  },
+  {
+    "adapter": "version_agent",
+    "credentials_required": false,
+    "id": "version_agent.runtime",
+    "inverse": [
+      "disable the unit and remove only the owned unit, tmpfiles, env, code and marker",
+      "preserve the catalog and the agent state unless purge is explicit"
+    ],
+    "mutations": [
+      "project=/opt/mtproxy-shared443",
+      "agent-dir=/opt/proxy-control",
+      "socket=/run/proxy-control/version-agent.sock",
+      "socket-gid=10001",
+      "compose-files=compose.yaml",
+      "router=off",
+      "naive=off",
+      "mieru=off",
+      "upstream=on"
+    ],
+    "owner": "proxy-control:version-agent",
+    "preconditions": [
+      "the Core runtime is verified",
+      "no foreign version-agent unit, env or code directory exists without the ownership marker"
+    ],
+    "verification": [
+      "the version-agent unit is active and enabled",
+      "/v1/health answers ok over the group-10001 socket",
+      "/v1/versions lists the profile's components at the versions the installer recorded",
+      "the env names the profile's Compose overlays and the router flag"
+    ]
+  }
+]

@@ -1,0 +1,86 @@
+Language / Язык (en/ru) [en]: Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+  fresh   — a clean server: the installer sets up Nginx and takes TCP 80 and 443
+  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours
+  fresh preserves panel client IPs; coexist needs an operator-configured PROXY bridge (see INSTALLER_REFERENCE)
+Host mode (fresh/coexist) [fresh]: Choose one of: fresh/coexist.
+Host mode (fresh/coexist) [fresh]:   core       — the panel and MTProxy (Telegram)
+  core-naive — the same plus NaiveProxy
+  core-mieru — the same plus Mieru
+  full       — the panel, MTProxy, NaiveProxy and Mieru
+  AmneziaWG and TrustTunnel are not part of a profile: they are separate questions further below
+Proxy Control profile (core/core-naive/core-mieru/full) [full]:   none        — no 3x-ui
+  existing    — 3x-ui is already installed: only routes to its VLESS Reality inbounds are added on 443
+  managed-new — the installer sets up its own 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+3x-ui mode (none/existing) [none]: Choose one of: none/existing.
+3x-ui mode (none/existing) [none]: Panel domain: Enter a fully-qualified domain name.
+Panel domain: MTProxy Fake-TLS domain: Client subscription domain (blank to keep subscriptions off): MCP server domain — central panel only (blank to keep MCP off): The installed 3x-ui gets SNI routes to its VLESS Reality inbounds on 443; leave blank the one you do not use.
+VLESS Reality TCP domain: VLESS Reality XHTTP domain: At least one VLESS domain is needed: the installer routes only those to the installed 3x-ui.
+The installed 3x-ui gets SNI routes to its VLESS Reality inbounds on 443; leave blank the one you do not use.
+VLESS Reality TCP domain: VLESS Reality XHTTP domain: AmneziaWG is obfuscated WireGuard 1.5 / 2.0 / 3.1. Clients connect over UDP straight to this server,
+so it needs no new domain: the panel domain works if it points at this server and is not proxied.
+Install AmneziaWG [y/N]: TrustTunnel is AdGuard's HTTP/2 over TLS VPN, TCP only. It shares TCP/443 with the other services
+through SNI, so no port and no UDP rule are added. It needs a domain of its own with an A record to this
+server, DNS only: do not put a CDN proxy in front of it.
+Install TrustTunnel [y/N]: ACME email: Enter a valid email address.
+ACME email: Name of the first MTProxy and Mieru user (the panel login is always owner): Use only letters, digits, underscore, or hyphen.
+Name of the first MTProxy and Mieru user (the panel login is always owner): Password of the panel login owner (blank to generate one): Repeat the panel password: The two entries differ; type the same password twice.
+Password of the panel login owner (blank to generate one): Repeat the panel password: Use at least 12 characters, or leave it blank to generate one.
+Password of the panel login owner (blank to generate one): 
+Configuration review
+field | value
+ACME email | admin@example.com
+MTProxy Fake-TLS domain | relay.example.com
+Panel domain | panel.example.com
+Mieru egress | direct
+NaiveProxy egress | direct
+Xray-router | no
+WARP for NaiveProxy and Mieru | no
+Open ports in UFW | no
+Host mode | coexist
+First MTProxy and Mieru user | owner
+Profile | core
+3x-ui mode | existing
+VLESS Reality TCP domain | vless.example.com
+3x-ui through WARP | no
+Domains 3x-ui sends through WARP | 
+Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+Action (apply/back/edit/save/quit) [apply]: Field to edit (domains.panel/domains.mtproxy/domains.subscription/domains.mcp/acme_email/initial_user/amneziawg/trusttunnel/three_xui.vless_tcp_domain/three_xui.vless_xhttp_domain): Choose one of: domains.panel/domains.mtproxy/domains.subscription/domains.mcp/acme_email/initial_user/amneziawg/trusttunnel/three_xui.vless_tcp_domain/three_xui.vless_xhttp_domain.
+Field to edit (domains.panel/domains.mtproxy/domains.subscription/domains.mcp/acme_email/initial_user/amneziawg/trusttunnel/three_xui.vless_tcp_domain/three_xui.vless_xhttp_domain): MTProxy Fake-TLS domain [relay.example.com]: 
+Configuration review
+field | value
+ACME email | admin@example.com
+MTProxy Fake-TLS domain | relay.example.com
+Panel domain | panel.example.com
+Mieru egress | direct
+NaiveProxy egress | direct
+Xray-router | no
+WARP for NaiveProxy and Mieru | no
+Open ports in UFW | no
+Host mode | coexist
+First MTProxy and Mieru user | owner
+Profile | core
+3x-ui mode | existing
+VLESS Reality TCP domain | vless.example.com
+3x-ui through WARP | no
+Domains 3x-ui sends through WARP | 
+Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+Action (apply/back/edit/save/quit) [apply]: VLESS Reality XHTTP domain: 
+Configuration review
+field | value
+ACME email | admin@example.com
+MTProxy Fake-TLS domain | relay.example.com
+Panel domain | panel.example.com
+Mieru egress | direct
+NaiveProxy egress | direct
+Xray-router | no
+WARP for NaiveProxy and Mieru | no
+Open ports in UFW | no
+Host mode | coexist
+First MTProxy and Mieru user | owner
+Profile | core
+3x-ui mode | existing
+VLESS Reality TCP domain | vless.example.com
+3x-ui through WARP | no
+Domains 3x-ui sends through WARP | 
+Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.
+Action (apply/back/edit/save/quit) [apply]: No changes were made.

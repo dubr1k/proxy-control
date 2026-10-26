@@ -1,0 +1,165 @@
+{
+  "checkpoints": [
+    {
+      "action_id": "packages.host",
+      "evidence": {
+        "action_id": "packages.host",
+        "details": {
+          "packages": [
+            "ca-certificates",
+            "certbot",
+            "curl",
+            "docker-compose-v2",
+            "docker.io",
+            "nginx-full",
+            "openssl",
+            "python3"
+          ]
+        },
+        "observations": [
+          "exact package set is installed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "nginx.routes",
+      "evidence": {
+        "action_id": "nginx.routes",
+        "details": {},
+        "observations": [
+          "owned Nginx route verified"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "firewall.ufw",
+      "evidence": {
+        "action_id": "firewall.ufw",
+        "details": {
+          "rules": [
+            "tcp:80",
+            "tcp:443"
+          ]
+        },
+        "observations": [
+          "selected-profile UFW rules are active"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.proxy-control",
+      "evidence": {
+        "action_id": "certificate.proxy-control",
+        "details": {
+          "certificate": "relay.example.com",
+          "names": [
+            "panel.example.com",
+            "relay.example.com"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "certificate.trusttunnel",
+      "evidence": {
+        "action_id": "certificate.trusttunnel",
+        "details": {
+          "certificate": "gate.example.org",
+          "names": [
+            "gate.example.org"
+          ]
+        },
+        "observations": [
+          "owned HTTP-01 vhost and service certificate are valid"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "core.runtime",
+      "evidence": {
+        "action_id": "core.runtime",
+        "details": {
+          "adjacent_sni_ok": true,
+          "compose_config_ok": true,
+          "expected_services": 3,
+          "healthy_services": 3,
+          "panel_health_ok": true,
+          "panel_login_ok": true,
+          "respq_expected": 2,
+          "respq_verified": 2,
+          "sensitive_scan_ok": true,
+          "telemt_api_internal": true,
+          "temporary_state_removed": true
+        },
+        "observations": [
+          "Core Compose, panel, MTProto, isolation, and coexistence acceptance passed",
+          "temporary acceptance state was removed"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "trusttunnel.runtime",
+      "evidence": {
+        "action_id": "trusttunnel.runtime",
+        "details": {
+          "hostname": "gate.example.org",
+          "listen": "127.0.0.1:4453",
+          "version": "1.1.0"
+        },
+        "observations": [
+          "the trusttunnel-manager container is healthy and answers over its Unix socket",
+          "the TrustTunnel endpoint is running and bound to its loopback TCP port",
+          "TrustTunnel shares TCP/443 through the SNI router: no UDP port was opened and no firewall rule added",
+          "the host name needs an A record to this server and must not be proxied by a CDN"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    },
+    {
+      "action_id": "version_agent.runtime",
+      "evidence": {
+        "action_id": "version_agent.runtime",
+        "details": {
+          "components": {
+            "telemt": "sha256:7c843f370ec5"
+          }
+        },
+        "observations": [
+          "the version-agent is active, enabled and healthy over its socket",
+          "it lists the profile's components at the recorded versions"
+        ],
+        "success": true
+      },
+      "phase": "verified",
+      "rollback_evidence": null
+    }
+  ],
+  "error": null,
+  "plan_digest": "525950ac57445e336f74fd17449468c0ce1c9daefc1b51e2ddd21294bf910720",
+  "schema": 1,
+  "status": "active",
+  "transaction_id": "ffdaa42cb643490b98c0cae7566d02cf"
+}
