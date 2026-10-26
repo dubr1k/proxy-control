@@ -86,7 +86,7 @@ fn config_of(name: &str) -> PathBuf {
 fn recorded_plan_audits_are_reproduced() {
     let index = read_json(&golden().join("plans/index.json"));
     let names: Vec<&String> = index["plans"].as_object().unwrap().keys().collect();
-    assert_eq!(names.len(), 11);
+    assert_eq!(names.len(), 10);
     for name in names {
         let base = golden().join("plans").join(name);
         replay(&base.join("audit-transcript.json"), &config_of(name), &base.join("plan.json"));

@@ -23,8 +23,7 @@
 //!   `UnicodeDecodeError`).
 //! - Port numbers, AmneziaWG ports and integers are ASCII digits (Python's `int`/`isdigit` also
 //!   took other Unicode digits).
-//! - Errors that escaped Python as tracebacks (`CredentialError`, an unknown message) are
-//!   `BLOCKED: <message>` with exit 2.
+//! - `CredentialError` is `BLOCKED: <message>` with exit 2 instead of a Python traceback.
 //! - `TerminalIO.routes` is not ported: the wizard never asked for routes.
 
 use std::io::{BufRead, Write};
@@ -363,7 +362,7 @@ impl EchoGuard {
             (*std::ptr::addr_of_mut!(PREVIOUS_ACTIONS)).write(previous);
             HIDDEN_FD.store(fd, Ordering::SeqCst);
             let mut action: libc::sigaction = std::mem::zeroed();
-            action.sa_sigaction = restore_echo_and_reraise as usize;
+            action.sa_sigaction = restore_echo_and_reraise as *const () as usize;
             libc::sigemptyset(&mut action.sa_mask);
             for signal in RESTORED_SIGNALS {
                 libc::sigaction(signal, &action, std::ptr::null_mut());
