@@ -47,7 +47,7 @@ const ACCEPTANCE_PENDING: &str = ".core-acceptance-pending";
 const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 
 #[path = "core_acceptance.rs"]
-pub(crate) mod core_acceptance;
+pub(super) mod core_acceptance;
 use core_acceptance::require_acceptance;
 pub use core_acceptance::CoreAcceptance;
 
@@ -351,6 +351,27 @@ fn validate_ownership(entries: &Map<String, Value>) -> Result<(), Error> {
     Ok(())
 }
 
+fn owned_path_in_scope(absolute: &str, selected: &Selection) -> bool {
+    if absolute == PROBE || absolute == PANEL_VHOST {
+        return true;
+    }
+    if let Some(domain) = absolute.strip_prefix("/var/www/").and_then(|rest| rest.strip_suffix("/index.html")) {
+        return domain == selected.proxy_domain || domain == selected.panel_domain;
+    }
+    absolute.strip_prefix(PROJECT).and_then(|rest| rest.strip_prefix('/')).is_some_and(|relative| {
+        !relative.is_empty()
+            && relative.split('/').all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains('\0'))
+            && (COPY_FILES.contains(&relative)
+                || [MARKER, ACCEPTANCE_OWNER, ".env"].contains(&relative)
+                // Prior installer journals own this exact retired file; permit its removal,
+                // never arbitrary additional files below the old scripts directory.
+                || relative == "scripts/proxyctl.py"
+                || COPY_DIRECTORIES.iter().any(|directory| {
+                    relative.strip_prefix(directory).is_some_and(|tail| tail.starts_with('/') && tail.len() > 1)
+                }))
+    })
+}
+
 #[derive(Debug, Clone)]
 struct CoreCheckpoint {
     acceptance_name: String,
@@ -423,6 +444,24 @@ impl CoreCheckpoint {
             project_created,
             project_marker_value,
         })
+    }
+
+    /// A journal digest authenticates bytes, not the paths an operator may roll back. Reject
+    /// forged ownership outside this action's project and selected cover domains before any
+    /// Compose stop, probe installation, or file removal.
+    fn validate_paths(&self, selected: &Selection) -> Result<(), Error> {
+        if self.planned_ownership.keys().any(|path| !owned_path_in_scope(path, selected)) {
+            return Err(core("Core checkpoint ownership escapes the selected project"));
+        }
+        for path in self.ownership.keys() {
+            let runtime_file = path.strip_prefix(PROJECT).and_then(|rest| rest.strip_prefix('/')).is_some_and(
+                |relative| PRESERVED_CREDENTIALS.contains(&relative) || relative == BOOTSTRAP_MARKER,
+            );
+            if !self.planned_ownership.contains_key(path) && path != PROBE && !runtime_file {
+                return Err(core("Core checkpoint ownership does not match the planned generation"));
+            }
+        }
+        Ok(())
     }
 
     fn into_data(self) -> CheckpointData {
@@ -1771,6 +1810,7 @@ impl Adapter for CoreAdapter {
     fn apply(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData, Error> {
         let selected = Selection::read(action)?;
         let mut prepared = CoreCheckpoint::read(&checkpoint, action, false)?;
+        prepared.validate_paths(&selected)?;
         self.install_probe(&prepared)?;
         self.write_generation(&selected, prepared.project_marker_value.as_deref())?;
         self.write_acceptance_owner(&prepared.acceptance_name)?;
@@ -1855,8 +1895,9 @@ impl Adapter for CoreAdapter {
     }
 
     fn repair(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData, Error> {
-        Selection::read(action)?;
+        let selected = Selection::read(action)?;
         let prepared = CoreCheckpoint::read(&checkpoint, action, true)?;
+        prepared.validate_paths(&selected)?;
         self.assert_checkpoint_ownership(&prepared)?;
         self.validate_existing_credentials(&self.host(&format!("{PROJECT}/secrets"))?, true)?;
         self.compose_start()?;
@@ -1872,6 +1913,7 @@ impl Adapter for CoreAdapter {
     ) -> Result<Evidence, Error> {
         let selected = Selection::read(action)?;
         let prepared = CoreCheckpoint::read(&checkpoint, action, true)?;
+        prepared.validate_paths(&selected)?;
         let destructive = target == RollbackTarget::Uninstalled && purge_data;
         let pending = self.host(&format!("{PROJECT}/{ACCEPTANCE_PENDING}"))?;
         let mut cleanup_pending = false;
