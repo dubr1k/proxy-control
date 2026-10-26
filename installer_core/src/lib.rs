@@ -48,12 +48,15 @@
 //! - `verify_release`: `Request`, `run(&request) -> (status, stdout, stderr)`.
 
 pub mod argparse;
+pub mod audit;
 pub mod awg_ports;
 pub mod cli;
 pub mod config;
 pub mod credentials;
+pub mod i18n;
 pub mod ipaddr;
 pub mod model;
+pub mod nginx_topology;
 pub mod planner;
 pub mod pystr;
 pub mod report;

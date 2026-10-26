@@ -38,12 +38,13 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `config/cli-blocked.json` | the same failures through `plan --config`: `BLOCKED: …` on stderr, exit 2 (plus a missing file and invalid UTF-8) | `installer/cli.py` |
 | `config/render/` | `render_config` of every example and the round-trip result | `config.py:139` |
 | `vectors/` | Python semantics the digest and validators rely on: `isdigit`/`isdecimal`/`\d`, `strip`, `lower`, `ipaddress`, `str()` of scalars and keys, `round()`, float `repr`, JSON escaping and key order; validator outcomes (domains, version regexes) and `compare_versions` | stdlib, `audit.py`, `config.py`, `wizard.py`, `version_agent/{catalog,upstream}.py` |
-| `plans/<name>/` | for every `examples/installer/*.toml` and two extra configs (`kitchen-sink`, `coexist-ingress`): canonical `plan.json` bytes, `digest`, `digests.json` (plan + intent digest), `plan --json` and text output, the audit commands; **real release pins** | `planner.py`, `audit.py` |
+| `plans/<name>/` | for every `examples/installer/*.toml` and two extra configs (`kitchen-sink`, `coexist-ingress`): canonical `plan.json` bytes, `digest`, `digests.json` (plan + intent digest), `plan --json` and text output, the audit commands, and `audit-transcript.json` (every audit command with its output, the resolver answer, the facts built from them); **real release pins** | `planner.py`, `audit.py` |
 | `plans/index.json`, `plans/release.json` | the host facts and release identity the plans were made with | |
 | `installs/<name>/journal/` | `state.json`, `plan.json`, `ownership.json`, `report.json` (+ modes) after `install --accept-plan` | `transaction.py` |
 | `installs/<name>/root/tree.json` | every path the install left: kind, mode, uid/gid, size, sha256 (copies of release files are marked `copy_of_source`) | all adapters |
 | `installs/<name>/root/files/…` | the bytes of every text file the install wrote (rendered vhosts, stream router, ACME vhosts, `.env*`, master key, `users.conf`, markers, WARP owner marker, version-agent env/state/catalog, units, …) | all adapters |
 | `installs/<name>/commands.json` | every command the install ran, in order (`<root>`/`<work>`/`<tmp>` replace the throwaway paths) | |
+| `installs/<name>/audit-transcript.json` | the audit `install` ran: every command with its output, the resolver answer and the facts (= the journal plan's `audit_facts`) | `audit.py` |
 | `installs/<name>/{status.json,status.txt,install-stdout.json,report/}` | CLI `status`, `install --json` output, `report` (public report + root-only handoff, modes) | `cli.py`, `report.py` |
 | `journals/handoff/{before,after}` | a panel update's `PanelOwnershipHandoff` prepare/commit on the kitchen-sink host (`report.json` stays stale: Python bug) | `transaction.py:483` |
 | `journals/home-like/` | shaped like the `home` host (see below) | |
@@ -58,7 +59,7 @@ unit tests' fake runners. `INDEX.json` lists every file with its SHA-256.
 | `agent/seed/` | the installer's agent `state.json` (indent 2, sorted, trailing newline) and catalog seed | `adapters/version_agent.py:460` |
 | `agent/updates/NN-step/` | agent `state.json` (indent 2, sorted, ASCII, **no** trailing newline) and the `/v1/versions` body after: upstream check, telemt image update, mita upstream update, xray update, a naive update rolled back; plus the override file, overlays and every command | `version_agent/service.py` |
 | `metrics/` | nft rulesets, the discovered port map (with override variants), `parse_counters`, and two sampler ticks over a fake `/proc` (Python `round`) | `version_agent/{hostmetrics,metrics_ports}.py` |
-| `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install | `wizard.py`, `i18n.py`, `cli.py` |
+| `wizard/{en,ru}/<scenario>.json` | stdin, stdout, stderr, exit code and the saved TOML/credentials of wizard runs (`--lang` given or the language asked); `core-apply-install` goes on to a full install; `<scenario>.plan.json` is the canonical plan a scenario printed | `wizard.py`, `i18n.py`, `cli.py` |
 | `wizard/i18n-catalogue.json` | the message catalogue in both languages | `i18n.py` |
 
 ## Stand-ins that differ from a real host

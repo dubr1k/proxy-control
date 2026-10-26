@@ -1,0 +1,715 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "uname",
+        "-m"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "x86_64\n"
+    },
+    {
+      "argv": [
+        "df",
+        "-Pk"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Filesystem     1024-blocks     Used Available Capacity Mounted on\n/dev/vda1         81000000 20000000  61000000      25% /\n"
+    },
+    {
+      "argv": [
+        "free",
+        "-b"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:      4105519104   900000000  2000000000     1000000  1200000000  3100000000\nSwap:              0           0           0\n"
+    },
+    {
+      "argv": [
+        "ip",
+        "-j",
+        "address"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "[{\"ifname\": \"lo\", \"addr_info\": [{\"family\": \"inet\", \"local\": \"127.0.0.1\", \"scope\": \"host\"}, {\"family\": \"inet6\", \"local\": \"::1\", \"scope\": \"host\"}]}, {\"ifname\": \"eth0\", \"addr_info\": [{\"family\": \"inet\", \"local\": \"203.0.113.10\", \"scope\": \"global\"}, {\"family\": \"inet6\", \"local\": \"2001:db8::10\", \"scope\": \"global\"}, {\"family\": \"inet6\", \"local\": \"fe80::1\", \"scope\": \"link\"}]}]"
+    },
+    {
+      "argv": [
+        "ss",
+        "-H",
+        "-lntup"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "tcp LISTEN 0 4096 0.0.0.0:22 0.0.0.0:* users:((\"sshd\",pid=100,fd=3))\ntcp LISTEN 0 4096 [::]:22 0.0.0.0:* users:((\"sshd\",pid=101,fd=3))\ntcp LISTEN 0 4096 0.0.0.0:443 0.0.0.0:* users:((\"nginx\",pid=102,fd=3))\ntcp LISTEN 0 4096 0.0.0.0:80 0.0.0.0:* users:((\"nginx\",pid=103,fd=3))\ntcp LISTEN 0 4096 127.0.0.1:8449 0.0.0.0:* users:((\"xray-linux-amd64\",pid=104,fd=3))\ntcp LISTEN 0 4096 127.0.0.1:8450 0.0.0.0:* users:((\"xray-linux-amd64\",pid=105,fd=3))\ntcp LISTEN 0 4096 *:2053 0.0.0.0:* users:((\"x-ui\",pid=106,fd=3))\n"
+    },
+    {
+      "argv": [
+        "systemctl",
+        "show",
+        "ssh.socket",
+        "--property=Listen",
+        "--value",
+        "--no-pager"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "[::]:22 (Stream)\n"
+    },
+    {
+      "argv": [
+        "nginx",
+        "-T"
+      ],
+      "returncode": 0,
+      "stderr": "nginx: configuration file /etc/nginx/nginx.conf test is successful\n",
+      "stdout": "# configuration file /etc/nginx/nginx.conf:\nuser www-data;\nworker_processes auto;\npid /run/nginx.pid;\nerror_log /var/log/nginx/error.log;\ninclude /etc/nginx/modules-enabled/*.conf;\n\nevents {\n\tworker_connections 768;\n}\n\nhttp {\n\tsendfile on;\n\ttcp_nopush on;\n\ttypes_hash_max_size 2048;\n\tinclude /etc/nginx/mime.types;\n\tdefault_type application/octet-stream;\n\tssl_protocols TLSv1.2 TLSv1.3;\n\tssl_prefer_server_ciphers off;\n\taccess_log /var/log/nginx/access.log;\n\tgzip on;\n\tinclude /etc/nginx/conf.d/*.conf;\n\tinclude /etc/nginx/sites-enabled/*;\n}\n\nstream {\n\tinclude /etc/nginx/stream.d/*.conf;\n}\n\n# configuration file /etc/nginx/mime.types:\ntypes {\n    text/html html;\n}\n\n# configuration file /etc/nginx/stream.d/routes.conf:\nmap $ssl_preread_server_name $sni_backend {\n    legacy.example.net 127.0.0.1:10443;\n    default 127.0.0.1:10443;\n}\nserver {\n    listen 443;\n    listen [::]:443;\n    ssl_preread on;\n    proxy_pass $sni_backend;\n}\n\n"
+    },
+    {
+      "argv": [
+        "docker",
+        "--version"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Docker version 26.1.3, build 26.1.3-0ubuntu1~24.04.1\n"
+    },
+    {
+      "argv": [
+        "docker",
+        "compose",
+        "version",
+        "--short"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "2.24.6+ds1-0ubuntu1~24.04.1\n"
+    },
+    {
+      "argv": [
+        "systemctl",
+        "list-unit-files",
+        "--type=service",
+        "--no-legend",
+        "--no-pager"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "docker.service enabled enabled\nnginx.service enabled enabled\nssh.service enabled enabled\nufw.service enabled enabled\nx-ui.service enabled enabled\n"
+    },
+    {
+      "argv": [
+        "ufw",
+        "status",
+        "verbose"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Status: inactive\n"
+    },
+    {
+      "argv": [
+        "grep",
+        "-E",
+        "^IPV6=(yes|no)$",
+        "/etc/default/ufw"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "IPV6=yes\n"
+    },
+    {
+      "argv": [
+        "test",
+        "-f",
+        "/usr/local/x-ui/bin/config.json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "cat",
+        "/usr/local/x-ui/bin/config.json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n  \"inbounds\": [\n    {\n      \"listen\": \"127.0.0.1\",\n      \"port\": 8449,\n      \"protocol\": \"vless\",\n      \"settings\": {\n        \"clients\": [],\n        \"decryption\": \"none\"\n      },\n      \"sniffing\": {\n        \"destOverride\": [\n          \"http\",\n          \"tls\"\n        ],\n        \"enabled\": true\n      },\n      \"streamSettings\": {\n        \"network\": \"tcp\",\n        \"security\": \"reality\",\n        \"realitySettings\": {\n          \"serverNames\": [\n            \"vless.example.com\"\n          ]\n        }\n      },\n      \"tag\": \"inbound-127.0.0.1:8449\"\n    },\n    {\n      \"listen\": \"127.0.0.1\",\n      \"port\": 8450,\n      \"protocol\": \"vless\",\n      \"settings\": {\n        \"clients\": [],\n        \"decryption\": \"none\"\n      },\n      \"streamSettings\": {\n        \"network\": \"xhttp\",\n        \"security\": \"reality\",\n        \"realitySettings\": {\n          \"serverNames\": [\n            \"xhttp.example.com\"\n          ]\n        }\n      },\n      \"tag\": \"inbound-127.0.0.1:8450\"\n    }\n  ],\n  \"outbounds\": [\n    {\n      \"protocol\": \"freedom\",\n      \"tag\": \"direct\"\n    }\n  ],\n  \"routing\": {\n    \"rules\": []\n  }\n}\n"
+    },
+    {
+      "argv": [
+        "test",
+        "-f",
+        "/var/lib/proxy-control/ownership.json"
+      ],
+      "returncode": 1,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "hy2.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/hy2.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "panel.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/panel.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "relay.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/relay.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "vless.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/vless.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "xhttp.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/xhttp.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "dig",
+        "+short",
+        "CAA",
+        "xui.example.com"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "0 issue \"letsencrypt.org\"\n"
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/etc/letsencrypt/live/xui.example.com/fullchain.pem",
+        "-noout",
+        "-dates",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 1,
+      "stderr": "Could not open file",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "passwd",
+        "10002"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "passwd",
+        "10003"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "passwd",
+        "10005"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "group",
+        "101"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "group",
+        "10004"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "getent",
+        "group",
+        "10005"
+      ],
+      "returncode": 2,
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "facts": {
+    "listeners": {
+      "owners": {
+        "2053": [
+          "x-ui"
+        ],
+        "22": [
+          "sshd"
+        ],
+        "443": [
+          "nginx"
+        ],
+        "80": [
+          "nginx"
+        ],
+        "8449": [
+          "xray-linux-amd64"
+        ],
+        "8450": [
+          "xray-linux-amd64"
+        ]
+      },
+      "ports": [
+        22,
+        80,
+        443,
+        2053,
+        8449,
+        8450
+      ],
+      "ssh_socket_tcp": [
+        22
+      ],
+      "tcp": [
+        22,
+        80,
+        443,
+        2053,
+        8449,
+        8450
+      ],
+      "udp": []
+    },
+    "ownership": {
+      "compose": {
+        "available": true,
+        "observation": "observed"
+      },
+      "docker": {
+        "available": true,
+        "observation": "observed",
+        "version": "26.1.3"
+      },
+      "identities": {
+        "gid": {},
+        "uid": {}
+      },
+      "installer": {
+        "present": false
+      },
+      "systemd": {
+        "available": true,
+        "observation": "observed",
+        "services": [
+          "docker.service",
+          "nginx.service",
+          "ssh.service",
+          "ufw.service",
+          "x-ui.service"
+        ]
+      },
+      "three_xui": {
+        "mode": "existing",
+        "present": true
+      },
+      "ufw": {
+        "active": false,
+        "available": true,
+        "ipv6_enabled": true,
+        "mode": "read_only",
+        "observation": "observed"
+      }
+    },
+    "platform": {
+      "addresses": [
+        {
+          "address": "127.0.0.1",
+          "family": "inet",
+          "interface": "lo"
+        },
+        {
+          "address": "2001:db8::10",
+          "family": "inet6",
+          "interface": "eth0"
+        },
+        {
+          "address": "203.0.113.10",
+          "family": "inet",
+          "interface": "eth0"
+        },
+        {
+          "address": "::1",
+          "family": "inet6",
+          "interface": "lo"
+        }
+      ],
+      "architecture": "amd64",
+      "disks": [
+        {
+          "filesystem": "/dev/vda1",
+          "mount": "/",
+          "total_kib": 81000000
+        }
+      ],
+      "memory": {
+        "total_bytes": 4105519104
+      },
+      "os": "linux"
+    },
+    "prerequisites": {
+      "hard_stops": [],
+      "operator_prerequisites": [
+        {
+          "code": "cloud_firewall.reachability",
+          "message": "Verify required inbound ports in the external cloud firewall",
+          "status": "operator_required"
+        }
+      ]
+    },
+    "topology": {
+      "certificates": {
+        "hy2.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "panel.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "relay.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "vless.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xhttp.example.com": {
+          "covers_domain": false,
+          "present": false
+        },
+        "xui.example.com": {
+          "covers_domain": false,
+          "present": false
+        }
+      },
+      "dns": {
+        "hy2.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "hy2.example.com"
+        },
+        "panel.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "panel.example.com"
+        },
+        "relay.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "relay.example.com"
+        },
+        "vless.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "vless.example.com"
+        },
+        "xhttp.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xhttp.example.com"
+        },
+        "xui.example.com": {
+          "a": [
+            "203.0.113.10"
+          ],
+          "a_matches_local": true,
+          "aaaa": [
+            "2001:db8::10"
+          ],
+          "aaaa_handled": true,
+          "caa": [
+            {
+              "flags": 0,
+              "issuer": "letsencrypt.org",
+              "tag": "issue"
+            }
+          ],
+          "caa_compatible": true,
+          "caa_source": "xui.example.com"
+        }
+      },
+      "nginx": {
+        "available": true,
+        "duplicate_sni_domains": [],
+        "http_domains": [],
+        "observation": "observed",
+        "route_target": {
+          "source_file": "/etc/nginx/stream.d/routes.conf",
+          "source_variable": "$ssl_preread_server_name",
+          "variable": "$sni_backend"
+        },
+        "sni_map_count": 1,
+        "sni_map_files": {
+          "/etc/nginx/stream.d/routes.conf": 1
+        },
+        "sni_routes": {
+          "legacy.example.net": "127.0.0.1:10443"
+        },
+        "stream_enabled": true,
+        "topology_error": null
+      },
+      "three_xui": {
+        "inbounds": [
+          {
+            "listen": "127.0.0.1",
+            "port": 8449,
+            "protocol": "vless",
+            "reality_server_names": [
+              "vless.example.com"
+            ],
+            "tag": "inbound-127.0.0.1:8449",
+            "transport_security": "reality"
+          },
+          {
+            "listen": "127.0.0.1",
+            "port": 8450,
+            "protocol": "vless",
+            "reality_server_names": [
+              "xhttp.example.com"
+            ],
+            "tag": "inbound-127.0.0.1:8450",
+            "transport_security": "reality"
+          }
+        ],
+        "installed": true
+      }
+    },
+    "transient": {
+      "capacity": {
+        "disks": [
+          {
+            "available_kib": 61000000,
+            "filesystem": "/dev/vda1",
+            "mount": "/",
+            "total_kib": 81000000,
+            "used_kib": 20000000
+          }
+        ],
+        "memory": {
+          "available_bytes": 3100000000,
+          "total_bytes": 4105519104
+        }
+      }
+    }
+  },
+  "resolver": {
+    "a": [
+      "203.0.113.10"
+    ],
+    "aaaa": [
+      "2001:db8::10"
+    ]
+  }
+}
