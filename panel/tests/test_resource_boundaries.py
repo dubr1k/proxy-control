@@ -42,13 +42,13 @@ async def test_bounded_body_preserves_bytes_for_handler(panel_server, size):
     assert response.json()["time"] == 1_800_000_000
 
 
-async def test_static_files_ignore_excessive_ranges(panel_server):
+async def test_static_files_reject_excessive_ranges(panel_server):
     server = panel_server()
     plain = await server.client.get("/static/app.js")
     response = await server.client.get("/static/app.js", headers={"Range": "bytes=" + ",".join(f"{i * 2}-{i * 2}" for i in range(33))})
-    assert response.status_code == plain.status_code == 200
-    assert response.content == plain.content
-    assert "content-range" not in response.headers
+    assert plain.status_code == 200 and plain.content
+    assert response.status_code == 416
+    assert (await server.client.get("/static/app.js")).content == plain.content
 
 
 async def test_incomplete_body_never_dispatches_or_becomes_server_error(panel_server):

@@ -277,8 +277,8 @@ async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_li
     assert (grant["options"]["host"], grant["options"]["port"], grant["observed_state"]) == ("relay.node.example", 8443, "enabled")
 
 
-async def test_an_interrupted_operation_is_resumed_through_the_api(client, server, login_user, telemt, naive, mieru):
-    """`POST /api/operations/{id}/resume` (v0.2): a grant operation that crashed mid-flight
+async def test_an_interrupted_operation_is_resumed_through_the_api(client, server, login_user, telemt):
+    """`POST /api/operations/{id}/resume` (v0.2): a manager-owned MTProxy grant
     (journalled, not applied) is picked up by the route and finished; a second resume
     changes nothing, an unknown id is 404 and a viewer is refused."""
     await login_user(client)
@@ -290,20 +290,20 @@ async def test_an_interrupted_operation_is_resumed_through_the_api(client, serve
     operation_id, grant_id = "op-interrupted", "grant-interrupted"
     with server.db(write=True) as db:
         db.execute("""INSERT INTO access_grants
-            (id,client_id,protocol,node_id,runtime_username,desired_state,observed_state,origin,options_json,created_at,updated_at)
-            VALUES(?,?,'naive','local','laptop','enabled','pending','provisioned','{}',0,0)""", (grant_id, client_id))
-        steps = [{"grant_id": grant_id, "protocol": "naive", "status": "pending", "error": ""}]
+            (id,client_id,protocol,node_id,runtime_username,desired_state,observed_state,origin,protocol_options_json,created_at,updated_at)
+            VALUES(?,?,'mtproxy','local','laptop','enabled','pending','provisioned','{}',0,0)""", (grant_id, client_id))
+        steps = [{"grant_id": grant_id, "protocol": "mtproxy", "status": "pending", "error": ""}]
         db.execute("INSERT INTO provisioning_operations VALUES(?,?,'pending',?,0,0)",
                    (operation_id, client_id, json.dumps(steps)))
     assert (await client.get(f"/api/operations/{operation_id}")).json()["status"] in {"pending", "applying"}
-    assert "laptop" not in naive.users
+    assert "laptop" not in telemt.users
 
     resumed = await client.post(f"/api/operations/{operation_id}/resume", headers=headers)
     assert resumed.status_code == 200, resumed.text
     assert resumed.json() == {"operation_id": operation_id, "status": "succeeded"}
-    assert "laptop" in naive.users
+    assert "laptop" in telemt.users
     again = await client.post(f"/api/operations/{operation_id}/resume", headers=headers)
-    assert again.json()["status"] == "succeeded" and [u["username"] for u in await naive.list_users()].count("laptop") == 1
+    assert again.json()["status"] == "succeeded" and [u["username"] for u in await telemt.list_users()].count("laptop") == 1
     assert (await client.post("/api/operations/op-does-not-exist/resume", headers=headers)).status_code == 404
     server.create_admin("watcher", "correct horse battery staple", "viewer")
     async with server.http() as viewer:

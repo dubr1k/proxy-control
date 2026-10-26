@@ -107,17 +107,12 @@ async def test_node_version_update_is_relayed_to_the_node_and_audited_on_both_si
     assert refused.status_code == 403
 
 
-async def test_update_without_a_secret_store_is_a_409_with_a_code(pair, panel_server, login_user):
+async def test_restart_with_encrypted_fleet_keys_and_no_master_key_fails_closed(pair, panel_server):
     from panel.tests.test_fleet_v2_delivery import linked
 
-    _, central, node_id = await linked(pair)
-    # A fresh native process opens the linked database without a keyring, just as an
-    # operator restarting with PANEL_MASTER_KEY_FILE unset would do.
+    _, central, _ = await linked(pair)
+    # An existing linked database contains encrypted credentials. Without the master key,
+    # the native process must refuse to serve any routes, rather than silently losing access.
     await central.aclose()
-    no_key = panel_server(name="central-no-key", db_name=central.db_path.name, keyring=False)
-    no_key.create_admin("owner", "correct horse battery staple", "owner")
-    async with no_key.http() as http:
-        await login_user(http)
-        response = await http.post(f"/api/nodes/{node_id}/link", json={"api_key": "pc_new_key"},
-                                   headers={"X-CSRF-Token": http.cookies["panel_csrf"]})
-    assert response.status_code == 409 and response.json()["code"] == "secret_store_disabled"
+    with pytest.raises(RuntimeError, match="PANEL_MASTER_KEY_FILE is required"):
+        panel_server(name="central-no-key", db_name=central.db_path.name, keyring=False)

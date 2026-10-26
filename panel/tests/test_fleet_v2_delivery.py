@@ -46,6 +46,19 @@ def digests_match(node, central, node_id):
     with node.db() as db:
         managed = dict(db.execute("SELECT * FROM managed_generations ORDER BY generation DESC LIMIT 1").fetchone())
     document = json.loads(desired["document_json"])
+    # Persisted model JSON contains serde defaults; the signed wire form omits only the
+    # optional defaults listed in GenerationDocument::wire(), not arbitrary empty fields.
+    for key in ("egress", "relay"):
+        if document.get(key) is None:
+            document.pop(key, None)
+    for resource in document["resources"]:
+        if resource.get("lane") is None:
+            resource.pop("lane", None)
+    for section in (document.get("egress") or {}).values():
+        if section.get("companion") is None:
+            section.pop("companion", None)
+        if section.get("passthrough") is False:
+            section.pop("passthrough", None)
     document["resources"].sort(key=lambda resource: resource["ref"])
     expected = hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
     assert desired["digest"] == managed["digest"] == expected

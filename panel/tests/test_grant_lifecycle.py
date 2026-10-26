@@ -187,8 +187,8 @@ async def test_remote_mtproxy_rotation_escrows_a_telemt_shaped_secret(pair):
     node, central, _, _, _, grant = await _remote(pair, protocol="mtproxy")
     await _mutation(central, grant["id"], "rotate")
     await converge(node, central)
-    secret = node.telemt.users["alice"]["secret"]
-    assert len(secret) == 32 and int(secret, 16) >= 0
+    secret = (await node.telemt.current_access("alice"))["secret"]
+    assert secret.startswith("ee") and len(secret) == 34 and int(secret[2:], 16) >= 0
     assert await central.telemt.list_users() == []
     assert _secret_states(central, grant["id"]) == [(1, "revoked"), (2, "active")]
 

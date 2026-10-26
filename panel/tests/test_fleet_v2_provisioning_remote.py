@@ -23,7 +23,8 @@ async def test_run_leaves_remote_steps_to_the_pusher_and_finishes_local_ones(pai
         {"protocol": "naive", "node_id": "local", "runtime_username": "bob", "options": {}},
     ]})
     assert result["status"] == "pending_remote"
-    assert sorted(step["status"] for step in result["steps"]) == ["active", "remote"]
+    journal = await answer(central.client, "GET", f"/api/operations/{result['operation_id']}")
+    assert sorted(step["status"] for step in journal["steps"]) == ["active", "remote"]
     assert [row["username"] for row in await central.naive.list_users()] == ["bob"]
     assert await node.naive.list_users() == []
     resumed = await answer(central.client, "POST", f"/api/operations/{result['operation_id']}/resume")

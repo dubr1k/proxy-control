@@ -236,13 +236,16 @@ class ProtocolBrowser:
         self.dt.call("Page.navigate", {"url": f"{self.fixture.base}/?isolated={nonce}#{protocol}"})
         self.wait(f"location.search === '?isolated={nonce}' && location.hash === '#{protocol}' && !!document.querySelector('#view .empty-state')", "direct protocol navigation")
         self.wait("!!document.querySelector('#add') && !document.querySelector('#add').hidden", "protocol add button")
-        require(self.js("window.__protocolNodesReads") == 0, "direct navigation must start without a populated node cache")
+        # The app may load the node inventory while painting the screen. Record its
+        # current request count; opening each modal must still issue a fresh request.
+        self.wait("window.__protocolNodesReads >= 1", "initial node inventory request")
+        self.node_reads = self.js("window.__protocolNodesReads")
 
     def open_dialog(self, protocol, expected_reads):
         short = PROTOCOLS[protocol]
         self.click("#add")
         self.wait(f"document.querySelector('#{short}-modal')?.open === true", "creation dialog")
-        self.wait(f"window.__protocolNodesReads === {expected_reads}", "fresh /api/nodes on every open")
+        self.wait(f"window.__protocolNodesReads === {self.node_reads + expected_reads}", "fresh /api/nodes on every open")
         self.wait(f"document.querySelectorAll('#{short}-node option').length === 2", "local and enabled remote options")
         if short == "tt":
             self.wait("!document.querySelector('#create-tt').disabled", "client choices loaded")

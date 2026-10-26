@@ -150,6 +150,7 @@ async def all_nodes(pair_factory):
     central.clock.set(agent.clock.now)
     await tick(node, agent.clock, 2)
     await central.tick("pusher")
+    await central.tick("metrics")
     return node, central, node_id, agent
 
 
@@ -185,6 +186,7 @@ async def test_the_all_stream_carries_the_remote_node_each_tick(pair_factory):
             assert payload["nodes"][1]["status"] == "ok"
         await tick(node, agent.clock)
         central.clock.advance(3)
+        await central.tick("metrics")
         second = await snapshot()
         assert [entry["node_id"] for entry in second["nodes"]] == ["local", node_id]
         assert second["nodes"][1]["host"]["cpu_percent"] == 12.5
@@ -216,4 +218,5 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server
         (ids["bravo"], "ok"), (ids["alpha"], "ok"), ("local", "ok"), (ids["charlie"], "unavailable")]
     assert rows[0]["total_bytes"] > rows[1]["total_bytes"] > rows[2]["total_bytes"] == 0
     assert rows[0]["peak_bps"] == 5000 and rows[-1]["total_bytes"] is None
-    assert body["nodes"][-1]["protocols"] == {}
+    assert all(metrics.get("total_bytes") is None and metrics.get("peak_bps") is None
+               for metrics in body["nodes"][-1]["protocols"].values())

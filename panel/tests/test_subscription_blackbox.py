@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import pytest
 
@@ -324,8 +324,12 @@ async def test_endpoint_is_off_without_a_subscription_host(panel_server, login_u
 
 
 async def test_rendering_never_logs_or_persists_delivery_credentials(public, token, server, client_id):
-    secrets = [server.naive.users["alice"]["password"], server.mieru.users["alice"]["password"],
-               server.telemt.users["alice"]["secret"], token]
+    raw = await public.get(f"/s/{token}", params={"format": "raw"})
+    assert raw.status_code == 200
+    mieru_link = next(line for line in raw.text.splitlines() if line.startswith("mierus://"))
+    mieru_password = unquote(urlsplit(mieru_link).password)
+    telemt_secret = (await server.telemt.current_access("alice"))["secret"]
+    secrets = [server.naive.users["alice"]["password"], mieru_password, telemt_secret, token]
     for format_name in ("raw", "singbox", "clash", "manifest", "html"):
         response = await public.get(f"/s/{token}", params={"format": format_name})
         assert response.status_code == 200

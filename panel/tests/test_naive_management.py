@@ -226,7 +226,7 @@ async def test_dashboard_stays_available_when_enabled_naive_manager_is_degraded(
     assert "internal details" not in response.text
 
 
-async def test_creating_reveal_purges_expired_password_bearing_entries(client, server, login_user):
+async def test_expired_reveal_refuses_after_creating_another_password_bearing_reveal(client, server, login_user):
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
     server.clock.set(1_700_000_100)
@@ -238,13 +238,14 @@ async def test_creating_reveal_purges_expired_password_bearing_entries(client, s
     first_token = first.json()["reveal_token"]
     server.clock.advance(900)
 
-    await client.post(
+    second = await client.post(
         "/api/naive/users",
         json={"username": "second"},
         headers={"X-CSRF-Token": csrf},
     )
-
-    assert (await client.get("/api/reveal/" + first_token)).status_code == 404
+    assert second.status_code == 200
+    assert (await client.get("/api/reveal/" + first_token)).status_code == 410
+    assert (await client.get("/api/reveal/" + second.json()["reveal_token"])).status_code == 200
 
 
 async def test_naive_traffic_is_allowlisted_in_users_and_dashboard_and_admin_can_reset(
