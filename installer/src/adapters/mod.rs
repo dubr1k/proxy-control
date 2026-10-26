@@ -27,7 +27,13 @@ pub mod core;
 pub mod firewall;
 pub mod nginx;
 pub mod packages;
+pub mod naive;
+pub mod mieru;
+mod proxy_common;
+mod proxy_acceptance;
 pub mod three_xui;
+#[cfg(test)]
+mod proxy_tests;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
@@ -57,6 +63,8 @@ pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
         Arc::new(firewall::FirewallAdapter::new(context)),
         Arc::new(nginx::NginxAdapter::new(context)),
         Arc::new(core::CoreAdapter::new(context)),
+        Arc::new(naive::NaiveAdapter::new(context)),
+        Arc::new(mieru::MieruAdapter::new(context)),
     ]
 }
 

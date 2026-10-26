@@ -4,6 +4,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Installer
+- Port NaiveProxy and Mieru host adapters and their private state/token preparers to the Rust installer. Preserve verified external Debian-package extraction and protocol acceptance, use the planned WARP endpoint and reviewed Mieru download URL, and retain version-agent Compose overrides during repair.
+
 ## [3.3.0] - 2026-10-25
 
 ### Added

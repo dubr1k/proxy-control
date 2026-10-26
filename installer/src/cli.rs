@@ -269,6 +269,9 @@ pub fn run(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> i32 {
+    if let Some(status) = crate::proxy_helpers::cli(arguments, stdout, stderr) {
+        return status;
+    }
     if let Some(request) = parse_ingress(arguments, installer_core::argparse::terminal_width()) {
         return match request {
             Ok(request) => run_ingress(request, compose, stdout),

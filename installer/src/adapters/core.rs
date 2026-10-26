@@ -47,7 +47,7 @@ const ACCEPTANCE_PENDING: &str = ".core-acceptance-pending";
 const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 
 #[path = "core_acceptance.rs"]
-mod core_acceptance;
+pub(crate) mod core_acceptance;
 use core_acceptance::require_acceptance;
 pub use core_acceptance::CoreAcceptance;
 

@@ -164,6 +164,7 @@ pub mod handoff;
 pub mod ingress_upgrade;
 pub mod journal;
 pub mod migration;
+pub mod proxy_helpers;
 pub mod store;
 
 pub use installer_core::{model, planner};
