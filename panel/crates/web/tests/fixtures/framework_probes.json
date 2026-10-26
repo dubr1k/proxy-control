@@ -1,0 +1,6059 @@
+[
+ {
+  "name": "healthz",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "healthz_host_port",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "healthz_bad_host",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "19"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Invalid host header"
+ },
+ {
+  "name": "healthz_host_case",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "19"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Invalid host header"
+ },
+ {
+  "name": "healthz_http10_no_host",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "19"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Invalid host header"
+ },
+ {
+  "name": "healthz_www_redirect",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://www.redirect.example:8080/healthz?a=1"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "healthz_wildcard_host",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "healthz_head_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "healthz_post_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "healthz_options_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "healthz_newline_suffix",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "healthz_trailing_slash",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/healthz"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "unknown_404",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "unknown_404_slash",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "double_slash",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "openapi_public_off",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "docs_off",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "keys_trailing_slash",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/api/keys"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "keys_trailing_slash_query",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/api/keys?x=1&y=%20"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "keys_trailing_slash_quoted",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/api/keys"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "keys_trailing_slash_odd_chars",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "keys_put_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "admins_delete_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "admin_id_get_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "PATCH"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "keys_enabled_get_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "POST"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "reveal_slash_inside",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "favicon",
+  "status": 204,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "favicon_head_405",
+  "status": 405,
+  "headers": [
+   [
+    "allow",
+    "GET"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "index_redirect",
+  "status": 303,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "/login"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "index_session",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "67641"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/html; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body_sha256": "de9cfe631358ba5012c64a4d4d47407603e9ddd1031309bfa24d145492db810e",
+  "body_length": 67641
+ },
+ {
+  "name": "login_page",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "1610"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/html; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "set-cookie",
+    "panel_csrf=<token>; Path=/; SameSite=strict"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"theme-color\" content=\"#08090a\"><title>Вход · Proxy Control</title><link rel=\"icon\" href=\"/static/img/logo-64.png\" type=\"image/png\" sizes=\"64x64\"><link rel=\"apple-touch-icon\" href=\"/static/img/logo.png\"><link rel=\"stylesheet\" href=\"/static/style.css\"></head><body class=\"login\"><div class=\"login-glow\"></div><main class=\"login-card\"><button class=\"icon-button lang-switch login-lang\" id=\"lang-button\" type=\"button\" data-lang=\"en\" aria-label=\"Switch to English\" title=\"Switch to English\" data-no-i18n>EN</button><div class=\"login-brand\"><img class=\"login-mark\" src=\"/static/img/logo.png\" width=\"76\" height=\"76\" alt=\"\" decoding=\"async\"><span><b>Proxy Control</b><small>CONTROL PANEL</small></span></div><div class=\"login-copy\"><h1>С возвращением</h1><p>Войдите, чтобы управлять прокси-сервисами и доступами.</p></div><form id=\"login\"><label>Логин<input name=\"username\" autocomplete=\"username\" maxlength=\"64\" required placeholder=\"Ваш логин\"></label><label>Пароль<input name=\"password\" type=\"password\" autocomplete=\"current-password\" required placeholder=\"Ваш пароль\"></label><button class=\"primary login-submit\">Войти в панель</button><p id=\"error\" role=\"alert\"></p></form><div class=\"login-security\" id=\"transport-state\"><i></i> Проверка защищённости соединения</div></main><script type=\"module\" src=\"/static/app.js\"></script></body></html>"
+ },
+ {
+  "name": "login_page_session_keeps_csrf",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "1610"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/html; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "set-cookie",
+    "panel_csrf=<token>; Path=/; SameSite=strict"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"theme-color\" content=\"#08090a\"><title>Вход · Proxy Control</title><link rel=\"icon\" href=\"/static/img/logo-64.png\" type=\"image/png\" sizes=\"64x64\"><link rel=\"apple-touch-icon\" href=\"/static/img/logo.png\"><link rel=\"stylesheet\" href=\"/static/style.css\"></head><body class=\"login\"><div class=\"login-glow\"></div><main class=\"login-card\"><button class=\"icon-button lang-switch login-lang\" id=\"lang-button\" type=\"button\" data-lang=\"en\" aria-label=\"Switch to English\" title=\"Switch to English\" data-no-i18n>EN</button><div class=\"login-brand\"><img class=\"login-mark\" src=\"/static/img/logo.png\" width=\"76\" height=\"76\" alt=\"\" decoding=\"async\"><span><b>Proxy Control</b><small>CONTROL PANEL</small></span></div><div class=\"login-copy\"><h1>С возвращением</h1><p>Войдите, чтобы управлять прокси-сервисами и доступами.</p></div><form id=\"login\"><label>Логин<input name=\"username\" autocomplete=\"username\" maxlength=\"64\" required placeholder=\"Ваш логин\"></label><label>Пароль<input name=\"password\" type=\"password\" autocomplete=\"current-password\" required placeholder=\"Ваш пароль\"></label><button class=\"primary login-submit\">Войти в панель</button><p id=\"error\" role=\"alert\"></p></form><div class=\"login-security\" id=\"transport-state\"><i></i> Проверка защищённости соединения</div></main><script type=\"module\" src=\"/static/app.js\"></script></body></html>"
+ },
+ {
+  "name": "subscription_prefix_csp",
+  "status": 404,
+  "headers": [
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'none'; style-src 'sha256-7zrdh6FLXrs4+7ooaZeyFT55YBE79eotFOMQmu4tyvQ='; script-src 'sha256-prNdb/NLfe2hab7XNPF7XOM4DZuWYWGhoq4UthMMFQ0='; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "subscription_prefix_short",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_bare",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/static/"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_dir",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_js",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { boot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_js_head",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_css",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "107072"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/css; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body_sha256": "f91d38f44ba4abdbb7c2bcd5ef22a18f5ebc929e4c757a56b1482174ae6c5540",
+  "body_length": 107072
+ },
+ {
+  "name": "static_html",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "1610"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/html; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"theme-color\" content=\"#08090a\"><title>Вход · Proxy Control</title><link rel=\"icon\" href=\"/static/img/logo-64.png\" type=\"image/png\" sizes=\"64x64\"><link rel=\"apple-touch-icon\" href=\"/static/img/logo.png\"><link rel=\"stylesheet\" href=\"/static/style.css\"></head><body class=\"login\"><div class=\"login-glow\"></div><main class=\"login-card\"><button class=\"icon-button lang-switch login-lang\" id=\"lang-button\" type=\"button\" data-lang=\"en\" aria-label=\"Switch to English\" title=\"Switch to English\" data-no-i18n>EN</button><div class=\"login-brand\"><img class=\"login-mark\" src=\"/static/img/logo.png\" width=\"76\" height=\"76\" alt=\"\" decoding=\"async\"><span><b>Proxy Control</b><small>CONTROL PANEL</small></span></div><div class=\"login-copy\"><h1>С возвращением</h1><p>Войдите, чтобы управлять прокси-сервисами и доступами.</p></div><form id=\"login\"><label>Логин<input name=\"username\" autocomplete=\"username\" maxlength=\"64\" required placeholder=\"Ваш логин\"></label><label>Пароль<input name=\"password\" type=\"password\" autocomplete=\"current-password\" required placeholder=\"Ваш пароль\"></label><button class=\"primary login-submit\">Войти в панель</button><p id=\"error\" role=\"alert\"></p></form><div class=\"login-security\" id=\"transport-state\"><i></i> Проверка защищённости соединения</div></main><script type=\"module\" src=\"/static/app.js\"></script></body></html>"
+ },
+ {
+  "name": "static_png",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "8713"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "image/png"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body_sha256": "50111a0bb8637372f5028a8d698c14c2e1d4af71f443b462a9d304d68a1980b1",
+  "body_length": 8713
+ },
+ {
+  "name": "static_json",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "201229"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body_sha256": "5c63e5cd15a0313ba0f0388d9c7cb528da7468868ee39db465c16812b85a94f3",
+  "body_length": 201229
+ },
+ {
+  "name": "static_post_405",
+  "status": 405,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "31"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Method Not Allowed\"}"
+ },
+ {
+  "name": "static_missing",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_escape",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_escape_quoted",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_subdir",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "22"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"Not Found\"}"
+ },
+ {
+  "name": "static_if_none_match",
+  "status": 304,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_if_none_match_weak",
+  "status": 304,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_if_none_match_miss",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { boot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_if_modified_since",
+  "status": 304,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_if_modified_since_old",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { boot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_if_modified_since_junk",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { boot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_range",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "10"
+   ],
+   [
+    "content-range",
+    "bytes 0-9/52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { b"
+ },
+ {
+  "name": "static_range_suffix",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "5"
+   ],
+   [
+    "content-range",
+    "bytes 47-51/52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "t();\n"
+ },
+ {
+  "name": "static_range_open",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "42"
+   ],
+   [
+    "content-range",
+    "bytes 10-51/52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "oot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_range_malformed",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "23"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Malformed range header."
+ },
+ {
+  "name": "static_range_units",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "24"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Only support bytes range"
+ },
+ {
+  "name": "static_range_empty",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "37"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Range header: range must be requested"
+ },
+ {
+  "name": "static_range_unsatisfiable",
+  "status": 416,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-range",
+    "bytes */52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "static_range_reversed",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "41"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "Range header: start must be less than end"
+ },
+ {
+  "name": "static_range_multi",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "262"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "multipart/byteranges; boundary=<boundary>"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "--<boundary>\r\nContent-Type: text/javascript; charset=utf-8\r\nContent-Range: bytes 0-6/52\r\n\r\nimport \r\n--<boundary>\r\nContent-Type: text/javascript; charset=utf-8\r\nContent-Range: bytes 10-14/52\r\n\r\noot }\r\n--<boundary>--"
+ },
+ {
+  "name": "static_range_if_range_miss",
+  "status": 200,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { boot } from \"/static/js/main.js\";\n\nboot();\n"
+ },
+ {
+  "name": "static_range_if_range_hit",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "10"
+   ],
+   [
+    "content-range",
+    "bytes 0-9/52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "import { b"
+ },
+ {
+  "name": "static_range_head",
+  "status": 206,
+  "headers": [
+   [
+    "accept-ranges",
+    "bytes"
+   ],
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "10"
+   ],
+   [
+    "content-range",
+    "bytes 0-9/52"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "text/javascript; charset=utf-8"
+   ],
+   [
+    "etag",
+    "<etag>"
+   ],
+   [
+    "last-modified",
+    "<last-modified>"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "body_too_large_declared",
+  "status": 413,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"request body too large\"}"
+ },
+ {
+  "name": "body_too_large_chunked",
+  "status": 413,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"request body too large\"}"
+ },
+ {
+  "name": "body_chunked_json_invalid",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "158"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",1],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting property name enclosed in double quotes\"}}]}"
+ },
+ {
+  "name": "body_limit_on_get",
+  "status": 413,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"request body too large\"}"
+ },
+ {
+  "name": "body_at_limit_on_get",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "keys_json_invalid_anon",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "158"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",1],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting property name enclosed in double quotes\"}}]}"
+ },
+ {
+  "name": "keys_valid_json_anon",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "keys_no_body_anon",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "keys_json_invalid_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "124"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",6],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting value\"}}]}"
+ },
+ {
+  "name": "keys_empty_model_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "163"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"name\"],\"msg\":\"Field required\",\"input\":{}},{\"type\":\"missing\",\"loc\":[\"body\",\"scope\"],\"msg\":\"Field required\",\"input\":{}}]}"
+ },
+ {
+  "name": "keys_no_body_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "82"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "name": "keys_bad_fields_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "452"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"name\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"literal_error\",\"loc\":[\"body\",\"scope\"],\"msg\":\"Input should be 'admin', 'monitor' or 'node-sync'\",\"input\":\"x\",\"ctx\":{\"expected\":\"'admin', 'monitor' or 'node-sync'\"}},{\"type\":\"greater_than_equal\",\"loc\":[\"body\",\"expires_at\"],\"msg\":\"Input should be greater than or equal to 0\",\"input\":-1,\"ctx\":{\"ge\":0}}]}"
+ },
+ {
+  "name": "keys_wrong_types_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "424"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"name\"],\"msg\":\"Input should be a valid string\",\"input\":5},{\"type\":\"literal_error\",\"loc\":[\"body\",\"scope\"],\"msg\":\"Input should be 'admin', 'monitor' or 'node-sync'\",\"input\":null,\"ctx\":{\"expected\":\"'admin', 'monitor' or 'node-sync'\"}},{\"type\":\"int_parsing\",\"loc\":[\"body\",\"expires_at\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"soon\"}]}"
+ },
+ {
+  "name": "keys_array_body_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "148"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":[1]}]}"
+ },
+ {
+  "name": "keys_null_body_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "82"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "name": "keys_text_plain_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "183"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":\"{\\\"name\\\":\\\"t\\\",\\\"scope\\\":\\\"admin\\\"}\"}]}"
+ },
+ {
+  "name": "keys_no_content_type_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "183"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":\"{\\\"name\\\":\\\"t\\\",\\\"scope\\\":\\\"admin\\\"}\"}]}"
+ },
+ {
+  "name": "keys_vendor_json_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "190"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"name\"],\"msg\":\"Input should be a valid string\",\"input\":5},{\"type\":\"missing\",\"loc\":[\"body\",\"scope\"],\"msg\":\"Field required\",\"input\":{\"name\":5}}]}"
+ },
+ {
+  "name": "keys_uppercase_json_type_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "190"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"name\"],\"msg\":\"Input should be a valid string\",\"input\":5},{\"type\":\"missing\",\"loc\":[\"body\",\"scope\"],\"msg\":\"Field required\",\"input\":{\"name\":5}}]}"
+ },
+ {
+  "name": "keys_bad_type_header_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "159"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":\"{\\\"name\\\":5}\"}]}"
+ },
+ {
+  "name": "keys_bad_utf8_session",
+  "status": 400,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "48"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"There was an error parsing the body\"}"
+ },
+ {
+  "name": "keys_nan_session",
+  "status": 500,
+  "headers": [
+   [
+    "content-length",
+    "21"
+   ],
+   [
+    "content-type",
+    "text/plain; charset=utf-8"
+   ]
+  ],
+  "body": "Internal Server Error"
+ },
+ {
+  "name": "keys_created_session",
+  "status": 201,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "237"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"key\":{\"id\":4,\"name\":\"probe\",\"scope\":\"monitor\",\"prefix\":\"<masked>\",\"enabled\":true,\"expires_at\":null,\"created_at\":\"<masked>\",\"created_by\":\"owner\",\"last_used_at\":\"<masked>\"},\"plaintext\":\"<masked>\"}"
+ },
+ {
+  "name": "keys_expired_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "38"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"expires_at is in the past\"}"
+ },
+ {
+  "name": "keys_blank_name_session",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "28"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"name is invalid\"}"
+ },
+ {
+  "name": "keys_session_no_csrf",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"CSRF validation failed\"}"
+ },
+ {
+  "name": "keys_session_no_csrf_bad_json",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "158"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",1],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting property name enclosed in double quotes\"}}]}"
+ },
+ {
+  "name": "keys_monitor_key_forbidden",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "30"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"insufficient role\"}"
+ },
+ {
+  "name": "admin_patch_bad_path_and_body",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "593"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"admin_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"},{\"type\":\"literal_error\",\"loc\":[\"body\",\"role\"],\"msg\":\"Input should be 'owner', 'admin' or 'viewer'\",\"input\":\"root\",\"ctx\":{\"expected\":\"'owner', 'admin' or 'viewer'\"}},{\"type\":\"string_too_short\",\"loc\":[\"body\",\"password\"],\"msg\":\"String should have at least 12 characters\",\"input\":\"short\",\"ctx\":{\"min_length\":12}},{\"type\":\"bool_parsing\",\"loc\":[\"body\",\"active\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"maybe\"}]}"
+ },
+ {
+  "name": "admin_patch_missing",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"administrator not found\"}"
+ },
+ {
+  "name": "admin_patch_float_id",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "11"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"ok\":true}"
+ },
+ {
+  "name": "admin_patch_last_owner",
+  "status": 409,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "37"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"cannot demote last owner\"}"
+ },
+ {
+  "name": "admin_delete_unknown",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"administrator not found\"}"
+ },
+ {
+  "name": "admin_delete_bad_id",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "151"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"admin_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"x\"}]}"
+ },
+ {
+  "name": "admin_delete_last_owner",
+  "status": 409,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "37"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"cannot delete last owner\"}"
+ },
+ {
+  "name": "admin_create_bad",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "504"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_pattern_mismatch\",\"loc\":[\"body\",\"username\"],\"msg\":\"String should match pattern '^[A-Za-z0-9_.-]{1,64}$'\",\"input\":\"bad user\",\"ctx\":{\"pattern\":\"^[A-Za-z0-9_.-]{1,64}$\"}},{\"type\":\"string_too_short\",\"loc\":[\"body\",\"password\"],\"msg\":\"String should have at least 12 characters\",\"input\":\"short\",\"ctx\":{\"min_length\":12}},{\"type\":\"literal_error\",\"loc\":[\"body\",\"role\"],\"msg\":\"Input should be 'owner', 'admin' or 'viewer'\",\"input\":\"god\",\"ctx\":{\"expected\":\"'owner', 'admin' or 'viewer'\"}}]}"
+ },
+ {
+  "name": "admin_create_newline_username",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "193"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_pattern_mismatch\",\"loc\":[\"body\",\"username\"],\"msg\":\"String should match pattern '^[A-Za-z0-9_.-]{1,64}$'\",\"input\":\"abc\\n\",\"ctx\":{\"pattern\":\"^[A-Za-z0-9_.-]{1,64}$\"}}]}"
+ },
+ {
+  "name": "admin_create_ok",
+  "status": 201,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "8"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"id\":2}"
+ },
+ {
+  "name": "admin_create_exists",
+  "status": 201,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "8"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"id\":2}"
+ },
+ {
+  "name": "audit_bad_query",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "686"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}},{\"type\":\"int_parsing\",\"loc\":[\"query\",\"before_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"x\"},{\"type\":\"string_too_short\",\"loc\":[\"query\",\"actor\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"string_too_long\",\"loc\":[\"query\",\"action\"],\"msg\":\"String should have at most 128 characters\",\"input\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"ctx\":{\"max_length\":128}}]}"
+ },
+ {
+  "name": "audit_bad_limit",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "151"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"}]}"
+ },
+ {
+  "name": "audit_limit_float",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "12"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"items\":[]}"
+ },
+ {
+  "name": "audit_blank_values",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "288"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"\"},{\"type\":\"int_parsing\",\"loc\":[\"query\",\"before_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"\"}]}"
+ },
+ {
+  "name": "audit_anon",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "me_anon",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "me_session",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "154"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"username\":\"owner\",\"role\":\"owner\",\"via\":\"session\",\"panel_version\":\"9.9.9\",\"features\":{\"naive\":false,\"mieru\":false,\"amneziawg\":false,\"trusttunnel\":false}}"
+ },
+ {
+  "name": "me_bad_key",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "28"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"invalid API key\"}"
+ },
+ {
+  "name": "me_bearer_case",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "167"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"username\":\"key:probe-monitor\",\"role\":\"viewer\",\"via\":\"api-key\",\"panel_version\":\"9.9.9\",\"features\":{\"naive\":false,\"mieru\":false,\"amneziawg\":false,\"trusttunnel\":false}}"
+ },
+ {
+  "name": "me_node_sync_key",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "54"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"node-sync key is limited to the fleet API\"}"
+ },
+ {
+  "name": "me_admin_key_over_session",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "164"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"username\":\"key:probe-admin\",\"role\":\"owner\",\"via\":\"api-key\",\"panel_version\":\"9.9.9\",\"features\":{\"naive\":false,\"mieru\":false,\"amneziawg\":false,\"trusttunnel\":false}}"
+ },
+ {
+  "name": "me_basic_auth_falls_to_cookie",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "logout_no_csrf",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"CSRF validation failed\"}"
+ },
+ {
+  "name": "logout_bad_json_ignored_no_csrf",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"CSRF validation failed\"}"
+ },
+ {
+  "name": "login_no_csrf",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "35"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"CSRF validation failed\"}"
+ },
+ {
+  "name": "login_bad_model",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "284"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"username\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"string_too_short\",\"loc\":[\"body\",\"password\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}}]}"
+ },
+ {
+  "name": "login_bad_json",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "125"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",12],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting value\"}}]}"
+ },
+ {
+  "name": "login_wrong_password",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "32"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"invalid credentials\"}"
+ },
+ {
+  "name": "openapi_session",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "100826"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body_sha256": "b405ed36a24ab05841d82535f356fec2d3ea879c9dff75b2ed23569c7bee5c74",
+  "body_length": 100826
+ },
+ {
+  "name": "openapi_monitor_key",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "30"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"insufficient role\"}"
+ },
+ {
+  "name": "readiness_session",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "236"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ready\",\"database\":{\"queryable\":true},\"node\":{\"status\":\"not_applicable\",\"generation\":null,\"applied_at\":null},\"central\":{\"status\":\"not_applicable\",\"linked\":0,\"lagging\":0},\"provisioning\":{\"unfinished\":0,\"manual_intervention\":0}}"
+ },
+ {
+  "name": "readiness_anon",
+  "status": 401,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "36"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"authentication required\"}"
+ },
+ {
+  "name": "admins_list_monitor_key",
+  "status": 403,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "30"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"insufficient role\"}"
+ },
+ {
+  "name": "keys_enable_bad",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "146"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"bool_parsing\",\"loc\":[\"body\",\"enabled\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"perhaps\"}]}"
+ },
+ {
+  "name": "keys_enable_missing",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "26"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"key not found\"}"
+ },
+ {
+  "name": "keys_delete_missing",
+  "status": 404,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "26"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"key not found\"}"
+ },
+ {
+  "name": "keys_delete_bad_id",
+  "status": 422,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "150"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"key_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"-x\"}]}"
+ },
+ {
+  "name": "reveal_unknown",
+  "status": 410,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "39"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"reveal expired or consumed\"}"
+ },
+ {
+  "name": "reveal_newline",
+  "status": 410,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "39"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"detail\":\"reveal expired or consumed\"}"
+ },
+ {
+  "name": "forwarded_for_from_unix_peer",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "15"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"status\":\"ok\"}"
+ },
+ {
+  "name": "redirect_ignores_forwarded_proto",
+  "status": 307,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "0"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "location",
+    "http://testserver/api/keys"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": ""
+ },
+ {
+  "name": "quoted_session_cookie",
+  "status": 200,
+  "headers": [
+   [
+    "cache-control",
+    "no-store"
+   ],
+   [
+    "content-length",
+    "154"
+   ],
+   [
+    "content-security-policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+   ],
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=()"
+   ],
+   [
+    "referrer-policy",
+    "no-referrer"
+   ],
+   [
+    "x-content-type-options",
+    "nosniff"
+   ],
+   [
+    "x-frame-options",
+    "DENY"
+   ],
+   [
+    "x-request-id",
+    "<request-id>"
+   ]
+  ],
+  "body": "{\"username\":\"owner\",\"role\":\"owner\",\"via\":\"session\",\"panel_version\":\"9.9.9\",\"features\":{\"naive\":false,\"mieru\":false,\"amneziawg\":false,\"trusttunnel\":false}}"
+ }
+]
