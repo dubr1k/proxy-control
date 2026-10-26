@@ -64,6 +64,15 @@ lab-results-container/
 dist/
 dist-again/
 
+# Prebuilt host binaries: built from the crates of release/host-binaries.list by
+# release/Dockerfile.host-binaries and injected into the archive by release/build.py, never
+# tracked (build.py refuses a tracked one). bin-a/ and bin-b/ are the twin builds CI compares.
+/installer/bin/
+/version_agent/bin/
+/release/host-probe/bin/
+/bin-a/
+/bin-b/
+
 # Runtime version-agent state is host-specific and may reference local images.
 version-overrides/compose.versions.yaml
 

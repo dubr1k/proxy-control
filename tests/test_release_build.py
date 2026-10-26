@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -10,14 +11,22 @@ from pathlib import Path
 
 import pytest
 
+import release.build as release_build
 from release.build import (
+    HOST_BINARIES_DOCKERFILE,
+    HOST_BINARIES_LIST,
+    HOST_BINARY_BUILDER,
+    HOST_BINARY_DIGESTS,
     INSTALLER_CHECKSUM_NAME,
     INSTALLER_NAME,
     MANIFEST_NAME,
     SBOM_NAME,
     ReleaseBuildError,
     build_release,
+    builder_image,
+    host_crates,
     tracked_files,
+    verify_archive_binaries,
     verify_release,
 )
 from release.sbom import SbomError, build_sbom
@@ -611,6 +620,329 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions():
     for name, versions in named.items():
         assert len(versions) >= 2, f"{name}: both languages must name the pinned version"
         assert set(versions) == {pins[name]}, f"{name}: the script says {sorted(set(versions))}, the pin is {pins[name]}"
+
+
+# ----------------------------------------------------------------------
+# prebuilt host binaries (release/host-binaries.list, release/Dockerfile.host-binaries)
+# ----------------------------------------------------------------------
+
+PROBE = "release/host-probe/bin/linux-amd64/proxy-control-host-probe"
+LIBRARY_FILE = "pc_common/src/lib.rs"
+
+
+def checkout_with_host_crates(tmp_path: Path) -> Path:
+    """The fixture tree plus the real list, the real Dockerfile, a probe crate with the real
+    Cargo.lock and a shared library crate: what the release builder sees in the repository."""
+    root = clean_checkout(tmp_path, name="crate-source")
+    for name in (HOST_BINARIES_LIST, HOST_BINARIES_DOCKERFILE, "release/host-probe/Cargo.lock"):
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_bytes((ROOT / name).read_bytes())
+    (root / "release/host-probe/Cargo.toml").write_text('[package]\nname = "proxy-control-host-probe"\n')
+    (root / "release/host-probe/src").mkdir()
+    (root / "release/host-probe/src/main.rs").write_text("fn main() {}\n")
+    (root / "pc_common/src").mkdir(parents=True)
+    (root / "pc_common/Cargo.toml").write_text('[package]\nname = "pc_common"\n')
+    (root / LIBRARY_FILE).write_text("\n")
+    (root / "unrelated").mkdir()
+    (root / "unrelated/notes.txt").write_text("not a crate\n")
+    git(root, "add", "-A")
+    git(root, "-c", "commit.gpgsign=false", "commit", "-qm", "host crates")
+    return root
+
+
+def fake_build(directory: Path, binaries: dict[str, bytes], *, image: str | None = None) -> Path:
+    """A directory shaped like the builder's output, with stand-in bytes."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, data in binaries.items():
+        (directory / name).parent.mkdir(parents=True, exist_ok=True)
+        (directory / name).write_bytes(data)
+        (directory / name).chmod(0o755)
+    (directory / HOST_BINARY_DIGESTS).write_text(
+        "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, data in sorted(binaries.items()))
+    )
+    (directory / HOST_BINARY_BUILDER).write_text(
+        f"image {image or builder_image(ROOT)}\ntarget x86_64-unknown-linux-musl\n"
+        "rustc rustc 1.99.1 (58cf8f9c3 2026-10-13)\n"
+    )
+    return directory
+
+
+@pytest.fixture
+def no_docker(monkeypatch):
+    def refuse(command):
+        raise AssertionError(f"the builder must not run: {command}")
+
+    monkeypatch.setattr(release_build, "_run_builder", refuse)
+
+
+def archive_member(archive: Path, name: str) -> tuple[int, bytes]:
+    with tarfile.open(archive, mode="r:gz") as handle:
+        member = handle.getmember(f"proxy-control/{name}")
+        extracted = handle.extractfile(member)
+        assert extracted is not None
+        return member.mode, extracted.read()
+
+
+def identity_of(archive: Path) -> dict:
+    return json.loads(archive_member(archive, "release/release.json")[1])
+
+
+def test_a_tree_without_host_crates_builds_no_binaries_and_keeps_its_identity_bytes(tmp_path, no_docker):
+    """The fixture tree has no list: no builder runs, and release.json has no new keys, so a
+    release without host crates is byte-for-byte what it was before host binaries existed."""
+    source = clean_checkout(tmp_path)
+    identity = identity_of(build(tmp_path, "dist", source).archive)
+    assert "binaries" not in identity and "builder" not in identity
+
+
+def test_only_listed_crates_with_a_tracked_cargo_toml_take_part(tmp_path):
+    source = checkout_with_host_crates(tmp_path)
+    crates = host_crates(source, tracked_files(source))
+    # installer/ and version_agent/ are still Python here, pc_host does not exist yet.
+    assert crates.libraries == ("pc_common",)
+    assert crates.binaries == (("release/host-probe", "proxy-control-host-probe"),)
+    assert crates.paths == (PROBE,)
+
+
+def test_binaries_from_injects_executable_members_and_records_them(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    probe = b"\x7fELF stand-in probe"
+    built = build(tmp_path, "dist", source, binaries_from=fake_build(tmp_path / "bin", {PROBE: probe}))
+
+    mode, data = archive_member(built.archive, PROBE)
+    assert (mode, data) == (0o755, probe)
+    identity = identity_of(built.archive)
+    assert identity["binaries"] == {PROBE: hashlib.sha256(probe).hexdigest()}
+    assert identity["builder"] == {
+        "image": builder_image(ROOT),
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "target": "x86_64-unknown-linux-musl",
+    }
+    assert identity["schema"] == 1
+    # Tracked files keep the git executable bit as their only mode source.
+    assert archive_member(built.archive, "release/host-probe/Cargo.toml")[0] == 0o644
+
+    document = json.loads(built.sbom.read_text())
+    files = {entry["fileName"]: entry["checksums"][0]["checksumValue"] for entry in document["files"]}
+    assert files[f"./{PROBE}"] == hashlib.sha256(probe).hexdigest()
+    ring = next(item for item in document["packages"] if item["name"] == "ring")
+    assert ring["downloadLocation"].startswith("https://crates.io/api/v1/crates/ring/")
+    assert ring["externalRefs"][0]["referenceLocator"].startswith("pkg:cargo/ring@")
+    assert len(ring["checksums"][0]["checksumValue"]) == 64
+    depends = {item["relatedSpdxElement"] for item in document["relationships"] if item["relationshipType"] == "DEPENDS_ON"}
+    assert ring["SPDXID"] in depends
+    # The path dependency is a file of the archive, not a package.
+    assert "pc_common" not in {item["name"] for item in document["packages"]}
+
+    # Still three files in SHA256SUMS, and --verify re-checks the recorded binaries.
+    assert len(built.checksums.read_text().splitlines()) == 3
+    assert verify_release(tmp_path / "dist").archive_sha256 == built.archive_sha256
+    assert verify_archive_binaries(built.archive) == identity["binaries"]
+
+
+def test_two_builds_from_the_same_binaries_are_byte_identical(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    first = build(tmp_path, "one", source, binaries_from=fake_build(tmp_path / "bin-a", {PROBE: b"probe"}))
+    second = build(tmp_path, "two", source, binaries_from=fake_build(tmp_path / "bin-b", {PROBE: b"probe"}))
+    assert sha256(first.archive) == sha256(second.archive)
+    assert first.sbom_bytes == second.sbom_bytes
+    other = build(tmp_path, "three", source, binaries_from=fake_build(tmp_path / "bin-c", {PROBE: b"other"}))
+    assert sha256(other.archive) != sha256(first.archive)
+
+
+@pytest.mark.parametrize(
+    ("damage", "message"),
+    [
+        ("tamper", "does not match host-binaries.sha256"),
+        ("missing", "is missing from"),
+        ("extra", "which is not a host binary of this tree"),
+        ("symlink", "not a regular file"),
+        ("image", "not the pinned"),
+        ("no-list", "is not a host binary build"),
+    ],
+)
+def test_binaries_from_refuses_anything_but_the_recorded_bytes(tmp_path, no_docker, damage, message):
+    source = checkout_with_host_crates(tmp_path)
+    directory = fake_build(
+        tmp_path / "bin", {PROBE: b"probe"}, image="rust:1.99-alpine@sha256:" + "0" * 64 if damage == "image" else None
+    )
+    if damage == "tamper":
+        (directory / PROBE).write_bytes(b"probe, changed")
+    elif damage == "missing":
+        fake_build(directory, {})
+        (directory / PROBE).unlink()
+    elif damage == "extra":
+        fake_build(directory, {PROBE: b"probe", "installer/bin/linux-amd64/proxy-control-installer": b"x"})
+    elif damage == "symlink":
+        (directory / PROBE).unlink()
+        (directory / PROBE).symlink_to("/dev/null")
+    elif damage == "no-list":
+        (directory / HOST_BINARY_DIGESTS).unlink()
+    with pytest.raises(ReleaseBuildError, match=message):
+        build(tmp_path, "dist", source, binaries_from=directory)
+    assert not (tmp_path / "dist").exists()
+
+
+def test_no_binaries_leaves_them_out_without_running_the_builder(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    built = build(tmp_path, "dist", source, binaries=False)
+    assert f"proxy-control/{PROBE}" not in tar_names(built.archive)
+    assert "binaries" not in identity_of(built.archive)
+
+
+def test_binaries_from_and_no_binaries_exclude_each_other(tmp_path, capsys):
+    with pytest.raises(SystemExit) as raised:
+        release_build.main(["--no-binaries", "--binaries-from", str(tmp_path)])
+    assert raised.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+    with pytest.raises(ReleaseBuildError, match="exclude each other"):
+        build(tmp_path, "dist", tmp_path, binaries_from=tmp_path, binaries=False)
+
+
+def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_path, monkeypatch):
+    """Without a flag the release builds its binaries itself: no layer cache, amd64, the
+    commit epoch, the `binaries` stage exported to a local directory, and a context staged
+    from tracked files of VERSION, the list and the listed crates — nothing else."""
+    source = checkout_with_host_crates(tmp_path)
+    (source / "release/host-probe/src/untracked.rs").write_text("// never staged\n")
+    seen: dict[str, object] = {}
+
+    def builder(command):
+        command = list(command)
+        seen["command"] = command
+        context = Path(command[-1])
+        seen["context"] = sorted(path.relative_to(context).as_posix() for path in context.rglob("*") if path.is_file())
+        seen["dockerfile"] = Path(command[command.index("--file") + 1]).read_bytes()
+        output = command[command.index("--output") + 1]
+        assert output.startswith("type=local,dest=")
+        fake_build(Path(output.removeprefix("type=local,dest=")), {PROBE: b"built probe"})
+
+    monkeypatch.setattr(release_build, "_run_builder", builder)
+    built = build(tmp_path, "dist", source, require_clean=False)
+
+    command = seen["command"]
+    assert command[:3] == ["docker", "buildx", "build"]
+    for flag in ("--no-cache", "--platform", "linux/amd64", "--target", "binaries", f"SOURCE_DATE_EPOCH={FIXED_EPOCH}"):
+        assert flag in command
+    assert seen["dockerfile"] == (ROOT / HOST_BINARIES_DOCKERFILE).read_bytes()
+    assert seen["context"] == sorted(
+        ["VERSION", HOST_BINARIES_LIST, LIBRARY_FILE, "pc_common/Cargo.toml",
+         "release/host-probe/Cargo.lock", "release/host-probe/Cargo.toml", "release/host-probe/src/main.rs"]
+    )
+    assert archive_member(built.archive, PROBE) == (0o755, b"built probe")
+
+
+def test_build_binaries_only_prints_the_digest_of_each(tmp_path, monkeypatch, capsys):
+    source = checkout_with_host_crates(tmp_path)
+
+    def builder(command):
+        output = list(command)[list(command).index("--output") + 1]
+        fake_build(Path(output.removeprefix("type=local,dest=")), {PROBE: b"probe"})
+
+    monkeypatch.setattr(release_build, "_run_builder", builder)
+    assert release_build.main(["--source", str(source), "--build-binaries", str(tmp_path / "bin")]) == 0
+    assert capsys.readouterr().out == f"{hashlib.sha256(b'probe').hexdigest()}  {PROBE}\n"
+    # A second build never lands on top of an earlier one.
+    assert release_build.main(["--source", str(source), "--build-binaries", str(tmp_path / "bin")]) == 1
+    assert "must be empty" in capsys.readouterr().err
+
+
+def test_a_tracked_host_binary_is_refused(tmp_path):
+    source = checkout_with_host_crates(tmp_path)
+    (source / PROBE).parent.mkdir(parents=True)
+    (source / PROBE).write_bytes(b"committed by mistake")
+    git(source, "add", "-f", PROBE)
+    git(source, "-c", "commit.gpgsign=false", "commit", "-qm", "oops")
+    with pytest.raises(ReleaseBuildError, match="must not be tracked"):
+        host_crates(source, tracked_files(source))
+
+
+def test_a_host_crate_from_outside_crates_io_is_refused(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    lock = source / "release/host-probe/Cargo.lock"
+    lock.write_text(lock.read_text() + '\n[[package]]\nname = "forked"\nversion = "1.0.0"\n'
+                    'source = "git+https://example.invalid/forked#0123"\n')
+    git(source, "commit", "-qam", "git dependency")
+    with pytest.raises(ReleaseBuildError, match="without a crates.io checksum"):
+        build(tmp_path, "dist", source, binaries_from=fake_build(tmp_path / "bin", {PROBE: b"probe"}))
+
+
+def test_verify_refuses_an_archive_whose_binary_differs_from_its_identity(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    built = build(tmp_path, "dist", source, binaries_from=fake_build(tmp_path / "bin", {PROBE: b"probe"}))
+    with tarfile.open(built.archive, mode="r:gz") as handle:
+        members = [(member, handle.extractfile(member).read()) for member in handle.getmembers()]
+    forged = tmp_path / "forged.tar.gz"
+    with tarfile.open(forged, mode="w:gz") as handle:
+        for member, data in members:
+            if member.name == f"proxy-control/{PROBE}":
+                data = b"swapped"
+                member.size = len(data)
+            handle.addfile(member, io.BytesIO(data))
+    with pytest.raises(ReleaseBuildError, match="does not match release/release.json"):
+        verify_archive_binaries(forged)
+
+
+def test_the_repository_ignores_prebuilt_host_binaries():
+    for crate, binary in (("installer", "proxy-control-installer"),
+                          ("version_agent", "proxy-control-version-agent"),
+                          ("release/host-probe", "proxy-control-host-probe")):
+        completed = subprocess.run(
+            ("git", "-C", str(ROOT), "check-ignore", "-q", f"{crate}/bin/linux-amd64/{binary}"),
+            capture_output=True,
+        )
+        assert completed.returncode == 0, crate
+
+
+def test_the_host_binary_builder_is_pinned_and_deterministic():
+    """The decisions behind byte-identical binaries on ams-test and in CI, kept in place."""
+    dockerfile = (ROOT / HOST_BINARIES_DOCKERFILE).read_text()
+    assert builder_image(ROOT).startswith("rust:1.99-alpine@sha256:")
+    for line in dockerfile.splitlines():
+        if line.startswith("FROM ") and " AS " in line:
+            image = line.split()[1]
+            assert image in {"${BUILDER_IMAGE}", "scratch", "builder"}, line
+    for setting in (
+        "CARGO_INCREMENTAL=0",
+        "HOST_TARGET=x86_64-unknown-linux-musl",
+        "--remap-path-prefix=/src=/proxy-control",
+        "--remap-path-prefix=/usr/local/cargo/registry/src=/crates",
+        "-C target-cpu=x86-64",
+        "-Wl,--build-id=sha1",
+        "ARG SOURCE_DATE_EPOCH",
+        "cargo build --release --locked",
+        "FROM scratch AS binaries",
+        "FROM scratch AS checked",
+        "cargo fmt --check",
+        "-D warnings",
+        "cargo test --locked",
+    ):
+        assert setting in dockerfile, setting
+    assert "native" not in dockerfile
+    # Every listed crate that exists is a standalone crate with a committed lock and the
+    # release profile of the managers, without panic=abort.
+    crates = host_crates(ROOT, tracked_files(ROOT))
+    assert crates.binaries, "at least one host binary crate (the probe until the installer exists)"
+    for crate, binary in crates.binaries:
+        manifest = (ROOT / crate / "Cargo.toml").read_text()
+        assert (ROOT / crate / "Cargo.lock").is_file(), crate
+        assert f'name = "{binary}"' in manifest
+        assert "lto = true" in manifest and "codegen-units = 1" in manifest and "strip = true" in manifest
+        assert "panic" not in manifest
+        assert "preserve_order" not in manifest
+
+
+def test_the_release_workflows_build_and_compare_the_host_binaries():
+    release = (ROOT / ".github/workflows/release.yml").read_text()
+    ci = (ROOT / ".github/workflows/test.yml").read_text()
+    for workflow in (release, ci):
+        assert "--build-binaries bin-a" in workflow and "--build-binaries bin-b" in workflow
+        assert "cmp bin-a/host-binaries.sha256 bin-b/host-binaries.sha256" in workflow
+        assert "--binaries-from bin-a" in workflow and "--binaries-from bin-b" in workflow
+        assert "--target checked" in workflow
+    # The tag annotation names each binary the lab built; CI compares them before the archive.
+    assert "lab-bin-sha256:" in release
+    assert release.index("lab-bin-sha256") < release.index('test "$first" = "$expected"')
 
 
 def test_the_knowledge_graph_is_tracked_but_never_shipped(tmp_path):

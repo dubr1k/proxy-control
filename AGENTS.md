@@ -198,6 +198,12 @@ make lab-container \
   RELEASE_SHA256=$(awk '/proxy-control-v.*\.tar\.gz$/ {print $1}' dist/SHA256SUMS)
 ```
 
+Архив несёт готовые хостовые бинари (крейты из `release/host-binaries.list`): без флагов
+`release/build.py` сам собирает их в закреплённом образе `release/Dockerfile.host-binaries`
+(Docker buildx, статический musl, без кэша слоёв). `--build-binaries DIR` только собирает их и
+печатает дайджест каждого, `--binaries-from DIR` вкладывает уже собранные после сверки
+дайджестов, `--no-binaries` — для пробных сборок без Docker (такой архив хост не установит).
+
 Полный цикл — установка, повторная установка, `repair`, восстановление после
 перезагрузки, прерванная фаза, отчёт, удаление и сосуществование на общем 443 —
 прогоняется на одноразовом сервере:
@@ -503,10 +509,15 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
   (с `VERIFICATION_STRICT=1`) → `compose` → `lab-container` → `lab-host` без `KEEP_INSTALL`
   (uninstall, coexistence) → `lab-host` с `LAB_KEEP_INSTALL=1` → `fleet` → `routing` → `router` →
   `ui` → `managed-xui`; `compose` не запускать параллельно с `lab-host` (снапшоты Docker).
-- Публикация (только по поручению владельца): архив дважды из чистого клона на лабораторном
-  хосте (`release/build.py`, байты равны) → аннотированный тег с `lab-sha256: <digest>` →
-  push ветки и тега → workflow `Release` → `SHA256SUMS` = стендовые, `gh attestation verify` →
-  тело релиза из заметки с абсолютными ссылками. Merge в `main` и раскатка — решения владельца.
+- Публикация (только по поручению владельца): хостовые бинари дважды из чистого клона на
+  лабораторном хосте (`release/build.py --build-binaries bin-a`, затем `bin-b`; файлы
+  `host-binaries.sha256` равны) → архив дважды (`release/build.py --binaries-from bin-a` и
+  `--binaries-from bin-b`, байты равны) → аннотированный тег с `lab-sha256: <digest>` и строкой
+  `lab-bin-sha256: <имя бинаря> <hex>` на каждый бинарь из `bin-a/host-binaries.sha256`
+  (каждая строка — отдельный `-m` у `git tag -a vX`) → push ветки и тега → workflow `Release`
+  (сначала сверяет каждый бинарь, потом архив)
+  → `SHA256SUMS` = стендовые, `gh attestation verify` → тело релиза из заметки с абсолютными
+  ссылками. Merge в `main` и раскатка — решения владельца.
 
 ## 9. Таблица «код отказа → действие агента»
 
@@ -757,6 +768,14 @@ make lab-container \
   RELEASE_ARCHIVE=dist/proxy-control-v$(cat VERSION).tar.gz \
   RELEASE_SHA256=$(awk '/proxy-control-v.*\.tar\.gz$/ {print $1}' dist/SHA256SUMS)
 ```
+
+The archive carries prebuilt host binaries (the crates of `release/host-binaries.list`):
+without a flag, `release/build.py` builds them itself in the pinned image of
+`release/Dockerfile.host-binaries` (Docker buildx, static musl, no layer cache).
+`--build-binaries DIR` only builds them and prints each digest, `--binaries-from DIR` injects
+already-built ones after checking their digests, and `--no-binaries` is for dry runs without
+Docker (a host cannot install such an archive). A publication annotates the tag with
+`lab-sha256: <archive digest>` plus one `lab-bin-sha256: <binary name> <hex>` line per binary.
 
 The complete lifecycle — install, a repeated install, `repair`, reboot recovery,
 an interrupted phase, reporting, uninstall, and shared-443 coexistence — runs on

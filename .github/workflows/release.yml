@@ -34,7 +34,10 @@ concurrency:
 env:
   RELEASE_VERSION: ${{ inputs.version || '' }}
   # Set by workflow_dispatch; a tag push carries it in the tag's own annotation
-  # (`git tag -a vX -m 'lab-sha256: <digest>'`), read in the build job.
+  # (`git tag -a vX -m 'lab-sha256: <digest>'`), read in the build job. The annotation also
+  # names every prebuilt host binary the lab built (`lab-bin-sha256: <name> <hex>`, one line
+  # each), compared before the archive so a mismatch names the binary. A dispatch relies on the
+  # archive digest alone, which covers the binaries as members.
   EXPECTED_SHA256: ${{ inputs.expected_sha256 || '' }}
 
 jobs:
@@ -56,6 +59,12 @@ jobs:
           .venv/bin/ruff check .
           .venv/bin/python -m pytest -q tests/test_installer_*.py \
             tests/test_three_xui_api.py tests/test_release_build.py
+      - name: Host crates (fmt, clippy, tests) in the pinned builder image
+        run: |
+          # Every crate of release/host-binaries.list that exists, inside the image that builds
+          # the shipped binaries (release/Dockerfile.host-binaries, stage `check`).
+          docker buildx build --platform linux/amd64 --file release/Dockerfile.host-binaries \
+            --target checked --output "type=local,dest=$RUNNER_TEMP/host-crates-checked" .
       - name: Tag, VERSION, and manifest agree
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
@@ -66,7 +75,7 @@ jobs:
   build-twice-and-compare:
     needs: quality
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     outputs:
@@ -77,6 +86,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Build the host binaries twice and require identical bytes
+        run: |
+          # Two independent builds in the pinned image (release/Dockerfile.host-binaries), each
+          # with no layer cache: rustc output must not depend on the run or on the machine.
+          python3 release/build.py --source . --build-binaries bin-a
+          python3 release/build.py --source . --build-binaries bin-b
+          cat bin-a/host-binaries.builder bin-a/host-binaries.sha256
+          cmp bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 \
+            || { diff bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 >&2; exit 1; }
       - name: Build the release twice and require identical bytes
         id: build
         env:
@@ -84,8 +102,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
-          python3 release/build.py --source . --output dist --version "$version"
-          python3 release/build.py --source . --output dist-again --version "$version"
+          # Only the bytes the lab host accepted may go out. The digest comes from the
+          # dispatch input or from the annotated tag (`lab-sha256: <digest>`); a tag
+          # without it, or a mismatch, stops the train here.
+          expected=${EXPECTED_SHA256:-}
+          message=
+          if test -z "$expected" && test "${GITHUB_REF_TYPE}" = "tag"; then
+            # actions/checkout peels an annotated tag to its commit, so the annotation is
+            # read from the tag object itself through the API, not from the local ref.
+            object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" --jq '.object')
+            if test "$(jq -r .type <<<"$object")" = "tag"; then
+              message=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(jq -r .sha <<<"$object")" --jq '.message')
+            fi
+            expected=$(printf '%s\n' "$message" \
+              | sed -n 's/^lab-sha256: *\([0-9a-f]\{64\}\).*/\1/p' | head -n1)
+          fi
+          test -n "$expected" || { echo "no lab digest: pass expected_sha256 or annotate the tag with 'lab-sha256: <digest>'" >&2; exit 1; }
+          # The annotation names each host binary the lab built (`lab-bin-sha256: <name> <hex>`).
+          # Comparing them before the archive turns a cross-machine rustc difference into a
+          # message naming the binary instead of an opaque archive mismatch.
+          if test -n "$message"; then
+            lab=$(printf '%s\n' "$message" \
+              | sed -n 's/^lab-bin-sha256: *\([a-z0-9-]\{1,\}\) \{1,\}\([0-9a-f]\{64\}\).*/\1 \2/p' | LC_ALL=C sort)
+            built=$(while read -r digest path; do printf '%s %s\n' "${path##*/}" "$digest"; done \
+              < bin-a/host-binaries.sha256 | LC_ALL=C sort)
+            printf 'host binaries built here:\n%s\nhost binaries the lab built:\n%s\n' "$built" "$lab"
+            test "$built" = "$lab" || { echo "the host binaries differ from the lab's (lab-bin-sha256)" >&2; exit 1; }
+          fi
+          python3 release/build.py --source . --output dist --version "$version" --binaries-from bin-a
+          python3 release/build.py --source . --output dist-again --version "$version" --binaries-from bin-b
           first=$(sha256sum dist/proxy-control-v"$version".tar.gz | cut -d' ' -f1)
           second=$(sha256sum dist-again/proxy-control-v"$version".tar.gz | cut -d' ' -f1)
           test "$first" = "$second"
@@ -94,22 +139,6 @@ jobs:
           cmp dist/install-release.sh dist-again/install-release.sh
           cmp dist/install-release.sh.sha256 dist-again/install-release.sh.sha256
           python3 release/build.py --verify dist
-          # Only the bytes the lab host accepted may go out. The digest comes from the
-          # dispatch input or from the annotated tag (`lab-sha256: <digest>`); a tag
-          # without it, or a mismatch, stops the train here.
-          expected=${EXPECTED_SHA256:-}
-          if test -z "$expected" && test "${GITHUB_REF_TYPE}" = "tag"; then
-            # actions/checkout peels an annotated tag to its commit, so the annotation is
-            # read from the tag object itself through the API, not from the local ref.
-            object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" --jq '.object')
-            message=
-            if test "$(jq -r .type <<<"$object")" = "tag"; then
-              message=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(jq -r .sha <<<"$object")" --jq '.message')
-            fi
-            expected=$(printf '%s\n' "$message" \
-              | sed -n 's/^lab-sha256: *\([0-9a-f]\{64\}\).*/\1/p' | head -n1)
-          fi
-          test -n "$expected" || { echo "no lab digest: pass expected_sha256 or annotate the tag with 'lab-sha256: <digest>'" >&2; exit 1; }
           test "$first" = "$expected" || { echo "built $first but the lab accepted $expected" >&2; exit 1; }
           echo "archive-sha256=$first" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"

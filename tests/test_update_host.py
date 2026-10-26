@@ -217,8 +217,10 @@ def test_a_host_without_the_shared_rust_crate_gets_it_and_rebuilds_the_router(ho
     assert result.returncode == 0, result.stderr
     assert (host["project"] / "pc_common" / "Cargo.toml").read_bytes() == (ROOT / "pc_common" / "Cargo.toml").read_bytes()
     up = [line for line in host["log"].read_text().splitlines() if " up -d " in line]
-    assert len(up) == 1 and up[0].endswith("--wait xray-router xray-router-ingress")
-    assert {"names": ["xray_router_manager"]} in agent.acks
+    # Every Rust manager on the host is rebuilt against it: this host also runs naive-manager.
+    assert len(up) == 1 and set(up[0].split(" --wait ", 1)[1].split()) == {
+        "naive-manager", "xray-router", "xray-router-ingress"}
+    assert any("xray_router_manager" in ack["names"] for ack in agent.acks)
 
 
 def test_without_an_agent_it_points_to_the_manual_upgrade(host):
@@ -409,7 +411,7 @@ def test_a_host_before_4_0_gets_pc_common_and_rebuilds_the_rust_naive_manager(ho
     assert (host["project"] / "pc_common" / "Cargo.toml").is_file()
     up = next(line for line in host["log"].read_text().splitlines() if " up -d --build --no-deps --wait " in line)
     assert "naive-manager" in up.split(" --wait ", 1)[1].split()
-    assert agent.acks == [{"names": ["naive_manager"]}]
+    assert agent.acks == [{"names": ["naive_manager", "xray_router_manager"]}]
 
 
 def test_an_agent_without_the_ack_endpoint_does_not_fail_the_update(host):

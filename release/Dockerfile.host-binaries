@@ -1,0 +1,69 @@
+# The prebuilt host binaries of a release (installer, version-agent): static musl executables
+# built reproducibly from the crates listed in release/host-binaries.list.
+#
+# `release/build.py` stages the build context from tracked files only (VERSION, the list and
+# every listed crate that exists) and runs, with no layer cache:
+#
+#   docker buildx build --no-cache --platform linux/amd64 -f release/Dockerfile.host-binaries \
+#     --build-arg SOURCE_DATE_EPOCH=<commit epoch> --target binaries \
+#     --output type=local,dest=<dir> <staged context>
+#
+# The output holds each binary at <crate>/bin/linux-amd64/<name>, `host-binaries.sha256`
+# (sha256sum lines, sorted by path) and `host-binaries.builder` (image, target, rustc).
+# CI runs `--target checked` with the repository as the context: fmt, clippy and tests of every
+# listed crate in this same image.
+#
+# Determinism: one pinned image (rustc, LLVM, musl, gcc), the same in-container paths, Cargo.lock
+# with --locked, codegen-units=1 + LTO + strip (each crate's [profile.release]), no incremental
+# state, a fixed baseline CPU, source and registry paths remapped, a content-derived GNU build-id.
+# Nothing reads the clock: the version comes from VERSION through include_str!.
+
+ARG BUILDER_IMAGE=rust:1.99-alpine@sha256:b1d5dd5a22a09404d3e798c0cf051b689077360374eb505fa5bb93c479693d87
+
+FROM ${BUILDER_IMAGE} AS builder
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
+    CARGO_INCREMENTAL=0 \
+    CARGO_TERM_COLOR=never \
+    CARGO_TARGET_DIR=/build/target \
+    HOST_TARGET=x86_64-unknown-linux-musl \
+    RUSTFLAGS="--remap-path-prefix=/src=/proxy-control --remap-path-prefix=/usr/local/cargo/registry/src=/crates --remap-path-prefix=/build/target=/target -C target-cpu=x86-64 -C link-arg=-Wl,--build-id=sha1"
+WORKDIR /src
+COPY . /src/
+
+# Lint and test every listed crate that exists (CI's `quality` gate); never part of a release.
+FROM builder AS check
+RUN set -eu; \
+    rustup component add rustfmt clippy; \
+    grep -Ev '^[[:space:]]*(#|$)' release/host-binaries.list | while read -r kind crate _rest; do \
+      test -f "$crate/Cargo.toml" || { echo "host crate $crate: not present, skipped"; continue; }; \
+      echo "host crate $crate ($kind)"; \
+      (cd "$crate" \
+        && cargo fmt --check \
+        && cargo clippy --locked --all-targets -q -- -D warnings \
+        && cargo test --locked -q); \
+    done; \
+    touch /checked
+
+FROM scratch AS checked
+COPY --from=check /checked /checked
+
+FROM builder AS build
+ARG BUILDER_IMAGE
+RUN set -eu; \
+    mkdir -p /out; \
+    grep -Ev '^[[:space:]]*(#|$)' release/host-binaries.list | while read -r kind crate binary; do \
+      test "$kind" = bin || continue; \
+      test -f "$crate/Cargo.toml" || { echo "host binary $binary: crate $crate not present, skipped"; continue; }; \
+      (cd "$crate" && cargo build --release --locked --target "$HOST_TARGET" --bin "$binary"); \
+      install -D -m 0755 "$CARGO_TARGET_DIR/$HOST_TARGET/release/$binary" "/out/$crate/bin/linux-amd64/$binary"; \
+    done; \
+    cd /out; \
+    find . -type f | sed 's|^\./||' | LC_ALL=C sort | while read -r path; do sha256sum "$path"; done \
+      > /tmp/host-binaries.sha256; \
+    mv /tmp/host-binaries.sha256 /out/host-binaries.sha256; \
+    printf 'image %s\ntarget %s\nrustc %s\n' "$BUILDER_IMAGE" "$HOST_TARGET" "$(rustc -V)" > /out/host-binaries.builder; \
+    cat /out/host-binaries.sha256
+
+FROM scratch AS binaries
+COPY --from=build /out/ /

@@ -794,6 +794,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | `deploy/mieru-client/Dockerfile` | Клиент Mieru для приёмки | `python:3.13.5-slim` |
 | `probe/Dockerfile` | Проба MTProto на TDLib | `node` |
 | `docker/Dockerfile.caddy-naive` | Caddy с `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
+| `release/Dockerfile.host-binaries` | Сборщик выпуска: готовые бинари для хоста (статический musl, воспроизводимо), не образ для запуска | `rust:1.99-alpine` → `scratch` |
 | `scripts/lab/Dockerfile.acceptance` | Одноразовый systemd-контейнер стенда | `ubuntu` |
 
 Каждая база закреплена по контрольной сумме.

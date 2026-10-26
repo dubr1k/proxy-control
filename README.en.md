@@ -807,6 +807,7 @@ embeds into the SBOM.
 | `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
 | `probe/Dockerfile` | MTProto probe on TDLib | `node` |
 | `docker/Dockerfile.caddy-naive` | Caddy with `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
+| `release/Dockerfile.host-binaries` | Release builder: prebuilt host binaries (static musl, reproducible), not a runtime image | `rust:1.99-alpine` → `scratch` |
 | `scripts/lab/Dockerfile.acceptance` | Disposable systemd lab container | `ubuntu` |
 
 Every base is pinned by digest.
