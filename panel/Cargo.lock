@@ -797,6 +797,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "panel-metrics"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures-util",
+ "indexmap",
+ "log",
+ "panel-core",
+ "panel-managers",
+ "panel-model",
+ "serde_json",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "panel-model"
 version = "0.1.0"
 dependencies = [

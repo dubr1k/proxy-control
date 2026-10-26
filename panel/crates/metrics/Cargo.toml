@@ -1,0 +1,34 @@
+[package]
+name = "panel-metrics"
+description = "Live monitoring of the Proxy Control panel: the 2 s sampler (host agent and protocol managers), per-client rates, the in-memory ring, SQLite rollups with retention, history/summary/alerts, the SSE stream and the /api/metrics/* routes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_metrics"
+
+[features]
+# The `MeterSources` adapter over the WP5 manager clients (pulls reqwest/rustls; the web crate
+# enables it, this crate's own tests use fakes).
+managers = ["dep:panel-managers"]
+
+[dependencies]
+# Routing only: the web crate (WP4) picks the server features.
+axum = { version = "0.8", default-features = false }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+indexmap = "2"
+log = "0.4"
+panel-core = { path = "../core" }
+panel-managers = { path = "../managers", optional = true }
+panel-model = { path = "../model" }
+# The same features as panel-core: objects keep insertion order like Python dicts, floats parse
+# correctly rounded like `json.loads`.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }

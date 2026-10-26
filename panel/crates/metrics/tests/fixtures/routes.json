@@ -1,0 +1,1385 @@
+[
+ {
+  "name": "main",
+  "flags": {
+   "trusttunnel_enabled": true
+  },
+  "start": 1800000000.0,
+  "local_name": "Этот сервер",
+  "ops": [
+   {
+    "op": "sql",
+    "sql": "INSERT INTO clients(id,display_name,state,created_at,updated_at) VALUES('c1','Алиса «Doe»','active',1,1)"
+   },
+   {
+    "op": "sql",
+    "sql": "INSERT INTO access_grants(id,client_id,protocol,node_id,runtime_username,desired_state,origin,created_at,updated_at) VALUES('g1','c1','trusttunnel','local','alice','enabled','provisioned',1,1)"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000000.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients?protocol=trusttunnel",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"protocol\":\"trusttunnel\",\"live\":true,\"clients\":{},\"ts\":1800000000.0}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?range=1h",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"1h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"1h\",\"from\":1799996400,\"to\":1800000000,\"step\":60,\"source\":\"rollup\",\"host\":{\"cpu\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"mem\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"swap\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"disk\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"load1\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_rx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_tx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&range=15m",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":60,\"from\":1799999100,\"to\":1800000000,\"source\":\"rollup\",\"resolution\":60,\"series\":{\"host.cpu\":[[1799999100,null,null],[1799999160,null,null],[1799999220,null,null],[1799999280,null,null],[1799999340,null,null],[1799999400,null,null],[1799999460,null,null],[1799999520,null,null],[1799999580,null,null],[1799999640,null,null],[1799999700,null,null],[1799999760,null,null],[1799999820,null,null],[1799999880,null,null],[1799999940,null,null],[1800000000,null,null]]}}"
+   },
+   {
+    "op": "step",
+    "advance": 2.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000002.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {
+         "trusttunnel": {
+          "up_bytes": 2000,
+          "down_bytes": 6000,
+          "up_bps": 1000.0,
+          "down_bps": 3000.0,
+          "source": "kernel"
+         },
+         "amneziawg": {
+          "up_bytes": 400,
+          "down_bytes": 1600,
+          "up_bps": 200.0,
+          "down_bps": 800.0,
+          "source": "interface"
+         }
+        },
+        "kernel_counters": "ok"
+       }
+      }
+     ],
+     "trusttunnel": [
+      {
+       "ok": [
+        {
+         "username": "alice",
+         "tx": 0,
+         "rx": 0,
+         "sessions": 1
+        }
+       ]
+      }
+     ],
+     "mtproxy": [
+      {
+       "error": "manager down"
+      }
+     ]
+    },
+    "version": 1,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":400,\"down_bytes\":1600,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":2000,\"down_bytes\":6000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "step",
+    "advance": 2.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000004.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {
+         "trusttunnel": {
+          "up_bytes": 4000,
+          "down_bytes": 12000,
+          "up_bps": 1000.0,
+          "down_bps": 3000.0,
+          "source": "kernel"
+         },
+         "amneziawg": {
+          "up_bytes": 800,
+          "down_bytes": 3200,
+          "up_bps": 200.0,
+          "down_bps": 800.0,
+          "source": "interface"
+         }
+        },
+        "kernel_counters": "ok"
+       }
+      }
+     ]
+    },
+    "version": 2,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":800,\"down_bytes\":3200,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":4000,\"down_bytes\":12000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "step",
+    "advance": 2.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000006.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {
+         "trusttunnel": {
+          "up_bytes": 6000,
+          "down_bytes": 18000,
+          "up_bps": 1000.0,
+          "down_bps": 3000.0,
+          "source": "kernel"
+         },
+         "amneziawg": {
+          "up_bytes": 1200,
+          "down_bytes": 4800,
+          "up_bps": 200.0,
+          "down_bps": 800.0,
+          "source": "interface"
+         }
+        },
+        "kernel_counters": "ok"
+       }
+      }
+     ]
+    },
+    "version": 3,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":1200,\"down_bytes\":4800,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":6000,\"down_bytes\":18000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "step",
+    "advance": 5.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000011.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {
+         "trusttunnel": {
+          "up_bytes": 11000,
+          "down_bytes": 33000,
+          "up_bps": 1000.0,
+          "down_bps": 3000.0,
+          "source": "kernel"
+         },
+         "amneziawg": {
+          "up_bytes": 2200,
+          "down_bytes": 8800,
+          "up_bps": 200.0,
+          "down_bps": 800.0,
+          "source": "interface"
+         }
+        },
+        "kernel_counters": "ok"
+       }
+      }
+     ],
+     "trusttunnel": [
+      {
+       "ok": [
+        {
+         "username": "alice",
+         "tx": 6000,
+         "rx": 2000,
+         "sessions": 1
+        }
+       ]
+      }
+     ]
+    },
+    "version": 4,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":2200,\"down_bytes\":8800,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":11000,\"down_bytes\":33000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[{\"protocol\":\"trusttunnel\",\"username\":\"alice\",\"client_name\":\"Алиса «Doe»\",\"up_bps\":222.22222222222223,\"down_bps\":666.6666666666666,\"total_bps\":888.8888888888889,\"live\":true}],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000011.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":2200,\"down_bytes\":8800,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":11000,\"down_bytes\":33000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[{\"protocol\":\"trusttunnel\",\"username\":\"alice\",\"client_name\":\"Алиса «Doe»\",\"up_bps\":222.22222222222223,\"down_bps\":666.6666666666666,\"total_bps\":888.8888888888889,\"live\":true}],\"kernel_counters\":\"ok\",\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=local",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000011.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":2200,\"down_bytes\":8800,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":11000,\"down_bytes\":33000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[{\"protocol\":\"trusttunnel\",\"username\":\"alice\",\"client_name\":\"Алиса «Doe»\",\"up_bps\":222.22222222222223,\"down_bps\":666.6666666666666,\"total_bps\":888.8888888888889,\"live\":true}],\"kernel_counters\":\"ok\",\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=all",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000011.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":true,\"live\":true,\"source\":\"interface\",\"up_bps\":200.0,\"down_bps\":800.0,\"total_bps\":1000.0,\"up_bytes\":2200,\"down_bytes\":8800,\"sessions\":null,\"clients\":null,\"connections\":null},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"kernel\",\"up_bps\":1000.0,\"down_bps\":3000.0,\"total_bps\":4000.0,\"up_bytes\":11000,\"down_bytes\":33000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[{\"protocol\":\"trusttunnel\",\"username\":\"alice\",\"client_name\":\"Алиса «Doe»\",\"up_bps\":222.22222222222223,\"down_bps\":666.6666666666666,\"total_bps\":888.8888888888889,\"live\":true}],\"kernel_counters\":\"ok\",\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=ghost",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=bad%20id",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients?protocol=trusttunnel",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"protocol\":\"trusttunnel\",\"live\":true,\"clients\":{\"alice\":{\"up_bps\":222.22222222222223,\"down_bps\":666.6666666666666,\"total_bps\":888.8888888888889}},\"ts\":1800000011.0}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients?protocol=naive",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"protocol\":\"naive\",\"live\":false,\"clients\":{},\"ts\":1800000011.0}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients?protocol=nope",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown protocol\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"protocol\"],\"msg\":\"Field required\",\"input\":null}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"24h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"24h\",\"from\":1799913611,\"to\":1800000011,\"step\":60,\"source\":\"rollup\",\"host\":{\"cpu\":{\"avg\":12.5,\"p95\":12.5,\"max\":12.5,\"max_at\":1800000000},\"mem\":{\"avg\":40.0,\"p95\":40.0,\"max\":40.0,\"max_at\":1800000000},\"swap\":{\"avg\":5.0,\"p95\":5.0,\"max\":5.0,\"max_at\":1800000000},\"disk\":{\"avg\":30.0,\"p95\":30.0,\"max\":30.0,\"max_at\":1800000000},\"load1\":{\"avg\":0.42,\"p95\":0.42,\"max\":0.42,\"max_at\":1800000000},\"net_rx_bps\":{\"avg\":5000.0,\"p95\":5000.0,\"max\":5000.0,\"max_at\":1800000000},\"net_tx_bps\":{\"avg\":7000.0,\"p95\":7000.0,\"max\":7000.0,\"max_at\":1800000000}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":1800,\"down_bytes\":7200,\"total_bytes\":9000,\"avg_bps\":1000.0,\"peak_bps\":1000.0,\"peak_at\":1800000000,\"share_percent\":20.0,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":9000,\"down_bytes\":27000,\"total_bytes\":36000,\"avg_bps\":4000.0,\"peak_bps\":4000.0,\"peak_at\":1800000000,\"share_percent\":80.0,\"sessions_peak\":1,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?range=1h",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"1h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"1h\",\"from\":1799996411,\"to\":1800000011,\"step\":2,\"source\":\"ring\",\"host\":{\"cpu\":{\"avg\":12.5,\"p95\":12.5,\"max\":12.5,\"max_at\":1800000002},\"mem\":{\"avg\":40.0,\"p95\":40.0,\"max\":40.0,\"max_at\":1800000002},\"swap\":{\"avg\":5.0,\"p95\":5.0,\"max\":5.0,\"max_at\":1800000002},\"disk\":{\"avg\":30.0,\"p95\":30.0,\"max\":30.0,\"max_at\":1800000002},\"load1\":{\"avg\":0.42,\"p95\":0.42,\"max\":0.42,\"max_at\":1800000002},\"net_rx_bps\":{\"avg\":5000.0,\"p95\":5000.0,\"max\":5000.0,\"max_at\":1800000002},\"net_tx_bps\":{\"avg\":7000.0,\"p95\":7000.0,\"max\":7000.0,\"max_at\":1800000002}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":1800,\"down_bytes\":7200,\"total_bytes\":9000,\"avg_bps\":1000.0,\"peak_bps\":1000.0,\"peak_at\":1800000002,\"share_percent\":20.0,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":9000,\"down_bytes\":27000,\"total_bytes\":36000,\"avg_bps\":4000.0,\"peak_bps\":4000.0,\"peak_at\":1800000002,\"share_percent\":80.0,\"sessions_peak\":1,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?range=2d",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"range must be one of 15m, 1h, 6h, 24h, 7d, 30d, 90d\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=all&range=1h",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"1h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"1h\",\"from\":1799996411,\"to\":1800000011,\"step\":2,\"source\":\"ring\",\"host\":{\"cpu\":{\"avg\":12.5,\"p95\":12.5,\"max\":12.5,\"max_at\":1800000002},\"mem\":{\"avg\":40.0,\"p95\":40.0,\"max\":40.0,\"max_at\":1800000002},\"swap\":{\"avg\":5.0,\"p95\":5.0,\"max\":5.0,\"max_at\":1800000002},\"disk\":{\"avg\":30.0,\"p95\":30.0,\"max\":30.0,\"max_at\":1800000002},\"load1\":{\"avg\":0.42,\"p95\":0.42,\"max\":0.42,\"max_at\":1800000002},\"net_rx_bps\":{\"avg\":5000.0,\"p95\":5000.0,\"max\":5000.0,\"max_at\":1800000002},\"net_tx_bps\":{\"avg\":7000.0,\"p95\":7000.0,\"max\":7000.0,\"max_at\":1800000002}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":1800,\"down_bytes\":7200,\"total_bytes\":9000,\"avg_bps\":1000.0,\"peak_bps\":1000.0,\"peak_at\":1800000002,\"share_percent\":20.0,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":9000,\"down_bytes\":27000,\"total_bytes\":36000,\"avg_bps\":4000.0,\"peak_bps\":4000.0,\"peak_at\":1800000002,\"share_percent\":80.0,\"sessions_peak\":1,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"alerts\":[]}],\"compare\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"total_bytes\":45000,\"peak_bps\":4000.0,\"cpu_avg\":12.5,\"mem_avg\":40.0,\"alerts\":0}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=ghost",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/stream?node=ghost",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu,trusttunnel.down_bps&range=15m&points=450",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":2,\"from\":1799999111,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799999110,null,null],[1799999112,null,null],[1799999114,null,null],[1799999116,null,null],[1799999118,null,null],[1799999120,null,null],[1799999122,null,null],[1799999124,null,null],[1799999126,null,null],[1799999128,null,null],[1799999130,null,null],[1799999132,null,null],[1799999134,null,null],[1799999136,null,null],[1799999138,null,null],[1799999140,null,null],[1799999142,null,null],[1799999144,null,null],[1799999146,null,null],[1799999148,null,null],[1799999150,null,null],[1799999152,null,null],[1799999154,null,null],[1799999156,null,null],[1799999158,null,null],[1799999160,null,null],[1799999162,null,null],[1799999164,null,null],[1799999166,null,null],[1799999168,null,null],[1799999170,null,null],[1799999172,null,null],[1799999174,null,null],[1799999176,null,null],[1799999178,null,null],[1799999180,null,null],[1799999182,null,null],[1799999184,null,null],[1799999186,null,null],[1799999188,null,null],[1799999190,null,null],[1799999192,null,null],[1799999194,null,null],[1799999196,null,null],[1799999198,null,null],[1799999200,null,null],[1799999202,null,null],[1799999204,null,null],[1799999206,null,null],[1799999208,null,null],[1799999210,null,null],[1799999212,null,null],[1799999214,null,null],[1799999216,null,null],[1799999218,null,null],[1799999220,null,null],[1799999222,null,null],[1799999224,null,null],[1799999226,null,null],[1799999228,null,null],[1799999230,null,null],[1799999232,null,null],[1799999234,null,null],[1799999236,null,null],[1799999238,null,null],[1799999240,null,null],[1799999242,null,null],[1799999244,null,null],[1799999246,null,null],[1799999248,null,null],[1799999250,null,null],[1799999252,null,null],[1799999254,null,null],[1799999256,null,null],[1799999258,null,null],[1799999260,null,null],[1799999262,null,null],[1799999264,null,null],[1799999266,null,null],[1799999268,null,null],[1799999270,null,null],[1799999272,null,null],[1799999274,null,null],[1799999276,null,null],[1799999278,null,null],[1799999280,null,null],[1799999282,null,null],[1799999284,null,null],[1799999286,null,null],[1799999288,null,null],[1799999290,null,null],[1799999292,null,null],[1799999294,null,null],[1799999296,null,null],[1799999298,null,null],[1799999300,null,null],[1799999302,null,null],[1799999304,null,null],[1799999306,null,null],[1799999308,null,null],[1799999310,null,null],[1799999312,null,null],[1799999314,null,null],[1799999316,null,null],[1799999318,null,null],[1799999320,null,null],[1799999322,null,null],[1799999324,null,null],[1799999326,null,null],[1799999328,null,null],[1799999330,null,null],[1799999332,null,null],[1799999334,null,null],[1799999336,null,null],[1799999338,null,null],[1799999340,null,null],[1799999342,null,null],[1799999344,null,null],[1799999346,null,null],[1799999348,null,null],[1799999350,null,null],[1799999352,null,null],[1799999354,null,null],[1799999356,null,null],[1799999358,null,null],[1799999360,null,null],[1799999362,null,null],[1799999364,null,null],[1799999366,null,null],[1799999368,null,null],[1799999370,null,null],[1799999372,null,null],[1799999374,null,null],[1799999376,null,null],[1799999378,null,null],[1799999380,null,null],[1799999382,null,null],[1799999384,null,null],[1799999386,null,null],[1799999388,null,null],[1799999390,null,null],[1799999392,null,null],[1799999394,null,null],[1799999396,null,null],[1799999398,null,null],[1799999400,null,null],[1799999402,null,null],[1799999404,null,null],[1799999406,null,null],[1799999408,null,null],[1799999410,null,null],[1799999412,null,null],[1799999414,null,null],[1799999416,null,null],[1799999418,null,null],[1799999420,null,null],[1799999422,null,null],[1799999424,null,null],[1799999426,null,null],[1799999428,null,null],[1799999430,null,null],[1799999432,null,null],[1799999434,null,null],[1799999436,null,null],[1799999438,null,null],[1799999440,null,null],[1799999442,null,null],[1799999444,null,null],[1799999446,null,null],[1799999448,null,null],[1799999450,null,null],[1799999452,null,null],[1799999454,null,null],[1799999456,null,null],[1799999458,null,null],[1799999460,null,null],[1799999462,null,null],[1799999464,null,null],[1799999466,null,null],[1799999468,null,null],[1799999470,null,null],[1799999472,null,null],[1799999474,null,null],[1799999476,null,null],[1799999478,null,null],[1799999480,null,null],[1799999482,null,null],[1799999484,null,null],[1799999486,null,null],[1799999488,null,null],[1799999490,null,null],[1799999492,null,null],[1799999494,null,null],[1799999496,null,null],[1799999498,null,null],[1799999500,null,null],[1799999502,null,null],[1799999504,null,null],[1799999506,null,null],[1799999508,null,null],[1799999510,null,null],[1799999512,null,null],[1799999514,null,null],[1799999516,null,null],[1799999518,null,null],[1799999520,null,null],[1799999522,null,null],[1799999524,null,null],[1799999526,null,null],[1799999528,null,null],[1799999530,null,null],[1799999532,null,null],[1799999534,null,null],[1799999536,null,null],[1799999538,null,null],[1799999540,null,null],[1799999542,null,null],[1799999544,null,null],[1799999546,null,null],[1799999548,null,null],[1799999550,null,null],[1799999552,null,null],[1799999554,null,null],[1799999556,null,null],[1799999558,null,null],[1799999560,null,null],[1799999562,null,null],[1799999564,null,null],[1799999566,null,null],[1799999568,null,null],[1799999570,null,null],[1799999572,null,null],[1799999574,null,null],[1799999576,null,null],[1799999578,null,null],[1799999580,null,null],[1799999582,null,null],[1799999584,null,null],[1799999586,null,null],[1799999588,null,null],[1799999590,null,null],[1799999592,null,null],[1799999594,null,null],[1799999596,null,null],[1799999598,null,null],[1799999600,null,null],[1799999602,null,null],[1799999604,null,null],[1799999606,null,null],[1799999608,null,null],[1799999610,null,null],[1799999612,null,null],[1799999614,null,null],[1799999616,null,null],[1799999618,null,null],[1799999620,null,null],[1799999622,null,null],[1799999624,null,null],[1799999626,null,null],[1799999628,null,null],[1799999630,null,null],[1799999632,null,null],[1799999634,null,null],[1799999636,null,null],[1799999638,null,null],[1799999640,null,null],[1799999642,null,null],[1799999644,null,null],[1799999646,null,null],[1799999648,null,null],[1799999650,null,null],[1799999652,null,null],[1799999654,null,null],[1799999656,null,null],[1799999658,null,null],[1799999660,null,null],[1799999662,null,null],[1799999664,null,null],[1799999666,null,null],[1799999668,null,null],[1799999670,null,null],[1799999672,null,null],[1799999674,null,null],[1799999676,null,null],[1799999678,null,null],[1799999680,null,null],[1799999682,null,null],[1799999684,null,null],[1799999686,null,null],[1799999688,null,null],[1799999690,null,null],[1799999692,null,null],[1799999694,null,null],[1799999696,null,null],[1799999698,null,null],[1799999700,null,null],[1799999702,null,null],[1799999704,null,null],[1799999706,null,null],[1799999708,null,null],[1799999710,null,null],[1799999712,null,null],[1799999714,null,null],[1799999716,null,null],[1799999718,null,null],[1799999720,null,null],[1799999722,null,null],[1799999724,null,null],[1799999726,null,null],[1799999728,null,null],[1799999730,null,null],[1799999732,null,null],[1799999734,null,null],[1799999736,null,null],[1799999738,null,null],[1799999740,null,null],[1799999742,null,null],[1799999744,null,null],[1799999746,null,null],[1799999748,null,null],[1799999750,null,null],[1799999752,null,null],[1799999754,null,null],[1799999756,null,null],[1799999758,null,null],[1799999760,null,null],[1799999762,null,null],[1799999764,null,null],[1799999766,null,null],[1799999768,null,null],[1799999770,null,null],[1799999772,null,null],[1799999774,null,null],[1799999776,null,null],[1799999778,null,null],[1799999780,null,null],[1799999782,null,null],[1799999784,null,null],[1799999786,null,null],[1799999788,null,null],[1799999790,null,null],[1799999792,null,null],[1799999794,null,null],[1799999796,null,null],[1799999798,null,null],[1799999800,null,null],[1799999802,null,null],[1799999804,null,null],[1799999806,null,null],[1799999808,null,null],[1799999810,null,null],[1799999812,null,null],[1799999814,null,null],[1799999816,null,null],[1799999818,null,null],[1799999820,null,null],[1799999822,null,null],[1799999824,null,null],[1799999826,null,null],[1799999828,null,null],[1799999830,null,null],[1799999832,null,null],[1799999834,null,null],[1799999836,null,null],[1799999838,null,null],[1799999840,null,null],[1799999842,null,null],[1799999844,null,null],[1799999846,null,null],[1799999848,null,null],[1799999850,null,null],[1799999852,null,null],[1799999854,null,null],[1799999856,null,null],[1799999858,null,null],[1799999860,null,null],[1799999862,null,null],[1799999864,null,null],[1799999866,null,null],[1799999868,null,null],[1799999870,null,null],[1799999872,null,null],[1799999874,null,null],[1799999876,null,null],[1799999878,null,null],[1799999880,null,null],[1799999882,null,null],[1799999884,null,null],[1799999886,null,null],[1799999888,null,null],[1799999890,null,null],[1799999892,null,null],[1799999894,null,null],[1799999896,null,null],[1799999898,null,null],[1799999900,null,null],[1799999902,null,null],[1799999904,null,null],[1799999906,null,null],[1799999908,null,null],[1799999910,null,null],[1799999912,null,null],[1799999914,null,null],[1799999916,null,null],[1799999918,null,null],[1799999920,null,null],[1799999922,null,null],[1799999924,null,null],[1799999926,null,null],[1799999928,null,null],[1799999930,null,null],[1799999932,null,null],[1799999934,null,null],[1799999936,null,null],[1799999938,null,null],[1799999940,null,null],[1799999942,null,null],[1799999944,null,null],[1799999946,null,null],[1799999948,null,null],[1799999950,null,null],[1799999952,null,null],[1799999954,null,null],[1799999956,null,null],[1799999958,null,null],[1799999960,null,null],[1799999962,null,null],[1799999964,null,null],[1799999966,null,null],[1799999968,null,null],[1799999970,null,null],[1799999972,null,null],[1799999974,null,null],[1799999976,null,null],[1799999978,null,null],[1799999980,null,null],[1799999982,null,null],[1799999984,null,null],[1799999986,null,null],[1799999988,null,null],[1799999990,null,null],[1799999992,null,null],[1799999994,null,null],[1799999996,null,null],[1799999998,null,null],[1800000000,null,null],[1800000002,12.5,12.5],[1800000004,12.5,12.5],[1800000006,12.5,12.5],[1800000008,null,null],[1800000010,12.5,12.5]],\"trusttunnel.down_bps\":[[1799999110,null,null],[1799999112,null,null],[1799999114,null,null],[1799999116,null,null],[1799999118,null,null],[1799999120,null,null],[1799999122,null,null],[1799999124,null,null],[1799999126,null,null],[1799999128,null,null],[1799999130,null,null],[1799999132,null,null],[1799999134,null,null],[1799999136,null,null],[1799999138,null,null],[1799999140,null,null],[1799999142,null,null],[1799999144,null,null],[1799999146,null,null],[1799999148,null,null],[1799999150,null,null],[1799999152,null,null],[1799999154,null,null],[1799999156,null,null],[1799999158,null,null],[1799999160,null,null],[1799999162,null,null],[1799999164,null,null],[1799999166,null,null],[1799999168,null,null],[1799999170,null,null],[1799999172,null,null],[1799999174,null,null],[1799999176,null,null],[1799999178,null,null],[1799999180,null,null],[1799999182,null,null],[1799999184,null,null],[1799999186,null,null],[1799999188,null,null],[1799999190,null,null],[1799999192,null,null],[1799999194,null,null],[1799999196,null,null],[1799999198,null,null],[1799999200,null,null],[1799999202,null,null],[1799999204,null,null],[1799999206,null,null],[1799999208,null,null],[1799999210,null,null],[1799999212,null,null],[1799999214,null,null],[1799999216,null,null],[1799999218,null,null],[1799999220,null,null],[1799999222,null,null],[1799999224,null,null],[1799999226,null,null],[1799999228,null,null],[1799999230,null,null],[1799999232,null,null],[1799999234,null,null],[1799999236,null,null],[1799999238,null,null],[1799999240,null,null],[1799999242,null,null],[1799999244,null,null],[1799999246,null,null],[1799999248,null,null],[1799999250,null,null],[1799999252,null,null],[1799999254,null,null],[1799999256,null,null],[1799999258,null,null],[1799999260,null,null],[1799999262,null,null],[1799999264,null,null],[1799999266,null,null],[1799999268,null,null],[1799999270,null,null],[1799999272,null,null],[1799999274,null,null],[1799999276,null,null],[1799999278,null,null],[1799999280,null,null],[1799999282,null,null],[1799999284,null,null],[1799999286,null,null],[1799999288,null,null],[1799999290,null,null],[1799999292,null,null],[1799999294,null,null],[1799999296,null,null],[1799999298,null,null],[1799999300,null,null],[1799999302,null,null],[1799999304,null,null],[1799999306,null,null],[1799999308,null,null],[1799999310,null,null],[1799999312,null,null],[1799999314,null,null],[1799999316,null,null],[1799999318,null,null],[1799999320,null,null],[1799999322,null,null],[1799999324,null,null],[1799999326,null,null],[1799999328,null,null],[1799999330,null,null],[1799999332,null,null],[1799999334,null,null],[1799999336,null,null],[1799999338,null,null],[1799999340,null,null],[1799999342,null,null],[1799999344,null,null],[1799999346,null,null],[1799999348,null,null],[1799999350,null,null],[1799999352,null,null],[1799999354,null,null],[1799999356,null,null],[1799999358,null,null],[1799999360,null,null],[1799999362,null,null],[1799999364,null,null],[1799999366,null,null],[1799999368,null,null],[1799999370,null,null],[1799999372,null,null],[1799999374,null,null],[1799999376,null,null],[1799999378,null,null],[1799999380,null,null],[1799999382,null,null],[1799999384,null,null],[1799999386,null,null],[1799999388,null,null],[1799999390,null,null],[1799999392,null,null],[1799999394,null,null],[1799999396,null,null],[1799999398,null,null],[1799999400,null,null],[1799999402,null,null],[1799999404,null,null],[1799999406,null,null],[1799999408,null,null],[1799999410,null,null],[1799999412,null,null],[1799999414,null,null],[1799999416,null,null],[1799999418,null,null],[1799999420,null,null],[1799999422,null,null],[1799999424,null,null],[1799999426,null,null],[1799999428,null,null],[1799999430,null,null],[1799999432,null,null],[1799999434,null,null],[1799999436,null,null],[1799999438,null,null],[1799999440,null,null],[1799999442,null,null],[1799999444,null,null],[1799999446,null,null],[1799999448,null,null],[1799999450,null,null],[1799999452,null,null],[1799999454,null,null],[1799999456,null,null],[1799999458,null,null],[1799999460,null,null],[1799999462,null,null],[1799999464,null,null],[1799999466,null,null],[1799999468,null,null],[1799999470,null,null],[1799999472,null,null],[1799999474,null,null],[1799999476,null,null],[1799999478,null,null],[1799999480,null,null],[1799999482,null,null],[1799999484,null,null],[1799999486,null,null],[1799999488,null,null],[1799999490,null,null],[1799999492,null,null],[1799999494,null,null],[1799999496,null,null],[1799999498,null,null],[1799999500,null,null],[1799999502,null,null],[1799999504,null,null],[1799999506,null,null],[1799999508,null,null],[1799999510,null,null],[1799999512,null,null],[1799999514,null,null],[1799999516,null,null],[1799999518,null,null],[1799999520,null,null],[1799999522,null,null],[1799999524,null,null],[1799999526,null,null],[1799999528,null,null],[1799999530,null,null],[1799999532,null,null],[1799999534,null,null],[1799999536,null,null],[1799999538,null,null],[1799999540,null,null],[1799999542,null,null],[1799999544,null,null],[1799999546,null,null],[1799999548,null,null],[1799999550,null,null],[1799999552,null,null],[1799999554,null,null],[1799999556,null,null],[1799999558,null,null],[1799999560,null,null],[1799999562,null,null],[1799999564,null,null],[1799999566,null,null],[1799999568,null,null],[1799999570,null,null],[1799999572,null,null],[1799999574,null,null],[1799999576,null,null],[1799999578,null,null],[1799999580,null,null],[1799999582,null,null],[1799999584,null,null],[1799999586,null,null],[1799999588,null,null],[1799999590,null,null],[1799999592,null,null],[1799999594,null,null],[1799999596,null,null],[1799999598,null,null],[1799999600,null,null],[1799999602,null,null],[1799999604,null,null],[1799999606,null,null],[1799999608,null,null],[1799999610,null,null],[1799999612,null,null],[1799999614,null,null],[1799999616,null,null],[1799999618,null,null],[1799999620,null,null],[1799999622,null,null],[1799999624,null,null],[1799999626,null,null],[1799999628,null,null],[1799999630,null,null],[1799999632,null,null],[1799999634,null,null],[1799999636,null,null],[1799999638,null,null],[1799999640,null,null],[1799999642,null,null],[1799999644,null,null],[1799999646,null,null],[1799999648,null,null],[1799999650,null,null],[1799999652,null,null],[1799999654,null,null],[1799999656,null,null],[1799999658,null,null],[1799999660,null,null],[1799999662,null,null],[1799999664,null,null],[1799999666,null,null],[1799999668,null,null],[1799999670,null,null],[1799999672,null,null],[1799999674,null,null],[1799999676,null,null],[1799999678,null,null],[1799999680,null,null],[1799999682,null,null],[1799999684,null,null],[1799999686,null,null],[1799999688,null,null],[1799999690,null,null],[1799999692,null,null],[1799999694,null,null],[1799999696,null,null],[1799999698,null,null],[1799999700,null,null],[1799999702,null,null],[1799999704,null,null],[1799999706,null,null],[1799999708,null,null],[1799999710,null,null],[1799999712,null,null],[1799999714,null,null],[1799999716,null,null],[1799999718,null,null],[1799999720,null,null],[1799999722,null,null],[1799999724,null,null],[1799999726,null,null],[1799999728,null,null],[1799999730,null,null],[1799999732,null,null],[1799999734,null,null],[1799999736,null,null],[1799999738,null,null],[1799999740,null,null],[1799999742,null,null],[1799999744,null,null],[1799999746,null,null],[1799999748,null,null],[1799999750,null,null],[1799999752,null,null],[1799999754,null,null],[1799999756,null,null],[1799999758,null,null],[1799999760,null,null],[1799999762,null,null],[1799999764,null,null],[1799999766,null,null],[1799999768,null,null],[1799999770,null,null],[1799999772,null,null],[1799999774,null,null],[1799999776,null,null],[1799999778,null,null],[1799999780,null,null],[1799999782,null,null],[1799999784,null,null],[1799999786,null,null],[1799999788,null,null],[1799999790,null,null],[1799999792,null,null],[1799999794,null,null],[1799999796,null,null],[1799999798,null,null],[1799999800,null,null],[1799999802,null,null],[1799999804,null,null],[1799999806,null,null],[1799999808,null,null],[1799999810,null,null],[1799999812,null,null],[1799999814,null,null],[1799999816,null,null],[1799999818,null,null],[1799999820,null,null],[1799999822,null,null],[1799999824,null,null],[1799999826,null,null],[1799999828,null,null],[1799999830,null,null],[1799999832,null,null],[1799999834,null,null],[1799999836,null,null],[1799999838,null,null],[1799999840,null,null],[1799999842,null,null],[1799999844,null,null],[1799999846,null,null],[1799999848,null,null],[1799999850,null,null],[1799999852,null,null],[1799999854,null,null],[1799999856,null,null],[1799999858,null,null],[1799999860,null,null],[1799999862,null,null],[1799999864,null,null],[1799999866,null,null],[1799999868,null,null],[1799999870,null,null],[1799999872,null,null],[1799999874,null,null],[1799999876,null,null],[1799999878,null,null],[1799999880,null,null],[1799999882,null,null],[1799999884,null,null],[1799999886,null,null],[1799999888,null,null],[1799999890,null,null],[1799999892,null,null],[1799999894,null,null],[1799999896,null,null],[1799999898,null,null],[1799999900,null,null],[1799999902,null,null],[1799999904,null,null],[1799999906,null,null],[1799999908,null,null],[1799999910,null,null],[1799999912,null,null],[1799999914,null,null],[1799999916,null,null],[1799999918,null,null],[1799999920,null,null],[1799999922,null,null],[1799999924,null,null],[1799999926,null,null],[1799999928,null,null],[1799999930,null,null],[1799999932,null,null],[1799999934,null,null],[1799999936,null,null],[1799999938,null,null],[1799999940,null,null],[1799999942,null,null],[1799999944,null,null],[1799999946,null,null],[1799999948,null,null],[1799999950,null,null],[1799999952,null,null],[1799999954,null,null],[1799999956,null,null],[1799999958,null,null],[1799999960,null,null],[1799999962,null,null],[1799999964,null,null],[1799999966,null,null],[1799999968,null,null],[1799999970,null,null],[1799999972,null,null],[1799999974,null,null],[1799999976,null,null],[1799999978,null,null],[1799999980,null,null],[1799999982,null,null],[1799999984,null,null],[1799999986,null,null],[1799999988,null,null],[1799999990,null,null],[1799999992,null,null],[1799999994,null,null],[1799999996,null,null],[1799999998,null,null],[1800000000,null,null],[1800000002,3000.0,3000.0],[1800000004,3000.0,3000.0],[1800000006,3000.0,3000.0],[1800000008,null,null],[1800000010,3000.0,3000.0]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=300",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":12,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996412,null,null],[1799996424,null,null],[1799996436,null,null],[1799996448,null,null],[1799996460,null,null],[1799996472,null,null],[1799996484,null,null],[1799996496,null,null],[1799996508,null,null],[1799996520,null,null],[1799996532,null,null],[1799996544,null,null],[1799996556,null,null],[1799996568,null,null],[1799996580,null,null],[1799996592,null,null],[1799996604,null,null],[1799996616,null,null],[1799996628,null,null],[1799996640,null,null],[1799996652,null,null],[1799996664,null,null],[1799996676,null,null],[1799996688,null,null],[1799996700,null,null],[1799996712,null,null],[1799996724,null,null],[1799996736,null,null],[1799996748,null,null],[1799996760,null,null],[1799996772,null,null],[1799996784,null,null],[1799996796,null,null],[1799996808,null,null],[1799996820,null,null],[1799996832,null,null],[1799996844,null,null],[1799996856,null,null],[1799996868,null,null],[1799996880,null,null],[1799996892,null,null],[1799996904,null,null],[1799996916,null,null],[1799996928,null,null],[1799996940,null,null],[1799996952,null,null],[1799996964,null,null],[1799996976,null,null],[1799996988,null,null],[1799997000,null,null],[1799997012,null,null],[1799997024,null,null],[1799997036,null,null],[1799997048,null,null],[1799997060,null,null],[1799997072,null,null],[1799997084,null,null],[1799997096,null,null],[1799997108,null,null],[1799997120,null,null],[1799997132,null,null],[1799997144,null,null],[1799997156,null,null],[1799997168,null,null],[1799997180,null,null],[1799997192,null,null],[1799997204,null,null],[1799997216,null,null],[1799997228,null,null],[1799997240,null,null],[1799997252,null,null],[1799997264,null,null],[1799997276,null,null],[1799997288,null,null],[1799997300,null,null],[1799997312,null,null],[1799997324,null,null],[1799997336,null,null],[1799997348,null,null],[1799997360,null,null],[1799997372,null,null],[1799997384,null,null],[1799997396,null,null],[1799997408,null,null],[1799997420,null,null],[1799997432,null,null],[1799997444,null,null],[1799997456,null,null],[1799997468,null,null],[1799997480,null,null],[1799997492,null,null],[1799997504,null,null],[1799997516,null,null],[1799997528,null,null],[1799997540,null,null],[1799997552,null,null],[1799997564,null,null],[1799997576,null,null],[1799997588,null,null],[1799997600,null,null],[1799997612,null,null],[1799997624,null,null],[1799997636,null,null],[1799997648,null,null],[1799997660,null,null],[1799997672,null,null],[1799997684,null,null],[1799997696,null,null],[1799997708,null,null],[1799997720,null,null],[1799997732,null,null],[1799997744,null,null],[1799997756,null,null],[1799997768,null,null],[1799997780,null,null],[1799997792,null,null],[1799997804,null,null],[1799997816,null,null],[1799997828,null,null],[1799997840,null,null],[1799997852,null,null],[1799997864,null,null],[1799997876,null,null],[1799997888,null,null],[1799997900,null,null],[1799997912,null,null],[1799997924,null,null],[1799997936,null,null],[1799997948,null,null],[1799997960,null,null],[1799997972,null,null],[1799997984,null,null],[1799997996,null,null],[1799998008,null,null],[1799998020,null,null],[1799998032,null,null],[1799998044,null,null],[1799998056,null,null],[1799998068,null,null],[1799998080,null,null],[1799998092,null,null],[1799998104,null,null],[1799998116,null,null],[1799998128,null,null],[1799998140,null,null],[1799998152,null,null],[1799998164,null,null],[1799998176,null,null],[1799998188,null,null],[1799998200,null,null],[1799998212,null,null],[1799998224,null,null],[1799998236,null,null],[1799998248,null,null],[1799998260,null,null],[1799998272,null,null],[1799998284,null,null],[1799998296,null,null],[1799998308,null,null],[1799998320,null,null],[1799998332,null,null],[1799998344,null,null],[1799998356,null,null],[1799998368,null,null],[1799998380,null,null],[1799998392,null,null],[1799998404,null,null],[1799998416,null,null],[1799998428,null,null],[1799998440,null,null],[1799998452,null,null],[1799998464,null,null],[1799998476,null,null],[1799998488,null,null],[1799998500,null,null],[1799998512,null,null],[1799998524,null,null],[1799998536,null,null],[1799998548,null,null],[1799998560,null,null],[1799998572,null,null],[1799998584,null,null],[1799998596,null,null],[1799998608,null,null],[1799998620,null,null],[1799998632,null,null],[1799998644,null,null],[1799998656,null,null],[1799998668,null,null],[1799998680,null,null],[1799998692,null,null],[1799998704,null,null],[1799998716,null,null],[1799998728,null,null],[1799998740,null,null],[1799998752,null,null],[1799998764,null,null],[1799998776,null,null],[1799998788,null,null],[1799998800,null,null],[1799998812,null,null],[1799998824,null,null],[1799998836,null,null],[1799998848,null,null],[1799998860,null,null],[1799998872,null,null],[1799998884,null,null],[1799998896,null,null],[1799998908,null,null],[1799998920,null,null],[1799998932,null,null],[1799998944,null,null],[1799998956,null,null],[1799998968,null,null],[1799998980,null,null],[1799998992,null,null],[1799999004,null,null],[1799999016,null,null],[1799999028,null,null],[1799999040,null,null],[1799999052,null,null],[1799999064,null,null],[1799999076,null,null],[1799999088,null,null],[1799999100,null,null],[1799999112,null,null],[1799999124,null,null],[1799999136,null,null],[1799999148,null,null],[1799999160,null,null],[1799999172,null,null],[1799999184,null,null],[1799999196,null,null],[1799999208,null,null],[1799999220,null,null],[1799999232,null,null],[1799999244,null,null],[1799999256,null,null],[1799999268,null,null],[1799999280,null,null],[1799999292,null,null],[1799999304,null,null],[1799999316,null,null],[1799999328,null,null],[1799999340,null,null],[1799999352,null,null],[1799999364,null,null],[1799999376,null,null],[1799999388,null,null],[1799999400,null,null],[1799999412,null,null],[1799999424,null,null],[1799999436,null,null],[1799999448,null,null],[1799999460,null,null],[1799999472,null,null],[1799999484,null,null],[1799999496,null,null],[1799999508,null,null],[1799999520,null,null],[1799999532,null,null],[1799999544,null,null],[1799999556,null,null],[1799999568,null,null],[1799999580,null,null],[1799999592,null,null],[1799999604,null,null],[1799999616,null,null],[1799999628,null,null],[1799999640,null,null],[1799999652,null,null],[1799999664,null,null],[1799999676,null,null],[1799999688,null,null],[1799999700,null,null],[1799999712,null,null],[1799999724,null,null],[1799999736,null,null],[1799999748,null,null],[1799999760,null,null],[1799999772,null,null],[1799999784,null,null],[1799999796,null,null],[1799999808,null,null],[1799999820,null,null],[1799999832,null,null],[1799999844,null,null],[1799999856,null,null],[1799999868,null,null],[1799999880,null,null],[1799999892,null,null],[1799999904,null,null],[1799999916,null,null],[1799999928,null,null],[1799999940,null,null],[1799999952,null,null],[1799999964,null,null],[1799999976,null,null],[1799999988,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=+300",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":12,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996412,null,null],[1799996424,null,null],[1799996436,null,null],[1799996448,null,null],[1799996460,null,null],[1799996472,null,null],[1799996484,null,null],[1799996496,null,null],[1799996508,null,null],[1799996520,null,null],[1799996532,null,null],[1799996544,null,null],[1799996556,null,null],[1799996568,null,null],[1799996580,null,null],[1799996592,null,null],[1799996604,null,null],[1799996616,null,null],[1799996628,null,null],[1799996640,null,null],[1799996652,null,null],[1799996664,null,null],[1799996676,null,null],[1799996688,null,null],[1799996700,null,null],[1799996712,null,null],[1799996724,null,null],[1799996736,null,null],[1799996748,null,null],[1799996760,null,null],[1799996772,null,null],[1799996784,null,null],[1799996796,null,null],[1799996808,null,null],[1799996820,null,null],[1799996832,null,null],[1799996844,null,null],[1799996856,null,null],[1799996868,null,null],[1799996880,null,null],[1799996892,null,null],[1799996904,null,null],[1799996916,null,null],[1799996928,null,null],[1799996940,null,null],[1799996952,null,null],[1799996964,null,null],[1799996976,null,null],[1799996988,null,null],[1799997000,null,null],[1799997012,null,null],[1799997024,null,null],[1799997036,null,null],[1799997048,null,null],[1799997060,null,null],[1799997072,null,null],[1799997084,null,null],[1799997096,null,null],[1799997108,null,null],[1799997120,null,null],[1799997132,null,null],[1799997144,null,null],[1799997156,null,null],[1799997168,null,null],[1799997180,null,null],[1799997192,null,null],[1799997204,null,null],[1799997216,null,null],[1799997228,null,null],[1799997240,null,null],[1799997252,null,null],[1799997264,null,null],[1799997276,null,null],[1799997288,null,null],[1799997300,null,null],[1799997312,null,null],[1799997324,null,null],[1799997336,null,null],[1799997348,null,null],[1799997360,null,null],[1799997372,null,null],[1799997384,null,null],[1799997396,null,null],[1799997408,null,null],[1799997420,null,null],[1799997432,null,null],[1799997444,null,null],[1799997456,null,null],[1799997468,null,null],[1799997480,null,null],[1799997492,null,null],[1799997504,null,null],[1799997516,null,null],[1799997528,null,null],[1799997540,null,null],[1799997552,null,null],[1799997564,null,null],[1799997576,null,null],[1799997588,null,null],[1799997600,null,null],[1799997612,null,null],[1799997624,null,null],[1799997636,null,null],[1799997648,null,null],[1799997660,null,null],[1799997672,null,null],[1799997684,null,null],[1799997696,null,null],[1799997708,null,null],[1799997720,null,null],[1799997732,null,null],[1799997744,null,null],[1799997756,null,null],[1799997768,null,null],[1799997780,null,null],[1799997792,null,null],[1799997804,null,null],[1799997816,null,null],[1799997828,null,null],[1799997840,null,null],[1799997852,null,null],[1799997864,null,null],[1799997876,null,null],[1799997888,null,null],[1799997900,null,null],[1799997912,null,null],[1799997924,null,null],[1799997936,null,null],[1799997948,null,null],[1799997960,null,null],[1799997972,null,null],[1799997984,null,null],[1799997996,null,null],[1799998008,null,null],[1799998020,null,null],[1799998032,null,null],[1799998044,null,null],[1799998056,null,null],[1799998068,null,null],[1799998080,null,null],[1799998092,null,null],[1799998104,null,null],[1799998116,null,null],[1799998128,null,null],[1799998140,null,null],[1799998152,null,null],[1799998164,null,null],[1799998176,null,null],[1799998188,null,null],[1799998200,null,null],[1799998212,null,null],[1799998224,null,null],[1799998236,null,null],[1799998248,null,null],[1799998260,null,null],[1799998272,null,null],[1799998284,null,null],[1799998296,null,null],[1799998308,null,null],[1799998320,null,null],[1799998332,null,null],[1799998344,null,null],[1799998356,null,null],[1799998368,null,null],[1799998380,null,null],[1799998392,null,null],[1799998404,null,null],[1799998416,null,null],[1799998428,null,null],[1799998440,null,null],[1799998452,null,null],[1799998464,null,null],[1799998476,null,null],[1799998488,null,null],[1799998500,null,null],[1799998512,null,null],[1799998524,null,null],[1799998536,null,null],[1799998548,null,null],[1799998560,null,null],[1799998572,null,null],[1799998584,null,null],[1799998596,null,null],[1799998608,null,null],[1799998620,null,null],[1799998632,null,null],[1799998644,null,null],[1799998656,null,null],[1799998668,null,null],[1799998680,null,null],[1799998692,null,null],[1799998704,null,null],[1799998716,null,null],[1799998728,null,null],[1799998740,null,null],[1799998752,null,null],[1799998764,null,null],[1799998776,null,null],[1799998788,null,null],[1799998800,null,null],[1799998812,null,null],[1799998824,null,null],[1799998836,null,null],[1799998848,null,null],[1799998860,null,null],[1799998872,null,null],[1799998884,null,null],[1799998896,null,null],[1799998908,null,null],[1799998920,null,null],[1799998932,null,null],[1799998944,null,null],[1799998956,null,null],[1799998968,null,null],[1799998980,null,null],[1799998992,null,null],[1799999004,null,null],[1799999016,null,null],[1799999028,null,null],[1799999040,null,null],[1799999052,null,null],[1799999064,null,null],[1799999076,null,null],[1799999088,null,null],[1799999100,null,null],[1799999112,null,null],[1799999124,null,null],[1799999136,null,null],[1799999148,null,null],[1799999160,null,null],[1799999172,null,null],[1799999184,null,null],[1799999196,null,null],[1799999208,null,null],[1799999220,null,null],[1799999232,null,null],[1799999244,null,null],[1799999256,null,null],[1799999268,null,null],[1799999280,null,null],[1799999292,null,null],[1799999304,null,null],[1799999316,null,null],[1799999328,null,null],[1799999340,null,null],[1799999352,null,null],[1799999364,null,null],[1799999376,null,null],[1799999388,null,null],[1799999400,null,null],[1799999412,null,null],[1799999424,null,null],[1799999436,null,null],[1799999448,null,null],[1799999460,null,null],[1799999472,null,null],[1799999484,null,null],[1799999496,null,null],[1799999508,null,null],[1799999520,null,null],[1799999532,null,null],[1799999544,null,null],[1799999556,null,null],[1799999568,null,null],[1799999580,null,null],[1799999592,null,null],[1799999604,null,null],[1799999616,null,null],[1799999628,null,null],[1799999640,null,null],[1799999652,null,null],[1799999664,null,null],[1799999676,null,null],[1799999688,null,null],[1799999700,null,null],[1799999712,null,null],[1799999724,null,null],[1799999736,null,null],[1799999748,null,null],[1799999760,null,null],[1799999772,null,null],[1799999784,null,null],[1799999796,null,null],[1799999808,null,null],[1799999820,null,null],[1799999832,null,null],[1799999844,null,null],[1799999856,null,null],[1799999868,null,null],[1799999880,null,null],[1799999892,null,null],[1799999904,null,null],[1799999916,null,null],[1799999928,null,null],[1799999940,null,null],[1799999952,null,null],[1799999964,null,null],[1799999976,null,null],[1799999988,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=%20300%20",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":12,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996412,null,null],[1799996424,null,null],[1799996436,null,null],[1799996448,null,null],[1799996460,null,null],[1799996472,null,null],[1799996484,null,null],[1799996496,null,null],[1799996508,null,null],[1799996520,null,null],[1799996532,null,null],[1799996544,null,null],[1799996556,null,null],[1799996568,null,null],[1799996580,null,null],[1799996592,null,null],[1799996604,null,null],[1799996616,null,null],[1799996628,null,null],[1799996640,null,null],[1799996652,null,null],[1799996664,null,null],[1799996676,null,null],[1799996688,null,null],[1799996700,null,null],[1799996712,null,null],[1799996724,null,null],[1799996736,null,null],[1799996748,null,null],[1799996760,null,null],[1799996772,null,null],[1799996784,null,null],[1799996796,null,null],[1799996808,null,null],[1799996820,null,null],[1799996832,null,null],[1799996844,null,null],[1799996856,null,null],[1799996868,null,null],[1799996880,null,null],[1799996892,null,null],[1799996904,null,null],[1799996916,null,null],[1799996928,null,null],[1799996940,null,null],[1799996952,null,null],[1799996964,null,null],[1799996976,null,null],[1799996988,null,null],[1799997000,null,null],[1799997012,null,null],[1799997024,null,null],[1799997036,null,null],[1799997048,null,null],[1799997060,null,null],[1799997072,null,null],[1799997084,null,null],[1799997096,null,null],[1799997108,null,null],[1799997120,null,null],[1799997132,null,null],[1799997144,null,null],[1799997156,null,null],[1799997168,null,null],[1799997180,null,null],[1799997192,null,null],[1799997204,null,null],[1799997216,null,null],[1799997228,null,null],[1799997240,null,null],[1799997252,null,null],[1799997264,null,null],[1799997276,null,null],[1799997288,null,null],[1799997300,null,null],[1799997312,null,null],[1799997324,null,null],[1799997336,null,null],[1799997348,null,null],[1799997360,null,null],[1799997372,null,null],[1799997384,null,null],[1799997396,null,null],[1799997408,null,null],[1799997420,null,null],[1799997432,null,null],[1799997444,null,null],[1799997456,null,null],[1799997468,null,null],[1799997480,null,null],[1799997492,null,null],[1799997504,null,null],[1799997516,null,null],[1799997528,null,null],[1799997540,null,null],[1799997552,null,null],[1799997564,null,null],[1799997576,null,null],[1799997588,null,null],[1799997600,null,null],[1799997612,null,null],[1799997624,null,null],[1799997636,null,null],[1799997648,null,null],[1799997660,null,null],[1799997672,null,null],[1799997684,null,null],[1799997696,null,null],[1799997708,null,null],[1799997720,null,null],[1799997732,null,null],[1799997744,null,null],[1799997756,null,null],[1799997768,null,null],[1799997780,null,null],[1799997792,null,null],[1799997804,null,null],[1799997816,null,null],[1799997828,null,null],[1799997840,null,null],[1799997852,null,null],[1799997864,null,null],[1799997876,null,null],[1799997888,null,null],[1799997900,null,null],[1799997912,null,null],[1799997924,null,null],[1799997936,null,null],[1799997948,null,null],[1799997960,null,null],[1799997972,null,null],[1799997984,null,null],[1799997996,null,null],[1799998008,null,null],[1799998020,null,null],[1799998032,null,null],[1799998044,null,null],[1799998056,null,null],[1799998068,null,null],[1799998080,null,null],[1799998092,null,null],[1799998104,null,null],[1799998116,null,null],[1799998128,null,null],[1799998140,null,null],[1799998152,null,null],[1799998164,null,null],[1799998176,null,null],[1799998188,null,null],[1799998200,null,null],[1799998212,null,null],[1799998224,null,null],[1799998236,null,null],[1799998248,null,null],[1799998260,null,null],[1799998272,null,null],[1799998284,null,null],[1799998296,null,null],[1799998308,null,null],[1799998320,null,null],[1799998332,null,null],[1799998344,null,null],[1799998356,null,null],[1799998368,null,null],[1799998380,null,null],[1799998392,null,null],[1799998404,null,null],[1799998416,null,null],[1799998428,null,null],[1799998440,null,null],[1799998452,null,null],[1799998464,null,null],[1799998476,null,null],[1799998488,null,null],[1799998500,null,null],[1799998512,null,null],[1799998524,null,null],[1799998536,null,null],[1799998548,null,null],[1799998560,null,null],[1799998572,null,null],[1799998584,null,null],[1799998596,null,null],[1799998608,null,null],[1799998620,null,null],[1799998632,null,null],[1799998644,null,null],[1799998656,null,null],[1799998668,null,null],[1799998680,null,null],[1799998692,null,null],[1799998704,null,null],[1799998716,null,null],[1799998728,null,null],[1799998740,null,null],[1799998752,null,null],[1799998764,null,null],[1799998776,null,null],[1799998788,null,null],[1799998800,null,null],[1799998812,null,null],[1799998824,null,null],[1799998836,null,null],[1799998848,null,null],[1799998860,null,null],[1799998872,null,null],[1799998884,null,null],[1799998896,null,null],[1799998908,null,null],[1799998920,null,null],[1799998932,null,null],[1799998944,null,null],[1799998956,null,null],[1799998968,null,null],[1799998980,null,null],[1799998992,null,null],[1799999004,null,null],[1799999016,null,null],[1799999028,null,null],[1799999040,null,null],[1799999052,null,null],[1799999064,null,null],[1799999076,null,null],[1799999088,null,null],[1799999100,null,null],[1799999112,null,null],[1799999124,null,null],[1799999136,null,null],[1799999148,null,null],[1799999160,null,null],[1799999172,null,null],[1799999184,null,null],[1799999196,null,null],[1799999208,null,null],[1799999220,null,null],[1799999232,null,null],[1799999244,null,null],[1799999256,null,null],[1799999268,null,null],[1799999280,null,null],[1799999292,null,null],[1799999304,null,null],[1799999316,null,null],[1799999328,null,null],[1799999340,null,null],[1799999352,null,null],[1799999364,null,null],[1799999376,null,null],[1799999388,null,null],[1799999400,null,null],[1799999412,null,null],[1799999424,null,null],[1799999436,null,null],[1799999448,null,null],[1799999460,null,null],[1799999472,null,null],[1799999484,null,null],[1799999496,null,null],[1799999508,null,null],[1799999520,null,null],[1799999532,null,null],[1799999544,null,null],[1799999556,null,null],[1799999568,null,null],[1799999580,null,null],[1799999592,null,null],[1799999604,null,null],[1799999616,null,null],[1799999628,null,null],[1799999640,null,null],[1799999652,null,null],[1799999664,null,null],[1799999676,null,null],[1799999688,null,null],[1799999700,null,null],[1799999712,null,null],[1799999724,null,null],[1799999736,null,null],[1799999748,null,null],[1799999760,null,null],[1799999772,null,null],[1799999784,null,null],[1799999796,null,null],[1799999808,null,null],[1799999820,null,null],[1799999832,null,null],[1799999844,null,null],[1799999856,null,null],[1799999868,null,null],[1799999880,null,null],[1799999892,null,null],[1799999904,null,null],[1799999916,null,null],[1799999928,null,null],[1799999940,null,null],[1799999952,null,null],[1799999964,null,null],[1799999976,null,null],[1799999988,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=1_000",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":4,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996408,null,null],[1799996412,null,null],[1799996416,null,null],[1799996420,null,null],[1799996424,null,null],[1799996428,null,null],[1799996432,null,null],[1799996436,null,null],[1799996440,null,null],[1799996444,null,null],[1799996448,null,null],[1799996452,null,null],[1799996456,null,null],[1799996460,null,null],[1799996464,null,null],[1799996468,null,null],[1799996472,null,null],[1799996476,null,null],[1799996480,null,null],[1799996484,null,null],[1799996488,null,null],[1799996492,null,null],[1799996496,null,null],[1799996500,null,null],[1799996504,null,null],[1799996508,null,null],[1799996512,null,null],[1799996516,null,null],[1799996520,null,null],[1799996524,null,null],[1799996528,null,null],[1799996532,null,null],[1799996536,null,null],[1799996540,null,null],[1799996544,null,null],[1799996548,null,null],[1799996552,null,null],[1799996556,null,null],[1799996560,null,null],[1799996564,null,null],[1799996568,null,null],[1799996572,null,null],[1799996576,null,null],[1799996580,null,null],[1799996584,null,null],[1799996588,null,null],[1799996592,null,null],[1799996596,null,null],[1799996600,null,null],[1799996604,null,null],[1799996608,null,null],[1799996612,null,null],[1799996616,null,null],[1799996620,null,null],[1799996624,null,null],[1799996628,null,null],[1799996632,null,null],[1799996636,null,null],[1799996640,null,null],[1799996644,null,null],[1799996648,null,null],[1799996652,null,null],[1799996656,null,null],[1799996660,null,null],[1799996664,null,null],[1799996668,null,null],[1799996672,null,null],[1799996676,null,null],[1799996680,null,null],[1799996684,null,null],[1799996688,null,null],[1799996692,null,null],[1799996696,null,null],[1799996700,null,null],[1799996704,null,null],[1799996708,null,null],[1799996712,null,null],[1799996716,null,null],[1799996720,null,null],[1799996724,null,null],[1799996728,null,null],[1799996732,null,null],[1799996736,null,null],[1799996740,null,null],[1799996744,null,null],[1799996748,null,null],[1799996752,null,null],[1799996756,null,null],[1799996760,null,null],[1799996764,null,null],[1799996768,null,null],[1799996772,null,null],[1799996776,null,null],[1799996780,null,null],[1799996784,null,null],[1799996788,null,null],[1799996792,null,null],[1799996796,null,null],[1799996800,null,null],[1799996804,null,null],[1799996808,null,null],[1799996812,null,null],[1799996816,null,null],[1799996820,null,null],[1799996824,null,null],[1799996828,null,null],[1799996832,null,null],[1799996836,null,null],[1799996840,null,null],[1799996844,null,null],[1799996848,null,null],[1799996852,null,null],[1799996856,null,null],[1799996860,null,null],[1799996864,null,null],[1799996868,null,null],[1799996872,null,null],[1799996876,null,null],[1799996880,null,null],[1799996884,null,null],[1799996888,null,null],[1799996892,null,null],[1799996896,null,null],[1799996900,null,null],[1799996904,null,null],[1799996908,null,null],[1799996912,null,null],[1799996916,null,null],[1799996920,null,null],[1799996924,null,null],[1799996928,null,null],[1799996932,null,null],[1799996936,null,null],[1799996940,null,null],[1799996944,null,null],[1799996948,null,null],[1799996952,null,null],[1799996956,null,null],[1799996960,null,null],[1799996964,null,null],[1799996968,null,null],[1799996972,null,null],[1799996976,null,null],[1799996980,null,null],[1799996984,null,null],[1799996988,null,null],[1799996992,null,null],[1799996996,null,null],[1799997000,null,null],[1799997004,null,null],[1799997008,null,null],[1799997012,null,null],[1799997016,null,null],[1799997020,null,null],[1799997024,null,null],[1799997028,null,null],[1799997032,null,null],[1799997036,null,null],[1799997040,null,null],[1799997044,null,null],[1799997048,null,null],[1799997052,null,null],[1799997056,null,null],[1799997060,null,null],[1799997064,null,null],[1799997068,null,null],[1799997072,null,null],[1799997076,null,null],[1799997080,null,null],[1799997084,null,null],[1799997088,null,null],[1799997092,null,null],[1799997096,null,null],[1799997100,null,null],[1799997104,null,null],[1799997108,null,null],[1799997112,null,null],[1799997116,null,null],[1799997120,null,null],[1799997124,null,null],[1799997128,null,null],[1799997132,null,null],[1799997136,null,null],[1799997140,null,null],[1799997144,null,null],[1799997148,null,null],[1799997152,null,null],[1799997156,null,null],[1799997160,null,null],[1799997164,null,null],[1799997168,null,null],[1799997172,null,null],[1799997176,null,null],[1799997180,null,null],[1799997184,null,null],[1799997188,null,null],[1799997192,null,null],[1799997196,null,null],[1799997200,null,null],[1799997204,null,null],[1799997208,null,null],[1799997212,null,null],[1799997216,null,null],[1799997220,null,null],[1799997224,null,null],[1799997228,null,null],[1799997232,null,null],[1799997236,null,null],[1799997240,null,null],[1799997244,null,null],[1799997248,null,null],[1799997252,null,null],[1799997256,null,null],[1799997260,null,null],[1799997264,null,null],[1799997268,null,null],[1799997272,null,null],[1799997276,null,null],[1799997280,null,null],[1799997284,null,null],[1799997288,null,null],[1799997292,null,null],[1799997296,null,null],[1799997300,null,null],[1799997304,null,null],[1799997308,null,null],[1799997312,null,null],[1799997316,null,null],[1799997320,null,null],[1799997324,null,null],[1799997328,null,null],[1799997332,null,null],[1799997336,null,null],[1799997340,null,null],[1799997344,null,null],[1799997348,null,null],[1799997352,null,null],[1799997356,null,null],[1799997360,null,null],[1799997364,null,null],[1799997368,null,null],[1799997372,null,null],[1799997376,null,null],[1799997380,null,null],[1799997384,null,null],[1799997388,null,null],[1799997392,null,null],[1799997396,null,null],[1799997400,null,null],[1799997404,null,null],[1799997408,null,null],[1799997412,null,null],[1799997416,null,null],[1799997420,null,null],[1799997424,null,null],[1799997428,null,null],[1799997432,null,null],[1799997436,null,null],[1799997440,null,null],[1799997444,null,null],[1799997448,null,null],[1799997452,null,null],[1799997456,null,null],[1799997460,null,null],[1799997464,null,null],[1799997468,null,null],[1799997472,null,null],[1799997476,null,null],[1799997480,null,null],[1799997484,null,null],[1799997488,null,null],[1799997492,null,null],[1799997496,null,null],[1799997500,null,null],[1799997504,null,null],[1799997508,null,null],[1799997512,null,null],[1799997516,null,null],[1799997520,null,null],[1799997524,null,null],[1799997528,null,null],[1799997532,null,null],[1799997536,null,null],[1799997540,null,null],[1799997544,null,null],[1799997548,null,null],[1799997552,null,null],[1799997556,null,null],[1799997560,null,null],[1799997564,null,null],[1799997568,null,null],[1799997572,null,null],[1799997576,null,null],[1799997580,null,null],[1799997584,null,null],[1799997588,null,null],[1799997592,null,null],[1799997596,null,null],[1799997600,null,null],[1799997604,null,null],[1799997608,null,null],[1799997612,null,null],[1799997616,null,null],[1799997620,null,null],[1799997624,null,null],[1799997628,null,null],[1799997632,null,null],[1799997636,null,null],[1799997640,null,null],[1799997644,null,null],[1799997648,null,null],[1799997652,null,null],[1799997656,null,null],[1799997660,null,null],[1799997664,null,null],[1799997668,null,null],[1799997672,null,null],[1799997676,null,null],[1799997680,null,null],[1799997684,null,null],[1799997688,null,null],[1799997692,null,null],[1799997696,null,null],[1799997700,null,null],[1799997704,null,null],[1799997708,null,null],[1799997712,null,null],[1799997716,null,null],[1799997720,null,null],[1799997724,null,null],[1799997728,null,null],[1799997732,null,null],[1799997736,null,null],[1799997740,null,null],[1799997744,null,null],[1799997748,null,null],[1799997752,null,null],[1799997756,null,null],[1799997760,null,null],[1799997764,null,null],[1799997768,null,null],[1799997772,null,null],[1799997776,null,null],[1799997780,null,null],[1799997784,null,null],[1799997788,null,null],[1799997792,null,null],[1799997796,null,null],[1799997800,null,null],[1799997804,null,null],[1799997808,null,null],[1799997812,null,null],[1799997816,null,null],[1799997820,null,null],[1799997824,null,null],[1799997828,null,null],[1799997832,null,null],[1799997836,null,null],[1799997840,null,null],[1799997844,null,null],[1799997848,null,null],[1799997852,null,null],[1799997856,null,null],[1799997860,null,null],[1799997864,null,null],[1799997868,null,null],[1799997872,null,null],[1799997876,null,null],[1799997880,null,null],[1799997884,null,null],[1799997888,null,null],[1799997892,null,null],[1799997896,null,null],[1799997900,null,null],[1799997904,null,null],[1799997908,null,null],[1799997912,null,null],[1799997916,null,null],[1799997920,null,null],[1799997924,null,null],[1799997928,null,null],[1799997932,null,null],[1799997936,null,null],[1799997940,null,null],[1799997944,null,null],[1799997948,null,null],[1799997952,null,null],[1799997956,null,null],[1799997960,null,null],[1799997964,null,null],[1799997968,null,null],[1799997972,null,null],[1799997976,null,null],[1799997980,null,null],[1799997984,null,null],[1799997988,null,null],[1799997992,null,null],[1799997996,null,null],[1799998000,null,null],[1799998004,null,null],[1799998008,null,null],[1799998012,null,null],[1799998016,null,null],[1799998020,null,null],[1799998024,null,null],[1799998028,null,null],[1799998032,null,null],[1799998036,null,null],[1799998040,null,null],[1799998044,null,null],[1799998048,null,null],[1799998052,null,null],[1799998056,null,null],[1799998060,null,null],[1799998064,null,null],[1799998068,null,null],[1799998072,null,null],[1799998076,null,null],[1799998080,null,null],[1799998084,null,null],[1799998088,null,null],[1799998092,null,null],[1799998096,null,null],[1799998100,null,null],[1799998104,null,null],[1799998108,null,null],[1799998112,null,null],[1799998116,null,null],[1799998120,null,null],[1799998124,null,null],[1799998128,null,null],[1799998132,null,null],[1799998136,null,null],[1799998140,null,null],[1799998144,null,null],[1799998148,null,null],[1799998152,null,null],[1799998156,null,null],[1799998160,null,null],[1799998164,null,null],[1799998168,null,null],[1799998172,null,null],[1799998176,null,null],[1799998180,null,null],[1799998184,null,null],[1799998188,null,null],[1799998192,null,null],[1799998196,null,null],[1799998200,null,null],[1799998204,null,null],[1799998208,null,null],[1799998212,null,null],[1799998216,null,null],[1799998220,null,null],[1799998224,null,null],[1799998228,null,null],[1799998232,null,null],[1799998236,null,null],[1799998240,null,null],[1799998244,null,null],[1799998248,null,null],[1799998252,null,null],[1799998256,null,null],[1799998260,null,null],[1799998264,null,null],[1799998268,null,null],[1799998272,null,null],[1799998276,null,null],[1799998280,null,null],[1799998284,null,null],[1799998288,null,null],[1799998292,null,null],[1799998296,null,null],[1799998300,null,null],[1799998304,null,null],[1799998308,null,null],[1799998312,null,null],[1799998316,null,null],[1799998320,null,null],[1799998324,null,null],[1799998328,null,null],[1799998332,null,null],[1799998336,null,null],[1799998340,null,null],[1799998344,null,null],[1799998348,null,null],[1799998352,null,null],[1799998356,null,null],[1799998360,null,null],[1799998364,null,null],[1799998368,null,null],[1799998372,null,null],[1799998376,null,null],[1799998380,null,null],[1799998384,null,null],[1799998388,null,null],[1799998392,null,null],[1799998396,null,null],[1799998400,null,null],[1799998404,null,null],[1799998408,null,null],[1799998412,null,null],[1799998416,null,null],[1799998420,null,null],[1799998424,null,null],[1799998428,null,null],[1799998432,null,null],[1799998436,null,null],[1799998440,null,null],[1799998444,null,null],[1799998448,null,null],[1799998452,null,null],[1799998456,null,null],[1799998460,null,null],[1799998464,null,null],[1799998468,null,null],[1799998472,null,null],[1799998476,null,null],[1799998480,null,null],[1799998484,null,null],[1799998488,null,null],[1799998492,null,null],[1799998496,null,null],[1799998500,null,null],[1799998504,null,null],[1799998508,null,null],[1799998512,null,null],[1799998516,null,null],[1799998520,null,null],[1799998524,null,null],[1799998528,null,null],[1799998532,null,null],[1799998536,null,null],[1799998540,null,null],[1799998544,null,null],[1799998548,null,null],[1799998552,null,null],[1799998556,null,null],[1799998560,null,null],[1799998564,null,null],[1799998568,null,null],[1799998572,null,null],[1799998576,null,null],[1799998580,null,null],[1799998584,null,null],[1799998588,null,null],[1799998592,null,null],[1799998596,null,null],[1799998600,null,null],[1799998604,null,null],[1799998608,null,null],[1799998612,null,null],[1799998616,null,null],[1799998620,null,null],[1799998624,null,null],[1799998628,null,null],[1799998632,null,null],[1799998636,null,null],[1799998640,null,null],[1799998644,null,null],[1799998648,null,null],[1799998652,null,null],[1799998656,null,null],[1799998660,null,null],[1799998664,null,null],[1799998668,null,null],[1799998672,null,null],[1799998676,null,null],[1799998680,null,null],[1799998684,null,null],[1799998688,null,null],[1799998692,null,null],[1799998696,null,null],[1799998700,null,null],[1799998704,null,null],[1799998708,null,null],[1799998712,null,null],[1799998716,null,null],[1799998720,null,null],[1799998724,null,null],[1799998728,null,null],[1799998732,null,null],[1799998736,null,null],[1799998740,null,null],[1799998744,null,null],[1799998748,null,null],[1799998752,null,null],[1799998756,null,null],[1799998760,null,null],[1799998764,null,null],[1799998768,null,null],[1799998772,null,null],[1799998776,null,null],[1799998780,null,null],[1799998784,null,null],[1799998788,null,null],[1799998792,null,null],[1799998796,null,null],[1799998800,null,null],[1799998804,null,null],[1799998808,null,null],[1799998812,null,null],[1799998816,null,null],[1799998820,null,null],[1799998824,null,null],[1799998828,null,null],[1799998832,null,null],[1799998836,null,null],[1799998840,null,null],[1799998844,null,null],[1799998848,null,null],[1799998852,null,null],[1799998856,null,null],[1799998860,null,null],[1799998864,null,null],[1799998868,null,null],[1799998872,null,null],[1799998876,null,null],[1799998880,null,null],[1799998884,null,null],[1799998888,null,null],[1799998892,null,null],[1799998896,null,null],[1799998900,null,null],[1799998904,null,null],[1799998908,null,null],[1799998912,null,null],[1799998916,null,null],[1799998920,null,null],[1799998924,null,null],[1799998928,null,null],[1799998932,null,null],[1799998936,null,null],[1799998940,null,null],[1799998944,null,null],[1799998948,null,null],[1799998952,null,null],[1799998956,null,null],[1799998960,null,null],[1799998964,null,null],[1799998968,null,null],[1799998972,null,null],[1799998976,null,null],[1799998980,null,null],[1799998984,null,null],[1799998988,null,null],[1799998992,null,null],[1799998996,null,null],[1799999000,null,null],[1799999004,null,null],[1799999008,null,null],[1799999012,null,null],[1799999016,null,null],[1799999020,null,null],[1799999024,null,null],[1799999028,null,null],[1799999032,null,null],[1799999036,null,null],[1799999040,null,null],[1799999044,null,null],[1799999048,null,null],[1799999052,null,null],[1799999056,null,null],[1799999060,null,null],[1799999064,null,null],[1799999068,null,null],[1799999072,null,null],[1799999076,null,null],[1799999080,null,null],[1799999084,null,null],[1799999088,null,null],[1799999092,null,null],[1799999096,null,null],[1799999100,null,null],[1799999104,null,null],[1799999108,null,null],[1799999112,null,null],[1799999116,null,null],[1799999120,null,null],[1799999124,null,null],[1799999128,null,null],[1799999132,null,null],[1799999136,null,null],[1799999140,null,null],[1799999144,null,null],[1799999148,null,null],[1799999152,null,null],[1799999156,null,null],[1799999160,null,null],[1799999164,null,null],[1799999168,null,null],[1799999172,null,null],[1799999176,null,null],[1799999180,null,null],[1799999184,null,null],[1799999188,null,null],[1799999192,null,null],[1799999196,null,null],[1799999200,null,null],[1799999204,null,null],[1799999208,null,null],[1799999212,null,null],[1799999216,null,null],[1799999220,null,null],[1799999224,null,null],[1799999228,null,null],[1799999232,null,null],[1799999236,null,null],[1799999240,null,null],[1799999244,null,null],[1799999248,null,null],[1799999252,null,null],[1799999256,null,null],[1799999260,null,null],[1799999264,null,null],[1799999268,null,null],[1799999272,null,null],[1799999276,null,null],[1799999280,null,null],[1799999284,null,null],[1799999288,null,null],[1799999292,null,null],[1799999296,null,null],[1799999300,null,null],[1799999304,null,null],[1799999308,null,null],[1799999312,null,null],[1799999316,null,null],[1799999320,null,null],[1799999324,null,null],[1799999328,null,null],[1799999332,null,null],[1799999336,null,null],[1799999340,null,null],[1799999344,null,null],[1799999348,null,null],[1799999352,null,null],[1799999356,null,null],[1799999360,null,null],[1799999364,null,null],[1799999368,null,null],[1799999372,null,null],[1799999376,null,null],[1799999380,null,null],[1799999384,null,null],[1799999388,null,null],[1799999392,null,null],[1799999396,null,null],[1799999400,null,null],[1799999404,null,null],[1799999408,null,null],[1799999412,null,null],[1799999416,null,null],[1799999420,null,null],[1799999424,null,null],[1799999428,null,null],[1799999432,null,null],[1799999436,null,null],[1799999440,null,null],[1799999444,null,null],[1799999448,null,null],[1799999452,null,null],[1799999456,null,null],[1799999460,null,null],[1799999464,null,null],[1799999468,null,null],[1799999472,null,null],[1799999476,null,null],[1799999480,null,null],[1799999484,null,null],[1799999488,null,null],[1799999492,null,null],[1799999496,null,null],[1799999500,null,null],[1799999504,null,null],[1799999508,null,null],[1799999512,null,null],[1799999516,null,null],[1799999520,null,null],[1799999524,null,null],[1799999528,null,null],[1799999532,null,null],[1799999536,null,null],[1799999540,null,null],[1799999544,null,null],[1799999548,null,null],[1799999552,null,null],[1799999556,null,null],[1799999560,null,null],[1799999564,null,null],[1799999568,null,null],[1799999572,null,null],[1799999576,null,null],[1799999580,null,null],[1799999584,null,null],[1799999588,null,null],[1799999592,null,null],[1799999596,null,null],[1799999600,null,null],[1799999604,null,null],[1799999608,null,null],[1799999612,null,null],[1799999616,null,null],[1799999620,null,null],[1799999624,null,null],[1799999628,null,null],[1799999632,null,null],[1799999636,null,null],[1799999640,null,null],[1799999644,null,null],[1799999648,null,null],[1799999652,null,null],[1799999656,null,null],[1799999660,null,null],[1799999664,null,null],[1799999668,null,null],[1799999672,null,null],[1799999676,null,null],[1799999680,null,null],[1799999684,null,null],[1799999688,null,null],[1799999692,null,null],[1799999696,null,null],[1799999700,null,null],[1799999704,null,null],[1799999708,null,null],[1799999712,null,null],[1799999716,null,null],[1799999720,null,null],[1799999724,null,null],[1799999728,null,null],[1799999732,null,null],[1799999736,null,null],[1799999740,null,null],[1799999744,null,null],[1799999748,null,null],[1799999752,null,null],[1799999756,null,null],[1799999760,null,null],[1799999764,null,null],[1799999768,null,null],[1799999772,null,null],[1799999776,null,null],[1799999780,null,null],[1799999784,null,null],[1799999788,null,null],[1799999792,null,null],[1799999796,null,null],[1799999800,null,null],[1799999804,null,null],[1799999808,null,null],[1799999812,null,null],[1799999816,null,null],[1799999820,null,null],[1799999824,null,null],[1799999828,null,null],[1799999832,null,null],[1799999836,null,null],[1799999840,null,null],[1799999844,null,null],[1799999848,null,null],[1799999852,null,null],[1799999856,null,null],[1799999860,null,null],[1799999864,null,null],[1799999868,null,null],[1799999872,null,null],[1799999876,null,null],[1799999880,null,null],[1799999884,null,null],[1799999888,null,null],[1799999892,null,null],[1799999896,null,null],[1799999900,null,null],[1799999904,null,null],[1799999908,null,null],[1799999912,null,null],[1799999916,null,null],[1799999920,null,null],[1799999924,null,null],[1799999928,null,null],[1799999932,null,null],[1799999936,null,null],[1799999940,null,null],[1799999944,null,null],[1799999948,null,null],[1799999952,null,null],[1799999956,null,null],[1799999960,null,null],[1799999964,null,null],[1799999968,null,null],[1799999972,null,null],[1799999976,null,null],[1799999980,null,null],[1799999984,null,null],[1799999988,null,null],[1799999992,null,null],[1799999996,null,null],[1800000000,12.5,12.5],[1800000004,12.5,12.5],[1800000008,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=300.0",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":12,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996412,null,null],[1799996424,null,null],[1799996436,null,null],[1799996448,null,null],[1799996460,null,null],[1799996472,null,null],[1799996484,null,null],[1799996496,null,null],[1799996508,null,null],[1799996520,null,null],[1799996532,null,null],[1799996544,null,null],[1799996556,null,null],[1799996568,null,null],[1799996580,null,null],[1799996592,null,null],[1799996604,null,null],[1799996616,null,null],[1799996628,null,null],[1799996640,null,null],[1799996652,null,null],[1799996664,null,null],[1799996676,null,null],[1799996688,null,null],[1799996700,null,null],[1799996712,null,null],[1799996724,null,null],[1799996736,null,null],[1799996748,null,null],[1799996760,null,null],[1799996772,null,null],[1799996784,null,null],[1799996796,null,null],[1799996808,null,null],[1799996820,null,null],[1799996832,null,null],[1799996844,null,null],[1799996856,null,null],[1799996868,null,null],[1799996880,null,null],[1799996892,null,null],[1799996904,null,null],[1799996916,null,null],[1799996928,null,null],[1799996940,null,null],[1799996952,null,null],[1799996964,null,null],[1799996976,null,null],[1799996988,null,null],[1799997000,null,null],[1799997012,null,null],[1799997024,null,null],[1799997036,null,null],[1799997048,null,null],[1799997060,null,null],[1799997072,null,null],[1799997084,null,null],[1799997096,null,null],[1799997108,null,null],[1799997120,null,null],[1799997132,null,null],[1799997144,null,null],[1799997156,null,null],[1799997168,null,null],[1799997180,null,null],[1799997192,null,null],[1799997204,null,null],[1799997216,null,null],[1799997228,null,null],[1799997240,null,null],[1799997252,null,null],[1799997264,null,null],[1799997276,null,null],[1799997288,null,null],[1799997300,null,null],[1799997312,null,null],[1799997324,null,null],[1799997336,null,null],[1799997348,null,null],[1799997360,null,null],[1799997372,null,null],[1799997384,null,null],[1799997396,null,null],[1799997408,null,null],[1799997420,null,null],[1799997432,null,null],[1799997444,null,null],[1799997456,null,null],[1799997468,null,null],[1799997480,null,null],[1799997492,null,null],[1799997504,null,null],[1799997516,null,null],[1799997528,null,null],[1799997540,null,null],[1799997552,null,null],[1799997564,null,null],[1799997576,null,null],[1799997588,null,null],[1799997600,null,null],[1799997612,null,null],[1799997624,null,null],[1799997636,null,null],[1799997648,null,null],[1799997660,null,null],[1799997672,null,null],[1799997684,null,null],[1799997696,null,null],[1799997708,null,null],[1799997720,null,null],[1799997732,null,null],[1799997744,null,null],[1799997756,null,null],[1799997768,null,null],[1799997780,null,null],[1799997792,null,null],[1799997804,null,null],[1799997816,null,null],[1799997828,null,null],[1799997840,null,null],[1799997852,null,null],[1799997864,null,null],[1799997876,null,null],[1799997888,null,null],[1799997900,null,null],[1799997912,null,null],[1799997924,null,null],[1799997936,null,null],[1799997948,null,null],[1799997960,null,null],[1799997972,null,null],[1799997984,null,null],[1799997996,null,null],[1799998008,null,null],[1799998020,null,null],[1799998032,null,null],[1799998044,null,null],[1799998056,null,null],[1799998068,null,null],[1799998080,null,null],[1799998092,null,null],[1799998104,null,null],[1799998116,null,null],[1799998128,null,null],[1799998140,null,null],[1799998152,null,null],[1799998164,null,null],[1799998176,null,null],[1799998188,null,null],[1799998200,null,null],[1799998212,null,null],[1799998224,null,null],[1799998236,null,null],[1799998248,null,null],[1799998260,null,null],[1799998272,null,null],[1799998284,null,null],[1799998296,null,null],[1799998308,null,null],[1799998320,null,null],[1799998332,null,null],[1799998344,null,null],[1799998356,null,null],[1799998368,null,null],[1799998380,null,null],[1799998392,null,null],[1799998404,null,null],[1799998416,null,null],[1799998428,null,null],[1799998440,null,null],[1799998452,null,null],[1799998464,null,null],[1799998476,null,null],[1799998488,null,null],[1799998500,null,null],[1799998512,null,null],[1799998524,null,null],[1799998536,null,null],[1799998548,null,null],[1799998560,null,null],[1799998572,null,null],[1799998584,null,null],[1799998596,null,null],[1799998608,null,null],[1799998620,null,null],[1799998632,null,null],[1799998644,null,null],[1799998656,null,null],[1799998668,null,null],[1799998680,null,null],[1799998692,null,null],[1799998704,null,null],[1799998716,null,null],[1799998728,null,null],[1799998740,null,null],[1799998752,null,null],[1799998764,null,null],[1799998776,null,null],[1799998788,null,null],[1799998800,null,null],[1799998812,null,null],[1799998824,null,null],[1799998836,null,null],[1799998848,null,null],[1799998860,null,null],[1799998872,null,null],[1799998884,null,null],[1799998896,null,null],[1799998908,null,null],[1799998920,null,null],[1799998932,null,null],[1799998944,null,null],[1799998956,null,null],[1799998968,null,null],[1799998980,null,null],[1799998992,null,null],[1799999004,null,null],[1799999016,null,null],[1799999028,null,null],[1799999040,null,null],[1799999052,null,null],[1799999064,null,null],[1799999076,null,null],[1799999088,null,null],[1799999100,null,null],[1799999112,null,null],[1799999124,null,null],[1799999136,null,null],[1799999148,null,null],[1799999160,null,null],[1799999172,null,null],[1799999184,null,null],[1799999196,null,null],[1799999208,null,null],[1799999220,null,null],[1799999232,null,null],[1799999244,null,null],[1799999256,null,null],[1799999268,null,null],[1799999280,null,null],[1799999292,null,null],[1799999304,null,null],[1799999316,null,null],[1799999328,null,null],[1799999340,null,null],[1799999352,null,null],[1799999364,null,null],[1799999376,null,null],[1799999388,null,null],[1799999400,null,null],[1799999412,null,null],[1799999424,null,null],[1799999436,null,null],[1799999448,null,null],[1799999460,null,null],[1799999472,null,null],[1799999484,null,null],[1799999496,null,null],[1799999508,null,null],[1799999520,null,null],[1799999532,null,null],[1799999544,null,null],[1799999556,null,null],[1799999568,null,null],[1799999580,null,null],[1799999592,null,null],[1799999604,null,null],[1799999616,null,null],[1799999628,null,null],[1799999640,null,null],[1799999652,null,null],[1799999664,null,null],[1799999676,null,null],[1799999688,null,null],[1799999700,null,null],[1799999712,null,null],[1799999724,null,null],[1799999736,null,null],[1799999748,null,null],[1799999760,null,null],[1799999772,null,null],[1799999784,null,null],[1799999796,null,null],[1799999808,null,null],[1799999820,null,null],[1799999832,null,null],[1799999844,null,null],[1799999856,null,null],[1799999868,null,null],[1799999880,null,null],[1799999892,null,null],[1799999904,null,null],[1799999916,null,null],[1799999928,null,null],[1799999940,null,null],[1799999952,null,null],[1799999964,null,null],[1799999976,null,null],[1799999988,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=0300",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":12,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996412,null,null],[1799996424,null,null],[1799996436,null,null],[1799996448,null,null],[1799996460,null,null],[1799996472,null,null],[1799996484,null,null],[1799996496,null,null],[1799996508,null,null],[1799996520,null,null],[1799996532,null,null],[1799996544,null,null],[1799996556,null,null],[1799996568,null,null],[1799996580,null,null],[1799996592,null,null],[1799996604,null,null],[1799996616,null,null],[1799996628,null,null],[1799996640,null,null],[1799996652,null,null],[1799996664,null,null],[1799996676,null,null],[1799996688,null,null],[1799996700,null,null],[1799996712,null,null],[1799996724,null,null],[1799996736,null,null],[1799996748,null,null],[1799996760,null,null],[1799996772,null,null],[1799996784,null,null],[1799996796,null,null],[1799996808,null,null],[1799996820,null,null],[1799996832,null,null],[1799996844,null,null],[1799996856,null,null],[1799996868,null,null],[1799996880,null,null],[1799996892,null,null],[1799996904,null,null],[1799996916,null,null],[1799996928,null,null],[1799996940,null,null],[1799996952,null,null],[1799996964,null,null],[1799996976,null,null],[1799996988,null,null],[1799997000,null,null],[1799997012,null,null],[1799997024,null,null],[1799997036,null,null],[1799997048,null,null],[1799997060,null,null],[1799997072,null,null],[1799997084,null,null],[1799997096,null,null],[1799997108,null,null],[1799997120,null,null],[1799997132,null,null],[1799997144,null,null],[1799997156,null,null],[1799997168,null,null],[1799997180,null,null],[1799997192,null,null],[1799997204,null,null],[1799997216,null,null],[1799997228,null,null],[1799997240,null,null],[1799997252,null,null],[1799997264,null,null],[1799997276,null,null],[1799997288,null,null],[1799997300,null,null],[1799997312,null,null],[1799997324,null,null],[1799997336,null,null],[1799997348,null,null],[1799997360,null,null],[1799997372,null,null],[1799997384,null,null],[1799997396,null,null],[1799997408,null,null],[1799997420,null,null],[1799997432,null,null],[1799997444,null,null],[1799997456,null,null],[1799997468,null,null],[1799997480,null,null],[1799997492,null,null],[1799997504,null,null],[1799997516,null,null],[1799997528,null,null],[1799997540,null,null],[1799997552,null,null],[1799997564,null,null],[1799997576,null,null],[1799997588,null,null],[1799997600,null,null],[1799997612,null,null],[1799997624,null,null],[1799997636,null,null],[1799997648,null,null],[1799997660,null,null],[1799997672,null,null],[1799997684,null,null],[1799997696,null,null],[1799997708,null,null],[1799997720,null,null],[1799997732,null,null],[1799997744,null,null],[1799997756,null,null],[1799997768,null,null],[1799997780,null,null],[1799997792,null,null],[1799997804,null,null],[1799997816,null,null],[1799997828,null,null],[1799997840,null,null],[1799997852,null,null],[1799997864,null,null],[1799997876,null,null],[1799997888,null,null],[1799997900,null,null],[1799997912,null,null],[1799997924,null,null],[1799997936,null,null],[1799997948,null,null],[1799997960,null,null],[1799997972,null,null],[1799997984,null,null],[1799997996,null,null],[1799998008,null,null],[1799998020,null,null],[1799998032,null,null],[1799998044,null,null],[1799998056,null,null],[1799998068,null,null],[1799998080,null,null],[1799998092,null,null],[1799998104,null,null],[1799998116,null,null],[1799998128,null,null],[1799998140,null,null],[1799998152,null,null],[1799998164,null,null],[1799998176,null,null],[1799998188,null,null],[1799998200,null,null],[1799998212,null,null],[1799998224,null,null],[1799998236,null,null],[1799998248,null,null],[1799998260,null,null],[1799998272,null,null],[1799998284,null,null],[1799998296,null,null],[1799998308,null,null],[1799998320,null,null],[1799998332,null,null],[1799998344,null,null],[1799998356,null,null],[1799998368,null,null],[1799998380,null,null],[1799998392,null,null],[1799998404,null,null],[1799998416,null,null],[1799998428,null,null],[1799998440,null,null],[1799998452,null,null],[1799998464,null,null],[1799998476,null,null],[1799998488,null,null],[1799998500,null,null],[1799998512,null,null],[1799998524,null,null],[1799998536,null,null],[1799998548,null,null],[1799998560,null,null],[1799998572,null,null],[1799998584,null,null],[1799998596,null,null],[1799998608,null,null],[1799998620,null,null],[1799998632,null,null],[1799998644,null,null],[1799998656,null,null],[1799998668,null,null],[1799998680,null,null],[1799998692,null,null],[1799998704,null,null],[1799998716,null,null],[1799998728,null,null],[1799998740,null,null],[1799998752,null,null],[1799998764,null,null],[1799998776,null,null],[1799998788,null,null],[1799998800,null,null],[1799998812,null,null],[1799998824,null,null],[1799998836,null,null],[1799998848,null,null],[1799998860,null,null],[1799998872,null,null],[1799998884,null,null],[1799998896,null,null],[1799998908,null,null],[1799998920,null,null],[1799998932,null,null],[1799998944,null,null],[1799998956,null,null],[1799998968,null,null],[1799998980,null,null],[1799998992,null,null],[1799999004,null,null],[1799999016,null,null],[1799999028,null,null],[1799999040,null,null],[1799999052,null,null],[1799999064,null,null],[1799999076,null,null],[1799999088,null,null],[1799999100,null,null],[1799999112,null,null],[1799999124,null,null],[1799999136,null,null],[1799999148,null,null],[1799999160,null,null],[1799999172,null,null],[1799999184,null,null],[1799999196,null,null],[1799999208,null,null],[1799999220,null,null],[1799999232,null,null],[1799999244,null,null],[1799999256,null,null],[1799999268,null,null],[1799999280,null,null],[1799999292,null,null],[1799999304,null,null],[1799999316,null,null],[1799999328,null,null],[1799999340,null,null],[1799999352,null,null],[1799999364,null,null],[1799999376,null,null],[1799999388,null,null],[1799999400,null,null],[1799999412,null,null],[1799999424,null,null],[1799999436,null,null],[1799999448,null,null],[1799999460,null,null],[1799999472,null,null],[1799999484,null,null],[1799999496,null,null],[1799999508,null,null],[1799999520,null,null],[1799999532,null,null],[1799999544,null,null],[1799999556,null,null],[1799999568,null,null],[1799999580,null,null],[1799999592,null,null],[1799999604,null,null],[1799999616,null,null],[1799999628,null,null],[1799999640,null,null],[1799999652,null,null],[1799999664,null,null],[1799999676,null,null],[1799999688,null,null],[1799999700,null,null],[1799999712,null,null],[1799999724,null,null],[1799999736,null,null],[1799999748,null,null],[1799999760,null,null],[1799999772,null,null],[1799999784,null,null],[1799999796,null,null],[1799999808,null,null],[1799999820,null,null],[1799999832,null,null],[1799999844,null,null],[1799999856,null,null],[1799999868,null,null],[1799999880,null,null],[1799999892,null,null],[1799999904,null,null],[1799999916,null,null],[1799999928,null,null],[1799999940,null,null],[1799999952,null,null],[1799999964,null,null],[1799999976,null,null],[1799999988,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&series=net.rx_bps&range=1h&range=15m",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":4,\"from\":1799999111,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"net.rx_bps\":[[1799999108,null,null],[1799999112,null,null],[1799999116,null,null],[1799999120,null,null],[1799999124,null,null],[1799999128,null,null],[1799999132,null,null],[1799999136,null,null],[1799999140,null,null],[1799999144,null,null],[1799999148,null,null],[1799999152,null,null],[1799999156,null,null],[1799999160,null,null],[1799999164,null,null],[1799999168,null,null],[1799999172,null,null],[1799999176,null,null],[1799999180,null,null],[1799999184,null,null],[1799999188,null,null],[1799999192,null,null],[1799999196,null,null],[1799999200,null,null],[1799999204,null,null],[1799999208,null,null],[1799999212,null,null],[1799999216,null,null],[1799999220,null,null],[1799999224,null,null],[1799999228,null,null],[1799999232,null,null],[1799999236,null,null],[1799999240,null,null],[1799999244,null,null],[1799999248,null,null],[1799999252,null,null],[1799999256,null,null],[1799999260,null,null],[1799999264,null,null],[1799999268,null,null],[1799999272,null,null],[1799999276,null,null],[1799999280,null,null],[1799999284,null,null],[1799999288,null,null],[1799999292,null,null],[1799999296,null,null],[1799999300,null,null],[1799999304,null,null],[1799999308,null,null],[1799999312,null,null],[1799999316,null,null],[1799999320,null,null],[1799999324,null,null],[1799999328,null,null],[1799999332,null,null],[1799999336,null,null],[1799999340,null,null],[1799999344,null,null],[1799999348,null,null],[1799999352,null,null],[1799999356,null,null],[1799999360,null,null],[1799999364,null,null],[1799999368,null,null],[1799999372,null,null],[1799999376,null,null],[1799999380,null,null],[1799999384,null,null],[1799999388,null,null],[1799999392,null,null],[1799999396,null,null],[1799999400,null,null],[1799999404,null,null],[1799999408,null,null],[1799999412,null,null],[1799999416,null,null],[1799999420,null,null],[1799999424,null,null],[1799999428,null,null],[1799999432,null,null],[1799999436,null,null],[1799999440,null,null],[1799999444,null,null],[1799999448,null,null],[1799999452,null,null],[1799999456,null,null],[1799999460,null,null],[1799999464,null,null],[1799999468,null,null],[1799999472,null,null],[1799999476,null,null],[1799999480,null,null],[1799999484,null,null],[1799999488,null,null],[1799999492,null,null],[1799999496,null,null],[1799999500,null,null],[1799999504,null,null],[1799999508,null,null],[1799999512,null,null],[1799999516,null,null],[1799999520,null,null],[1799999524,null,null],[1799999528,null,null],[1799999532,null,null],[1799999536,null,null],[1799999540,null,null],[1799999544,null,null],[1799999548,null,null],[1799999552,null,null],[1799999556,null,null],[1799999560,null,null],[1799999564,null,null],[1799999568,null,null],[1799999572,null,null],[1799999576,null,null],[1799999580,null,null],[1799999584,null,null],[1799999588,null,null],[1799999592,null,null],[1799999596,null,null],[1799999600,null,null],[1799999604,null,null],[1799999608,null,null],[1799999612,null,null],[1799999616,null,null],[1799999620,null,null],[1799999624,null,null],[1799999628,null,null],[1799999632,null,null],[1799999636,null,null],[1799999640,null,null],[1799999644,null,null],[1799999648,null,null],[1799999652,null,null],[1799999656,null,null],[1799999660,null,null],[1799999664,null,null],[1799999668,null,null],[1799999672,null,null],[1799999676,null,null],[1799999680,null,null],[1799999684,null,null],[1799999688,null,null],[1799999692,null,null],[1799999696,null,null],[1799999700,null,null],[1799999704,null,null],[1799999708,null,null],[1799999712,null,null],[1799999716,null,null],[1799999720,null,null],[1799999724,null,null],[1799999728,null,null],[1799999732,null,null],[1799999736,null,null],[1799999740,null,null],[1799999744,null,null],[1799999748,null,null],[1799999752,null,null],[1799999756,null,null],[1799999760,null,null],[1799999764,null,null],[1799999768,null,null],[1799999772,null,null],[1799999776,null,null],[1799999780,null,null],[1799999784,null,null],[1799999788,null,null],[1799999792,null,null],[1799999796,null,null],[1799999800,null,null],[1799999804,null,null],[1799999808,null,null],[1799999812,null,null],[1799999816,null,null],[1799999820,null,null],[1799999824,null,null],[1799999828,null,null],[1799999832,null,null],[1799999836,null,null],[1799999840,null,null],[1799999844,null,null],[1799999848,null,null],[1799999852,null,null],[1799999856,null,null],[1799999860,null,null],[1799999864,null,null],[1799999868,null,null],[1799999872,null,null],[1799999876,null,null],[1799999880,null,null],[1799999884,null,null],[1799999888,null,null],[1799999892,null,null],[1799999896,null,null],[1799999900,null,null],[1799999904,null,null],[1799999908,null,null],[1799999912,null,null],[1799999916,null,null],[1799999920,null,null],[1799999924,null,null],[1799999928,null,null],[1799999932,null,null],[1799999936,null,null],[1799999940,null,null],[1799999944,null,null],[1799999948,null,null],[1799999952,null,null],[1799999956,null,null],[1799999960,null,null],[1799999964,null,null],[1799999968,null,null],[1799999972,null,null],[1799999976,null,null],[1799999980,null,null],[1799999984,null,null],[1799999988,null,null],[1799999992,null,null],[1799999996,null,null],[1800000000,5000.0,5000.0],[1800000004,5000.0,5000.0],[1800000008,5000.0,5000.0]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=%20host.cpu%20,,host.cpu,net.tx_bps&range=15m",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":4,\"from\":1799999111,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799999108,null,null],[1799999112,null,null],[1799999116,null,null],[1799999120,null,null],[1799999124,null,null],[1799999128,null,null],[1799999132,null,null],[1799999136,null,null],[1799999140,null,null],[1799999144,null,null],[1799999148,null,null],[1799999152,null,null],[1799999156,null,null],[1799999160,null,null],[1799999164,null,null],[1799999168,null,null],[1799999172,null,null],[1799999176,null,null],[1799999180,null,null],[1799999184,null,null],[1799999188,null,null],[1799999192,null,null],[1799999196,null,null],[1799999200,null,null],[1799999204,null,null],[1799999208,null,null],[1799999212,null,null],[1799999216,null,null],[1799999220,null,null],[1799999224,null,null],[1799999228,null,null],[1799999232,null,null],[1799999236,null,null],[1799999240,null,null],[1799999244,null,null],[1799999248,null,null],[1799999252,null,null],[1799999256,null,null],[1799999260,null,null],[1799999264,null,null],[1799999268,null,null],[1799999272,null,null],[1799999276,null,null],[1799999280,null,null],[1799999284,null,null],[1799999288,null,null],[1799999292,null,null],[1799999296,null,null],[1799999300,null,null],[1799999304,null,null],[1799999308,null,null],[1799999312,null,null],[1799999316,null,null],[1799999320,null,null],[1799999324,null,null],[1799999328,null,null],[1799999332,null,null],[1799999336,null,null],[1799999340,null,null],[1799999344,null,null],[1799999348,null,null],[1799999352,null,null],[1799999356,null,null],[1799999360,null,null],[1799999364,null,null],[1799999368,null,null],[1799999372,null,null],[1799999376,null,null],[1799999380,null,null],[1799999384,null,null],[1799999388,null,null],[1799999392,null,null],[1799999396,null,null],[1799999400,null,null],[1799999404,null,null],[1799999408,null,null],[1799999412,null,null],[1799999416,null,null],[1799999420,null,null],[1799999424,null,null],[1799999428,null,null],[1799999432,null,null],[1799999436,null,null],[1799999440,null,null],[1799999444,null,null],[1799999448,null,null],[1799999452,null,null],[1799999456,null,null],[1799999460,null,null],[1799999464,null,null],[1799999468,null,null],[1799999472,null,null],[1799999476,null,null],[1799999480,null,null],[1799999484,null,null],[1799999488,null,null],[1799999492,null,null],[1799999496,null,null],[1799999500,null,null],[1799999504,null,null],[1799999508,null,null],[1799999512,null,null],[1799999516,null,null],[1799999520,null,null],[1799999524,null,null],[1799999528,null,null],[1799999532,null,null],[1799999536,null,null],[1799999540,null,null],[1799999544,null,null],[1799999548,null,null],[1799999552,null,null],[1799999556,null,null],[1799999560,null,null],[1799999564,null,null],[1799999568,null,null],[1799999572,null,null],[1799999576,null,null],[1799999580,null,null],[1799999584,null,null],[1799999588,null,null],[1799999592,null,null],[1799999596,null,null],[1799999600,null,null],[1799999604,null,null],[1799999608,null,null],[1799999612,null,null],[1799999616,null,null],[1799999620,null,null],[1799999624,null,null],[1799999628,null,null],[1799999632,null,null],[1799999636,null,null],[1799999640,null,null],[1799999644,null,null],[1799999648,null,null],[1799999652,null,null],[1799999656,null,null],[1799999660,null,null],[1799999664,null,null],[1799999668,null,null],[1799999672,null,null],[1799999676,null,null],[1799999680,null,null],[1799999684,null,null],[1799999688,null,null],[1799999692,null,null],[1799999696,null,null],[1799999700,null,null],[1799999704,null,null],[1799999708,null,null],[1799999712,null,null],[1799999716,null,null],[1799999720,null,null],[1799999724,null,null],[1799999728,null,null],[1799999732,null,null],[1799999736,null,null],[1799999740,null,null],[1799999744,null,null],[1799999748,null,null],[1799999752,null,null],[1799999756,null,null],[1799999760,null,null],[1799999764,null,null],[1799999768,null,null],[1799999772,null,null],[1799999776,null,null],[1799999780,null,null],[1799999784,null,null],[1799999788,null,null],[1799999792,null,null],[1799999796,null,null],[1799999800,null,null],[1799999804,null,null],[1799999808,null,null],[1799999812,null,null],[1799999816,null,null],[1799999820,null,null],[1799999824,null,null],[1799999828,null,null],[1799999832,null,null],[1799999836,null,null],[1799999840,null,null],[1799999844,null,null],[1799999848,null,null],[1799999852,null,null],[1799999856,null,null],[1799999860,null,null],[1799999864,null,null],[1799999868,null,null],[1799999872,null,null],[1799999876,null,null],[1799999880,null,null],[1799999884,null,null],[1799999888,null,null],[1799999892,null,null],[1799999896,null,null],[1799999900,null,null],[1799999904,null,null],[1799999908,null,null],[1799999912,null,null],[1799999916,null,null],[1799999920,null,null],[1799999924,null,null],[1799999928,null,null],[1799999932,null,null],[1799999936,null,null],[1799999940,null,null],[1799999944,null,null],[1799999948,null,null],[1799999952,null,null],[1799999956,null,null],[1799999960,null,null],[1799999964,null,null],[1799999968,null,null],[1799999972,null,null],[1799999976,null,null],[1799999980,null,null],[1799999984,null,null],[1799999988,null,null],[1799999992,null,null],[1799999996,null,null],[1800000000,12.5,12.5],[1800000004,12.5,12.5],[1800000008,12.5,12.5]],\"net.tx_bps\":[[1799999108,null,null],[1799999112,null,null],[1799999116,null,null],[1799999120,null,null],[1799999124,null,null],[1799999128,null,null],[1799999132,null,null],[1799999136,null,null],[1799999140,null,null],[1799999144,null,null],[1799999148,null,null],[1799999152,null,null],[1799999156,null,null],[1799999160,null,null],[1799999164,null,null],[1799999168,null,null],[1799999172,null,null],[1799999176,null,null],[1799999180,null,null],[1799999184,null,null],[1799999188,null,null],[1799999192,null,null],[1799999196,null,null],[1799999200,null,null],[1799999204,null,null],[1799999208,null,null],[1799999212,null,null],[1799999216,null,null],[1799999220,null,null],[1799999224,null,null],[1799999228,null,null],[1799999232,null,null],[1799999236,null,null],[1799999240,null,null],[1799999244,null,null],[1799999248,null,null],[1799999252,null,null],[1799999256,null,null],[1799999260,null,null],[1799999264,null,null],[1799999268,null,null],[1799999272,null,null],[1799999276,null,null],[1799999280,null,null],[1799999284,null,null],[1799999288,null,null],[1799999292,null,null],[1799999296,null,null],[1799999300,null,null],[1799999304,null,null],[1799999308,null,null],[1799999312,null,null],[1799999316,null,null],[1799999320,null,null],[1799999324,null,null],[1799999328,null,null],[1799999332,null,null],[1799999336,null,null],[1799999340,null,null],[1799999344,null,null],[1799999348,null,null],[1799999352,null,null],[1799999356,null,null],[1799999360,null,null],[1799999364,null,null],[1799999368,null,null],[1799999372,null,null],[1799999376,null,null],[1799999380,null,null],[1799999384,null,null],[1799999388,null,null],[1799999392,null,null],[1799999396,null,null],[1799999400,null,null],[1799999404,null,null],[1799999408,null,null],[1799999412,null,null],[1799999416,null,null],[1799999420,null,null],[1799999424,null,null],[1799999428,null,null],[1799999432,null,null],[1799999436,null,null],[1799999440,null,null],[1799999444,null,null],[1799999448,null,null],[1799999452,null,null],[1799999456,null,null],[1799999460,null,null],[1799999464,null,null],[1799999468,null,null],[1799999472,null,null],[1799999476,null,null],[1799999480,null,null],[1799999484,null,null],[1799999488,null,null],[1799999492,null,null],[1799999496,null,null],[1799999500,null,null],[1799999504,null,null],[1799999508,null,null],[1799999512,null,null],[1799999516,null,null],[1799999520,null,null],[1799999524,null,null],[1799999528,null,null],[1799999532,null,null],[1799999536,null,null],[1799999540,null,null],[1799999544,null,null],[1799999548,null,null],[1799999552,null,null],[1799999556,null,null],[1799999560,null,null],[1799999564,null,null],[1799999568,null,null],[1799999572,null,null],[1799999576,null,null],[1799999580,null,null],[1799999584,null,null],[1799999588,null,null],[1799999592,null,null],[1799999596,null,null],[1799999600,null,null],[1799999604,null,null],[1799999608,null,null],[1799999612,null,null],[1799999616,null,null],[1799999620,null,null],[1799999624,null,null],[1799999628,null,null],[1799999632,null,null],[1799999636,null,null],[1799999640,null,null],[1799999644,null,null],[1799999648,null,null],[1799999652,null,null],[1799999656,null,null],[1799999660,null,null],[1799999664,null,null],[1799999668,null,null],[1799999672,null,null],[1799999676,null,null],[1799999680,null,null],[1799999684,null,null],[1799999688,null,null],[1799999692,null,null],[1799999696,null,null],[1799999700,null,null],[1799999704,null,null],[1799999708,null,null],[1799999712,null,null],[1799999716,null,null],[1799999720,null,null],[1799999724,null,null],[1799999728,null,null],[1799999732,null,null],[1799999736,null,null],[1799999740,null,null],[1799999744,null,null],[1799999748,null,null],[1799999752,null,null],[1799999756,null,null],[1799999760,null,null],[1799999764,null,null],[1799999768,null,null],[1799999772,null,null],[1799999776,null,null],[1799999780,null,null],[1799999784,null,null],[1799999788,null,null],[1799999792,null,null],[1799999796,null,null],[1799999800,null,null],[1799999804,null,null],[1799999808,null,null],[1799999812,null,null],[1799999816,null,null],[1799999820,null,null],[1799999824,null,null],[1799999828,null,null],[1799999832,null,null],[1799999836,null,null],[1799999840,null,null],[1799999844,null,null],[1799999848,null,null],[1799999852,null,null],[1799999856,null,null],[1799999860,null,null],[1799999864,null,null],[1799999868,null,null],[1799999872,null,null],[1799999876,null,null],[1799999880,null,null],[1799999884,null,null],[1799999888,null,null],[1799999892,null,null],[1799999896,null,null],[1799999900,null,null],[1799999904,null,null],[1799999908,null,null],[1799999912,null,null],[1799999916,null,null],[1799999920,null,null],[1799999924,null,null],[1799999928,null,null],[1799999932,null,null],[1799999936,null,null],[1799999940,null,null],[1799999944,null,null],[1799999948,null,null],[1799999952,null,null],[1799999956,null,null],[1799999960,null,null],[1799999964,null,null],[1799999968,null,null],[1799999972,null,null],[1799999976,null,null],[1799999980,null,null],[1799999984,null,null],[1799999988,null,null],[1799999992,null,null],[1799999996,null,null],[1800000000,7000.0,7000.0],[1800000004,7000.0,7000.0],[1800000008,7000.0,7000.0]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu+&range=15m",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":4,\"from\":1799999111,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799999108,null,null],[1799999112,null,null],[1799999116,null,null],[1799999120,null,null],[1799999124,null,null],[1799999128,null,null],[1799999132,null,null],[1799999136,null,null],[1799999140,null,null],[1799999144,null,null],[1799999148,null,null],[1799999152,null,null],[1799999156,null,null],[1799999160,null,null],[1799999164,null,null],[1799999168,null,null],[1799999172,null,null],[1799999176,null,null],[1799999180,null,null],[1799999184,null,null],[1799999188,null,null],[1799999192,null,null],[1799999196,null,null],[1799999200,null,null],[1799999204,null,null],[1799999208,null,null],[1799999212,null,null],[1799999216,null,null],[1799999220,null,null],[1799999224,null,null],[1799999228,null,null],[1799999232,null,null],[1799999236,null,null],[1799999240,null,null],[1799999244,null,null],[1799999248,null,null],[1799999252,null,null],[1799999256,null,null],[1799999260,null,null],[1799999264,null,null],[1799999268,null,null],[1799999272,null,null],[1799999276,null,null],[1799999280,null,null],[1799999284,null,null],[1799999288,null,null],[1799999292,null,null],[1799999296,null,null],[1799999300,null,null],[1799999304,null,null],[1799999308,null,null],[1799999312,null,null],[1799999316,null,null],[1799999320,null,null],[1799999324,null,null],[1799999328,null,null],[1799999332,null,null],[1799999336,null,null],[1799999340,null,null],[1799999344,null,null],[1799999348,null,null],[1799999352,null,null],[1799999356,null,null],[1799999360,null,null],[1799999364,null,null],[1799999368,null,null],[1799999372,null,null],[1799999376,null,null],[1799999380,null,null],[1799999384,null,null],[1799999388,null,null],[1799999392,null,null],[1799999396,null,null],[1799999400,null,null],[1799999404,null,null],[1799999408,null,null],[1799999412,null,null],[1799999416,null,null],[1799999420,null,null],[1799999424,null,null],[1799999428,null,null],[1799999432,null,null],[1799999436,null,null],[1799999440,null,null],[1799999444,null,null],[1799999448,null,null],[1799999452,null,null],[1799999456,null,null],[1799999460,null,null],[1799999464,null,null],[1799999468,null,null],[1799999472,null,null],[1799999476,null,null],[1799999480,null,null],[1799999484,null,null],[1799999488,null,null],[1799999492,null,null],[1799999496,null,null],[1799999500,null,null],[1799999504,null,null],[1799999508,null,null],[1799999512,null,null],[1799999516,null,null],[1799999520,null,null],[1799999524,null,null],[1799999528,null,null],[1799999532,null,null],[1799999536,null,null],[1799999540,null,null],[1799999544,null,null],[1799999548,null,null],[1799999552,null,null],[1799999556,null,null],[1799999560,null,null],[1799999564,null,null],[1799999568,null,null],[1799999572,null,null],[1799999576,null,null],[1799999580,null,null],[1799999584,null,null],[1799999588,null,null],[1799999592,null,null],[1799999596,null,null],[1799999600,null,null],[1799999604,null,null],[1799999608,null,null],[1799999612,null,null],[1799999616,null,null],[1799999620,null,null],[1799999624,null,null],[1799999628,null,null],[1799999632,null,null],[1799999636,null,null],[1799999640,null,null],[1799999644,null,null],[1799999648,null,null],[1799999652,null,null],[1799999656,null,null],[1799999660,null,null],[1799999664,null,null],[1799999668,null,null],[1799999672,null,null],[1799999676,null,null],[1799999680,null,null],[1799999684,null,null],[1799999688,null,null],[1799999692,null,null],[1799999696,null,null],[1799999700,null,null],[1799999704,null,null],[1799999708,null,null],[1799999712,null,null],[1799999716,null,null],[1799999720,null,null],[1799999724,null,null],[1799999728,null,null],[1799999732,null,null],[1799999736,null,null],[1799999740,null,null],[1799999744,null,null],[1799999748,null,null],[1799999752,null,null],[1799999756,null,null],[1799999760,null,null],[1799999764,null,null],[1799999768,null,null],[1799999772,null,null],[1799999776,null,null],[1799999780,null,null],[1799999784,null,null],[1799999788,null,null],[1799999792,null,null],[1799999796,null,null],[1799999800,null,null],[1799999804,null,null],[1799999808,null,null],[1799999812,null,null],[1799999816,null,null],[1799999820,null,null],[1799999824,null,null],[1799999828,null,null],[1799999832,null,null],[1799999836,null,null],[1799999840,null,null],[1799999844,null,null],[1799999848,null,null],[1799999852,null,null],[1799999856,null,null],[1799999860,null,null],[1799999864,null,null],[1799999868,null,null],[1799999872,null,null],[1799999876,null,null],[1799999880,null,null],[1799999884,null,null],[1799999888,null,null],[1799999892,null,null],[1799999896,null,null],[1799999900,null,null],[1799999904,null,null],[1799999908,null,null],[1799999912,null,null],[1799999916,null,null],[1799999920,null,null],[1799999924,null,null],[1799999928,null,null],[1799999932,null,null],[1799999936,null,null],[1799999940,null,null],[1799999944,null,null],[1799999948,null,null],[1799999952,null,null],[1799999956,null,null],[1799999960,null,null],[1799999964,null,null],[1799999968,null,null],[1799999972,null,null],[1799999976,null,null],[1799999980,null,null],[1799999984,null,null],[1799999988,null,null],[1799999992,null,null],[1799999996,null,null],[1800000000,12.5,12.5],[1800000004,12.5,12.5],[1800000008,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?node=local&series=host.mem&range=6h&points=10",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"6h\",\"step\":2160,\"from\":1799978411,\"to\":1800000011,\"source\":\"rollup\",\"resolution\":60,\"series\":{\"host.mem\":[[1799977680,null,null],[1799979840,null,null],[1799982000,null,null],[1799984160,null,null],[1799986320,null,null],[1799988480,null,null],[1799990640,null,null],[1799992800,null,null],[1799994960,null,null],[1799997120,null,null],[1799999280,40.0,40.0]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&range=15m&points=2000&unknown=1",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"15m\",\"step\":2,\"from\":1799999111,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799999110,null,null],[1799999112,null,null],[1799999114,null,null],[1799999116,null,null],[1799999118,null,null],[1799999120,null,null],[1799999122,null,null],[1799999124,null,null],[1799999126,null,null],[1799999128,null,null],[1799999130,null,null],[1799999132,null,null],[1799999134,null,null],[1799999136,null,null],[1799999138,null,null],[1799999140,null,null],[1799999142,null,null],[1799999144,null,null],[1799999146,null,null],[1799999148,null,null],[1799999150,null,null],[1799999152,null,null],[1799999154,null,null],[1799999156,null,null],[1799999158,null,null],[1799999160,null,null],[1799999162,null,null],[1799999164,null,null],[1799999166,null,null],[1799999168,null,null],[1799999170,null,null],[1799999172,null,null],[1799999174,null,null],[1799999176,null,null],[1799999178,null,null],[1799999180,null,null],[1799999182,null,null],[1799999184,null,null],[1799999186,null,null],[1799999188,null,null],[1799999190,null,null],[1799999192,null,null],[1799999194,null,null],[1799999196,null,null],[1799999198,null,null],[1799999200,null,null],[1799999202,null,null],[1799999204,null,null],[1799999206,null,null],[1799999208,null,null],[1799999210,null,null],[1799999212,null,null],[1799999214,null,null],[1799999216,null,null],[1799999218,null,null],[1799999220,null,null],[1799999222,null,null],[1799999224,null,null],[1799999226,null,null],[1799999228,null,null],[1799999230,null,null],[1799999232,null,null],[1799999234,null,null],[1799999236,null,null],[1799999238,null,null],[1799999240,null,null],[1799999242,null,null],[1799999244,null,null],[1799999246,null,null],[1799999248,null,null],[1799999250,null,null],[1799999252,null,null],[1799999254,null,null],[1799999256,null,null],[1799999258,null,null],[1799999260,null,null],[1799999262,null,null],[1799999264,null,null],[1799999266,null,null],[1799999268,null,null],[1799999270,null,null],[1799999272,null,null],[1799999274,null,null],[1799999276,null,null],[1799999278,null,null],[1799999280,null,null],[1799999282,null,null],[1799999284,null,null],[1799999286,null,null],[1799999288,null,null],[1799999290,null,null],[1799999292,null,null],[1799999294,null,null],[1799999296,null,null],[1799999298,null,null],[1799999300,null,null],[1799999302,null,null],[1799999304,null,null],[1799999306,null,null],[1799999308,null,null],[1799999310,null,null],[1799999312,null,null],[1799999314,null,null],[1799999316,null,null],[1799999318,null,null],[1799999320,null,null],[1799999322,null,null],[1799999324,null,null],[1799999326,null,null],[1799999328,null,null],[1799999330,null,null],[1799999332,null,null],[1799999334,null,null],[1799999336,null,null],[1799999338,null,null],[1799999340,null,null],[1799999342,null,null],[1799999344,null,null],[1799999346,null,null],[1799999348,null,null],[1799999350,null,null],[1799999352,null,null],[1799999354,null,null],[1799999356,null,null],[1799999358,null,null],[1799999360,null,null],[1799999362,null,null],[1799999364,null,null],[1799999366,null,null],[1799999368,null,null],[1799999370,null,null],[1799999372,null,null],[1799999374,null,null],[1799999376,null,null],[1799999378,null,null],[1799999380,null,null],[1799999382,null,null],[1799999384,null,null],[1799999386,null,null],[1799999388,null,null],[1799999390,null,null],[1799999392,null,null],[1799999394,null,null],[1799999396,null,null],[1799999398,null,null],[1799999400,null,null],[1799999402,null,null],[1799999404,null,null],[1799999406,null,null],[1799999408,null,null],[1799999410,null,null],[1799999412,null,null],[1799999414,null,null],[1799999416,null,null],[1799999418,null,null],[1799999420,null,null],[1799999422,null,null],[1799999424,null,null],[1799999426,null,null],[1799999428,null,null],[1799999430,null,null],[1799999432,null,null],[1799999434,null,null],[1799999436,null,null],[1799999438,null,null],[1799999440,null,null],[1799999442,null,null],[1799999444,null,null],[1799999446,null,null],[1799999448,null,null],[1799999450,null,null],[1799999452,null,null],[1799999454,null,null],[1799999456,null,null],[1799999458,null,null],[1799999460,null,null],[1799999462,null,null],[1799999464,null,null],[1799999466,null,null],[1799999468,null,null],[1799999470,null,null],[1799999472,null,null],[1799999474,null,null],[1799999476,null,null],[1799999478,null,null],[1799999480,null,null],[1799999482,null,null],[1799999484,null,null],[1799999486,null,null],[1799999488,null,null],[1799999490,null,null],[1799999492,null,null],[1799999494,null,null],[1799999496,null,null],[1799999498,null,null],[1799999500,null,null],[1799999502,null,null],[1799999504,null,null],[1799999506,null,null],[1799999508,null,null],[1799999510,null,null],[1799999512,null,null],[1799999514,null,null],[1799999516,null,null],[1799999518,null,null],[1799999520,null,null],[1799999522,null,null],[1799999524,null,null],[1799999526,null,null],[1799999528,null,null],[1799999530,null,null],[1799999532,null,null],[1799999534,null,null],[1799999536,null,null],[1799999538,null,null],[1799999540,null,null],[1799999542,null,null],[1799999544,null,null],[1799999546,null,null],[1799999548,null,null],[1799999550,null,null],[1799999552,null,null],[1799999554,null,null],[1799999556,null,null],[1799999558,null,null],[1799999560,null,null],[1799999562,null,null],[1799999564,null,null],[1799999566,null,null],[1799999568,null,null],[1799999570,null,null],[1799999572,null,null],[1799999574,null,null],[1799999576,null,null],[1799999578,null,null],[1799999580,null,null],[1799999582,null,null],[1799999584,null,null],[1799999586,null,null],[1799999588,null,null],[1799999590,null,null],[1799999592,null,null],[1799999594,null,null],[1799999596,null,null],[1799999598,null,null],[1799999600,null,null],[1799999602,null,null],[1799999604,null,null],[1799999606,null,null],[1799999608,null,null],[1799999610,null,null],[1799999612,null,null],[1799999614,null,null],[1799999616,null,null],[1799999618,null,null],[1799999620,null,null],[1799999622,null,null],[1799999624,null,null],[1799999626,null,null],[1799999628,null,null],[1799999630,null,null],[1799999632,null,null],[1799999634,null,null],[1799999636,null,null],[1799999638,null,null],[1799999640,null,null],[1799999642,null,null],[1799999644,null,null],[1799999646,null,null],[1799999648,null,null],[1799999650,null,null],[1799999652,null,null],[1799999654,null,null],[1799999656,null,null],[1799999658,null,null],[1799999660,null,null],[1799999662,null,null],[1799999664,null,null],[1799999666,null,null],[1799999668,null,null],[1799999670,null,null],[1799999672,null,null],[1799999674,null,null],[1799999676,null,null],[1799999678,null,null],[1799999680,null,null],[1799999682,null,null],[1799999684,null,null],[1799999686,null,null],[1799999688,null,null],[1799999690,null,null],[1799999692,null,null],[1799999694,null,null],[1799999696,null,null],[1799999698,null,null],[1799999700,null,null],[1799999702,null,null],[1799999704,null,null],[1799999706,null,null],[1799999708,null,null],[1799999710,null,null],[1799999712,null,null],[1799999714,null,null],[1799999716,null,null],[1799999718,null,null],[1799999720,null,null],[1799999722,null,null],[1799999724,null,null],[1799999726,null,null],[1799999728,null,null],[1799999730,null,null],[1799999732,null,null],[1799999734,null,null],[1799999736,null,null],[1799999738,null,null],[1799999740,null,null],[1799999742,null,null],[1799999744,null,null],[1799999746,null,null],[1799999748,null,null],[1799999750,null,null],[1799999752,null,null],[1799999754,null,null],[1799999756,null,null],[1799999758,null,null],[1799999760,null,null],[1799999762,null,null],[1799999764,null,null],[1799999766,null,null],[1799999768,null,null],[1799999770,null,null],[1799999772,null,null],[1799999774,null,null],[1799999776,null,null],[1799999778,null,null],[1799999780,null,null],[1799999782,null,null],[1799999784,null,null],[1799999786,null,null],[1799999788,null,null],[1799999790,null,null],[1799999792,null,null],[1799999794,null,null],[1799999796,null,null],[1799999798,null,null],[1799999800,null,null],[1799999802,null,null],[1799999804,null,null],[1799999806,null,null],[1799999808,null,null],[1799999810,null,null],[1799999812,null,null],[1799999814,null,null],[1799999816,null,null],[1799999818,null,null],[1799999820,null,null],[1799999822,null,null],[1799999824,null,null],[1799999826,null,null],[1799999828,null,null],[1799999830,null,null],[1799999832,null,null],[1799999834,null,null],[1799999836,null,null],[1799999838,null,null],[1799999840,null,null],[1799999842,null,null],[1799999844,null,null],[1799999846,null,null],[1799999848,null,null],[1799999850,null,null],[1799999852,null,null],[1799999854,null,null],[1799999856,null,null],[1799999858,null,null],[1799999860,null,null],[1799999862,null,null],[1799999864,null,null],[1799999866,null,null],[1799999868,null,null],[1799999870,null,null],[1799999872,null,null],[1799999874,null,null],[1799999876,null,null],[1799999878,null,null],[1799999880,null,null],[1799999882,null,null],[1799999884,null,null],[1799999886,null,null],[1799999888,null,null],[1799999890,null,null],[1799999892,null,null],[1799999894,null,null],[1799999896,null,null],[1799999898,null,null],[1799999900,null,null],[1799999902,null,null],[1799999904,null,null],[1799999906,null,null],[1799999908,null,null],[1799999910,null,null],[1799999912,null,null],[1799999914,null,null],[1799999916,null,null],[1799999918,null,null],[1799999920,null,null],[1799999922,null,null],[1799999924,null,null],[1799999926,null,null],[1799999928,null,null],[1799999930,null,null],[1799999932,null,null],[1799999934,null,null],[1799999936,null,null],[1799999938,null,null],[1799999940,null,null],[1799999942,null,null],[1799999944,null,null],[1799999946,null,null],[1799999948,null,null],[1799999950,null,null],[1799999952,null,null],[1799999954,null,null],[1799999956,null,null],[1799999958,null,null],[1799999960,null,null],[1799999962,null,null],[1799999964,null,null],[1799999966,null,null],[1799999968,null,null],[1799999970,null,null],[1799999972,null,null],[1799999974,null,null],[1799999976,null,null],[1799999978,null,null],[1799999980,null,null],[1799999982,null,null],[1799999984,null,null],[1799999986,null,null],[1799999988,null,null],[1799999990,null,null],[1799999992,null,null],[1799999994,null,null],[1799999996,null,null],[1799999998,null,null],[1800000000,null,null],[1800000002,12.5,12.5],[1800000004,12.5,12.5],[1800000006,12.5,12.5],[1800000008,null,null],[1800000010,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"series\"],\"msg\":\"Field required\",\"input\":null}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown series\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.nope",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown series\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=5",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be greater than or equal to 10\",\"input\":\"5\",\"ctx\":{\"ge\":10}}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=99999",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be less than or equal to 2000\",\"input\":\"99999\",\"ctx\":{\"le\":2000}}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=abc",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=1.5",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"1.5\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=2e2",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"2e2\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=0x10",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"0x10\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=-1",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be greater than or equal to 10\",\"input\":\"-1\",\"ctx\":{\"ge\":10}}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?points=5",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"series\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be greater than or equal to 10\",\"input\":\"5\",\"ctx\":{\"ge\":10}}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?points=abc&range=nope",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"series\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&range=2d",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"range must be one of 15m, 1h, 6h, 24h, 7d, 30d, 90d\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&node=all",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"history is served for one node at a time\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&node=ghost",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&node=bad%20id",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown node\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=%EF%BC%91%EF%BC%92",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"１２\"}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu,host.cpu",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":16,\"from\":1799996411,\"to\":1800000011,\"source\":\"ring\",\"resolution\":0,\"series\":{\"host.cpu\":[[1799996400,null,null],[1799996416,null,null],[1799996432,null,null],[1799996448,null,null],[1799996464,null,null],[1799996480,null,null],[1799996496,null,null],[1799996512,null,null],[1799996528,null,null],[1799996544,null,null],[1799996560,null,null],[1799996576,null,null],[1799996592,null,null],[1799996608,null,null],[1799996624,null,null],[1799996640,null,null],[1799996656,null,null],[1799996672,null,null],[1799996688,null,null],[1799996704,null,null],[1799996720,null,null],[1799996736,null,null],[1799996752,null,null],[1799996768,null,null],[1799996784,null,null],[1799996800,null,null],[1799996816,null,null],[1799996832,null,null],[1799996848,null,null],[1799996864,null,null],[1799996880,null,null],[1799996896,null,null],[1799996912,null,null],[1799996928,null,null],[1799996944,null,null],[1799996960,null,null],[1799996976,null,null],[1799996992,null,null],[1799997008,null,null],[1799997024,null,null],[1799997040,null,null],[1799997056,null,null],[1799997072,null,null],[1799997088,null,null],[1799997104,null,null],[1799997120,null,null],[1799997136,null,null],[1799997152,null,null],[1799997168,null,null],[1799997184,null,null],[1799997200,null,null],[1799997216,null,null],[1799997232,null,null],[1799997248,null,null],[1799997264,null,null],[1799997280,null,null],[1799997296,null,null],[1799997312,null,null],[1799997328,null,null],[1799997344,null,null],[1799997360,null,null],[1799997376,null,null],[1799997392,null,null],[1799997408,null,null],[1799997424,null,null],[1799997440,null,null],[1799997456,null,null],[1799997472,null,null],[1799997488,null,null],[1799997504,null,null],[1799997520,null,null],[1799997536,null,null],[1799997552,null,null],[1799997568,null,null],[1799997584,null,null],[1799997600,null,null],[1799997616,null,null],[1799997632,null,null],[1799997648,null,null],[1799997664,null,null],[1799997680,null,null],[1799997696,null,null],[1799997712,null,null],[1799997728,null,null],[1799997744,null,null],[1799997760,null,null],[1799997776,null,null],[1799997792,null,null],[1799997808,null,null],[1799997824,null,null],[1799997840,null,null],[1799997856,null,null],[1799997872,null,null],[1799997888,null,null],[1799997904,null,null],[1799997920,null,null],[1799997936,null,null],[1799997952,null,null],[1799997968,null,null],[1799997984,null,null],[1799998000,null,null],[1799998016,null,null],[1799998032,null,null],[1799998048,null,null],[1799998064,null,null],[1799998080,null,null],[1799998096,null,null],[1799998112,null,null],[1799998128,null,null],[1799998144,null,null],[1799998160,null,null],[1799998176,null,null],[1799998192,null,null],[1799998208,null,null],[1799998224,null,null],[1799998240,null,null],[1799998256,null,null],[1799998272,null,null],[1799998288,null,null],[1799998304,null,null],[1799998320,null,null],[1799998336,null,null],[1799998352,null,null],[1799998368,null,null],[1799998384,null,null],[1799998400,null,null],[1799998416,null,null],[1799998432,null,null],[1799998448,null,null],[1799998464,null,null],[1799998480,null,null],[1799998496,null,null],[1799998512,null,null],[1799998528,null,null],[1799998544,null,null],[1799998560,null,null],[1799998576,null,null],[1799998592,null,null],[1799998608,null,null],[1799998624,null,null],[1799998640,null,null],[1799998656,null,null],[1799998672,null,null],[1799998688,null,null],[1799998704,null,null],[1799998720,null,null],[1799998736,null,null],[1799998752,null,null],[1799998768,null,null],[1799998784,null,null],[1799998800,null,null],[1799998816,null,null],[1799998832,null,null],[1799998848,null,null],[1799998864,null,null],[1799998880,null,null],[1799998896,null,null],[1799998912,null,null],[1799998928,null,null],[1799998944,null,null],[1799998960,null,null],[1799998976,null,null],[1799998992,null,null],[1799999008,null,null],[1799999024,null,null],[1799999040,null,null],[1799999056,null,null],[1799999072,null,null],[1799999088,null,null],[1799999104,null,null],[1799999120,null,null],[1799999136,null,null],[1799999152,null,null],[1799999168,null,null],[1799999184,null,null],[1799999200,null,null],[1799999216,null,null],[1799999232,null,null],[1799999248,null,null],[1799999264,null,null],[1799999280,null,null],[1799999296,null,null],[1799999312,null,null],[1799999328,null,null],[1799999344,null,null],[1799999360,null,null],[1799999376,null,null],[1799999392,null,null],[1799999408,null,null],[1799999424,null,null],[1799999440,null,null],[1799999456,null,null],[1799999472,null,null],[1799999488,null,null],[1799999504,null,null],[1799999520,null,null],[1799999536,null,null],[1799999552,null,null],[1799999568,null,null],[1799999584,null,null],[1799999600,null,null],[1799999616,null,null],[1799999632,null,null],[1799999648,null,null],[1799999664,null,null],[1799999680,null,null],[1799999696,null,null],[1799999712,null,null],[1799999728,null,null],[1799999744,null,null],[1799999760,null,null],[1799999776,null,null],[1799999792,null,null],[1799999808,null,null],[1799999824,null,null],[1799999840,null,null],[1799999856,null,null],[1799999872,null,null],[1799999888,null,null],[1799999904,null,null],[1799999920,null,null],[1799999936,null,null],[1799999952,null,null],[1799999968,null,null],[1799999984,null,null],[1800000000,12.5,12.5]]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=mtproxy.up_bps,mtproxy.down_bps,mtproxy.sessions,mtproxy.clients,mtproxy.connections,mtproxy.up_bytes,mtproxy.down_bytes,naive.up_bps,naive.down_bps,naive.sessions,naive.clients,naive.connections,naive.up_bytes,naive.down_bytes,mieru.up_bps,mieru.down_bps,mieru.sessions,mieru.clients,mieru.connections,mieru.up_bytes,mieru.down_bytes,amneziawg.up_bps,amneziawg.down_bps,amneziawg.sessions,amneziawg.clients,amneziawg.connections,amneziawg.up_bytes,amneziawg.down_bytes,trusttunnel.up_bps,trusttunnel.down_bps,trusttunnel.sessions,trusttunnel.clients,trusttunnel.connections,trusttunnel.up_bytes,trusttunnel.down_bytes,x.up_bps,x.down_bps,x.sessions,x.clients,x.connections,x.up_bytes,x.down_bytes",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"unknown series\"}"
+   },
+   {
+    "op": "step",
+    "advance": 10.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": null
+      }
+     ],
+     "trusttunnel": [
+      {
+       "ok": [
+        {
+         "username": "alice",
+         "tx": 6000,
+         "rx": 2000,
+         "sessions": 1
+        }
+       ]
+      }
+     ],
+     "mtproxy": [
+      {
+       "error": "manager down"
+      }
+     ]
+    },
+    "version": 5,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"stale\",\"age_seconds\":10.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":2000,\"down_bytes\":6000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live",
+    "linked": [],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000021.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"stale\",\"age_seconds\":10.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":2000,\"down_bytes\":6000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/stream",
+    "linked": [],
+    "status": 429,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store",
+     "retry-after": "5"
+    },
+    "body": "{\"detail\":\"too many metric streams\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=amsterdam",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000021.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"unsupported\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=all",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000021.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"stale\",\"age_seconds\":10.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"manager_unavailable\"},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":2000,\"down_bytes\":6000,\"sessions\":1,\"clients\":1,\"connections\":null}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]},{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"unsupported\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?node=amsterdam&series=host.cpu",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"node_id\":\"amsterdam\",\"range\":\"1h\",\"status\":\"unsupported\",\"series\":{}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=all&range=1h",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"1h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"1h\",\"from\":1799996421,\"to\":1800000021,\"step\":2,\"source\":\"ring\",\"host\":{\"cpu\":{\"avg\":12.5,\"p95\":12.5,\"max\":12.5,\"max_at\":1800000002},\"mem\":{\"avg\":40.0,\"p95\":40.0,\"max\":40.0,\"max_at\":1800000002},\"swap\":{\"avg\":5.0,\"p95\":5.0,\"max\":5.0,\"max_at\":1800000002},\"disk\":{\"avg\":30.0,\"p95\":30.0,\"max\":30.0,\"max_at\":1800000002},\"load1\":{\"avg\":0.42,\"p95\":0.42,\"max\":0.42,\"max_at\":1800000002},\"net_rx_bps\":{\"avg\":5000.0,\"p95\":5000.0,\"max\":5000.0,\"max_at\":1800000002},\"net_tx_bps\":{\"avg\":7000.0,\"p95\":7000.0,\"max\":7000.0,\"max_at\":1800000002}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":1800,\"down_bytes\":7200,\"total_bytes\":9000,\"avg_bps\":1000.0,\"peak_bps\":1000.0,\"peak_at\":1800000002,\"share_percent\":17.0,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":11000,\"down_bytes\":33000,\"total_bytes\":44000,\"avg_bps\":3377.778,\"peak_bps\":4000.0,\"peak_at\":1800000002,\"share_percent\":83.0,\"sessions_peak\":1,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"Этот сервер\",\"status\":\"stale\",\"age_seconds\":10.0,\"alerts\":[]},{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"unsupported\",\"host\":null,\"protocols\":{},\"hours_of_day\":{},\"alerts\":[]}],\"compare\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"stale\",\"total_bytes\":53000,\"peak_bps\":4000.0,\"cpu_avg\":12.5,\"mem_avg\":40.0,\"alerts\":0},{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"unsupported\",\"total_bytes\":null,\"peak_bps\":null,\"cpu_avg\":null,\"mem_avg\":null,\"alerts\":0}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=amsterdam",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"24h\",\"nodes\":[{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"unsupported\",\"host\":null,\"protocols\":{},\"hours_of_day\":{},\"alerts\":[]}]}"
+   }
+  ]
+ },
+ {
+  "name": "source",
+  "flags": {},
+  "start": 1800000000.0,
+  "local_name": "Этот сервер",
+  "ops": [
+   {
+    "op": "step",
+    "advance": 2.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000002.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {},
+        "kernel_counters": "ok"
+       }
+      }
+     ],
+     "mtproxy": [
+      {
+       "ok": []
+      }
+     ]
+    },
+    "version": 1,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":0,\"down_bytes\":0,\"sessions\":0,\"clients\":0,\"connections\":null},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "step",
+    "advance": 2.0,
+    "calls": {
+     "agent": [
+      {
+       "ok": {
+        "ts": 1800000004.0,
+        "interval": 1.0,
+        "host": {
+         "cpu_percent": 12.5,
+         "cores": 4,
+         "load": [
+          0.42,
+          0.4,
+          0.3
+         ],
+         "mem": {
+          "used": 1000,
+          "total": 4000,
+          "percent": 40.0,
+          "available": 3000
+         },
+         "swap": {
+          "used": 10,
+          "total": 200,
+          "percent": 5.0
+         },
+         "disk": {
+          "used": 3,
+          "total": 10,
+          "percent": 30.0,
+          "read_bps": 1000.0,
+          "write_bps": 2000.0,
+          "busy_percent": 4.0
+         },
+         "net": {
+          "rx_bps": 5000.0,
+          "tx_bps": 7000.0,
+          "interfaces": []
+         },
+         "uptime_seconds": 1234,
+         "containers": []
+        },
+        "protocols": {},
+        "kernel_counters": "ok"
+       }
+      }
+     ]
+    },
+    "version": 2,
+    "latest": "{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":0,\"down_bytes\":0,\"sessions\":0,\"clients\":0,\"connections\":null},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=all",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000004.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"host\":{\"cpu_percent\":12.5,\"cores\":4,\"load\":[0.42,0.4,0.3],\"mem\":{\"used\":1000,\"total\":4000,\"percent\":40.0,\"available\":3000},\"swap\":{\"used\":10,\"total\":200,\"percent\":5.0},\"disk\":{\"used\":3,\"total\":10,\"percent\":30.0,\"read_bps\":1000.0,\"write_bps\":2000.0,\"busy_percent\":4.0},\"net\":{\"rx_bps\":5000.0,\"tx_bps\":7000.0,\"interfaces\":[]},\"uptime_seconds\":1234,\"containers\":[]},\"protocols\":{\"mtproxy\":{\"available\":true,\"live\":true,\"source\":\"manager\",\"up_bps\":0.0,\"down_bps\":0.0,\"total_bps\":0.0,\"up_bytes\":0,\"down_bytes\":0,\"sessions\":0,\"clients\":0,\"connections\":null},\"naive\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"mieru\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"amneziawg\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"},\"trusttunnel\":{\"available\":false,\"live\":false,\"source\":null,\"up_bps\":null,\"down_bps\":null,\"total_bps\":null,\"up_bytes\":null,\"down_bytes\":null,\"sessions\":null,\"clients\":null,\"connections\":null,\"reason\":\"disabled\"}},\"top_clients\":[],\"kernel_counters\":\"ok\",\"alerts\":[]},{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"ok\",\"age_seconds\":1.0,\"host\":{\"cpu_percent\":3.0},\"protocols\":{},\"top_clients\":[],\"kernel_counters\":\"ok\"},{\"node_id\":\"berlin\",\"name\":\"Berlin\",\"status\":\"unavailable\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=berlin",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"ts\":1800000004.0,\"interval\":2.0,\"nodes\":[{\"node_id\":\"berlin\",\"name\":\"Berlin\",\"status\":\"unavailable\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?node=amsterdam&series=host.cpu&range=6h",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"node_id\":\"amsterdam\",\"range\":\"6h\",\"series\":{\"host.cpu\":[]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?node=berlin&series=host.cpu,net.rx_bps",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"node_id\":\"berlin\",\"range\":\"1h\",\"series\":{\"host.cpu\":[],\"net.rx_bps\":[]}}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=all&range=1h",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"1h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"1h\",\"from\":1799996404,\"to\":1800000004,\"step\":2,\"source\":\"ring\",\"host\":{\"cpu\":{\"avg\":12.5,\"p95\":12.5,\"max\":12.5,\"max_at\":1800000002},\"mem\":{\"avg\":40.0,\"p95\":40.0,\"max\":40.0,\"max_at\":1800000002},\"swap\":{\"avg\":5.0,\"p95\":5.0,\"max\":5.0,\"max_at\":1800000002},\"disk\":{\"avg\":30.0,\"p95\":30.0,\"max\":30.0,\"max_at\":1800000002},\"load1\":{\"avg\":0.42,\"p95\":0.42,\"max\":0.42,\"max_at\":1800000002},\"net_rx_bps\":{\"avg\":5000.0,\"p95\":5000.0,\"max\":5000.0,\"max_at\":1800000002},\"net_tx_bps\":{\"avg\":7000.0,\"p95\":7000.0,\"max\":7000.0,\"max_at\":1800000002}},\"protocols\":{\"mtproxy\":{\"up_bytes\":0,\"down_bytes\":0,\"total_bytes\":0,\"avg_bps\":0.0,\"peak_bps\":0.0,\"peak_at\":1800000004,\"share_percent\":null,\"sessions_peak\":0,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"Этот сервер\",\"status\":\"ok\",\"age_seconds\":0.0,\"alerts\":[]},{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"ok\",\"host\":{\"cpu\":{\"avg\":5.0},\"mem\":{\"avg\":7.5}},\"protocols\":{\"naive\":{\"total_bytes\":4000,\"peak_bps\":0.0},\"mieru\":{\"total_bytes\":1.5,\"peak_bps\":null}},\"hours_of_day\":{},\"alerts\":[{},{}],\"range\":\"1h\",\"extra\":\"x\"},{\"node_id\":\"berlin\",\"name\":\"Berlin\",\"status\":\"unavailable\",\"host\":null,\"protocols\":{},\"hours_of_day\":{},\"alerts\":[]}],\"compare\":[{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"ok\",\"total_bytes\":4001.5,\"peak_bps\":0,\"cpu_avg\":5.0,\"mem_avg\":7.5,\"alerts\":2},{\"node_id\":\"local\",\"name\":\"Этот сервер\",\"status\":\"ok\",\"total_bytes\":0,\"peak_bps\":0,\"cpu_avg\":12.5,\"mem_avg\":40.0,\"alerts\":0},{\"node_id\":\"berlin\",\"name\":\"Berlin\",\"status\":\"unavailable\",\"total_bytes\":null,\"peak_bps\":null,\"cpu_avg\":null,\"mem_avg\":null,\"alerts\":0}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary?node=amsterdam&range=7d",
+    "linked": [
+     {
+      "node_id": "amsterdam",
+      "name": "Amsterdam"
+     },
+     {
+      "node_id": "berlin",
+      "name": "Berlin"
+     }
+    ],
+    "status": 200,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"range\":\"7d\",\"nodes\":[{\"node_id\":\"amsterdam\",\"name\":\"Amsterdam\",\"status\":\"ok\",\"host\":{\"cpu\":{\"avg\":5.0},\"mem\":{\"avg\":7.5}},\"protocols\":{\"naive\":{\"total_bytes\":4000,\"peak_bps\":0.0},\"mieru\":{\"total_bytes\":1.5,\"peak_bps\":null}},\"hours_of_day\":{},\"alerts\":[{},{}],\"range\":\"7d\",\"extra\":\"x\"}]}"
+   }
+  ]
+ },
+ {
+  "name": "off",
+  "flags": {
+   "metrics_enabled": false
+  },
+  "start": 1800000000.0,
+  "local_name": "Этот сервер",
+  "ops": [
+   {
+    "op": "get",
+    "path": "/api/metrics/clients?protocol=mieru",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/stream",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/summary",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/live?node=ghost",
+    "linked": [],
+    "status": 404,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":\"metrics_disabled\"}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history?series=host.cpu&points=5",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"points\"],\"msg\":\"Input should be greater than or equal to 10\",\"input\":\"5\",\"ctx\":{\"ge\":10}}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/history",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"series\"],\"msg\":\"Field required\",\"input\":null}]}"
+   },
+   {
+    "op": "get",
+    "path": "/api/metrics/clients",
+    "linked": [],
+    "status": 422,
+    "headers": {
+     "content-type": "application/json",
+     "cache-control": "no-store"
+    },
+    "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"protocol\"],\"msg\":\"Field required\",\"input\":null}]}"
+   }
+  ]
+ }
+]
