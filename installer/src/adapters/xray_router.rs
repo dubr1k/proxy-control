@@ -728,8 +728,16 @@ mod tests {
     #[test]
     fn env_bytes_match_python_kitchen_sink_golden() {
         let root = TempDir::new("router-env-golden");
+        // The recorded environment belongs to the historical manifest in this fixture.
+        let source = root.path().join("source");
+        fs::create_dir_all(source.join("release")).unwrap();
+        fs::copy(
+            tree().join("tests/fixtures/releases/valid-manifest.json"),
+            source.join("release/external-artifacts.json"),
+        )
+        .unwrap();
         let context =
-            AdapterContext { root: root.path().into(), tree: tree(), runner: Arc::new(RecordingRunner::new()) };
+            AdapterContext { root: root.path().into(), tree: source, runner: Arc::new(RecordingRunner::new()) };
         let config = installer_core::config::load_config(
             &tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml"),
         )
