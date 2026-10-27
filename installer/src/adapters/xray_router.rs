@@ -454,7 +454,8 @@ impl Adapter for XrayRouterAdapter {
         for (source, target) in HELPERS {
             h::atomic(&self.context, target, &fs::read(self.context.tree.join(source))?, 0o755)?;
         }
-        h::run(&self.context, &[HELPERS[0].1, "prepare", STATE], None)?;
+        let state_mode = if checkpoint["state_preexisting"] == true { "verify" } else { "prepare" };
+        h::run(&self.context, &[HELPERS[0].1, state_mode, STATE], None)?;
         for (index, path) in SECRETS.iter().enumerate() {
             let file = h::host(&self.context, path)?;
             if file.exists() {
