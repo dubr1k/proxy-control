@@ -118,13 +118,12 @@ TLS-приветствии (SNI) и передаёт соединение нуж
 | Mieru | Выбранные вами TCP-порты | Публично; порт 443 не используется |
 | Управление Mieru | `/run/mita/mita.sock` | Только локальный Unix-сокет |
 | AmneziaWG (необязательно) | По одному UDP-порту на версию: случайный свободный, свой на каждый сервер (или ваш) | Публично, напрямую по UDP; управление — Unix-сокет контейнера `awg-manager` |
-| Вход Fleet v1 | TCP/8790 | Только HTTPS с mTLS, если этот необязательный контур включён |
 
 Свежая установка сохраняет IP клиента панели через общий вход Nginx. Если входящими
 соединениями управляет ваша собственная конфигурация Nginx, настройте передачу адреса по
 протоколу PROXY — порядок описан в [справочнике установщика](docs/INSTALLER_REFERENCE.ru.md).
 
-Контейнеры называются `proxy-control-*`, проект Compose — `mtproxy`.
+Контейнеры называются `proxy-control-*`, проект Compose — `proxy_panel_by_dubr1k`.
 
 ## Требования
 
@@ -226,12 +225,11 @@ bash install-release.sh
 
 Полезные параметры: `--check-only` только скачивает и проверяет; `--no-wizard` ещё и
 распаковывает, но мастер не запускает; `--lang ru|en` — язык сообщений и мастера (язык
-мастер тогда не спрашивает). Сценарий запускает установщик от root без записи `.pyc`, так что
-распакованный каталог потом удаляется обычным `rm -rf`. Если Proxy Control на сервере уже
-стоит, мастер сообщит об этом, подскажет `bash install-release.sh --update` и по умолчанию
-завершится без изменений; переустановку можно продолжить, ответив `continue`. Для установки
-именно 3.3.0 замените в обеих ссылках `releases/latest/download/` на
-`releases/download/v3.3.0/`.
+мастер тогда не спрашивает). Сценарий запускает нативный бинарник установщика
+с необходимыми правами; Python на сервере не нужен. Если Proxy Control на сервере уже
+стоит, используйте `bash install-release.sh --update`, а не кнопку «Обновить» в панели
+3.3.0. Сначала проверьте Fleet v1: установленный агент или ingress с mTLS требует
+сохранения состояния и явного переноса, не удаления тома при обновлении.
 
 Проект намеренно не предлагает «скачать и сразу выполнить одной командой»: сценарий
 сначала проверяется, потом читается и только потом запускается.
@@ -458,6 +456,9 @@ chmod 600 ~/proxy-control.toml
 
 ### Шаг 3. Получить план и показать его владельцу
 
+В командах ниже `awk` читает digest из JSON-плана. Проверяйте его вместе с
+читаемым планом перед передачей владельцу; Python на сервере не нужен.
+
 ```bash
 sudo bash install.sh plan --config ~/proxy-control.toml --json > ~/plan.json
 echo "exit=$?"                                   # не 0 — стоп, причина владельцу
@@ -588,19 +589,17 @@ systemctl is-active caddy-naive mita
 ### Резервная копия
 
 Главное — база панели и **мастер-ключ** `secrets/panel-master-key`, который хранится
-отдельно от базы: без него зашифрованные учётные данные не восстановить. Копия базы без
-остановки службы:
+отдельно от базы: без него зашифрованные учётные данные не восстановить. Для online
+backup без остановки службы нужен `sqlite3` CLI на хосте (не требуется самому
+Proxy Control). Используйте фактический mount `/data` контейнера и закрытый каталог вне тома:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+umask 077
+backup=$(sudo mktemp -d /root/proxy-control-db.XXXXXX)
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
 Ожидается ровно `ok`. Что ещё резервировать для Telemt, NaiveProxy, Mieru, TrustTunnel (`/var/lib/trusttunnel-manager`), Nginx и Fleet и как
@@ -796,9 +795,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | `mcp_server/Dockerfile` | MCP-сервер (Rust, только центральная панель) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: служба управления (Rust) и `amneziawg-go` (необязательно) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `trusttunnel_manager/Dockerfile` | TrustTunnel: служба управления (Rust) и закреплённый `trusttunnel_endpoint` (необязательно) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
-| `deploy/Dockerfile.agent` | Агент узла Fleet v1 | `python:3.13.5-slim` |
-| `deploy/Dockerfile.ingress` | Вход Fleet v1 с mTLS | `python:3.13.5-slim` |
-| `deploy/mieru-client/Dockerfile` | Клиент Mieru для приёмки | `python:3.13.5-slim` |
+| `deploy/mieru-client/Dockerfile` | Нативный клиент Mieru для приёмки | `rust:1.99-alpine` (сборка), `debian:bookworm-slim` |
 | `probe/Dockerfile` | Проба MTProto на TDLib | `node` |
 | `docker/Dockerfile.caddy-naive` | Caddy с `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
 | `release/Dockerfile.host-binaries` | Сборщик выпуска: готовые бинари для хоста (статический musl, воспроизводимо), не образ для запуска | `rust:1.99-alpine` → `scratch` |

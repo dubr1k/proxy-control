@@ -49,7 +49,7 @@ pub const PANEL_MANAGERS: [&str; 7] = [
     "docker",
 ];
 /// Optional Compose service → the overlay that defines it.
-pub const OPTIONAL_COMPOSE_SERVICES: [(&str, &str); 9] = [
+pub const OPTIONAL_COMPOSE_SERVICES: [(&str, &str); 7] = [
     ("mcp", "compose.mcp.yaml"),
     ("naive-manager", "compose.naive.yaml"),
     ("mieru-manager", "compose.mieru.yaml"),
@@ -57,8 +57,6 @@ pub const OPTIONAL_COMPOSE_SERVICES: [(&str, &str); 9] = [
     ("xray-router-ingress", "compose.xray-router.yaml"),
     ("awg-manager", "compose.amneziawg.yaml"),
     ("trusttunnel-manager", "compose.trusttunnel.yaml"),
-    ("fleet-agent", "compose.agent.yaml"),
-    ("fleet-ingress", "compose.fleet-central.yaml"),
 ];
 /// Manager → the Compose services built from its sources (`docker` has none).
 pub const MANAGER_SERVICES: [(&str, &[&str]); 6] = [

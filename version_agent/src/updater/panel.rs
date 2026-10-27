@@ -19,7 +19,7 @@ use sha2::{Digest, Sha256};
 
 use crate::catalog::CatalogEntry;
 use crate::errors::{failure_line, AgentError, Cause, UpdateError, UpdateState};
-use crate::service::{optional_overlay, VersionAgent, PANEL_MANAGERS};
+use crate::service::{optional_overlay, VersionAgent, COMPOSE_PROJECT, LEGACY_COMPOSE_PROJECT, PANEL_MANAGERS};
 use crate::upstream::compare_versions;
 
 use super::{
@@ -115,24 +115,97 @@ pub fn update_panel_async(
     Ok(json!({"component": "panel", "version": version, "changed": true, "async": true}))
 }
 
-/// `_preflight_compose_scope()`: every running optional service must have its overlay in
-/// `PROXY_CONTROL_COMPOSE_FILES`, or the rebuild would drop it.
-pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
-    if agent.config.compose_dir.is_none() {
-        return Err(refuse("Compose deployment is not configured"));
+pub(crate) fn legacy_unit_on_disk(root: &Path, unit: &str) -> io::Result<bool> {
+    for directory in ["etc/systemd/system", "lib/systemd/system", "usr/lib/systemd/system"] {
+        match fs::symlink_metadata(root.join(directory).join(unit)) {
+            Ok(_) => return Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
     }
-    let filter = format!("label=com.docker.compose.project={}", agent.project());
-    let format = "{{.Label \"com.docker.compose.service\"}}";
-    let running = run(agent, &argv(&["docker", "ps", "--filter", &filter, "--format", format]), 30).map_err(|err| {
-        Failure::Update(UpdateError::new("could not determine running Compose services").caused_by(err.cause()))
-    })?;
-    for service in crate::py::splitlines(&running) {
-        let service = crate::py::strip(service);
-        if let Some(required) = optional_overlay(service) {
-            if !agent.config.compose_files.iter().any(|file| file == required) {
+    Ok(false)
+}
+
+/// Every running optional service must have its overlay in `PROXY_CONTROL_COMPOSE_FILES`.
+/// Fleet v1 has no native replacement: reject its installed overlays and containers in either
+/// historical Compose project rather than dropping its writer or persistent volumes.
+pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
+    let Some(compose_dir) = agent.config.compose_dir.as_ref() else {
+        return Err(refuse("Compose deployment is not configured"));
+    };
+    for unit in ["mtproxy-agent.service", "mtproxy-fleet-ingress.service"] {
+        // systemd may not have reloaded after a unit file was installed; LoadState alone
+        // can then report not-found while a legacy writer is present on disk.
+        if legacy_unit_on_disk(Path::new("/"), unit)? {
+            return Err(refuse(format!(
+                "Fleet v1 unit {unit} is still installed; migrate its state explicitly before updating the panel"
+            )));
+        }
+        let state =
+            run(agent, &argv(&["systemctl", "show", "--property=LoadState", "--value", unit]), 30).map_err(|err| {
+                Failure::Update(UpdateError::new("could not determine installed Fleet v1 units").caused_by(err.cause()))
+            })?;
+        match crate::py::strip(&state) {
+            "not-found" => {}
+            "loaded" | "masked" | "error" => {
                 return Err(refuse(format!(
-                    "running service {service} requires {required} in PROXY_CONTROL_COMPOSE_FILES"
+                    "Fleet v1 unit {unit} is still installed; migrate its state explicitly before updating the panel"
                 )));
+            }
+            _ => return Err(refuse(format!("could not determine whether Fleet v1 unit {unit} is installed"))),
+        }
+    }
+    for retired in ["compose.agent.yaml", "compose.fleet-central.yaml"] {
+        let installed = match fs::symlink_metadata(compose_dir.join(retired)) {
+            Ok(_) => true,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => false,
+            Err(err) => return Err(err.into()),
+        };
+        if installed
+            || agent
+                .config
+                .compose_files
+                .iter()
+                .any(|file| Path::new(file).file_name() == Some(std::ffi::OsStr::new(retired)))
+        {
+            return Err(refuse(format!(
+                "Fleet v1 overlay {retired} is installed; migrate its state explicitly before updating the panel"
+            )));
+        }
+    }
+    let format = "{{.Label \"com.docker.compose.service\"}}";
+    let project = agent.project();
+    for candidate in [COMPOSE_PROJECT, LEGACY_COMPOSE_PROJECT] {
+        let filter = format!("label=com.docker.compose.project={candidate}");
+        let existing = run(agent, &argv(&["docker", "ps", "-a", "--filter", &filter, "--format", format]), 30)
+            .map_err(|err| {
+                Failure::Update(
+                    UpdateError::new("could not determine existing Compose services").caused_by(err.cause()),
+                )
+            })?;
+        for service in crate::py::splitlines(&existing) {
+            let service = crate::py::strip(service);
+            if matches!(service, "fleet-agent" | "fleet-ingress") {
+                return Err(refuse(format!(
+                    "Fleet v1 service {service} is still installed; migrate its state explicitly before updating the panel"
+                )));
+            }
+        }
+        if candidate != project {
+            continue;
+        }
+        let running =
+            run(agent, &argv(&["docker", "ps", "--filter", &filter, "--format", format]), 30).map_err(|err| {
+                Failure::Update(UpdateError::new("could not determine running Compose services").caused_by(err.cause()))
+            })?;
+        for service in crate::py::splitlines(&running) {
+            let service = crate::py::strip(service);
+            if let Some(required) = optional_overlay(service) {
+                if !agent.config.compose_files.iter().any(|file| file == required) {
+                    return Err(refuse(format!(
+                        "running service {service} requires {required} in PROXY_CONTROL_COMPOSE_FILES"
+                    )));
+                }
             }
         }
     }
@@ -395,33 +468,15 @@ fn move_entry(source: &Path, target: &Path) -> io::Result<()> {
     }
 }
 
-/// The services that write the panel database (legacy Fleet ingress shares it).
-fn panel_writers(agent: &VersionAgent) -> Vec<&'static str> {
-    if agent.config.compose_files.iter().any(|file| file == "compose.fleet-central.yaml") {
-        vec!["panel", "fleet-ingress"]
-    } else {
-        vec!["panel"]
-    }
-}
-
 /// `_stop_panel_writers()`: stop them, then prove no container mounts the database volume any more
 /// (a foreign container could; the agent refuses rather than stop its workload).
 fn stop_panel_writers(agent: &VersionAgent) -> Step<()> {
-    let mut args = vec!["stop"];
-    args.extend(panel_writers(agent));
+    let args = ["stop", "panel"];
     run_compose(agent, &compose_command(agent, &args, override_exists(agent), true)?, 180)?;
     let filter = format!("volume={}", agent.panel_volume());
     let active = run(agent, &argv(&["docker", "ps", "--filter", &filter, "--format", "{{.ID}}"]), 30)?;
     if !crate::py::strip(&active).is_empty() {
         return Err(refuse("panel database volume still has active containers"));
-    }
-    Ok(())
-}
-
-/// `_start_panel_peers()`.
-fn start_panel_peers(agent: &VersionAgent) -> Step<()> {
-    for service in panel_writers(agent).into_iter().skip(1) {
-        compose_up(agent, service)?;
     }
     Ok(())
 }
@@ -626,7 +681,6 @@ fn swap(
         let shown = if running.is_empty() { "nothing" } else { running.as_str() };
         return Err(refuse(format!("panel container reports {shown}, expected {}", entry.version)));
     }
-    start_panel_peers(agent)?;
     handoff.commit()?;
     Ok(())
 }
@@ -670,7 +724,6 @@ fn restore_panel(
     if let Some(tag) = &progress.rollback_tag {
         run(agent, &argv(&["docker", "tag", tag, &format!("{}:latest", agent.panel_image())]), 60)?;
         compose_up(agent, "panel")?;
-        start_panel_peers(agent)?;
     }
     // Before the image was tagged no runtime command ran: the still-running container is left
     // alone rather than recreated from an unrelated :latest.

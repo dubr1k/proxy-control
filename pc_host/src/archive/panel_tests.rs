@@ -4,7 +4,7 @@ use super::*;
 use crate::testarchive::{tar_gz, TarSpec};
 use crate::testutil::TempDir;
 
-/// `v3.3.0:version_agent/service.py` `PANEL_SYNC`.
+/// Entries still supported from the pre-4.0 release sync set.
 const PANEL_SYNC_330: &[&str] = &[
     "panel",
     "installer",
@@ -25,8 +25,6 @@ const PANEL_SYNC_330: &[&str] = &[
     "compose.amneziawg.yaml",
     "compose.trusttunnel.yaml",
     "compose.mcp.yaml",
-    "compose.agent.yaml",
-    "compose.fleet-central.yaml",
     "VERSION",
     "uninstall.sh",
     "install.sh",
@@ -39,18 +37,13 @@ const PANEL_SYNC_330: &[&str] = &[
     "LICENSE",
 ];
 
-fn python_names(file: &str, start: &str, end: char) -> Option<Vec<String>> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(file);
-    let text = fs::read_to_string(path).ok()?;
-    let from = text.find(start)? + start.len();
-    let block = &text[from..from + text[from..].find(end)?];
-    Some(block.split(['\'', '"']).enumerate().filter(|(i, _)| i % 2 == 1).map(|(_, s)| s.to_string()).collect())
-}
-
 #[test]
 fn panel_sync_covers_every_synced_tree() {
     for name in PANEL_SYNC_330 {
-        assert!(PANEL_SYNC.contains(name), "{name} synced by 3.3.0 agents is missing");
+        assert!(PANEL_SYNC.contains(name), "{name} must remain syncable");
+    }
+    for removed in ["compose.agent.yaml", "compose.fleet-central.yaml"] {
+        assert!(!PANEL_SYNC.contains(&removed), "{removed} belongs to retired Fleet v1");
     }
     for name in RUST_MANAGERS.iter().chain([&"pc_common", &"pc_host", &"installer_core"]) {
         assert!(PANEL_SYNC.contains(name), "{name}");
@@ -67,25 +60,18 @@ fn panel_sync_is_also_the_handoff_allow_list() {
     for name in PANEL_SYNC {
         assert!(handoff_allows(name));
     }
-    for name in ["version_agent", "secrets", ".env", "version-overrides", "bin", "", "../panel"] {
+    for name in [
+        "version_agent",
+        "secrets",
+        ".env",
+        "version-overrides",
+        "bin",
+        "compose.agent.yaml",
+        "compose.fleet-central.yaml",
+        "",
+        "../panel",
+    ] {
         assert!(!handoff_allows(name), "{name}");
-    }
-}
-
-#[test]
-fn panel_sync_matches_the_python_lists_while_they_exist() {
-    // Until the cutover removes them: the agent's tuple and the handoff's allow-list are the
-    // Rust list without the host crates `pc_host` and `installer_core`.
-    let mut ours: Vec<String> =
-        PANEL_SYNC.iter().filter(|n| !["pc_host", "installer_core"].contains(*n)).map(|n| n.to_string()).collect();
-    ours.sort();
-    if let Some(mut agent) = python_names("version_agent/service.py", "PANEL_SYNC = (", ')') {
-        agent.sort();
-        assert_eq!(agent, ours);
-    }
-    if let Some(mut allowed) = python_names("installer/transaction.py", "allowed = {", '}') {
-        allowed.sort();
-        assert_eq!(allowed, ours);
     }
 }
 

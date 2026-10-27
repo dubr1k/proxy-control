@@ -19,8 +19,8 @@ subscribers:
   or audit;
 - every subscriber gets one stable URL that always renders the current set of
   grants, with `ETag`/`304` semantics and honest per-client compatibility;
-- Fleet v1 keeps working byte-for-byte. Fleet v2, routing and the dedicated Xray
-  router build on this model with their own gates.
+- Fleet v2, routing and the dedicated Xray router build on this model. Old Fleet v1
+  deployments require explicit migration; their mTLS services are not shipped.
 
 ## Target model
 
@@ -81,18 +81,17 @@ Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 
 ## What does not change
 
-- **Fleet v1 is frozen and byte-compatible**: the `OPERATIONS` set, the
-  `TypedCommand` shape, sequence/outbox semantics, mTLS enrollment and the
-  `GET /agent/v1/...` paths. It stays Telemt-only.
-- **Frozen runtime identifiers** (see `COMPATIBILITY.md`): `/opt/mtproxy-shared443`,
-  `/var/lib/mtproxy-panel`, `/etc/mtproxy-agent`, the unit file names and the
-  `urn:mtproxy-panel:node:` prefix. The Compose project was renamed in 3.0 to
-  `proxy_panel_by_dubr1k` (`docs/COMPATIBILITY.md`).
-- **One database**: new tables are added to the existing `panel.sqlite3`;
-  existing tables are not renamed. Migrations are safe across the two processes
-  that open that file (panel and fleet-ingress).
-- **Existing protocol endpoints keep working** during the transition, as a
-  compatibility façade behind `PANEL_VNEXT_WRITER` (ADR 003).
+- **Linked panels use Fleet v2:** one panel reaches another over its HTTPS API with a
+  scoped `node-sync` key; no extra Compose Fleet agent or ingress is installed.
+- **Installed Fleet v1 state is not discarded:** a legacy systemd unit, an
+  on-disk/configured overlay, or even a stopped legacy container in either
+  historical Compose project stops native panel self-update before any tree or
+  database mutation. Operators must preserve the writer, certificates and volumes
+  for an explicit migration (see [COMPATIBILITY](COMPATIBILITY.md)).
+- **Host identifiers remain stable:** `/opt/mtproxy-shared443` and the existing Compose
+  project's name, volumes and panel database are preserved by the host migration.
+- **One database:** the panel owns `panel.sqlite3`; a retired Fleet v1 ingress cannot
+  continue writing it across a native panel self-update.
 
 ## Secret boundaries
 
@@ -158,38 +157,27 @@ What it adds, and what it deliberately does not:
 - Ownership on the node follows ADR 003: `central` vs `local` runtime users, adoption
   only for explicitly imported users, collisions reported `failed`, orphans deleted,
   local users never touched.
-- Fleet v1 stays frozen and byte-compatible; routing is capability-limited native egress
-  policies (`docs/ROUTING.en.md`, ADR 006, ADR 007 for the native backends) plus the
-  optional dedicated Xray-router (`docs/XRAY_ROUTER.en.md`, ADR 007 for the router: a
-  separate pinned runtime with its own generations, authenticated per-service ingresses,
-  attach/detach as explicit actions, `companion` documents in a generation). There are
-  no transitive nodes, no metric history, no
-  panel-to-panel mTLS, no 3x-ui bridge and no canary rollouts.
+- Routing is capability-limited native egress policies (`docs/ROUTING.en.md`, ADR 006,
+  ADR 007 for the native backends) plus the optional dedicated Xray-router
+  (`docs/XRAY_ROUTER.en.md`, ADR 007 for the router: a separate pinned runtime with
+  its own generations, authenticated per-service ingresses, attach/detach as explicit
+  actions, `companion` documents in a generation).
 
-Components (all under `panel/` unless stated):
+Native components (paths relative to `panel/crates/`):
 
 | File | Responsibility |
 | --- | --- |
-| `migrations.py` | migrations 9–12: `panel_settings` + `api_keys`; `managed_generations` + `managed_resources`; `node_links` + `desired_generations` + `observed_generations` + `fleet_nodes.transport`; `provisioning_operations` rebuilt with `pending_remote` |
-| `api_keys.py`, `api_key_routes.py` | `ApiKeyService` — issue / list / enable-disable / delete / authenticate, scope → role; `/api/keys*` (owner) |
-| `web_context.py` | `Authorization: Bearer` in `RequestContext.current`, the `fleet_key` dependency, `KeyRateLimiter` (120/min per key) |
-| `fleet_v2/identity.py` | the panel's `panel_guid` and `fleet_master_guid`, `VERSION` → `panel_version` |
-| `fleet_v2/protocol.py` | wire models `Resource`, `GenerationDocument`, `PushRequest`, `ObservedGeneration`, `PushResponse`; canonical digest; conflict codes |
-| `fleet_v2/managed.py` | node: `ManagedStore` — accepted generations, owned resources, ownership check, unlink |
-| `fleet_v2/reconcile.py` | node: `Reconciler` — discover / plan / apply / verify through the protocol adapters, startup retry |
-| `fleet_v2/guard.py` | node: `require_unmanaged` — 409 `managed_by_central` for every local writer |
-| `fleet_v2/node_routes.py` | node: `/api/fleet/v2/*`, `POST /api/nodes/local/unlink` |
-| `fleet_v2/client.py` | central: `NodeClient` (httpx, `verify`/`pin`), `fingerprint()`, `validate_panel_url()` |
-| `fleet_v2/links.py` | central: `NodeLinkService` — test / add / update / pause / probe / delete, heartbeat bookkeeping |
-| `fleet_v2/generations.py` | central: `DesiredStore`, `compile()`, `publish()` (content digest) |
-| `fleet_v2/pusher.py` | central: `FleetPusher` — heartbeat, delivery, 202 polling, resync, per-node backoff, `node.up`/`node.down` |
-| `fleet_v2/importing.py` | central: import of a node's runtime users → clients + `origin=imported` grants, credential capture |
-| `fleet_v2/central_routes.py` | central: `/api/nodes/fingerprint\|test\|link`, `/api/nodes/{id}/link\|pause\|resume\|probe\|inventory\|import\|versions\|generations`, `DELETE /api/nodes/{id}`, `public_hosts_for()` |
-| `clients/lifecycle.py`, `clients/provisioning.py` | grants: enable / disable / rotate / delete for local and remote nodes; the `remote` step and `pending_remote` operations |
-| `protocols/telemt.py`, `telemt.py` | caller-supplied secret with manager fallback (`credential_origin`), `update_options` |
-| `protocols/naive.py`, `protocols/mieru.py` | `update_options`, capture support flags |
-| `subscription_routes.py`, `client_routes.py`, `subscriptions/renderers/base.py` | public hosts per node in subscriptions and bundles |
-| `static/js/keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css` | UI: «API-ключи», «Добавить узел», linked node card, «ожидает узел» |
+| `core/src/migrations/`, `core/src/db.rs` | panel database migrations and connection lifecycle |
+| `secrets/src/api_keys.rs`, `web/src/routes/api_keys.rs`, `web/src/auth.rs` | scoped API keys, authentication, `/api/keys*` |
+| `secrets/src/identity.rs`, `model/src/fleet.rs` | panel GUID, master GUID, typed generation and observation wire models |
+| `fleet/src/node/managed.rs`, `fleet/src/node/reconcile.rs`, `fleet/src/node/guard.rs` | node's generation ownership, reconciliation and local-writer conflicts |
+| `web/src/routes/fleet_node.rs` | node's `/api/fleet/v2/*` and unlink routes |
+| `fleet-central/src/client.rs`, `fleet-central/src/links.rs` | verified/pinned HTTPS client, linked panel lifecycle |
+| `fleet-central/src/generations.rs`, `fleet-central/src/pusher.rs`, `fleet-central/src/importing.rs` | compilation, delivery, observation and inventory import |
+| `web/src/routes/fleet_central.rs` | central's node-link and generation API |
+| `clients/src/lifecycle.rs`, `clients/src/provisioning.rs` | local and remote grant lifecycle and provisioned operations |
+| `web/src/routes/clients.rs`, `web/src/routes/subscriptions.rs`, `clients/src/subscriptions.rs` | client API and public subscriptions |
+| `static/js/keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css` | linked-panel and client UI |
 
 ## Release train
 
@@ -197,12 +185,11 @@ Components (all under `panel/` unless stated):
   Compose/image checks, the container lab, the destructive host lab and a real
   installation with live protocol probes. Local macOS is not an authoritative
   host.
-- GitHub Actions no longer gates: it rebuilds the release twice, verifies the
-  bytes match the archive that passed `ams-test` (`expected_sha256`), attests
-  provenance and publishes after a human approval.
-- Tags are `vX.Y.Z`; the workflow accepts pre-release suffixes (`vX.Y.Z-<suffix>`) and
-  publishes them as pre-releases. The gate includes a `fleet` lab tier (two panels on the
-  lab host) before the tag.
+- GitHub Actions runs native tests, the full external Rust-panel suite, dependency
+  auditing and repeat release builds. A CI result does not replace a fresh lab-host
+  run or an observed Fleet v2 native-central scenario against the release archive.
+- Tags are `vX.Y.Z`; while 3.3.0 hosts still exist, do not publish public 4.0
+  pre-releases. Test candidates privately from local archives on `ams-test`.
 - Graphify is rerun after each architecture-scale change and before final review.
 
 ## Decision records

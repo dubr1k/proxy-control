@@ -1,6 +1,5 @@
-//! The panel release archive: what of it is synced onto a host, and the checks before a byte
-//! of it is written (`version_agent/service.py:77-85`, `:945-986`;
-//! `installer/transaction.py:522-530`).
+//! The native panel release archive: the bounded sync allow-list and the checks before
+//! extracting any archive member.
 
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -19,11 +18,9 @@ pub const PANEL_ARCHIVE_PREFIX: &str = "proxy-control";
 /// directory (`secrets/`, `.env*`, `version-overrides/`, certificates) is never touched, and an
 /// entry absent from an archive is left as it is.
 ///
-/// Superset of what 3.3.0 agents sync (every entry of `v3.3.0:version_agent/service.py`
-/// `PANEL_SYNC` is here), plus `pc_common` (the Rust managers build against it), `pc_host`
-/// (the host crates' shared library) and `installer_core` (a path dependency of the installer
-/// crate; its sources ride along like `pc_host`). The two host binaries live inside `installer/` and
-/// `version_agent/`, which every agent generation already syncs.
+/// Preserve the installer's native trees and the host crates needed for manager builds.
+/// Fleet v1 overlays are intentionally absent: the native version-agent refuses installed
+/// legacy units, overlays and Compose containers before changing the panel's files or database.
 pub const PANEL_SYNC: &[&str] = &[
     "panel",
     "installer",
@@ -47,8 +44,6 @@ pub const PANEL_SYNC: &[&str] = &[
     "compose.amneziawg.yaml",
     "compose.trusttunnel.yaml",
     "compose.mcp.yaml",
-    "compose.agent.yaml",
-    "compose.fleet-central.yaml",
     "VERSION",
     "uninstall.sh",
     "install.sh",

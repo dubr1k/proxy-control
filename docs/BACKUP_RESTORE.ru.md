@@ -16,12 +16,12 @@ Backup считается пригодным только если он согл
 | Xray-router | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
 | AmneziaWG | `/var/lib/awg-manager` (0700, root: ключи сервера и выданные пиры — без них все конфиги клиентов перестанут работать), `secrets/awg-manager-token`, `.env.amneziawg`; образ пересобирается из закреплённого коммита amneziawg-go, а не восстанавливается из копии |
 | TrustTunnel | `/var/lib/trusttunnel-manager` (0700, root: `state.json` с паролями доступов и счётчиками трафика), `secrets/trusttunnel-manager-token`, `.env.trusttunnel`; образ собирается заново из закреплённого архива endpoint, сертификат имени выпускается заново (линия Certbot с его именем) |
-| Fleet central | panel DB, ingress config, public server cert, client CA certificate; offline CA private key отдельно |
-| Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
+| Центральная панель Fleet v2 | БД панели и отдельно хранимый мастер-ключ (зашифрованные ключи `node-sync`, связи узлов, доступы и поколения); HTTPS-сертификат/ключ сервера и маршруты Nginx |
+| Узел Fleet v2 | собственная БД панели и отдельный мастер-ключ, HTTPS-сертификат/ключ, локальное состояние и секреты менеджеров/протоколов; хеши ключей `node-sync` хранятся в БД узла |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests и installer backups |
 | Deployment | exact Git revision, image IDs/digests, binary digests, полный `COMPOSE_FILE`, package/unit versions |
 
-Не складывайте offline fleet CA key и node backups в один доступный online archive.
+Если ещё установлена Fleet v1, дополнительно сохраните БД/outbox агента, mTLS-ключ и сертификат узла, доверенный CA, настройки ingress, env/units служб и закрытый ключ автономного CA до явной миграции. Не храните закрытый ключ CA вместе с широко доступными копиями узлов; нативный выпуск не устанавливает PKI версии v1.
 
 ### Мастер-ключ панели
 
@@ -59,11 +59,15 @@ docker run --rm -v "$restored_data":/data -v "$restored_key":/key:ro \
 
 ## Подготовка
 
-1. Остановите новые mutations.
+1. Согласуйте окно для согласованной копии остальных сервисов; online backup SQLite не требует остановки писателей.
 2. Запишите exact revision и runtime identities.
 3. Убедитесь, что все services находятся в известном состоянии.
 4. Создайте root-only destination на отдельном filesystem/storage.
 5. Не выводите secret paths/content в общий лог.
+
+Выполняйте следующие команды в каталоге установленного проекта из root shell
+(например, через `sudo -s`, сохраняющий текущий каталог). Каталог копии в
+`/root` не создаётся из непривилегированного shell.
 
 Пример метаданных:
 
@@ -79,43 +83,43 @@ docker compose images --format json > "$backup/compose-images.json"
 
 ## SQLite
 
-Предпочтителен online backup API. Для panel container пример зависит от фактического DB path:
+Используйте online backup штатным SQLite CLI на хосте по фактическому mount `/data`
+панели. Оператору для этой процедуры нужен `sqlite3` на хосте; работающим панели и
+установщику не требуются ни Python, ни SQLite CLI. Каталог `$backup` создан выше
+только для root; не храните копию внутри работающего контейнера:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
-После этого скопируйте backup file в защищённое место и удалите staging copy. Альтернатива — остановить writer и копировать DB + `-wal` + `-shm` вместе. Никогда не копируйте только main DB при active WAL writer.
-
-Проверка:
-
-```bash
-sqlite3 panel.backup.sqlite3 'PRAGMA integrity_check;'
-```
-
-Ожидается ровно `ok`.
+Ожидается ровно `ok`. Перенесите копию в защищённое внешнее хранилище.
+Альтернатива — остановить **всех** писателей (включая установленный Fleet v1 ingress)
+и скопировать DB + `-wal` + `-shm` вместе. Нельзя копировать только основной файл
+при работающем WAL-писателе; том и ключи Fleet v1 не удаляются молча.
 
 ## Docker volumes
 
-Остановите mutation-capable services или используйте application-consistent snapshot. Архивируйте volume без изменения ownership:
+Остановите службы-писатели только в согласованное окно работ или используйте
+application-consistent snapshot. Сначала запишите, какие службы работали.
+При установленном Fleet v1 ingress это ещё один писатель БД: команда для текущего
+Compose-проекта ниже сама по себе не доказывает остановку всех писателей.
 
 ```bash
+docker compose ps --status running --services
 docker compose stop panel mtproxy
 # Выполните проверенный volume snapshot/backup механизм вашей платформы.
-docker compose up -d
+# Верните только службы, работавшие до окна работ.
 ```
 
 Не удаляйте volume после backup. `telemt-config` содержит credentials и API-mutated source of truth; удаление заставит entrypoint повторно импортировать исходный `users.conf`.
 
-Runtime-команда `proxyctl uninstall` по умолчанию сохраняет Compose named volumes, но сохранность на том же host не заменяет backup. `uninstall --purge-data` фиксирует отдельную crash-resumable фазу удаления томов; используйте её только после off-host копирования и проверки restore snapshot выше, а interrupted uninstall продолжайте с тем же flag.
+Штатный `uninstall` нативного установщика сохраняет постоянные данные;
+`uninstall --purge-data` — отдельная необратимая операция. Применяйте её только
+после проверенного восстановления внешней резервной копии и повторяйте тот же
+флаг при прерывании удаления.
 
 ## Naive generation
 

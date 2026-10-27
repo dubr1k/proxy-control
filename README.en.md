@@ -118,13 +118,12 @@ Client ── TCP/443 ──► Nginx stream + SNI
 | Mieru | TCP ports you choose | Public; port 443 is not used |
 | Mieru control | `/run/mita/mita.sock` | Only a local Unix socket |
 | AmneziaWG (optional) | One UDP port per version, random and free, chosen per server (or yours) | Public, straight over UDP; management is the `awg-manager` container's Unix socket |
-| Fleet v1 ingress | TCP/8790 | Only HTTPS with mTLS, when this optional component is enabled |
 
 A fresh installation preserves the panel client IP through the shared Nginx entry. If
 your own Nginx configuration owns incoming connections, pass the address with the PROXY
 protocol — see the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
-Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
+Containers are named `proxy-control-*`; the Compose project is `proxy_panel_by_dubr1k`.
 
 ## Requirements
 
@@ -227,12 +226,11 @@ The script's own origin is proved with
 
 Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
 but does not start the wizard; `--lang ru|en` sets the language of the messages and of the
-wizard (which then does not ask for it). The script runs the installer as root without writing
-`.pyc` files, so the unpacked directory can be removed with a plain `rm -rf` afterwards. If
-Proxy Control is already installed on the server, the wizard says so, points at
-`bash install-release.sh --update` and by default quits without changes; answer `continue` to
-go on with a reinstall. To install exactly 3.3.0, replace `releases/latest/download/` in both URLs with
-`releases/download/v3.3.0/`.
+wizard (which then does not ask for it). The script runs the native installer executable
+with the required privileges; Python is not needed on the host. For an installed host,
+use `bash install-release.sh --update`, not the 3.3.0 panel's Update button. Audit
+Fleet v1 first: an installed mTLS agent or ingress requires preserving its state and
+explicitly migrating it, not deleting its volume as part of an update.
 
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
@@ -465,6 +463,9 @@ go into the TOML.
 
 ### Step 3. Get the plan and show it to the owner
 
+The commands below read the JSON digest with `awk`. Check it against the
+readable plan before showing it to the owner; Python is not needed on the host.
+
 ```bash
 sudo bash install.sh plan --config ~/proxy-control.toml --json > ~/plan.json
 echo "exit=$?"                                   # not 0 — stop, give the reason to the owner
@@ -597,19 +598,18 @@ codes, keys and certificates.
 ### Backup
 
 What matters most is the panel database and the **master key** `secrets/panel-master-key`,
-kept apart from the database: without it the encrypted credentials cannot be restored. A
-database copy without stopping the service:
+kept apart from the database: without it the encrypted credentials cannot be restored.
+For an online backup without stopping the service, the host needs the `sqlite3` CLI
+(Proxy Control itself does not). Locate the container's actual `/data` mount and
+create a root-only backup outside its live volume:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+umask 077
+backup=$(sudo mktemp -d /root/proxy-control-db.XXXXXX)
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
 Expect exactly `ok`. What else to back up for Telemt, NaiveProxy, Mieru, TrustTunnel (`/var/lib/trusttunnel-manager`), Nginx and Fleet and
@@ -809,9 +809,7 @@ embeds into the SBOM.
 | `mcp_server/Dockerfile` | The MCP server (Rust, central panel only) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: the manager (Rust) and `amneziawg-go` (optional) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `trusttunnel_manager/Dockerfile` | TrustTunnel: the manager (Rust) and the pinned `trusttunnel_endpoint` (optional) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
-| `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
-| `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
-| `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
+| `deploy/mieru-client/Dockerfile` | Native Mieru client for acceptance | `rust:1.99-alpine` (build), `debian:bookworm-slim` |
 | `probe/Dockerfile` | MTProto probe on TDLib | `node` |
 | `docker/Dockerfile.caddy-naive` | Caddy with `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
 | `release/Dockerfile.host-binaries` | Release builder: prebuilt host binaries (static musl, reproducible), not a runtime image | `rust:1.99-alpine` → `scratch` |

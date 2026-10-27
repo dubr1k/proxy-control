@@ -16,12 +16,12 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Xray-router | `/var/lib/xray-router` (generations, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` travel with their state directories; the binaries come from the pinned archive, never from a backup |
 | AmneziaWG | `/var/lib/awg-manager` (0700, root: the server keys and the issued peers — without them every client config stops working), `secrets/awg-manager-token`, `.env.amneziawg`; the image is rebuilt from the pinned amneziawg-go commit, never restored from a backup |
 | TrustTunnel | `/var/lib/trusttunnel-manager` (0700, root: `state.json` with the accesses' passwords and the traffic counters), `secrets/trusttunnel-manager-token`, `.env.trusttunnel`; the image is rebuilt from the pinned endpoint archive, the name's certificate is issued again (the Certbot lineage of its name) |
-| Fleet central | panel DB, ingress config, public server certificate, client CA certificate; offline CA private key separately |
-| Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
+| Fleet v2 central | panel SQLite and its separately stored master key (encrypted node-sync credentials, node links, grants and generations); HTTPS server certificate/key and Nginx routes |
+| Fleet v2 node | its own panel SQLite and separate master key, HTTPS certificate/key, local manager/runtime state and secrets; node-sync key digests reside in the node database |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests and installer backups |
 | Deployment | exact Git revision, image IDs/digests, binary digests, complete `COMPOSE_FILE`, package/unit versions |
 
-Never keep the offline fleet CA key and online node backups in one broadly accessible archive.
+If an older Fleet v1 installation still exists, additionally preserve its agent SQLite/outbox, mTLS node key/certificate, trusted CA, ingress configuration, service env/units and offline CA private key until explicit migration. Never bundle the offline CA private key with broadly accessible node backups; the native release does not install this v1 PKI.
 
 ### The panel master key
 
@@ -59,11 +59,15 @@ right key rather than starting the panel, which will fail closed anyway.
 
 ## Preparation
 
-1. Stop new mutations.
+1. Schedule a consistent snapshot window for non-SQLite state; SQLite online backup does not require stopping its writers.
 2. Record the exact revision and runtime identities.
 3. Put services into a known state.
 4. Create a root-only destination on separate storage.
 5. Keep secret paths/content out of shared logs.
+
+Run the following commands from the installed deployment directory in a root
+shell (for example, `sudo -s`, which preserves the current directory). The
+backup path under `/root` must not be created by an unprivileged shell.
 
 ```bash
 umask 077
@@ -77,41 +81,42 @@ docker compose images --format json > "$backup/compose-images.json"
 
 ## SQLite
 
-Prefer the online backup API. Example for the panel container:
+Use SQLite's online backup command on the host against the panel's actual `/data` mount.
+The operator needs the `sqlite3` CLI on the host for this backup procedure; the running
+panel and installer do not need Python or SQLite CLI. Use the root-only `$backup`
+directory created above, not a file inside the live container:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
-Copy the backup file to protected storage and remove the staging copy. Alternatively stop the writer and copy DB + `-wal` + `-shm` together. Never copy only the main DB while a WAL writer is active.
-
-```bash
-sqlite3 panel.backup.sqlite3 'PRAGMA integrity_check;'
-```
-
-The expected output is exactly `ok`.
+The expected integrity output is exactly `ok`. Copy the backup to protected off-host
+storage. Alternatively stop **every** writer (including any installed legacy Fleet v1
+ingress) and copy DB + `-wal` + `-shm` together. Never copy just the main DB while a
+WAL writer is active; an installed Fleet v1 writer must not be removed silently.
 
 ## Docker volumes
 
-Stop mutation-capable services or use an application-consistent snapshot:
+Stop mutation-capable services only during an explicitly scheduled outage, or use
+an application-consistent snapshot. Record which services were running first.
+If legacy Fleet v1 ingress is installed, it is another database writer: do not
+use this limited Compose command as proof the database is quiescent.
 
 ```bash
+docker compose ps --status running --services
 docker compose stop panel mtproxy
 # Use the validated volume snapshot mechanism for your platform.
-docker compose up -d
+# Restart only services that were running before this outage.
 ```
 
 The `telemt-config` volume is credential-bearing and contains API-mutated source of truth. Deleting it causes the entrypoint to import the original `users.conf` again.
 
-Runtime `proxyctl uninstall` preserves Compose named volumes by default, but preservation on the same host is not a backup. `uninstall --purge-data` commits a separate crash-resumable volume-purge phase; use it only after the snapshot above has been copied off-host and restore-verified, and repeat the same flag if that uninstall is interrupted.
+The native installer's `uninstall` keeps persistent data by default; `uninstall --purge-data`
+is a separate destructive operation. Use it only after an off-host snapshot has been
+restore-tested and repeat the same flag if an uninstall is interrupted.
 
 ## Naive generation
 

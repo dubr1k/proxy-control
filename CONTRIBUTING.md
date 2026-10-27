@@ -6,14 +6,21 @@ Search existing reports and remove credentials, access links, QR codes, certific
 
 ## Development
 
-Use Python 3.12 on Ubuntu 24.04 where possible:
+Use the pinned Rust 1.99 toolchain and Python 3.12 on Ubuntu 24.04 for
+development and external black-box tests. Production hosts do not run Python:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r panel/requirements-dev.txt
-.venv/bin/pytest -q
+cargo test --manifest-path panel/Cargo.toml --workspace --locked
+cargo test --manifest-path version_agent/Cargo.toml --locked
+cargo test --manifest-path installer/Cargo.toml --locked
+cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
+cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
+install -D -m 0755 installer/target/debug/proxy-control-installer installer/bin/linux-amd64/proxy-control-installer
+PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
+  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN .venv/bin/python -m pytest -q -ra
 .venv/bin/ruff check .
-python3 -m unittest -v tests/test_deploy.py
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck
 python3 scripts/check-doc-links.py
@@ -23,7 +30,7 @@ Render every affected Compose combination and build affected images. The exact C
 
 ## Architecture rules
 
-- Preserve migration-sensitive paths, Compose names/volumes, unit filenames, commands and fleet URI identifiers documented in [COMPATIBILITY.md](docs/COMPATIBILITY.md).
+- Preserve active runtime paths, Compose names/volumes and commands documented in [COMPATIBILITY.md](docs/COMPATIBILITY.md); discover and protect historical Fleet v1 units/URI identifiers during explicit migration, but do not reinstall them in the native release.
 - Keep protocol-specific MTProxy keys and names where they describe MTProto.
 - Keep Mieru/mita as an external GPLv3+ process; do not copy GPL source/generated stubs into the MIT adapter.
 - Do not widen manager APIs, mount a Docker socket, expose management ports, weaken fail-closed transactions, or invent accounting precision.

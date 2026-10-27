@@ -10,6 +10,13 @@ each node's own HTTPS panel domain, authenticated with a scoped Bearer API key
 in the web UI; nothing is installed on any host beyond the panel image — no ingress, no
 agent, no CA, no CSR.
 
+If a host still has Fleet v1 services (the mTLS ingress or node agent), preserve
+their state and certificates and explicitly migrate the links first. The current
+release does not install those services. A panel update refuses installed legacy
+systemd units, overlays configured or left on disk, and Fleet v1 containers even
+if they are stopped or belong to the other historical Compose project. Missing
+old files in a release are not permission to delete an installed volume or writer.
+
 Every panel image carries both halves. The node half answers `/api/fleet/v2/*`; the
 central half owns the «Узлы» (Nodes) screen, the `/api/nodes/*` routes and a heartbeat
 loop. Which of the new tables a given panel fills depends on its role in a link:

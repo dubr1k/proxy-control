@@ -94,6 +94,9 @@ type Intercept = Box<dyn Fn(&[String], &mut State) -> Option<Result<String, Comm
 pub(crate) struct State {
     pub commands: Vec<Vec<String>>,
     pub running_services: Vec<String>,
+    pub stopped_services: Vec<String>,
+    pub other_project_services: Vec<String>,
+    pub installed_fleet_units: Vec<String>,
     pub project: String,
     pub container_version: Option<String>,
     pub migrate: bool,
@@ -147,7 +150,10 @@ impl PanelHost {
         let state = Arc::new(Mutex::new(State {
             commands: Vec::new(),
             running_services: Vec::new(),
+            stopped_services: Vec::new(),
             project: "proxy_panel_by_dubr1k".into(),
+            other_project_services: Vec::new(),
+            installed_fleet_units: Vec::new(),
             container_version: None,
             migrate: false,
             running: format!("{OLD_PANEL}\n"),
@@ -279,6 +285,31 @@ impl PanelHost {
 fn answer(argv: &[String], state: &mut State, compose: &Path, volume: &Path) -> Result<String, CommandError> {
     let owned: Vec<String> = argv.to_vec();
     // ManagerHost
+    if starts(argv, &["systemctl", "show", "--property=LoadState", "--value"]) {
+        state.commands.push(owned);
+        return Ok(if state.installed_fleet_units.iter().any(|unit| unit == &argv[4]) {
+            "loaded\n"
+        } else {
+            "not-found\n"
+        }
+        .into());
+    }
+    let all_project_services = "{{.Label \"com.docker.compose.service\"}}";
+    if starts(argv, &["docker", "ps", "-a", "--filter"])
+        && argv.get(5).map(String::as_str) == Some("--format")
+        && argv.get(6).map(String::as_str) == Some(all_project_services)
+    {
+        state.commands.push(owned);
+        let mut known = if argv[4] == format!("label=com.docker.compose.project={}", state.project) {
+            let mut services = state.running_services.clone();
+            services.extend(state.stopped_services.iter().cloned());
+            services
+        } else {
+            state.other_project_services.clone()
+        };
+        known.sort();
+        return Ok(known.join("\n"));
+    }
     if starts(argv, &["docker", "ps", "-a"]) {
         let filter = argv.iter().enumerate().skip(5).find(|(_, a)| *a == "--filter").map(|(i, _)| i).unwrap();
         let service = argv[filter + 1].rsplit_once('=').unwrap().1.to_string();
@@ -366,9 +397,13 @@ fn verbs(commands: &[Vec<String>]) -> Vec<&'static str> {
     verbs
 }
 
-/// `_mutations(commands)`: everything but «which version is running» and `docker ps`.
+/// `_mutations(commands)`: exclude read-only panel version, container and unit inspection.
 fn mutations(commands: &[Vec<String>]) -> Vec<Vec<String>> {
-    commands.iter().filter(|c| !is(c, &PANEL_EXEC) && !starts(c, &["docker", "ps"])).cloned().collect()
+    commands
+        .iter()
+        .filter(|c| !is(c, &PANEL_EXEC) && !starts(c, &["docker", "ps"]) && !starts(c, &["systemctl", "show"]))
+        .cloned()
+        .collect()
 }
 
 fn panel_state(dir: &Path) -> Value {
@@ -437,6 +472,107 @@ fn direct_panel_update_refuses_omitted_running_optional_service() {
 }
 
 #[test]
+fn panel_update_refuses_retired_fleet_overlay_or_running_writer_before_mutation() {
+    for project in ["mtproxy", "proxy_panel_by_dubr1k"] {
+        for (service, overlay, stopped) in [
+            (None, Some("compose.fleet-central.yaml"), false),
+            (None, Some("compose.agent.yaml"), false),
+            (None, Some("./compose.agent.yaml"), false),
+            (None, Some("/opt/mtproxy-shared443/compose.fleet-central.yaml"), false),
+            (Some("fleet-ingress"), None, false),
+            (Some("fleet-agent"), None, false),
+            (Some("fleet-ingress"), None, true),
+            (Some("fleet-agent"), None, true),
+        ] {
+            let dir = TempDir::new("panel-retired-fleet");
+            let host = PanelHost::new(dir.path());
+            host.set(|state| {
+                state.project = project.into();
+                if let Some(service) = service {
+                    let services = if stopped { &mut state.stopped_services } else { &mut state.running_services };
+                    services.push(service.into());
+                }
+            });
+            let (agent, _) = host.agent(default_archive(), |config| {
+                if let Some(overlay) = overlay {
+                    config.compose_files.push(overlay.into());
+                }
+            });
+            let error = update_error(update_panel(&agent));
+            assert!(error.message.contains("Fleet v1"), "{error:?}");
+            assert_eq!(version_text(&host), format!("{OLD_PANEL}\n"));
+            assert_eq!(text(&host.volume.join("panel.sqlite3")), "db-old");
+            assert_eq!(text(&host.compose.join(".env")), "KEEP=1\n");
+            assert!(mutations(&host.commands()).is_empty(), "{:?}", host.commands());
+        }
+    }
+}
+
+#[test]
+fn panel_update_refuses_installed_fleet_units_before_mutation() {
+    for unit in ["mtproxy-agent.service", "mtproxy-fleet-ingress.service"] {
+        let dir = TempDir::new("panel-legacy-unit");
+        let host = PanelHost::new(dir.path());
+        host.set(|state| state.installed_fleet_units.push(unit.into()));
+        let (agent, _) = host.agent(default_archive(), |_| {});
+        let error = update_error(update_panel(&agent));
+        assert!(error.message.contains(unit), "{error:?}");
+        assert_eq!(version_text(&host), format!("{OLD_PANEL}\n"));
+        assert_eq!(text(&host.volume.join("panel.sqlite3")), "db-old");
+        assert!(mutations(&host.commands()).is_empty(), "{:?}", host.commands());
+    }
+}
+
+#[test]
+fn unloaded_legacy_unit_file_or_broken_symlink_is_still_detected() {
+    for unit in ["mtproxy-agent.service", "mtproxy-fleet-ingress.service"] {
+        for directory in ["etc/systemd/system", "lib/systemd/system", "usr/lib/systemd/system"] {
+            let root = TempDir::new("legacy-systemd-unit");
+            let path = root.path().join(directory).join(unit);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            write(&path, b"[Unit]\nDescription=Legacy Fleet v1\n");
+            assert!(crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+            std::fs::remove_file(&path).unwrap();
+            std::os::unix::fs::symlink("missing-unit", &path).unwrap();
+            assert!(crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+            std::fs::remove_file(&path).unwrap();
+            assert!(!crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+        }
+    }
+}
+
+#[test]
+fn panel_update_refuses_legacy_overlay_on_disk_or_other_project_before_mutation() {
+    for project in ["mtproxy", "proxy_panel_by_dubr1k"] {
+        for retired in ["compose.agent.yaml", "compose.fleet-central.yaml"] {
+            let dir = TempDir::new("panel-legacy-overlay");
+            let host = PanelHost::new(dir.path());
+            host.set(|state| state.project = project.into());
+            write(&host.compose.join(retired), b"legacy configuration\n");
+            let (agent, _) = host.agent(default_archive(), |_| {});
+            let error = update_error(update_panel(&agent));
+            assert!(error.message.contains(retired), "{error:?}");
+            assert_eq!(version_text(&host), format!("{OLD_PANEL}\n"));
+            assert!(mutations(&host.commands()).is_empty(), "{:?}", host.commands());
+        }
+        for service in ["fleet-agent", "fleet-ingress"] {
+            let dir = TempDir::new("panel-other-legacy-project");
+            let host = PanelHost::new(dir.path());
+            host.set(|state| {
+                state.project = project.into();
+                state.other_project_services.push(service.into());
+            });
+            let (agent, _) = host.agent(default_archive(), |_| {});
+            let error = update_error(update_panel(&agent));
+            assert!(error.message.contains(service), "{error:?}");
+            assert_eq!(version_text(&host), format!("{OLD_PANEL}\n"));
+            assert_eq!(text(&host.volume.join("panel.sqlite3")), "db-old");
+            assert!(mutations(&host.commands()).is_empty(), "{:?}", host.commands());
+        }
+    }
+}
+
+#[test]
 fn direct_panel_update_allows_declared_running_mcp() {
     let dir = TempDir::new("panel-mcp");
     let host = PanelHost::new(dir.path());
@@ -448,13 +584,29 @@ fn direct_panel_update_allows_declared_running_mcp() {
 }
 
 #[test]
+fn panel_update_fails_closed_when_legacy_unit_state_cannot_be_read() {
+    let dir = TempDir::new("panel-unit-query");
+    let host = PanelHost::new(dir.path());
+    let (agent, _) = host.agent(default_archive(), |_| {});
+    host.set(|state| {
+        state.intercept = Some(Box::new(|argv, _| {
+            starts(argv, &["systemctl", "show"]).then(|| Err(CommandError::Os("systemd unavailable".into())))
+        }))
+    });
+    let error = update_error(update_panel(&agent));
+    assert_eq!(error.message, "could not determine installed Fleet v1 units");
+    assert_eq!(version_text(&host), format!("{OLD_PANEL}\n"));
+    assert!(mutations(&host.commands()).is_empty());
+}
+
+#[test]
 fn direct_panel_update_fails_closed_when_running_services_cannot_be_listed() {
     let dir = TempDir::new("panel-ps");
     let host = PanelHost::new(dir.path());
     let (agent, _) = host.agent(default_archive(), |_| {});
     host.set(|state| {
         state.intercept = Some(Box::new(|argv, _| {
-            starts(argv, &["docker", "ps"]).then(|| Err(CommandError::Os("docker unavailable".into())))
+            starts(argv, &["docker", "ps", "--filter"]).then(|| Err(CommandError::Os("docker unavailable".into())))
         }))
     });
     let error = update_error(update_panel(&agent));
@@ -1234,9 +1386,7 @@ fn rollback_quiesces_real_sqlite_writer_and_restores_integrity() {
     connection.execute("CREATE TABLE records (value TEXT)", []).unwrap();
     connection.execute("INSERT INTO records VALUES ('previous')", []).unwrap();
     let writer = Arc::new(Mutex::new(Some(connection)));
-    let (agent, _) = host.agent(default_archive(), |config| {
-        config.compose_files = vec!["compose.yaml".into(), "compose.fleet-central.yaml".into()];
-    });
+    let (agent, _) = host.agent(default_archive(), |_| {});
     let compose = host.compose.clone();
     let stops = Arc::new(Mutex::new(Vec::new()));
     let (active, stopped) = (writer.clone(), stops.clone());
@@ -1267,7 +1417,7 @@ fn rollback_quiesces_real_sqlite_writer_and_restores_integrity() {
     assert_eq!(error.state, UpdateState::RolledBack);
     let stops = stops.lock().unwrap();
     assert_eq!(stops.len(), 2);
-    assert!(stops.iter().all(|c| tail(c, 2) == ["panel", "fleet-ingress"]));
+    assert!(stops.iter().all(|c| tail(c, 1) == ["panel"]));
     drop(stops);
     assert!(writer.lock().unwrap().is_none());
     let restored = rusqlite::Connection::open(&database).unwrap();

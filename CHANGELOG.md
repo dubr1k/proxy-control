@@ -25,6 +25,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
   remains offline and checks invalid-config refusal without host mutations; the full modes run
   the native lifecycle matrix. The external backup controller copies SQLite online from the
   inspected data mount without requiring Python inside the panel container.
+- Panel self-updates refuse installed Fleet v1 systemd units, on-disk overlays and legacy Compose containers in either historical project before touching release files or the database. Existing certificates, journals and volumes require an explicit migration to Fleet v2.
 
 ### Fixed
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
@@ -34,6 +35,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Removed
 - Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
+- Fleet v1 agent and ingress Compose overlays, Dockerfiles, example environments and systemd units are no longer shipped; existing deployments are not automatically removed.
 
 ### Installer
 - Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.
