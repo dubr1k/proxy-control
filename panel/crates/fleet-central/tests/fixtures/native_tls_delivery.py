@@ -20,8 +20,8 @@ import tempfile
 from panel.tests.harness.memories.mieru import MemoryMieru
 from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.harness.memories.telemt import MemoryTelemt
-from panel.tests.harness.memories.wire import document_digest
 from panel.tests.harness.server import start_panel
+from panel.tests.test_fleet_v2_delivery import digests_match
 
 
 def certificate(directory):
@@ -42,14 +42,15 @@ async def request(http, method, path, body=None, expected=200):
     return response.json()
 
 
-async def delivery(directory):
+async def delivery(directory, *, central_factory=start_panel, node_factory=start_panel,
+                   central_impl="rust", node_impl="rust"):
     directory.mkdir()
-    node = start_panel(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
+    node = node_factory(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
         naive=MemoryNaive(), mieru=MemoryMieru(), telemt=MemoryTelemt(public_host="runtime.node.example"),
-        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example", vnext_writer="domain")
-    central = start_panel(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
+        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example")
+    central = central_factory(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
         telemt=MemoryTelemt(), naive_enabled=True, mieru_enabled=True,
-        naive_public_host="central.example", vnext_writer="domain")
+        naive_public_host="central.example")
     seen = []
     tls, pin = certificate(directory)
 
@@ -100,20 +101,22 @@ async def delivery(directory):
         await node.settle()
         await central.tick("pusher")
         assert (await request(central.client, "GET", f"/api/operations/{operation['operation_id']}"))["status"] == "succeeded"
+        desired = digests_match(node, central, node_id)
         with central.db() as db:
-            desired = dict(db.execute("SELECT * FROM desired_generations ORDER BY generation DESC LIMIT 1").fetchone())
             states = [row[0] for row in db.execute("SELECT state FROM secret_versions WHERE purpose='grant.credential'")]
-        with node.db() as db:
-            managed = dict(db.execute("SELECT * FROM managed_generations ORDER BY generation DESC LIMIT 1").fetchone())
         assert states == ["active"] * 3
-        digest = document_digest(json.loads(desired["document_json"]))
-        assert desired["digest"] == managed["digest"] == digest
+        digest = desired["digest"]
         links = await request(central.client, "POST", f"/api/clients/{client['id']}/links")
         revealed = await request(central.client, "GET", "/api/reveal/" + links["reveal_token"])
         assert "runtime.node.example" in json.dumps(revealed) and "public.node.example" in json.dumps(revealed)
         assert await central.naive.list_users() == [] and await central.telemt.list_users() == []
         await request(central.client, "DELETE", f"/api/nodes/{node_id}?force=true")
-        print(json.dumps({"central": "rust", "node": "rust", "tls_private_negatives": 3,
+        node.client.headers["Authorization"] = "Bearer " + key
+        central_identity = await request(central.client, "GET", "/api/fleet/v2/identity")
+        node_identity = await request(node.client, "GET", "/api/fleet/v2/identity")
+        print(json.dumps({"central": central_impl, "node": node_impl, "tls_private_negatives": 3,
+                          "central_version": central_identity["panel_version"],
+                          "node_version": node_identity["panel_version"],
                           "delivered_protocols": 3, "generation": desired["generation"], "digest": digest,
                           "http_requests": len(seen)}, sort_keys=True), flush=True)
     finally:
