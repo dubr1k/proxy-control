@@ -1,7 +1,9 @@
 """Native central/node delivery over real HTTPS with private-address and certificate pin checks.
 
-PANEL_RUST_BIN=/target/debug/panel PYTHONPATH=. python panel/crates/fleet-central/tests/fixtures/mixed_delivery.py
+PANEL_RUST_BIN=/target/debug/panel PYTHONPATH=. python panel/crates/fleet-central/tests/fixtures/native_tls_delivery.py
 The managers are private harness socket servers; no installed service is touched.
+This supplements native coverage; it does NOT prove Python 3.3 ↔ Rust 4.0 interoperability.
+The old mixed launcher incorrectly toggled IMPL on a native-only harness and was retired.
 """
 from __future__ import annotations
 
@@ -20,8 +22,6 @@ from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.harness.memories.telemt import MemoryTelemt
 from panel.tests.harness.memories.wire import document_digest
 from panel.tests.harness.server import start_panel
-
-
 
 
 def certificate(directory):
