@@ -957,3 +957,295 @@ def test_trusttunnel_screen_and_grant_window_fit_the_phone_viewport(tmp_path: Pa
     errors = json.loads(rendered["errors"])
     assert rendered["innerWidth"] == 390
     assert rendered["result"] == "pass", errors
+
+
+@pytest.fixture
+def native_ui(tmp_path):
+    """A fresh native binary, real manager sockets, HTTP relay and Chrome per case."""
+    from contextlib import ExitStack
+    from scripts.lab.ui_protocol_dialog_check import OverviewFixture, isolated_browser, isolated_panel
+
+    with ExitStack() as stack:
+        def open_browser(*, monitoring=True, trusttunnel=True, role="owner"):
+            fixture = stack.enter_context(isolated_panel(
+                tmp_path, OverviewFixture, monitoring=monitoring, trusttunnel=trusttunnel, role=role,
+            ))
+            shots = os.environ.get("PANEL_UI_EVIDENCE_SHOTS")
+            return stack.enter_context(isolated_browser(
+                tmp_path, fixture, Path(shots) if shots else None,
+            ))
+
+        yield open_browser
+
+
+def test_native_versions_panel_first_and_agent_manager_versions(native_ui):
+    browser = native_ui(monitoring=False)
+    browser.open_view("versions", "document.querySelectorAll('.version-card').length === 6")
+    cards = browser.js("""[...document.querySelectorAll('.version-card')].map(card => ({
+        title: card.querySelector('h2').textContent,
+        version: card.querySelector('.panel-head > div > span b').textContent,
+        top: card.getBoundingClientRect().top
+    }))""")
+    assert cards[0]["title"] == "Proxy Control / панель"
+    assert cards[0]["top"] <= min(card["top"] for card in cards[1:])
+    assert next(card["version"] for card in cards if card["title"].startswith("AmneziaWG")) == "0.2.18"
+    assert next(card["version"] for card in cards if card["title"].startswith("TrustTunnel")) == "1.1.7"
+    agent = browser.fixture.api("/api/versions")["components"]
+    assert agent["amneziawg"]["current"] == "0.2.18"
+    assert agent["trusttunnel"]["current"] == "1.1.7"
+    browser.healthy()
+    browser.shot("native-versions-panel-first-1440.png")
+
+
+def test_native_overview_every_stream_snapshot_repaints_in_place_without_host_poll(native_ui):
+    browser = native_ui()
+    browser.open_view("dashboard", "!!document.querySelector('.host-card [data-host-value=cpu]')")
+    browser.wait("window.__snapshotCpus.includes(12.5)", "initial native SSE snapshot")
+    browser.wait("document.querySelector('[data-host-value=memory]').textContent === '40.0 %'", "initial live repaint")
+    browser.js("window.__originalHostCard = document.querySelector('.host-card')")
+    for cpu, memory, disk in ((24.0, 51.0, 36.0), (81.0, 63.0, 49.0), (39.0, 74.0, 58.0)):
+        browser.fixture.sample(cpu, memory, disk)
+        browser.wait(f"window.__snapshotCpus.includes({cpu})", "next native SSE snapshot")
+        browser.wait(f"""['cpu','memory','disk'].every((key,index) =>
+            document.querySelector(`[data-host-value="${{key}}"]`).textContent ===
+            [{cpu},{memory},{disk}][index].toFixed(1) + ' %')""", "each snapshot repainted")
+        assert browser.js("document.querySelector('.host-card') === window.__originalHostCard")
+    # More than two fallback-poll periods: a live monitor must never ask /api/host.
+    time.sleep(10.5)
+    assert browser.js("window.__hostReads") == 0
+    assert browser.js("window.__snapshotCpus.filter(cpu => [24,81,39].includes(cpu)).length") >= 3
+    browser.healthy()
+    browser.shot("native-overview-live-1440.png")
+
+
+def test_native_overview_monitor_off_polls_host_and_all_protocol_cards_have_uniform_blocks(native_ui):
+    browser = native_ui(monitoring=False)
+    browser.open_view("dashboard", "document.querySelectorAll('.protocol-card:not(.host-card):not([hidden])').length === 5")
+    assert browser.js("""[...document.querySelectorAll('.protocol-card:not(.host-card):not([hidden])')].every(card =>
+        card.querySelectorAll(':scope > .protocol-head .status-pill').length === 1 &&
+        card.querySelectorAll(':scope > .protocol-access > span').length === 2 &&
+        [...card.querySelectorAll(':scope > .protocol-access > span')].every(pair =>
+            pair.querySelector('small')?.textContent.trim() && pair.querySelector('strong')?.textContent.trim()) &&
+        card.querySelectorAll(':scope > .protocol-traffic').length === 1 &&
+        !!card.querySelector(':scope > .protocol-traffic > b') &&
+        !!card.querySelector(':scope > .protocol-traffic > em'))""")
+    browser.wait("window.__hostReads >= 1", "monitor-off host fallback")
+    browser.fixture.versions.host_metrics["cpu"]["used_percent"] = 67.5
+    browser.wait("window.__hostReads >= 2 && document.querySelector('[data-host-value=cpu]').textContent === '67.5 %'",
+                 "successive real host poll repainted")
+    assert browser.js("window.__snapshotCpus.length") == 0
+    browser.healthy()
+
+
+def test_native_dashboard_nonzero_usage_bars_have_computed_width_under_real_csp(native_ui):
+    browser = native_ui(monitoring=False)
+    response = browser.fixture.http.get("/")
+    assert response.status_code == 200
+    csp = response.headers["content-security-policy"]
+    assert "style-src 'self'" in csp and "'unsafe-inline'" not in csp
+    browser.open_view("dashboard", "document.querySelectorAll('[data-host-bar] > i').length === 4")
+    # CSS transitions must reach the actual measured width, not just a style attribute.
+    browser.wait("""['cpu','memory','disk'].every(key => {
+        const bar = document.querySelector(`[data-host-bar="${key}"]`), fill = bar.querySelector('i');
+        return parseFloat(getComputedStyle(fill).width) > 1 &&
+            Math.abs(fill.getBoundingClientRect().width / bar.getBoundingClientRect().width * 100 -
+                Number(fill.dataset.usagePercent)) < 1;
+    })""", "CSP-compatible nonzero computed usage widths")
+    bars = browser.js("""['cpu','memory','disk'].map(key => {
+        const bar = document.querySelector(`[data-host-bar="${key}"]`), fill = bar.querySelector('i');
+        return {key, percent: Number(fill.dataset.usagePercent), width: parseFloat(getComputedStyle(fill).width)};
+    })""")
+    assert [bar["percent"] for bar in bars] == [12.5, 27.4, 11.5]
+    assert all(bar["width"] > 1 for bar in bars)
+    browser.click("#profile-button")
+    browser.wait("!document.querySelector('#profile-menu').hidden", "profile menu opens")
+    browser.click("#profile-button")
+    browser.wait("document.querySelector('#profile-menu').hidden", "profile menu closes")
+    browser.healthy()
+
+
+def _assert_native_routing_geometry(browser, root):
+    """Measure visible controls and siblings, not a screenshot or a synthetic HTML copy."""
+    from scripts.lab.ui_protocol_dialog_check import require
+
+    report = browser.js(f"""(() => {{
+        const root = document.querySelector({json.dumps(root)}), vw = document.documentElement.clientWidth;
+        const visible = el => !el.closest('[hidden]') && el.getClientRects().length &&
+            getComputedStyle(el).visibility !== 'hidden';
+        const nodes = [...root.querySelectorAll('article, section, form, label, input, select, textarea, button, h2, p, .routing-layout, .routing-defaults')].filter(visible);
+        let escaped = 0, clipped = 0, overlaps = 0;
+        for (const el of nodes) {{
+            const box = el.getBoundingClientRect();
+            if (box.left < -1 || box.right > vw + 1) escaped++;
+            // Textareas/inputs have their own editor scrolling. Tables have an explicit scroller.
+            if (!el.matches('input, textarea, select') && !el.querySelector('.import-table-wrap') &&
+                !el.closest('.import-table-wrap') && el.clientWidth && el.scrollWidth > el.clientWidth + 1) clipped++;
+        }}
+        const controls = nodes.filter(el => el.matches('input:not([type=hidden]),select,textarea,button'));
+        for (let i=0;i<controls.length;i++) for (let j=i+1;j<controls.length;j++) {{
+            const a=controls[i].getBoundingClientRect(), b=controls[j].getBoundingClientRect();
+            if (Math.min(a.right,b.right)-Math.max(a.left,b.left)>2 &&
+                Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>2) overlaps++;
+        }}
+        const editor = root.querySelector('#routing-form')?.getBoundingClientRect();
+        const preview = root.querySelector('#routing-preview')?.getBoundingClientRect();
+        const stacked = !editor || !preview || preview.top >= editor.bottom - 1;
+        return {{width: vw, measured: nodes.length, escaped, clipped, overlaps, stacked,
+            pageOverflow: document.documentElement.scrollWidth > vw + 1}};
+    }})()""")
+    require(report["width"] == 390 and report["measured"] >= 3, "routing geometry had no real phone-width controls")
+    require(not any(report[key] for key in ("escaped", "clipped", "overlaps", "pageOverflow"))
+            and report["stacked"], f"routing geometry failed: {report}")
+
+
+def test_native_routing_phone_cards_forms_and_dialogs_do_not_clip_or_overlap(native_ui):
+    browser = native_ui(monitoring=False)
+    browser.open_view("routing", """!!document.querySelector('#routing-form') &&
+        !!document.querySelector('#routing-preview .status-pill') &&
+        !document.querySelector('.routing-head .status-pill').textContent.includes('загружается')""", width=390)
+    _assert_native_routing_geometry(browser, "#view")
+    browser.shot("native-routing-phone-390.png")
+    for action, modal in (("rule-add", "rule-modal"), ("exit-add", "exit-modal"),
+                          ("geodata-settings", "geodata-modal"), ("attach", "confirm")):
+        browser.click(f"[data-routing-action={action}]")
+        browser.wait(f"document.querySelector('#{modal}').open", "real routing dialog")
+        _assert_native_routing_geometry(browser, f"#{modal}")
+        browser.js(f"document.querySelector('#{modal}').close()")
+    browser.click("[data-routing-action=rule-add]")
+    browser.wait("document.querySelector('#rule-modal').open", "rule editor reopened")
+    browser.set_value("#rule-domains", "example.com, *.example.com")
+    browser.set_value("#rule-geosites", "category-ads-all")
+    browser.set_value("#rule-geoips", "private")
+    browser.set_value("#rule-ports", "25, 443")
+    _assert_native_routing_geometry(browser, "#rule-modal")
+    browser.click("#rule-save")
+    browser.wait("document.querySelectorAll('.routing-rule').length === 1", "real rule row rendered")
+    _assert_native_routing_geometry(browser, "#view")
+    browser.healthy()
+
+
+def test_native_view_addressing_forward_restores_screen_and_forbidden_bookmark_falls_back(native_ui):
+    browser = native_ui(monitoring=False, role="viewer")
+    browser.open_view("dashboard", "!!document.querySelector('.host-card')")
+    browser.click('.sidebar [data-view="clients"]')
+    browser.wait("location.hash === '#clients' && !!document.querySelector('.client-list')", "clients menu navigation")
+    browser.click('.sidebar [data-view="users"]')
+    browser.wait("location.hash === '#users' && !!document.querySelector('#user-list')", "MTProxy menu navigation")
+    browser.js("history.back()")
+    browser.wait("location.hash === '#clients' && !!document.querySelector('.client-list')", "history back")
+    browser.js("history.forward()")
+    browser.wait("location.hash === '#users' && !!document.querySelector('#user-list')", "history forward restores its renderer")
+    for view in ("admins", "versions"):
+        browser.open_view(view, "location.hash === '#dashboard' && !!document.querySelector('.host-card')")
+        assert browser.js(f"""[...document.querySelectorAll('[data-view="{view}"]')].every(item => item.hidden)""")
+        assert browser.js("document.querySelector('.sidebar [data-view=dashboard]').classList.contains('active')")
+    browser.healthy()
+
+
+def test_native_trusttunnel_feature_disabled_hides_navigation_and_bookmark(native_ui):
+    browser = native_ui(monitoring=False, trusttunnel=False)
+    assert browser.fixture.api("/api/auth/me")["features"]["trusttunnel"] is False
+    browser.open_view("trusttunnel", "location.hash === '#dashboard' && !!document.querySelector('.host-card')")
+    assert browser.js("""[...document.querySelectorAll('[data-view=trusttunnel]')].every(item =>
+        item.hidden && !item.getClientRects().length)""")
+    assert browser.js("!document.querySelector('.tt-overview')")
+    browser.healthy()
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, language):
+    import tomllib
+    from scripts.lab.ui_protocol_dialog_check import require
+
+    browser = native_ui(monitoring=False)
+    require(browser.fixture.api("/api/auth/me")["features"]["trusttunnel"] is True, "TrustTunnel feature not enabled")
+    browser.open_view("trusttunnel", "!!document.querySelector('.tt-overview')")
+    if language == "en":
+        browser.click("#lang-button")
+        browser.wait("document.documentElement.lang === 'en' && !!document.querySelector('.tt-overview')", "English TrustTunnel")
+    require(browser.js("""[...document.querySelectorAll('[data-view=trusttunnel]')].every(item => !item.hidden)"""),
+            "enabled TrustTunnel navigation hidden")
+
+    def english_interface(root):
+        # Names and credential/code fields are intentionally not translated. All fixture names are ASCII.
+        return browser.js(f"""(() => {{
+            const root = document.querySelector({json.dumps(root)});
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            for (let node=walker.nextNode(); node; node=walker.nextNode()) {{
+                const el = node.parentElement;
+                if (!el.closest('pre,code,textarea,script,style,[hidden]') && el.getClientRects().length &&
+                    /[А-Яа-яЁё]/.test(node.textContent)) return false;
+            }}
+            return [...root.querySelectorAll('*')].filter(el => el.getClientRects().length &&
+                !el.closest('pre,code,textarea,[hidden]')).every(el =>
+                ['title','aria-label','placeholder','alt'].every(attr => !/[А-Яа-яЁё]/.test(el.getAttribute(attr)||'')));
+        }})()""")
+
+    if language == "en":
+        browser.wait("document.querySelector('#view .empty-state h3').textContent.includes('TrustTunnel')", "English empty screen")
+        require(english_interface("#view"), "TrustTunnel screen has untranslated English-locale UI")
+        manager = browser.fixture.central.trusttunnel
+        for field, value in (("certificate_der_b64", "dWktcHVibGljLWNlcnRpZmljYXRl"),
+                             ("running", False), ("broken", True)):
+            original = getattr(manager, field)
+            setattr(manager, field, value)
+            try:
+                browser.open_view("trusttunnel", "!!document.querySelector('.tt-overview')")
+                require(english_interface("#view"), f"English TrustTunnel {field} state has untranslated UI")
+            finally:
+                setattr(manager, field, original)
+        browser.open_view("trusttunnel", "!!document.querySelector('.tt-overview')")
+    browser.click("#add")
+    browser.wait("document.querySelector('#tt-modal').open && !document.querySelector('#create-tt').disabled",
+                 "real TrustTunnel creation dialog")
+    if language == "en":
+        require(english_interface("#tt-modal"), "TrustTunnel creation dialog has untranslated UI")
+    browser.js("document.querySelector('#tt-modal').close()")
+    # No screenshot, secret-bearing assertion repr, or DOM dump beyond this boundary.
+    browser.can_capture = False
+    fixture = browser.fixture
+    fixture.api(f"/api/clients/{fixture.client_id}/grants", "POST", {"grants": [{
+        "protocol": "trusttunnel", "node_id": "local", "runtime_username": "ui-real-tt", "options": {},
+    }]})
+    browser.open_view("trusttunnel", "!!document.querySelector('[data-tt-action=open]')")
+    browser.click("[data-tt-action=open]")
+    browser.wait("document.querySelector('#grant-window').open", "real grant details")
+    browser.click("[data-grant-action=show]")
+    browser.wait("""!!document.querySelector('#grant-link-body input') &&
+        !!document.querySelector('#grant-link-body .tt-toml') &&
+        document.querySelector('#grant-link-body .link-qr')?.naturalWidth > 0""", "real link QR and TOML rendered")
+    link = browser.js("document.querySelector('#grant-link-body input').value")
+    toml = browser.js("document.querySelector('#grant-link-body .tt-toml').value")
+    config = tomllib.loads(toml)["endpoint"]
+    credentials = fixture.central.trusttunnel.client_table["ui-real-tt"]
+    require(link.startswith("tt://?") and len(link) > 100, "TrustTunnel deep link missing")
+    # Read the vendor's QUIC-varint TLV, independently of the panel's codec.
+    payload = link.removeprefix("tt://?")
+    wire = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+    fields, offset = {}, 0
+
+    def varint(at):
+        require(at < len(wire), "truncated TrustTunnel link")
+        size = 1 << (wire[at] >> 6)
+        require(at + size <= len(wire), "truncated TrustTunnel varint")
+        return int.from_bytes(wire[at:at + size], "big") & ((1 << (8 * size - 2)) - 1), at + size
+
+    while offset < len(wire):
+        tag, offset = varint(offset)
+        size, offset = varint(offset)
+        require(offset + size <= len(wire), "truncated TrustTunnel field")
+        fields[tag] = wire[offset:offset + size]
+        offset += size
+    require(fields.get(1) == b"tt.example" and fields.get(5) == b"ui-real-tt" and
+            fields.get(6) == credentials["password"].encode(), "rendered deep link does not carry issued credentials")
+    require(config["username"] == "ui-real-tt" and config["password"] == credentials["password"] and
+            config["hostname"] == "tt.example", "rendered TOML does not contain issued manager credentials")
+    require(browser.js("""!!document.querySelector('#grant-link-body a[download$=".toml"]') &&
+        !!document.querySelector('#grant-link-body a[download$=".svg"]') &&
+        document.querySelector('#grant-error').textContent === ''"""), "grant artifacts unavailable")
+    if language == "en":
+        require(english_interface("#view") and english_interface("#grant-window"), "English TrustTunnel grant has untranslated UI")
+    browser.js("document.querySelector('#grant-window').close()")
+    browser.wait("""!document.querySelector('#grant-link-body input, #grant-link-body textarea, #grant-link-body img')""",
+                 "grant close clears credential artifacts")
+    browser.healthy()

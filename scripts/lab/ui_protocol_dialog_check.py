@@ -33,10 +33,13 @@ if __name__ == "__main__":
 
 import httpx
 from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
+from panel.tests.harness.memories.fakes import MemoryAgentMetrics
 from panel.tests.harness.memories.mieru import MemoryMieru
 from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.harness.memories.telemt import MemoryTelemt
 from panel.tests.harness.memories.trusttunnel import MemoryTrusttunnel
+from panel.tests.harness.memories.versions import MemoryVersions
+from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 from panel.tests.harness.server import start_panel
 from panel.tests.test_mobile_layout import DevTools, _browser
 
@@ -161,15 +164,16 @@ class ProtocolFixture:
         self.thread.join(timeout=10)
         self.loop.close()
 
-    def login(self):
+    def login(self, role="owner"):
         password = secrets.token_urlsafe(32)
-        self.central.create_admin("owner", password, "owner")
+        self.central.create_admin("owner", password, role)
         require(self.http.get("/login").status_code == 200, "fixture login page unavailable")
         response = self.http.post("/api/auth/login", json={"username": "owner", "password": password},
                                   headers={"X-CSRF-Token": self.http.cookies["panel_csrf"]})
         require(response.status_code in (200, 204), "fixture authentication failed")
         self.http.headers["X-CSRF-Token"] = self.http.cookies["panel_csrf"]
-        self.client_id = self.api("/api/clients", "POST", {"display_name": "remote-tt", "subscription": False})["id"]
+        if role == "owner":
+            self.client_id = self.api("/api/clients", "POST", {"display_name": "remote-tt", "subscription": False})["id"]
 
     def api(self, path, method="GET", payload=None):
         response = self.http.request(method, path, json=payload)
@@ -177,14 +181,63 @@ class ProtocolFixture:
         return response.json() if response.content else {}
 
 
+class OverviewFixture(ProtocolFixture):
+    """One native panel, with independently controllable host-agent and collector samples."""
+
+    def __init__(self, work, listener, *, monitoring=True, trusttunnel=True):
+        self.monitoring, self.trusttunnel_enabled = monitoring, trusttunnel
+        super().__init__(work, listener)
+
+    async def _start(self, work, port):
+        self.agent = MemoryAgentMetrics()
+        agent = self.agent
+
+        class VersionsAndMetrics(MemoryVersions):
+            async def metrics(self):
+                return await agent.metrics()
+
+        self.versions = VersionsAndMetrics()
+        panel = self.versions.components.pop("panel")
+        for component, version in (("amneziawg", "0.2.18"), ("trusttunnel", "1.1.7")):
+            self.versions.components[component] = {
+                "current": version, "available": [{"version": version, "kind": "build"}],
+            }
+        # Deliberately last on the wire: the screen, not insertion order, must put it first.
+        self.versions.components["panel"] = panel
+        self.central = start_panel(
+            work, name="overview", hosts=("testserver", "127.0.0.1", f"127.0.0.1:{port}"),
+            naive_enabled=True, mieru_enabled=True, amneziawg_enabled=True,
+            trusttunnel_enabled=self.trusttunnel_enabled, metrics_enabled=self.monitoring,
+            naive_public_host="naive.example", amneziawg_public_host="awg.example",
+            trusttunnel_public_host="tt.example", mtproxy_public_host="mt.example",
+            telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(),
+            amneziawg=MemoryAmneziawg(), trusttunnel=MemoryTrusttunnel(hostname="tt.example"),
+            versions=self.versions, router=MemoryXrayRouter(),
+        )
+        self.panels.append(self.central)
+        self.central.clock.set(self.agent.clock.now)
+        if self.monitoring:
+            await self.central.tick("metrics")
+
+    def sample(self, cpu, memory, disk):
+        async def collect():
+            self.agent.cpu, self.agent.mem, self.agent.disk = cpu, memory, disk
+            self.agent.clock.advance(2)
+            self.central.clock.set(self.agent.clock.now)
+            await self.central.tick("metrics")
+
+        asyncio.run_coroutine_threadsafe(collect(), self.loop).result(30)
+
+
+
 @contextmanager
-def isolated_panel(work):
+def isolated_panel(work, fixture_type=ProtocolFixture, *, role="owner", **options):
     # Keep the listening socket reserved: there is no free-port/rebind race.
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
-        fixture = ProtocolFixture(work, listener)
+        fixture = fixture_type(work, listener, **options)
         try:
-            fixture.login()
+            fixture.login(role)
             yield fixture
         finally:
             fixture.close()
@@ -194,6 +247,25 @@ INSTRUMENT = """
 window.__protocolNodesReads = 0;
 window.__protocolErrors = 0;
 window.__protocolCsp = 0;
+window.__protocolConsoleErrors = 0;
+const originalConsoleError = console.error.bind(console);
+console.error = (...args) => {
+  window.__protocolConsoleErrors++;
+  originalConsoleError(...args);
+};
+window.__hostReads = 0;
+window.__snapshotCpus = [];
+const NativeEventSource = window.EventSource;
+window.EventSource = class extends NativeEventSource {
+  constructor(...args) {
+    super(...args);
+    this.addEventListener('snapshot', event => {
+      const snapshot = JSON.parse(event.data);
+      const local = snapshot.nodes?.find(node => node.node_id === 'local');
+      if (local?.host) window.__snapshotCpus.push(local.host.cpu_percent);
+    });
+  }
+};
 addEventListener('error', () => window.__protocolErrors++);
 addEventListener('unhandledrejection', () => window.__protocolErrors++);
 document.addEventListener('securitypolicyviolation', () => window.__protocolCsp++);
@@ -201,6 +273,7 @@ const originalFetch = window.fetch;
 window.fetch = (...args) => {
   const path = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href).pathname;
   if (path === '/api/nodes') window.__protocolNodesReads++;
+  if (path === '/api/host') window.__hostReads++;
   return originalFetch(...args);
 };
 """
@@ -237,6 +310,15 @@ class ProtocolBrowser:
             el.dispatchEvent(new Event('input', {{bubbles: true}}));
             el.dispatchEvent(new Event('change', {{bubbles: true}})); return true; }})()""")
 
+    def open_view(self, view, ready, width=1440):
+        self.dt.call("Emulation.setDeviceMetricsOverride", {
+            "width": width, "height": 900 if width > 600 else 844,
+            "deviceScaleFactor": 1, "mobile": width < 600,
+        })
+        nonce = secrets.token_hex(4)
+        self.dt.call("Page.navigate", {"url": f"{self.fixture.base}/?isolated={nonce}#{view}"})
+        self.wait(f"location.search === '?isolated={nonce}' && ({ready})", "native view rendered")
+
     def open_screen(self, protocol, width=1440):
         self.dt.call("Emulation.setDeviceMetricsOverride", {
             "width": width, "height": 900 if width > 600 else 844,
@@ -265,7 +347,8 @@ class ProtocolBrowser:
         return self.js(f"[...document.querySelectorAll('#{short}-node option')].map(e => e.value).sort()")
 
     def healthy(self):
-        require(self.js("window.__protocolErrors === 0 && window.__protocolCsp === 0"), "browser error or CSP violation")
+        require(self.js("window.__protocolErrors === 0 && window.__protocolCsp === 0 && window.__protocolConsoleErrors === 0"),
+                "browser error, console error or CSP violation")
 
     def shot(self, name):
         if self.screenshots is None:
