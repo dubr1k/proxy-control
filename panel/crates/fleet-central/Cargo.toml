@@ -34,5 +34,7 @@ tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
 url = "2"
 
 [dev-dependencies]
+panel-managers = { path = "../managers" }
+panel-protocols = { path = "../protocols" }
 rcgen = "0.14"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros", "io-util"] }

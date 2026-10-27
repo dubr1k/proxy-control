@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The verification matrix (v0.6): `tests/fixtures/verification-matrix.json` is the truth,
-`docs/VERIFICATION_MATRIX.md` its rendering, and every proof a name that exists in the tree.
+"""Verification matrix: the fixture records claims and proofs; the native Rust router
+and live HTTP gate probe in `route-coverage.py` supply its route inventory.
 
     python3 scripts/dev/verification-matrix.py --render   # rewrite the document
     python3 scripts/dev/verification-matrix.py --check    # proofs exist, document current, gaps listed
@@ -18,6 +18,7 @@ Proof forms:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -40,12 +41,14 @@ def proof_problem(proof: str, root: Path) -> str | None:
             return "no such test"
         return None
     if kind == "cargo":
-        file, _, name = rest.partition("::")
+        file, _, full_name = rest.partition("::")
         path = root / file
         if not path.is_file():
             return "no such file"
-        pattern = rf"#\[test\]\s*(?:#\[[^\]]*\]\s*)*fn {re.escape(name)}\("
-        return None if re.search(pattern, path.read_text(encoding="utf-8")) else "no such test"
+        name = full_name.rsplit("::", 1)[-1]
+        pattern = (rf"#\[(?:tokio::)?test(?:\([^\]\n]*\))?\]\s*"
+                   rf"(?:#\[[^\]]*\]\s*)*(?:pub\s+)?(?:async\s+)?fn {re.escape(name)}\(")
+        return None if name and re.search(pattern, path.read_text(encoding="utf-8")) else "no such test"
     if kind in {"lab-host", "lab-container"}:
         text = (root / "scripts/lab/guest-runner.sh").read_text(encoding="utf-8")
         return None if re.search(rf"case_run {re.escape(rest)} |emit {re.escape(rest)} passed", text) else "no such scenario"
@@ -73,9 +76,11 @@ def render(rows: list[dict]) -> str:
         "# Verification matrix — maintained functions and their proofs",
         "",
         "Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verification-matrix.py --render`;",
-        "`tests/test_verification_matrix.py` keeps every proof pointing at something that exists and refuses a",
-        "`gap` on the release tree (`VERIFICATION_STRICT=1`). One row per promised function: what it claims, which",
-        "test, lab scenario or browser scenario proves it, and the routes it covers.",
+        "`tests/test_verification_matrix.py` checks proofs and matches routes against the native Rust HTTP",
+        "router/gate probe (`scripts/dev/route-coverage.py`), not the retired Python panel or static OpenAPI",
+        "authorization labels. The probe checks anonymous, owner/admin/viewer sessions, CSRF and scoped",
+        "keys against the registered router; `VERIFICATION_STRICT=1` refuses gaps. One row per maintained",
+        "function: its claim, proof, routes and status.",
         "",
     ]
     total = len(rows)
@@ -95,21 +100,37 @@ def render(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def route_problems(rows: list[dict], routes: list[dict]) -> list[str]:
+    actual = {f"{row['method']} {row['path']}" for row in routes}
+    claimed = {route for row in rows for route in row["routes"]}
+    return ([f"native route not covered: {route}" for route in sorted(actual - claimed)]
+            + [f"retired route still claimed: {route}" for route in sorted(claimed - actual)])
+
+
 def main(argv: list[str]) -> int:
     rows = load()
     if "--render" in argv:
         DOCUMENT.write_text(render(rows), encoding="utf-8")
         print(f"rendered {len(rows)} rows to {DOCUMENT.relative_to(ROOT)}")
         return 0
-    problems = [f"{row['id']}: {proof} — {why}" for row in rows for proof in row["proof"] for why in [proof_problem(proof, ROOT)] if why]
-    for problem in problems:
+    proofs = [f"{row['id']}: {proof} — {why}" for row in rows for proof in row["proof"]
+              for why in [proof_problem(proof, ROOT)] if why]
+    for problem in proofs:
         print("PROOF:", problem, file=sys.stderr)
+    route_coverage = __import__("route-coverage")
+    routes = route_problems(rows, route_coverage.collect_routes())
+    for problem in routes:
+        print("ROUTE:", problem, file=sys.stderr)
     stale = DOCUMENT.read_text(encoding="utf-8") != render(rows) if DOCUMENT.is_file() else True
     if stale:
         print("DOCUMENT: docs/VERIFICATION_MATRIX.md is stale", file=sys.stderr)
     gaps = [row["id"] for row in rows if row["status"] == "gap"]
-    print(f"{len(rows)} rows, {len(problems)} bad proofs, {len(gaps)} gaps" + (f": {', '.join(gaps)}" if gaps else ""))
-    return 1 if problems or stale else 0
+    strict = os.environ.get("VERIFICATION_STRICT") == "1"
+    print(f"{len(rows)} rows, {len(proofs)} bad proofs, {len(routes)} bad routes, {len(gaps)} gaps"
+          + (f": {', '.join(gaps)}" if gaps else ""))
+    if strict and gaps:
+        print("STRICT: verification gaps are forbidden", file=sys.stderr)
+    return 1 if proofs or routes or stale or (strict and gaps) else 0
 
 
 if __name__ == "__main__":

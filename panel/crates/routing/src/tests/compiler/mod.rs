@@ -4,4 +4,5 @@ mod chains;
 mod ir;
 mod native;
 mod presets;
+mod router_regressions;
 mod support;
