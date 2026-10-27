@@ -25,8 +25,7 @@ PASSWORD = "p" * 32
 @pytest.fixture(scope="session")
 def bridge_binary(tmp_path_factory):
     go = shutil.which("go") or ("/usr/local/go/bin/go" if Path("/usr/local/go/bin/go").exists() else None)
-    if go is None:
-        pytest.skip("the Go toolchain is unavailable")
+    assert go is not None, "the Go toolchain is required to exercise the MTProxy bridge"
     out = tmp_path_factory.mktemp("bridge") / "mtproxy-bridge"
     subprocess.run([go, "build", "-trimpath", "-o", str(out), "."], cwd=SOURCE, check=True,
                    env={**os.environ, "CGO_ENABLED": "0"})

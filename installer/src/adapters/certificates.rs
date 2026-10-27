@@ -1015,3 +1015,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "certificates_regressions.rs"]
+mod regressions;

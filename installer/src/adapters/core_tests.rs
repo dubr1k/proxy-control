@@ -211,3 +211,370 @@ fn core_engine_preserves_credentials_and_refuses_foreign_drift() {
     assert!(engine.uninstall(false).is_err());
     assert_eq!(fs::read(&users).unwrap(), original);
 }
+
+#[test]
+fn every_acceptance_failure_and_inconsistent_count_is_refused() {
+    let good = AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }.run(2).unwrap();
+    require_acceptance(&good).unwrap();
+    let document = serde_json::to_value(&good).unwrap();
+    for field in [
+        "compose_config_ok",
+        "panel_health_ok",
+        "panel_login_ok",
+        "telemt_api_internal",
+        "adjacent_sni_ok",
+        "sensitive_scan_ok",
+        "temporary_state_removed",
+        "healthy_services",
+        "respq_verified",
+        "expected_services",
+        "respq_expected",
+    ] {
+        let mut bad = document.clone();
+        bad[field] = if document[field].is_boolean() { json!(false) } else { json!(0) };
+        let bad: CoreAcceptance = serde_json::from_value(bad).unwrap();
+        assert!(require_acceptance(&bad).is_err(), "{field}");
+    }
+    for field in ["healthy_services", "respq_verified"] {
+        let mut bad = document.clone();
+        bad[field] = json!(100);
+        let bad: CoreAcceptance = serde_json::from_value(bad).unwrap();
+        assert!(require_acceptance(&bad).is_err(), "{field}");
+    }
+    assert!(good.details().values().all(|value| value.is_boolean() || value.is_u64()));
+}
+
+fn owned_core() -> (crate::testkit::TempDir, Arc<CoreAdapter>) {
+    use pc_host::runner::{RecordingRunner, Reply};
+    use std::sync::Mutex;
+    let root = crate::testkit::TempDir::new("core-lifecycle-safety");
+    let image_owner = Arc::new(Mutex::new(None::<String>));
+    let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+        if call.argv.first().is_some_and(|program| program.ends_with("/probe/install.sh")) {
+            *image_owner.lock().unwrap() = call.argv.last().cloned();
+            return Some(Reply::ok(""));
+        }
+        if call.argv.starts_with(&["docker".into(), "image".into(), "inspect".into()]) {
+            return Some(match image_owner.lock().unwrap().as_deref() {
+                None => Reply::exit(1, "", "image absent"),
+                Some(_) if call.argv[4] == "{{.Id}}" => Reply::ok(&format!("sha256:{}", "a".repeat(64))),
+                Some(owner) => Reply::ok(owner),
+            });
+        }
+        if call.argv.starts_with(&["docker".into(), "image".into(), "rm".into()]) {
+            *image_owner.lock().unwrap() = None;
+        }
+        Some(Reply::ok(""))
+    }));
+    let mut adapter = CoreAdapter::new(&AdapterContext {
+        root: root.path().into(),
+        tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
+        runner,
+    });
+    adapter.test_acceptance =
+        Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
+    (root, Arc::new(adapter))
+}
+
+#[test]
+fn core_rollback_preserves_credentials_and_neighboring_project_files_unless_purged() {
+    for purge in [false, true] {
+        let (root, adapter) = owned_core();
+        let action = core_action();
+        let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        let project = root.path().join("opt/mtproxy-shared443");
+        let users = project.join("secrets/users.conf");
+        let secret = fs::read(&users).unwrap();
+        let neighbor = project.join("neighbor.data");
+        fs::write(&neighbor, "operator data\n").unwrap();
+        assert!(adapter.rollback(&action, applied, purge, RollbackTarget::Uninstalled).unwrap().success);
+        assert_eq!(fs::read_to_string(&neighbor).unwrap(), "operator data\n");
+        assert_eq!(users.exists(), !purge);
+        if !purge {
+            assert_eq!(fs::read(&users).unwrap(), secret);
+        }
+    }
+}
+
+#[test]
+fn repair_revalidates_credentials_instead_of_adopting_changed_metadata() {
+    use std::os::unix::fs::symlink;
+    for defect in ["mode", "symlink", "hardlink"] {
+        let (root, adapter) = owned_core();
+        let action = core_action();
+        let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        let users = root.path().join("opt/mtproxy-shared443/secrets/users.conf");
+        let before = fs::read(&users).unwrap();
+        match defect {
+            "mode" => fs::set_permissions(&users, fs::Permissions::from_mode(0o644)).unwrap(),
+            "hardlink" => fs::hard_link(&users, users.with_file_name("alias")).unwrap(),
+            _ => {
+                let target = users.with_file_name("target");
+                fs::rename(&users, &target).unwrap();
+                symlink(&target, &users).unwrap();
+            }
+        }
+        assert!(adapter.repair(&action, applied).is_err(), "{defect}");
+        assert_eq!(fs::read(&users).unwrap(), before);
+    }
+}
+
+#[test]
+fn unowned_project_probe_image_and_fixed_label_resources_are_not_adopted() {
+    use pc_host::runner::{RecordingRunner, Reply};
+    for collision_kind in ["project", "image", "volume", "containers"] {
+        let root = crate::testkit::TempDir::new("core-foreign");
+        let runner = Arc::new(RecordingRunner::new());
+        runner.reply(&["docker", "image", "inspect"], Reply::exit(1, "", "absent"));
+        match collision_kind {
+            "project" => {
+                let project = root.path().join("opt/mtproxy-shared443");
+                fs::create_dir_all(&project).unwrap();
+                fs::write(project.join("foreign"), "untouched").unwrap();
+            }
+            "image" => {
+                // Rules are first-match, so use a fresh responder for the image case below.
+            }
+            "volume" => {
+                runner.reply(&["docker", "volume", "ls"], Reply::ok("proxy_panel_by_dubr1k_panel-data\n"));
+            }
+            _ => {
+                runner.reply(&["docker", "container", "ls"], Reply::ok("foreign-container\n"));
+            }
+        }
+        let runner = if collision_kind == "image" {
+            let responder = RecordingRunner::with_responder(|call| {
+                Some(if call.argv.starts_with(&["docker".into(), "image".into(), "inspect".into()]) {
+                    Reply::ok(if call.argv[4] == "{{.Id}}" {
+                        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    } else {
+                        ""
+                    })
+                } else {
+                    Reply::ok("")
+                })
+            });
+            Arc::new(responder)
+        } else {
+            runner
+        };
+        let adapter = CoreAdapter::new(&AdapterContext {
+            root: root.path().into(),
+            tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
+            runner,
+        });
+        assert!(adapter.prepare(&core_action()).is_err(), "{collision_kind}");
+        assert!(!root.path().join("opt/mtproxy-shared443/secrets/users.conf").exists());
+        if collision_kind == "project" {
+            assert_eq!(fs::read_to_string(root.path().join("opt/mtproxy-shared443/foreign")).unwrap(), "untouched");
+        }
+    }
+}
+
+#[test]
+fn real_shared_ingress_preserves_ip_rejects_spoofed_xff_and_keeps_raw_tls() {
+    let root = crate::testkit::TempDir::new("core-ingress-consumer");
+    fs::write(root.path().join("panel.conf"), panel_vhost(&selected())).unwrap();
+    let routes = vec![
+        ("naive.example.com".into(), "127.0.0.1:8445".into()),
+        ("panel.example.com".into(), "127.0.0.1:8443".into()),
+    ];
+    fs::write(
+        root.path().join("stream.conf"),
+        super::super::nginx::render_fresh(&routes, "proxy", "127.0.0.1:8443").unwrap(),
+    )
+    .unwrap();
+    let probe = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/ingress-client-ip.py");
+    let result = std::process::Command::new("python3").arg(probe).arg(root.path()).output().unwrap();
+    assert!(result.status.success(), "isolated Nginx consumer: {}", String::from_utf8_lossy(&result.stderr));
+}
+
+#[test]
+fn runtime_volume_purge_validates_all_names_and_labels_before_removing_anything() {
+    use pc_host::runner::{RecordingRunner, Reply};
+    for defect in ["none", "name", "project", "volume", "shape", "json"] {
+        let root = crate::testkit::TempDir::new("core-volume-ownership");
+        let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+            let args = &call.argv;
+            if args.starts_with(&["docker".into(), "volume".into(), "ls".into()]) {
+                return Some(Reply::ok(
+                    if args.last().unwrap() == "label=com.docker.compose.project=proxy_panel_by_dubr1k" {
+                        "proxy_panel_by_dubr1k_naive-manager-run\nproxy_panel_by_dubr1k_mieru-manager-run\noperator-volume\nproxy_panel_by_dubr1k_panel-data\n"
+                    } else {
+                        ""
+                    },
+                ));
+            }
+            if args.starts_with(&["docker".into(), "volume".into(), "inspect".into()]) {
+                let name = args.last().unwrap();
+                let mut record = json!({"Name": name, "Labels": {
+                    "com.docker.compose.project": "proxy_panel_by_dubr1k",
+                    "com.docker.compose.volume": name.strip_prefix("proxy_panel_by_dubr1k_").unwrap(),
+                }});
+                if name.ends_with("mieru-manager-run") {
+                    match defect {
+                        "name" => record["Name"] = json!("operator-volume"),
+                        "project" => record["Labels"]["com.docker.compose.project"] = json!("foreign"),
+                        "volume" => record["Labels"]["com.docker.compose.volume"] = json!("panel-data"),
+                        "shape" => return Some(Reply::ok("{}")),
+                        "json" => return Some(Reply::ok("not-json")),
+                        _ => {}
+                    }
+                }
+                return Some(Reply::ok(&json!([record]).to_string()));
+            }
+            Some(Reply::ok(""))
+        }));
+        let adapter = CoreAdapter::new(&AdapterContext {
+            root: root.path().into(),
+            tree: root.path().into(),
+            runner: runner.clone(),
+        });
+        assert_eq!(adapter.purge_runtime_volumes().is_ok(), defect == "none", "{defect}");
+        let removed: Vec<Vec<String>> = runner
+            .argvs()
+            .into_iter()
+            .filter(|a| a.starts_with(&["docker".into(), "volume".into(), "rm".into()]))
+            .collect();
+        if defect == "none" {
+            assert_eq!(
+                removed.iter().map(|a| a.last().unwrap().as_str()).collect::<Vec<_>>(),
+                ["proxy_panel_by_dubr1k_naive-manager-run", "proxy_panel_by_dubr1k_mieru-manager-run"]
+            );
+        } else {
+            assert!(removed.is_empty(), "{defect}: {removed:?}");
+        }
+    }
+}
+
+#[test]
+fn failed_temporary_cleanup_retains_owned_tombstone_until_success_or_explicit_purge() {
+    for purge in [false, true] {
+        let (root, mut adapter) = owned_core();
+        let action = core_action();
+        let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        let owner = root.path().join("opt/mtproxy-shared443").join(ACCEPTANCE_OWNER);
+        let pending = root.path().join("opt/mtproxy-shared443").join(ACCEPTANCE_PENDING);
+        fs::copy(&owner, &pending).unwrap();
+        Arc::get_mut(&mut adapter).unwrap().test_acceptance =
+            Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: true, cleanups: Default::default() }));
+        let evidence = adapter.rollback(&action, applied.clone(), purge, RollbackTarget::RolledBack).unwrap();
+        assert_eq!(evidence.details["temporary_cleanup_pending"], true);
+        assert!(owner.is_file() && pending.is_file());
+        if !purge {
+            Arc::get_mut(&mut adapter).unwrap().test_acceptance =
+                Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
+        }
+        let evidence = adapter
+            .reconcile_rollback(
+                &action,
+                applied,
+                purge,
+                if purge { RollbackTarget::Uninstalled } else { RollbackTarget::RolledBack },
+            )
+            .unwrap();
+        assert_eq!(evidence.details["temporary_cleanup_pending"], false);
+        assert!(!pending.exists());
+        assert!(!owner.exists());
+    }
+}
+
+#[test]
+fn corrupt_core_checkpoint_refuses_lifecycle_without_mutating_generation_or_foreign_file() {
+    for phase in ["apply", "repair", "rollback"] {
+        for defect in ["owner", "unknown", "ownership", "escape"] {
+            let (root, adapter) = owned_core();
+            let action = core_action();
+            let prepared = adapter.prepare(&action).unwrap();
+            let mut checkpoint = if phase == "apply" { prepared } else { adapter.apply(&action, prepared).unwrap() };
+            let victim = root.path().join("operator-file");
+            fs::write(&victim, "operator bytes\n").unwrap();
+            match defect {
+                "owner" => {
+                    checkpoint.insert("owner".into(), json!("foreign"));
+                }
+                "unknown" => {
+                    checkpoint.insert("foreign".into(), json!(true));
+                }
+                "ownership" => {
+                    checkpoint.insert("ownership".into(), json!([]));
+                }
+                _ => {
+                    checkpoint["ownership"].as_object_mut().unwrap().insert(
+                        "/operator-file".into(),
+                        json!({"sha256": sha256_hex(b"operator bytes\n"), "preserve": false}),
+                    );
+                }
+            }
+            let before = root.path().join("opt/mtproxy-shared443/.env");
+            let original = fs::read(&before).ok();
+            let result = match phase {
+                "apply" => adapter.apply(&action, checkpoint).map(|_| ()),
+                "repair" => adapter.repair(&action, checkpoint).map(|_| ()),
+                _ => adapter.rollback(&action, checkpoint, true, RollbackTarget::Uninstalled).map(|_| ()),
+            };
+            assert!(result.is_err(), "{phase}/{defect}");
+            assert_eq!(fs::read_to_string(&victim).unwrap(), "operator bytes\n");
+            assert_eq!(fs::read(&before).ok(), original, "{phase}/{defect}");
+        }
+    }
+}
+
+#[test]
+fn forged_checkpoint_ownership_refuses_foreign_project_file_and_off_domain_cover_before_mutation() {
+    for phase in ["apply", "repair", "rollback"] {
+        for (map, absolute) in [
+            ("planned_ownership", "/opt/mtproxy-shared443/operator-file"),
+            ("planned_ownership", "/var/www/neighbor.example.com/index.html"),
+            ("ownership", "/opt/mtproxy-shared443/operator-file"),
+            ("ownership", "/var/www/neighbor.example.com/index.html"),
+        ] {
+            if phase == "apply" && map == "ownership" {
+                continue; // Prepared checkpoints cannot have applied ownership at all.
+            }
+            let (root, adapter) = owned_core();
+            let action = core_action();
+            let prepared = adapter.prepare(&action).unwrap();
+            let mut checkpoint = if phase == "apply" { prepared } else { adapter.apply(&action, prepared).unwrap() };
+            let foreign = root.path().join(absolute.trim_start_matches('/'));
+            fs::create_dir_all(foreign.parent().unwrap()).unwrap();
+            fs::write(&foreign, b"operator bytes\n").unwrap();
+            checkpoint[map]
+                .as_object_mut()
+                .unwrap()
+                .insert(absolute.into(), json!({"sha256": sha256_hex(b"operator bytes\n"), "preserve": false}));
+            let generation = root.path().join("opt/mtproxy-shared443/.env");
+            let original = fs::read(&generation).ok();
+            let result = match phase {
+                "apply" => adapter.apply(&action, checkpoint).map(|_| ()),
+                "repair" => adapter.repair(&action, checkpoint).map(|_| ()),
+                _ => adapter.rollback(&action, checkpoint, true, RollbackTarget::Uninstalled).map(|_| ()),
+            };
+            assert!(result.is_err(), "{phase}/{map}/{absolute}");
+            assert_eq!(fs::read(&foreign).unwrap(), b"operator bytes\n", "{phase}/{map}/{absolute}");
+            assert_eq!(fs::read(&generation).ok(), original, "{phase}/{map}/{absolute}");
+        }
+    }
+}
+
+#[test]
+fn recorded_legacy_core_journal_keeps_exact_retired_script_but_refuses_other_scripts() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/installs/core/journal/state.json");
+    let journal: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let data = journal["checkpoints"].as_array().unwrap().iter().find(|entry| entry["adapter"] == "core").unwrap()
+        ["data"]
+        .as_object()
+        .unwrap()
+        .clone();
+    let retired = format!("{PROJECT}/scripts/proxyctl.py");
+    assert!(data["ownership"].get(&retired).is_some());
+    let action = core_action();
+    CoreCheckpoint::read(&data, &action, true).unwrap().validate_paths(&selected()).unwrap();
+
+    let mut forged = data;
+    let neighbor = format!("{PROJECT}/scripts/operator.py");
+    let record = forged["planned_ownership"][&retired].clone();
+    forged["planned_ownership"].as_object_mut().unwrap().insert(neighbor, record);
+    assert!(CoreCheckpoint::read(&forged, &action, true).unwrap().validate_paths(&selected()).is_err());
+}

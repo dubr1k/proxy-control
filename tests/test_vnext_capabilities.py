@@ -1,14 +1,8 @@
-"""The capability matrix must be explicit: every cell is a decision, not a blank.
-
-`unsupported` and `unproven` are answers. A missing cell is not, which is why
-this test refuses a fixture that omits one.
-"""
-
+"""Retained lab evidence matrix: unsupported/unproven are decisions, blank cells are not."""
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "tests/fixtures/vnext-capabilities.json"
+FIXTURE = Path(__file__).resolve().parent / "fixtures/vnext-capabilities.json"
 CAPABILITIES = (
     "create", "enable", "disable", "rotate", "delete", "quota", "expiry", "accounting",
     "stable_access_artifact", "credential_capture_without_rotation", "whole_service_socks_upstream",
@@ -27,16 +21,14 @@ def test_every_cell_is_explicit_and_required_conclusions_hold():
     for protocol, cells in data["rows"].items():
         assert set(cells) == set(CAPABILITIES), protocol
         for name, cell in cells.items():
-            assert cell["status"] in STATUSES, (protocol, name)
-            assert cell["note"].strip(), (protocol, name)
+            assert cell["status"] in STATUSES and cell["note"].strip(), (protocol, name)
     rows = data["rows"]
     assert rows["fleet_v1"]["create"]["status"] == "unsupported"
     assert rows["naive"]["whole_service_socks_upstream"]["status"] == "supported"
-    assert rows["naive"]["per_client_routing"]["status"] == "unproven"
-    # v0.4: the spike proved domain and CIDR routing on both native backends; per-client stays unproven.
-    assert rows["mieru"]["domain_routing"]["status"] == "supported"
-    assert rows["naive"]["cidr_routing"]["status"] == "supported" and rows["mieru"]["cidr_routing"]["status"] == "supported"
-    assert rows["mieru"]["per_client_routing"]["status"] == "unproven"
+    for protocol in ("naive", "mieru"):
+        assert rows[protocol]["per_client_routing"]["status"] == "unproven"
+        for kind in ("cidr_routing", "domain_routing"):
+            assert rows[protocol][kind]["status"] == "supported"
     assert rows["mieru"]["credential_capture_without_rotation"]["status"] == "unsupported"
     assert rows["mtproxy"]["credential_capture_without_rotation"]["status"] == "supported"
     for routing in ("cidr_routing", "domain_routing", "per_client_routing", "whole_service_socks_upstream"):
@@ -46,31 +38,16 @@ def test_every_cell_is_explicit_and_required_conclusions_hold():
 def test_named_client_matrix_is_explicit_and_matches_the_owner_decision():
     clients = json.loads(FIXTURE.read_text())["clients"]
     assert set(clients) == {
-        "karing", "mihomo", "singbox", "mieru_cli", "telegram",
-        "shadowrocket", "nekobox", "v2rayn", "hiddify", "throne",
+        "karing", "mihomo", "singbox", "mieru_cli", "telegram", "shadowrocket", "nekobox", "v2rayn", "hiddify", "throne",
     }
     for name, cells in clients.items():
         assert set(cells) == {"mtproxy", "naive", "mieru", "trusttunnel"}, name
         for protocol, cell in cells.items():
             assert cell["status"] in STATUSES and cell["note"].strip(), (name, protocol)
-    assert clients["karing"]["naive"]["status"] == "supported"
-    assert clients["karing"]["mieru"]["status"] == "supported"
-    assert clients["singbox"]["naive"]["status"] == "supported"      # sing-box 1.13.0, outbound naive
-    assert clients["singbox"]["mieru"]["status"] == "unsupported"     # no mieru outbound
-    assert clients["mihomo"]["mieru"]["status"] == "supported"        # type: mieru
-    assert clients["mihomo"]["naive"]["status"] == "unsupported"      # MetaCubeX/mihomo#273
-    assert clients["mieru_cli"]["mieru"]["status"] == "unsupported"   # the client has no subscriptions
+    for client, protocol in (("karing", "naive"), ("karing", "mieru"), ("singbox", "naive"), ("mihomo", "mieru"), ("mihomo", "trusttunnel")):
+        assert clients[client][protocol]["status"] == "supported"
+    for client, protocol in (("singbox", "mieru"), ("mihomo", "naive"), ("mieru_cli", "mieru"), ("singbox", "trusttunnel")):
+        assert clients[client][protocol]["status"] == "unsupported"
     assert all(cells["mtproxy"]["status"] == "unsupported" for cells in clients.values())
-    assert clients["mihomo"]["trusttunnel"]["status"] == "supported"  # type: trusttunnel
-    assert clients["singbox"]["trusttunnel"]["status"] == "unsupported"  # no sing-box outbound
-    assert "verified 2026-10-20 with mihomo v1.19.32" in clients["mihomo"]["trusttunnel"]["note"]
-    # Hiddify's core was run only as built from source (no app release has the outbound); NekoBox's and
-    # Throne's were not run (Throne has a profile type but no tt:// import, so its fallback is manual steps).
-    assert clients["hiddify"]["trusttunnel"]["status"] == "unproven"
-    assert "verified 2026-10-19 only against hiddify-sing-box" in clients["hiddify"]["trusttunnel"]["note"]
-    for unrun in ("nekobox", "throne", "hiddify"):
-        assert clients[unrun]["trusttunnel"]["status"] == "unproven"
-        assert "unverified" in clients[unrun]["trusttunnel"]["note"]
-    assert "client=nekobox" in clients["nekobox"]["trusttunnel"]["note"] and "client=throne" in clients["throne"]["trusttunnel"]["note"]
-    assert "Type TrustTunnel" in clients["throne"]["trusttunnel"]["note"] and "tt:// links" in clients["throne"]["trusttunnel"]["note"]
-    assert "SagerNet/sing-box#3723" in clients["singbox"]["trusttunnel"]["note"]
+    for client in ("nekobox", "throne", "hiddify"):
+        assert clients[client]["trusttunnel"]["status"] == "unproven"

@@ -1,62 +1,13 @@
-"""`scripts/enable-trusttunnel.sh`: the supported way to enable TrustTunnel on a host the installer did not set up."""
-import os
+"""Public shell entrypoint input handling; lifecycle coverage is native Cargo."""
 import subprocess
 from pathlib import Path
 
-TT_SHA256_AARCH64 = "c2aee17a1ced349283cba4775202e2baba053b8ea835d4cc23dc67d16c6b9686"
+import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "enable-trusttunnel.sh"
-
-
-def run(*args):
-    return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True)
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/enable-trusttunnel.sh"
 
 
-def test_the_script_is_executable_and_valid_bash():
-    assert os.access(SCRIPT, os.X_OK)
-    assert subprocess.run(["bash", "-n", str(SCRIPT)]).returncode == 0
-
-
-def test_help_describes_the_options_and_exits_cleanly():
-    result = run("--help")
-    assert result.returncode == 0
-    assert "--host" in result.stdout and "--listen-port" in result.stdout and "set up by the installer" in result.stdout
-    assert "TCP only" in result.stdout and "no firewall rule" in result.stdout
-
-
-def test_it_refuses_unknown_options_and_non_root_use():
-    assert run("--bogus").returncode == 2
-    if os.geteuid() != 0:
-        refused = run("--host", "gate.example.org")
-        assert refused.returncode == 2 and "root" in refused.stderr
-
-
-def test_the_script_writes_the_installers_env_contract():
-    text = SCRIPT.read_text()
-    for name in ("TRUSTTUNNEL_MANAGER_TOKEN_FILE", "TT_MANAGER_STATE_DIR", "TT_CERT_DIR=/etc/letsencrypt", "TT_HOSTNAME",
-                 "TT_LISTEN", "TT_VERSION=v", "TT_SHA256_X86_64", f"TT_SHA256_AARCH64={TT_SHA256_AARCH64}",
-                 "TRUSTTUNNEL_MANAGER_SOCKET_GID=10008", "TRUSTTUNNEL_PUBLIC_HOST", "compose.trusttunnel.yaml",
-                 ".env.trusttunnel"):
-        assert name in text, name
-    assert "ufw" not in text.replace("no firewall rule", "")
-    assert "for tree in trusttunnel_manager pc_common; do" in text
-    assert "/usr/local/bin/trusttunnel-manager healthcheck" in text and "python -m trusttunnel_manager" not in text
-    assert "proxy-control-installer" in text and "release-pin --manifest" in text
-    assert "python3" not in text
-
-
-def test_release_pin_binary_matches_reviewed_manifest():
-    import json
-
-    binary = Path(os.environ.get("PROXY_CONTROL_INSTALLER_BINARY",
-                                str(SCRIPT.parents[1] / "installer/bin/linux-amd64/proxy-control-installer")))
-    assert binary.is_file(), "build the installer and set PROXY_CONTROL_INSTALLER_BINARY"
-    manifest = SCRIPT.parents[1] / "release/external-artifacts.json"
-    entry = next(item for item in json.loads(manifest.read_text())["artifacts"] if item["name"] == "trusttunnel")
-    command = [str(binary), "release-pin", "--manifest", str(manifest), "trusttunnel", "amd64"]
-    result = subprocess.run(command, capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == f'{entry["version"]} {entry["platforms"]["amd64"]["sha256"]}\n'
-    refused = subprocess.run([*command[:-1], "arm64"], capture_output=True, text=True)
-    assert refused.returncode == 2
-    assert refused.stdout == ""
+@pytest.mark.parametrize("arguments", [["--help"], ["--bogus"]])
+def test_cli_returns_without_mutating_host_on_help_or_invalid_input(arguments):
+    result = subprocess.run(["bash", str(SCRIPT), *arguments], capture_output=True, text=True, timeout=10)
+    assert result.returncode == (0 if arguments == ["--help"] else 2)

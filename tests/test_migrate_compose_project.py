@@ -5,16 +5,13 @@ back on any failure — against a fake `docker` that records what it was asked."
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).parents[1]
-SCRIPT = ROOT / "scripts" / "migrate-compose-project.sh"
 IMAGE = "sha256:" + "b" * 64
-pytestmark = pytest.mark.skipif(os.geteuid() != 0, reason="the migration runs as root (the lab suite does)")
 
 FAKE = r'''#!/usr/bin/env python3
 import json, sys
@@ -40,6 +37,8 @@ if args[:2] == ["inspect", "--format"] and "environment_file" in line:
 if args[:2] == ["inspect", "--format"]:
     out(state["image"])
 if args[0] == "compose":
+    if args[1:] == ["version", "--short"]:
+        out("2.40.3")
     project = args[args.index("--project-name") + 1]
     if "config" in args:
         out(json.dumps(state["config"]))
@@ -47,8 +46,6 @@ if args[0] == "compose":
         out("c-" + args[-1])
     if "up" in args and project in state.get("fail_up", []):
         sys.exit(1)
-    if "version" in args:
-        out("2.40.3")
     out()
 if args[:2] == ["volume", "inspect"] and "--format" not in args:
     sys.exit(0 if args[2] in state["volumes"] else 1)
@@ -69,7 +66,8 @@ out()
 
 
 @pytest.fixture
-def host(tmp_path):
+def host(tmp_path, installer_binary):
+    (tmp_path / "root").mkdir()
     project = tmp_path / "project"
     project.mkdir()
     for name in ("compose.yaml", "compose.xray-router.yaml", ".env", ".env.xray-router"):
@@ -105,7 +103,7 @@ def host(tmp_path):
         "volumes": ["mtproxy_panel-data", "mtproxy_telemt-config", "mtproxy_xray-router-run"],
     }
     (bin_dir / "docker.json").write_text(json.dumps(state))
-    return {"tmp": tmp_path, "project": project, "bin": bin_dir, "agent_env": agent_env}
+    return {"tmp": tmp_path, "project": project, "bin": bin_dir, "agent_env": agent_env, "binary": installer_binary}
 
 
 def _state(host) -> dict:
@@ -120,7 +118,8 @@ def _set(host, **changes):
 
 def _run(host, *extra):
     environment = {"PATH": f"{host['bin']}:/usr/bin:/bin", "MIGRATE_AGENT_ENV": str(host["agent_env"])}
-    result = subprocess.run(["bash", str(SCRIPT), "--dir", str(host["project"]), "--lang", "en", *extra], env=environment,
+    result = subprocess.run([str(host["binary"]), "--root", str(host["tmp"] / "root"), "migrate-compose-project",
+                             "--dir", str(host["project"]), "--lang", "en", *extra], env=environment,
                             capture_output=True, text=True, timeout=60)
     log = (host["tmp"] / "docker.log").read_text().splitlines() if (host["tmp"] / "docker.log").exists() else []
     return result, log
@@ -204,7 +203,3 @@ def test_a_missing_compose_file_refuses_before_anything_stops(host):
     assert not any(" stop" in line or line.startswith("tag ") for line in log)
 
 
-def test_update_host_runs_the_migration_at_its_end():
-    text = (ROOT / "scripts" / "update-host.sh").read_text()
-    migrate = text.index('scripts/migrate-compose-project.sh" --dir "$DIR"')
-    assert text.index("installer.ingress_upgrade") < migrate < text.index("bad=$(docker ps -a")

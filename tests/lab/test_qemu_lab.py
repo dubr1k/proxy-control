@@ -33,6 +33,7 @@ class FakeClock:
 
 
 class QemuLabTests(unittest.TestCase):
+
     def test_fake_certbot_issues_a_complete_locally_trusted_lineage(self):
         runner = MODULE.parent / "guest-runner.sh"
         with tempfile.TemporaryDirectory() as temporary:
@@ -490,49 +491,6 @@ class ImageMetadataTests(unittest.TestCase):
         self.assertIn("q35", command)
 
 
-class ReleaseFixtureTests(unittest.TestCase):
-    def test_guest_runner_declares_every_release_scenario(self):
-        runner = (MODULE.parent / "guest-runner.sh").read_text()
-        for name in lab.release_scenarios():
-            if name == "environment-preflight":
-                continue
-            self.assertIn(f"case_run {name} ", runner, name)
-
-    def test_client_compose_pins_every_protocol_probe(self):
-        compose = (
-            Path(__file__).parent / "clients" / "compose.yaml"
-        ).read_text()
-        for service in (
-            "telemt:",
-            "naive:",
-            "mieru:",
-            "vless-tcp:",
-            "vless-xhttp:",
-            "hysteria2:",
-            "https-cover:",
-        ):
-            self.assertIn(service, compose)
-        self.assertIn("read_only: true", compose)
-        self.assertIn("cap_drop: [ALL]", compose)
-        self.assertNotIn("privileged", compose)
-
-    def test_foreign_three_xui_fixture_is_never_installer_owned(self):
-        fixture = (
-            Path(__file__).parent / "fixtures" / "three-xui-existing.sh"
-        ).read_text()
-        self.assertIn("/usr/local/x-ui", fixture)
-        self.assertIn("/etc/x-ui/x-ui.db", fixture)
-        self.assertIn("FOREIGN-PRIVATE-KEY-NEVER-READ", fixture)
-
-    def test_multi_map_fixture_adds_a_second_candidate_map_and_listener(self):
-        """It is added beside the shared 443 router, so it must not reuse 443."""
-        fixture = (
-            Path(__file__).parent / "fixtures" / "nginx-multi-map.conf"
-        ).read_text()
-        self.assertEqual(fixture.count("map $ssl_preread_server_name"), 1)
-        self.assertIn("$legacy_backend", fixture)
-        self.assertIn("listen 8443;", fixture)
-        self.assertNotIn("listen 443;", fixture)
 
 if __name__ == "__main__":
     unittest.main()

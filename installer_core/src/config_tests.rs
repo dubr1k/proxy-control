@@ -350,3 +350,35 @@ fn awg_dns_refuses_a_scope_id() {
     let text = format!("{CORE_TOML}\n[amneziawg]\nenabled = true\ndns = [\"2001:DB8::1\", 7]\n");
     assert_eq!(error(&text), "amneziawg.dns contains an invalid address");
 }
+
+#[test]
+fn router_relay_and_mieru_lane_defaults_round_trip_and_require_the_router() {
+    let source = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/plans/kitchen-sink/config.toml"),
+    )
+    .unwrap();
+    let selected = parse_config(&source).unwrap();
+    assert_eq!(selected.effective_egress().relay_port, crate::model::DEFAULT_RELAY_PORT);
+    assert_eq!(selected.mieru.as_ref().unwrap().lane_slots, 4);
+    assert_eq!(selected.mieru.as_ref().unwrap().slot_ports(), [46101, 46102, 46103, 46104]);
+    let rendered = render_config(&selected);
+    assert_eq!(parse_config(&rendered).unwrap(), selected);
+
+    let explicit = source
+        .replace("[mieru]\n", "[mieru]\nlane_slots = 2\n")
+        .replace("[egress]\n", "[egress]\nrelay_port = 45444\n");
+    let configured = parse_config(&explicit).unwrap();
+    assert_eq!(configured.mieru.as_ref().unwrap().slot_ports(), [46101, 46102]);
+    assert_eq!(configured.effective_egress().relay_port, 45444);
+    assert_eq!(parse_config(&render_config(&configured)).unwrap(), configured);
+
+    let plain = source.replace("router = true", "router = false").replace("naive = \"router\"", "naive = \"direct\"");
+    let configured = parse_config(&plain).unwrap();
+    assert_eq!(configured.effective_egress().relay_port, 0);
+    assert_eq!(configured.mieru.as_ref().unwrap().lane_slots, 0);
+    assert!(parse_config(&plain.replace("[egress]\n", "[egress]\nrelay_port = 45443\n")).is_err());
+    assert!(parse_config(&plain.replace("[mieru]\n", "[mieru]\nlane_slots = 2\n")).is_err());
+    assert!(parse_config(&source.replace("[mieru]\n", "[mieru]\nlane_slots = 9\n")).is_err());
+    assert!(parse_config(&source.replace("[egress]\n", "[egress]\nrelay_port = 45101\n")).is_err());
+    assert!(parse_config(&source.replace("tcp_ports = [46001, 46003]", "tcp_ports = [46102]")).is_err());
+}

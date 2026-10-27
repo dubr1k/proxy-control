@@ -180,9 +180,13 @@ pub fn cli(arguments: &[String], stdout: &mut dyn Write, stderr: &mut dyn Write)
                 compose::migrate(&host, &project, check)
             }
             _ => {
-                let version = options.get("--version").cloned().unwrap_or(
-                    std::fs::read_to_string(host.source.join("VERSION")).map_err(|e| e.to_string())?.trim().to_string(),
-                );
+                let version = match options.get("--version") {
+                    Some(version) => version.clone(),
+                    None => std::fs::read_to_string(host.source.join("VERSION"))
+                        .map_err(|e| e.to_string())?
+                        .trim()
+                        .to_string(),
+                };
                 if !check_version(&version) {
                     return Err("malformed version".into());
                 }

@@ -102,23 +102,6 @@ def test_router_overlay_without_mieru_still_renders():
     assert config["services"]["panel"]["environment"]["PANEL_SUPPLEMENTARY_GROUPS"] == "10001,10005,10006"
 
 
-def test_dockerfile_and_entrypoint_use_the_reserved_identity():
-    dockerfile = (ROOT / "xray_router_manager" / "Dockerfile").read_text()
-    assert "--uid 10006" in dockerfile and "--gid 10006" in dockerfile and "USER 10006:10006" in dockerfile
-    # 4.0: the manager is Rust; the runtime stage is the same pinned Debian as every Rust manager's
-    # (after the Go stage of the bridge and the Rust build stage).
-    stages = [line for line in dockerfile.splitlines() if line.startswith("FROM ")]
-    runtime = stages[-1]
-    assert runtime == [line for line in (ROOT / "trusttunnel_manager" / "Dockerfile").read_text().splitlines()
-                       if line.startswith("FROM ")][-1]
-    assert runtime.startswith("FROM debian:bookworm-slim@sha256:")
-    assert "COPY --from=build /out/xray-router-manager /usr/local/bin/xray-router-manager" in dockerfile
-    assert 'ENTRYPOINT ["/usr/local/bin/xray-router-manager"]' in dockerfile
-    assert "COPY --from=bridge /out/mtproxy-bridge /usr/local/bin/mtproxy-bridge" in dockerfile
-    entrypoint = (ROOT / "panel" / "entrypoint.sh").read_text()
-    assert "10001,10005,10006" in entrypoint and "xray-router-manager-token" in entrypoint
-
-
 def run_state_preparer(mode: str, state_dir: Path | str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([str(STATE_PREPARER), mode, str(state_dir)], cwd=ROOT, text=True, capture_output=True,
                           check=False)

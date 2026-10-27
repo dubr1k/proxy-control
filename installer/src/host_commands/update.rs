@@ -114,6 +114,9 @@ fn rebuild(host: &Host<'_>, model: &Model, project: &str, pending: &[String]) ->
             .unwrap_or_default()
         };
         let image = image.trim();
+        if !container.is_empty() && image.is_empty() {
+            return Err(format!("invalid {service} image ID"));
+        }
         if !image.is_empty() {
             if !image.strip_prefix("sha256:").is_some_and(super::digest) {
                 return Err(format!("invalid {service} image ID"));

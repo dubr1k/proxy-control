@@ -1,541 +1,108 @@
+"""Public installer commands through the real native process, never Python services."""
 from __future__ import annotations
 
-import errno
-import io
+import hashlib
 import json
-import os
-import pty
-import select
-import threading
-import time
-from dataclasses import dataclass, replace
+import subprocess
 from pathlib import Path
 
 import pytest
 
-import installer.cli as cli
-from installer.config import load_config
-from installer.i18n import Locale
-from installer.model import InstallerConfig
-from installer.planner import AuditFacts, InstallPlan, ReleaseIdentity, build_plan
-from installer.transaction import TransactionState
-
-
-ROOT = Path(__file__).parents[1]
-CORE_CONFIG = ROOT / "examples" / "installer" / "core.toml"
-
-
-class RecordingEngine:
-    def __init__(self, state: TransactionState):
-        self.state = state
-        self.calls: list[tuple[object, ...]] = []
-
-    def apply(self, plan: InstallPlan, accepted_digest: str) -> TransactionState:
-        self.calls.append(("apply", plan, accepted_digest))
-        return self.state
-
-    def resume(self) -> TransactionState:
-        self.calls.append(("resume",))
-        return self.state
-
-    def repair(self) -> TransactionState:
-        self.calls.append(("repair",))
-        return self.state
-
-    def uninstall(self, purge_data: bool) -> TransactionState:
-        self.calls.append(("uninstall", purge_data))
-        return self.state
-
-
-class RecordingStore:
-    def __init__(self, state: TransactionState):
-        self.state = state
-        self.state_path = Path("state.json")
-
-    def read_state(self) -> TransactionState:
-        return self.state
-
-
-@dataclass
-class ReturningWizard:
-    config: InstallerConfig
-    locale: Locale | None = None
-
-    def run(self, facts: AuditFacts) -> InstallerConfig:
-        assert isinstance(facts, AuditFacts)
-        return self.config
-
-
-def _state(*, status: str = "active") -> TransactionState:
-    digest = "a" * 64
-    return TransactionState(
-        transaction_id="b" * 32,
-        status=status,
-        plan_digest=digest,
-        accepted_digest=digest,
-        error="SafeError: password=hunter2",
-        legacy={"private_token": "must-not-be-rendered"},
-    )
-
-
-def _plan(config: InstallerConfig) -> InstallPlan:
-    return build_plan(
-        config,
-        AuditFacts(platform={"os": "ubuntu"}),
-        (),
-        ReleaseIdentity(
-            tag="v0.1.0",
-            commit="c" * 40,
-            manifest_sha256="d" * 64,
-        ),
-    )
-
-
-def _services(
-    config: InstallerConfig,
-    *,
-    wizard: object | None = None,
-) -> tuple[cli.CliServices, RecordingEngine]:
-    plan = _plan(config)
-    state = _state()
-    engine = RecordingEngine(state)
-    services = cli.CliServices(
-        audit=lambda _config: plan.facts,
-        plan=lambda actual, facts: _plan(actual),
-        engine=engine,
-        store=RecordingStore(state),
-        wizard=lambda _io, _locale, _output: wizard or ReturningWizard(config),
-    )
-    return services, engine
-
-
-def test_panel_recovery_rejects_wrong_archive_digest_before_mutation(tmp_path):
-    services, _ = _services(load_config(CORE_CONFIG))
-    archive = tmp_path / "release.tar.gz"
-    archive.write_bytes(b"not the approved archive")
-    result, output, error = _run(
-        ["--root", str(tmp_path), "reconcile-panel-update", "--archive", str(archive),
-         "--sha256", "0" * 64], services,
-    )
-    assert result == 2 and not output
-    assert "SHA-256" in error
-
-
-def _run(
-    argv: list[str],
-    services: cli.CliServices,
-    *,
-    input_text: str = "",
-) -> tuple[int, str, str]:
-    stdout = io.StringIO()
-    stderr = io.StringIO()
-    terminal = cli.TerminalIO(io.StringIO(input_text), stdout)
-    result = cli.run(argv, services=services, io=terminal, stdout=stdout, stderr=stderr)
-    return result, stdout.getvalue(), stderr.getvalue()
-
-
-def _run_in_pty(
-    argv: list[str],
-    services: cli.CliServices,
-    *,
-    answers: list[str],
-) -> tuple[int, str]:
-    master, slave = pty.openpty()
-    input_stream = os.fdopen(os.dup(slave), "r")
-    output_stream = os.fdopen(os.dup(slave), "w")
-    os.close(slave)
-    result: list[int] = []
-
-    def invoke() -> None:
-        terminal = cli.TerminalIO(input_stream, output_stream)
-        result.append(
-            cli.run(
-                argv,
-                services=services,
-                io=terminal,
-                stdout=output_stream,
-                stderr=output_stream,
-            )
-        )
-        output_stream.flush()
-
-    worker = threading.Thread(target=invoke)
-    worker.start()
-    os.write(master, ("\n".join(answers) + "\n").encode())
-    chunks: list[bytes] = []
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        ready, _, _ = select.select([master], [], [], 0.05)
-        if ready:
-            try:
-                chunks.append(os.read(master, 65536))
-            except OSError as exc:
-                if exc.errno != errno.EIO:
-                    raise
-                break
-        if not worker.is_alive() and not ready:
-            break
-    worker.join(timeout=1)
-    if worker.is_alive():
-        raise AssertionError("in-process PTY did not exit")
-    input_stream.close()
-    output_stream.close()
-    while True:
-        try:
-            chunk = os.read(master, 65536)
-        except OSError as exc:
-            if exc.errno == errno.EIO:
-                break
-            raise
-        if not chunk:
-            break
-        chunks.append(chunk)
-    os.close(master)
-    return result[0], b"".join(chunks).decode(errors="replace").replace("\r", "")
-
-
-def test_toml_plan_uses_the_same_typed_config_and_canonical_plan():
-    config = load_config(CORE_CONFIG)
-    services, _engine = _services(config)
-
-    result, stdout, stderr = _run(
-        ["plan", "--config", str(CORE_CONFIG), "--json"], services
-    )
-
-    payload = json.loads(stdout)
-    assert result == 0, stderr
-    assert payload["config"] == config.canonical_dict()
-    assert payload["digest"] == _plan(config).digest
-
-
-def test_automated_install_requires_complete_exact_digest(monkeypatch):
-    config = load_config(CORE_CONFIG)
-    services, engine = _services(config)
-    digest = _plan(config).digest
-    compared: list[tuple[str, str]] = []
-    real_compare = cli.secrets.compare_digest
-
-    def recording_compare(left: str, right: str) -> bool:
-        compared.append((left, right))
-        return real_compare(left, right)
-
-    monkeypatch.setattr(cli.secrets, "compare_digest", recording_compare)
-
-    abbreviated, _stdout, abbreviated_error = _run(
-        ["install", "--config", str(CORE_CONFIG), "--accept-plan", digest[:12]],
-        services,
-    )
-    wrong, _stdout, wrong_error = _run(
-        ["install", "--config", str(CORE_CONFIG), "--accept-plan", "0" * 64],
-        services,
-    )
-    accepted, _stdout, accepted_error = _run(
-        ["install", "--config", str(CORE_CONFIG), "--accept-plan", digest],
-        services,
-    )
-
-    assert abbreviated == wrong == 2
-    assert "complete plan digest" in abbreviated_error
-    assert "does not match" in wrong_error
-    assert accepted == 0, accepted_error
-    assert compared == [("0" * 64, digest), (digest, digest)]
-    assert engine.calls == [("apply", _plan(config), digest)]
-
-
-@pytest.mark.parametrize("confirmation", ["", "0" * 12, "A" * 12, "a" * 11, "a" * 13])
-def test_interactive_confirmation_accepts_exactly_first_twelve_lowercase_hex(
-    confirmation: str,
-):
-    config = load_config(CORE_CONFIG)
-    plan = _plan(config)
-    services, engine = _services(config)
-    expected = plan.digest[:12]
-    value = expected if confirmation == "" else confirmation
-
-    result, _stdout, _stderr = _run(["wizard"], services, input_text=value + "\n")
-
-    if confirmation == "":
-        assert result == 0
-        assert engine.calls == [("apply", plan, plan.digest)]
-    else:
-        assert result == 2
-        assert engine.calls == []
-
-
-@pytest.mark.parametrize("confirmation", [" {prefix}", "{prefix} ", "\t{prefix}"])
-def test_interactive_digest_rejects_surrounding_whitespace(confirmation: str):
-    config = load_config(CORE_CONFIG)
-    plan = _plan(config)
-    services, engine = _services(config)
-    raw = confirmation.format(prefix=plan.digest[:12])
-
-    result, _stdout, _stderr = _run(["wizard"], services, input_text=raw + "\n")
-
-    assert result == 2
-    assert engine.calls == []
-
-
-def test_interactive_quit_at_digest_does_not_call_engine():
-    config = load_config(CORE_CONFIG)
-    services, engine = _services(config)
-
-    result, stdout, stderr = _run(["wizard"], services, input_text="quit\n")
-
-    assert result == 0, stderr
-    assert "No changes were made" in stdout
-    assert engine.calls == []
-
-
-def test_russian_digest_quit_uses_localized_pty_output():
-    config = load_config(CORE_CONFIG)
-    wizard = ReturningWizard(config, locale=Locale.RU)
-    services, engine = _services(config, wizard=wizard)
-
-    result, transcript = _run_in_pty(
-        ["wizard", "--lang", "ru"], services, answers=["quit"]
-    )
-
-    assert result == 0
-    assert "Изменения не внесены." in transcript
-    assert "No changes were made." not in transcript
-    assert engine.calls == []
-
-
-def test_interactive_wizard_rejects_a_plan_for_different_config():
-    config = load_config(CORE_CONFIG)
-    other_plan = _plan(replace(config, initial_user="other"))
-    services, engine = _services(config)
-    mismatched = cli.CliServices(
-        audit=services.audit,
-        plan=lambda _config, _facts: other_plan,
-        engine=services.engine,
-        store=services.store,
-        wizard=services.wizard,
-    )
-
-    result, _stdout, stderr = _run(
-        ["wizard"], mismatched, input_text=other_plan.digest[:12] + "\n"
-    )
-
-    assert result == 2
-    assert "different configuration" in stderr
-    assert engine.calls == []
-
-
-def test_status_json_is_deterministic_and_omits_legacy_payload():
-    config = load_config(CORE_CONFIG)
-    services, _engine = _services(config)
-
-    first = _run(["status", "--json"], services)
-    second = _run(["status", "--json"], services)
-
-    assert first == second
-    assert first[0] == 0
-    payload = json.loads(first[1])
-    assert payload == {
-        "checkpoints": [],
-        "error": "SafeError: password=[REDACTED]",
-        "origin": "installer-v1",
-        "plan_digest": "a" * 64,
-        "schema": 1,
-        "status": "active",
-    }
-    assert "must-not-be-rendered" not in first[1]
-    assert "hunter2" not in first[1]
-
-
-def test_report_tells_how_amneziawg_reaches_warp(tmp_path):
-    """v3.0.0: AmneziaWG's exit through WARP is a routing policy, not an install option; the report
-    says where it lives and what the node must reach for it."""
-    config_path = ROOT / "examples" / "installer" / "core-amneziawg.toml"
-    config = load_config(config_path)
-    services, _engine = _services(config)
-    output = tmp_path / "reports"
-
-    result, _stdout, stderr = _run(
-        ["--root", str(tmp_path), "report", "--config", str(config_path), "--output", str(output), "--json"], services
-    )
-
-    assert result == 0, stderr
-    notes = json.loads((output / "report.json").read_text())["operator_notes"]
-    assert any("send the whole tunnel through WARP" in note and "api.cloudflareclient.com:443" in note
-               and "UDP 2408" in note for note in notes)
-
-
-def test_report_puts_the_mcp_address_and_token_in_the_handoff_only(tmp_path):
-    """v0.11 §9a: the public report says MCP is enabled; the root-only handoff holds
-    `https://<domain>/mcp` and the bearer token, and nothing of it leaks to the report."""
-    config_path = tmp_path / "central.toml"
-    config_path.write_text(CORE_CONFIG.read_text().replace("[domains]\n", '[domains]\nmcp = "mcp.example.com"\n'))
-    config = load_config(config_path)
-    assert config.domains.mcp == "mcp.example.com"
-    token_path = tmp_path / "opt/mtproxy-shared443/secrets/mcp-token"
-    token_path.parent.mkdir(parents=True)
-    token_path.write_text("t" * 43 + "\n")
-    services, _engine = _services(config)
-    output = tmp_path / "reports"
-
-    result, stdout, stderr = _run(
-        ["--root", str(tmp_path), "report", "--config", str(config_path), "--output", str(output), "--json"], services
-    )
-
-    assert result == 0, stderr
-    public = json.loads((output / "report.json").read_text())
-    assert "MCP server: enabled on mcp.example.com" in public["operator_notes"]
-    assert "t" * 43 not in (output / "report.json").read_text()
-    handoff = json.loads((output / "credentials/handoff.json").read_text())
-    assert handoff["credentials"] == {"mcp_url": "https://mcp.example.com/mcp", "mcp_token": "t" * 43}
-    assert "handoff" not in (output / "report.json").read_text()
-
-    # Without the name there is no handoff at all and the note is absent.
-    plain_output = tmp_path / "plain-reports"
-    plain_services, _ = _services(load_config(CORE_CONFIG))
-    assert _run(["--root", str(tmp_path), "report", "--config", str(CORE_CONFIG), "--output", str(plain_output)], plain_services)[0] == 0
-    assert not (plain_output / "credentials").exists()
-    assert "MCP" not in (plain_output / "report.json").read_text()
-
-
-def test_explicit_lifecycle_commands_share_the_transaction_engine():
-    config = load_config(CORE_CONFIG)
-    services, engine = _services(config)
-
-    assert _run(["resume"], services)[0] == 0
-    assert _run(["repair"], services)[0] == 0
-    assert _run(["uninstall"], services)[0] == 0
-    assert _run(["uninstall", "--purge-data"], services)[0] == 0
-
-    assert engine.calls == [
-        ("resume",),
-        ("repair",),
-        ("uninstall", False),
-        ("uninstall", True),
-    ]
-
-
-def test_wrappers_and_proxyctl_dispatch_to_the_unified_cli(monkeypatch):
-    install = (ROOT / "install.sh").read_text()
-    uninstall = (ROOT / "uninstall.sh").read_text()
-    expected_path = 'PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"'
-    assert expected_path in install
-    assert expected_path in uninstall
-    assert 'python3 -m installer.cli wizard' in install
-    assert 'python3 -m installer.cli "$@"' in install
-    assert 'python3 -m installer.cli uninstall "$@"' in uninstall
-
-    from scripts import proxyctl
-
-    calls: list[list[str] | None] = []
-    monkeypatch.setattr(cli, "main", lambda argv=None: calls.append(argv) or 17)
-    assert proxyctl.main(["status"]) == 17
-    assert calls == [["status"]]
-
-
-def test_repair_has_every_adapter_without_composing_a_plan(tmp_path):
-    """repair, resume and uninstall never build a plan, so the engine must
-    already know each adapter the stored plan can name."""
-    from installer.cli import _default_services
-    from installer.planner import adapter_factories
-
-    services = _default_services(tmp_path)
-    assert set(adapter_factories()) <= set(services.engine.adapters)
-    for name, adapter in services.engine.adapters.items():
-        assert adapter.name == name
-
-
-def test_passwords_typed_in_the_wizard_reach_the_adapters_on_its_own_apply(tmp_path):
-    """v1.0.3 fix: «apply» straight from the wizard used to skip the staging that the
-    `install` path does, so a typed panel or 3x-ui password was silently replaced by a
-    generated one. The adapters now find it staged while the plan applies, and the
-    staged copy is gone afterwards."""
-    from installer.credentials import OperatorCredentials, staged_credentials, staged_path
-
-    config = load_config(CORE_CONFIG)
-    plan = _plan(config)
-    seen: list[object] = []
-
-    class StagingEngine(RecordingEngine):
-        def apply(self, plan: InstallPlan, accepted_digest: str) -> TransactionState:
-            seen.append(staged_credentials(tmp_path))
-            return super().apply(plan, accepted_digest)
-
-    @dataclass
-    class TypingWizard(ReturningWizard):
-        credentials: OperatorCredentials | None = None
-
-    typed = OperatorCredentials(panel_username="owner", panel_password="correct-horse-battery")
-    services, _engine = _services(config, wizard=TypingWizard(config, credentials=typed))
-    engine = StagingEngine(_state())
-    services = cli.CliServices(
-        audit=services.audit, plan=services.plan, engine=engine, store=services.store, wizard=services.wizard
-    )
-    result, _stdout, stderr = _run(["--root", str(tmp_path), "wizard"], services, input_text=plan.digest[:12] + "\n")
-
-    assert result == 0, stderr
-    assert engine.calls and seen == [typed]
-    assert not staged_path(tmp_path).exists()
-
-
-def test_an_installed_host_reaches_the_wizard_as_a_fact(tmp_path):
-    seen: list[AuditFacts] = []
-
-    class Spy(ReturningWizard):
-        def run(self, facts):
-            seen.append(facts)
-            return super().run(facts)
-
-    (tmp_path / "opt/mtproxy-shared443").mkdir(parents=True)
-    (tmp_path / "opt/mtproxy-shared443/VERSION").write_text("3.2.1\n")
-    config = load_config(CORE_CONFIG)
-    services, _ = _services(config, wizard=Spy(config))
-    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
-    assert seen[0].ownership["installed"]["version"] == "3.2.1"
-
-
-def test_a_clean_host_reaches_the_wizard_without_the_installed_fact(tmp_path):
-    seen: list[AuditFacts] = []
-
-    class Spy(ReturningWizard):
-        def run(self, facts):
-            seen.append(facts)
-            return super().run(facts)
-
-    config = load_config(CORE_CONFIG)
-    services, _ = _services(config, wizard=Spy(config))
-    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
-    assert "installed" not in seen[0].ownership
-
-
-def test_lang_fixes_the_wizard_language(tmp_path):
-    from installer.wizard import TerminalWizard
-
-    services = cli._default_services(tmp_path)
-    fixed = services.wizard(cli.TerminalIO(io.StringIO(""), io.StringIO()), Locale.RU, tmp_path / "c.toml")
-    asked = services.wizard(cli.TerminalIO(io.StringIO(""), io.StringIO()), None, tmp_path / "c.toml")
-    assert isinstance(fixed, TerminalWizard) and fixed.language_fixed is True
-    assert asked.language_fixed is False
-
-
-def test_installed_fact_keeps_the_audited_listeners(tmp_path):
-    seen: list[AuditFacts] = []
-
-    class Spy(ReturningWizard):
-        def run(self, facts):
-            seen.append(facts)
-            return super().run(facts)
-
-    (tmp_path / "opt/mtproxy-shared443").mkdir(parents=True)
-    (tmp_path / "opt/mtproxy-shared443/VERSION").write_text("3.2.1\n")
-    config = load_config(CORE_CONFIG)
-    services, _ = _services(config, wizard=Spy(config))
-    audited = AuditFacts(listeners={"tcp": ({"port": 443},)}, ownership={"docker": {"version": "x"}})
-    services = replace(services, audit=lambda _config: audited)
-    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
-    assert seen[0].listeners == audited.listeners
-    assert seen[0].ownership["docker"] == {"version": "x"} and seen[0].ownership["installed"]["version"] == "3.2.1"
-
-
-def test_the_ownership_journal_alone_marks_an_installed_host(tmp_path):
-    assert cli._installed_version(tmp_path) is None
-    (tmp_path / "var/lib/proxy-control").mkdir(parents=True)
-    (tmp_path / "var/lib/proxy-control/ownership.json").write_text("{}")
-    assert cli._installed_version(tmp_path) == ""
+ROOT = Path(__file__).resolve().parents[1]
+GOLDEN = ROOT / "tests/fixtures/host-golden"
+
+
+def invoke(binary: Path, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([str(binary), "--root", str(root), *arguments], capture_output=True, text=True, timeout=20)
+
+
+@pytest.mark.parametrize("command", ["status", "resume", "repair", "uninstall"])
+def test_missing_journal_refuses_without_creating_transaction(installer_binary, tmp_path, command):
+    result = invoke(installer_binary, tmp_path, command)
+    assert result.returncode == 2
+    assert not result.stdout
+    assert not (tmp_path / "var/lib/proxy-control/installer/state.json").exists()
+
+
+@pytest.mark.parametrize("journal", ["rolled-back", "uninstalled"])
+def test_status_reads_historical_journal_without_mutation(installer_binary, tmp_path, journal):
+    source = GOLDEN / "journals" / journal / "state.json"
+    destination = tmp_path / "var/lib/proxy-control/installer/state.json"
+    destination.parent.mkdir(parents=True)
+    before = source.read_bytes()
+    destination.write_bytes(before)
+    result = invoke(installer_binary, tmp_path, "status", "--json")
+    assert result.returncode == 0, result.stderr
+    status = json.loads(result.stdout)
+    original = json.loads(before)
+    assert status["status"] == original["status"]
+    assert status["plan_digest"] == original["plan_digest"]
+    assert "legacy" not in status
+    assert destination.read_bytes() == before
+
+
+@pytest.mark.parametrize("digest", ["0" * 64, "a" * 12, "A" * 64])
+def test_panel_recovery_rejects_unapproved_archive_before_mutation(installer_binary, tmp_path, digest):
+    archive = tmp_path / "unapproved.tar.gz"
+    archive.write_bytes(b"not an approved release")
+    result = invoke(installer_binary, tmp_path, "reconcile-panel-update", "--archive", str(archive), "--sha256", digest)
+    assert result.returncode == 2
+    assert not result.stdout
+    assert archive.read_bytes() == b"not an approved release"
+    assert not (tmp_path / "var/lib/proxy-control/installer/state.json").exists()
+
+
+def test_invalid_config_refuses_before_audit_or_install(installer_binary, tmp_path):
+    config = tmp_path / "bad.toml"
+    config.write_text('schema = 1\npassword = "must-not-be-accepted"\n')
+    result = invoke(installer_binary, tmp_path, "install", "--config", str(config), "--accept-plan", "0" * 64)
+    assert result.returncode == 2
+    assert not result.stdout
+    assert not (tmp_path / "var/lib/proxy-control/installer/state.json").exists()
+
+
+def test_verify_release_checks_artifact_bytes(installer_binary, tmp_path):
+    release = tmp_path / "release"
+    release.mkdir()
+    payload = release / "payload.tar.gz"
+    payload.write_bytes(b"release archive bytes")
+    manifest = json.loads((ROOT / "release/external-artifacts.json").read_text())
+    manifest["artifacts"][0]["platforms"]["amd64"]["sha256"] = hashlib.sha256(payload.read_bytes()).hexdigest()
+    manifest_path = release / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    arguments = ("verify-release", "artifact", str(manifest_path), "mieru", "amd64", str(payload))
+    result = invoke(installer_binary, tmp_path / "host", *arguments)
+    assert result.returncode == 0, result.stderr
+    payload.write_bytes(b"tampered")
+    result = invoke(installer_binary, tmp_path / "host", *arguments)
+    assert result.returncode != 0
+
+
+def test_awg_ports_match_machine_identity_derivation_and_avoid_busy_port(installer_binary, tmp_path):
+    identity = "0123456789abcdef0123456789abcdef"
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc/machine-id").write_text(identity + "\n")
+
+    def derive(version, attempt):
+        return 10240 + int.from_bytes(hashlib.sha256(f"{identity}:{version}:{attempt}".encode()).digest(), "big") % 21761
+
+    command = [str(installer_binary), "awg-ports", "--root", str(tmp_path)]
+    first = subprocess.run([*command, "", "--", "1.5", "2.0", "3.1"], capture_output=True, text=True, timeout=10)
+    assert first.returncode == 0, first.stderr
+    got = dict(item.split("=") for item in first.stdout.split())
+    assert got == {version: str(derive(version, 0)) for version in ("1.5", "2.0", "3.1")}
+    busy = subprocess.run([*command, got["1.5"], "--", "1.5"], capture_output=True, text=True, timeout=10)
+    assert busy.returncode == 0, busy.stderr
+    assert dict(item.split("=") for item in busy.stdout.split())["1.5"] == str(derive("1.5", 1))
+
+
+def test_release_pin_cli_returns_reviewed_manifest_and_refuses_unknown_architecture(installer_binary, tmp_path):
+    manifest = ROOT / "release/external-artifacts.json"
+    entry = next(item for item in json.loads(manifest.read_text())["artifacts"] if item["name"] == "trusttunnel")
+    arguments = ("release-pin", "--manifest", str(manifest), "trusttunnel")
+    result = subprocess.run([str(installer_binary), *arguments, "amd64"], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f'{entry["version"]} {entry["platforms"]["amd64"]["sha256"]}\n'
+    refused = subprocess.run([str(installer_binary), *arguments, "arm64"], capture_output=True, text=True, timeout=10)
+    assert refused.returncode == 2
+    assert refused.stdout == ""
