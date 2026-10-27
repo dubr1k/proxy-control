@@ -788,7 +788,7 @@ top of the pinned registry image).
 | `mita` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The Mieru server; only the executable and the license notice are installed. |
 | `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
 | `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
-| `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
+| `xray` (`XTLS/Xray-core`) | 26.10.21 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
 | `trusttunnel` (`TrustTunnel/TrustTunnel`) | 1.1.0 | Apache-2.0 | The TrustTunnel endpoint: the archive is downloaded and checked while the `trusttunnel-manager` image is built; it runs unmodified as a subprocess. |
 
 `amneziawg-go` (MIT license, the Amnezia VPN project) is built on the server into the

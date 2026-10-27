@@ -564,26 +564,28 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
             assert all(character in "0123456789abcdef" for character in reference)
 
 
-def test_the_install_script_names_exactly_the_pinned_artifact_versions():
-    """AGENTS.md, «the auto-install script is updated with every change»: the versions the
-    `--requirements` text names in both languages are the ones release/external-artifacts.json
-    pins — a pin change that forgets the script fails here, not on an operator's host."""
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_install_script_names_exactly_the_pinned_artifact_versions(language):
+    """The actual requirements output must agree with the current release manifest."""
     import re
 
     pins = {
         item["name"]: item["version"]
         for item in json.loads((ROOT / "release" / "external-artifacts.json").read_text())["artifacts"]
     }
-    script = (ROOT / "scripts" / "install-release.sh").read_text()
+    completed = subprocess.run(
+        ("bash", str(ROOT / "scripts" / "install-release.sh"), "--requirements", "--lang", language),
+        check=True, capture_output=True, text=True, timeout=10,
+    )
     named = {
-        "three_xui": re.findall(r"3x-ui ([0-9][0-9.]*[0-9])", script),
-        "mita": re.findall(r"mita_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
-        "mieru": re.findall(r"mieru_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
-        "xray": re.findall(r"Xray-core ([0-9][0-9.]*[0-9])", script),
-        "trusttunnel": re.findall(r"TrustTunnel endpoint ([0-9][0-9.]*[0-9])", script),
+        "three_xui": re.findall(r"3x-ui ([0-9][0-9.]*[0-9])", completed.stdout),
+        "mita": re.findall(r"mita_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", completed.stdout),
+        "mieru": re.findall(r"mieru_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", completed.stdout),
+        "xray": re.findall(r"Xray-core ([0-9][0-9.]*[0-9])", completed.stdout),
+        "trusttunnel": re.findall(r"TrustTunnel endpoint ([0-9][0-9.]*[0-9])", completed.stdout),
     }
     for name, versions in named.items():
-        assert len(versions) >= 2, f"{name}: both languages must name the pinned version"
+        assert versions, f"{name}: {language} requirements must name the pinned version"
         assert set(versions) == {pins[name]}, f"{name}: the script says {sorted(set(versions))}, the pin is {pins[name]}"
 
 

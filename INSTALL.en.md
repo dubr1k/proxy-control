@@ -90,7 +90,7 @@ is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
 The pinned upstream artifacts — `mita_3.38.1_<arch>.deb` (the server) and
 `mieru_3.38.1_<arch>.deb` (the official client the acceptance runs) for a profile
-with Mieru, `Xray-linux-64.zip` for the Xray-router — need no staging (the `trusttunnel-v1.1.0-linux-x86_64.tar.gz`
+with Mieru, `Xray-linux-64.zip` (Xray-core 26.10.21) for the Xray-router — need no staging (the `trusttunnel-v1.1.0-linux-x86_64.tar.gz`
 archive of the optional TrustTunnel is downloaded by Docker itself while the image is built): the installer
 fetches them from their pinned HTTPS URLs into `/var/lib/proxy-control/` and refuses
 to continue unless each digest matches its pin (a mismatching file is discarded).

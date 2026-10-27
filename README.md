@@ -774,7 +774,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | `mita` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | Сервер Mieru; ставится только исполняемый файл и уведомление о лицензии. |
 | `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | Официальный клиент Mieru для приёмки трафика. |
 | `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | Панель 3x-ui и её Xray для VLESS Reality и Hysteria2 в режиме `managed-new`. |
-| `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | Xray-router: из `Xray-linux-64.zip` берутся только `xray`, `geoip.dat` и `geosite.dat`, каждый по своей контрольной сумме. |
+| `xray` (`XTLS/Xray-core`) | 26.10.21 | MPL-2.0 | Xray-router: из `Xray-linux-64.zip` берутся только `xray`, `geoip.dat` и `geosite.dat`, каждый по своей контрольной сумме. |
 | `trusttunnel` (`TrustTunnel/TrustTunnel`) | 1.1.0 | Apache-2.0 | Endpoint TrustTunnel: архив скачивается и сверяется при сборке образа `trusttunnel-manager`; запускается без изменений как подпроцесс. |
 
 `amneziawg-go` (лицензия MIT, проект Amnezia VPN) собирается в образ `awg-manager` по

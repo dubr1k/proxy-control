@@ -32,7 +32,7 @@ fn options(output: &Path, locale: Locale, root: &Path) -> WizardOptions {
         config_output: output.to_path_buf(),
         root: root.to_path_buf(),
         environment_locale: None,
-        xray_version: "26.10.17".into(),
+        xray_version: pinned_version(&Path::new(env!("CARGO_MANIFEST_DIR")).join(".."), "xray"),
     }
 }
 
@@ -1400,10 +1400,20 @@ fn non_default_service_ports_are_labelled_in_the_review() {
 #[test]
 fn router_question_names_the_pinned_xray_version() {
     let tree = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let expected = pinned_version(&tree, "xray");
-    assert_eq!(expected, "26.10.17");
+    let manifest = pc_host::archive::ReleaseManifest::from_bytes(
+        &std::fs::read(tree.join("release/external-artifacts.json")).unwrap(),
+    )
+    .unwrap();
+    let expected = &manifest.external_artifact("xray", "amd64").unwrap().version;
     for locale in Locale::ALL {
-        assert!(text(locale, "router", &[("version", &expected)]).contains(&format!("Xray-core {expected}")));
+        let temp = TempDir::new();
+        let (transcript, _, _) = scripted(
+            &tt_answers(&["yes", "gate.example.com"]),
+            &temp.join("router.toml"),
+            locale,
+            &temp.0,
+        );
+        assert!(transcript.contains(&format!("Xray-core {expected}")), "{transcript}");
     }
 }
 
