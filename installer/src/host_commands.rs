@@ -67,18 +67,7 @@ fn strings(values: &[&str]) -> Vec<String> {
 }
 
 fn read_env(path: &Path) -> Result<BTreeMap<String, String>> {
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
-        Err(error) => return Err(error.to_string()),
-    };
-    let mut values = BTreeMap::new();
-    for line in text.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            values.insert(key.to_string(), value.to_string());
-        }
-    }
-    Ok(values)
+    pc_host::envfile::read(path).map_err(|error| error.to_string())
 }
 
 fn check_version(value: &str) -> bool {
