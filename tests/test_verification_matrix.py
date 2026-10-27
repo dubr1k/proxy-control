@@ -38,13 +38,17 @@ def test_rows_are_well_formed_and_unique(rows):
     ids = [row["id"] for row in rows]
     assert len(ids) == len(set(ids)), "duplicate ids"
     for row in rows:
-        assert set(row) == {"id", "since", "area", "claim", "proof", "routes", "status"}, row["id"]
+        assert set(row) == ({"id", "since", "area", "claim", "proof", "routes", "status"}
+                            | ({"missing_proof"} if row["status"] == "gap" else set())), row["id"]
         assert row["since"] in SINCE and row["area"] in AREAS and row["status"] in STATUSES, row["id"]
         assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", row["id"]), row["id"]
         assert 12 <= len(row["claim"]) <= 240, row["id"]
         assert isinstance(row["proof"], list) and isinstance(row["routes"], list)
         if row["status"] != "gap":
             assert row["proof"], f"{row['id']} is {row['status']} without a proof"
+        else:
+            assert isinstance(row["missing_proof"], str) and len(row["missing_proof"]) >= 40, row["id"]
+    assert matrix.row_problems(rows) == []
 
 
 def test_every_proof_exists_in_the_tree(rows):
@@ -74,16 +78,81 @@ def test_route_matrix_rejects_stale_and_unclaimed_native_operations():
 
 def test_strict_cli_refuses_gaps_even_if_every_proof_and_route_is_valid(monkeypatch, tmp_path):
     rows = [{"id": "unproven", "since": "3.3", "area": "backend", "claim": "A missing behavioral proof.",
-             "proof": [], "routes": [], "status": "gap"}]
+             "proof": [], "routes": [], "status": "gap", "missing_proof": "An executable behavioral proof is still required for this claim."}]
     document = tmp_path / "verification.md"
     document.write_text(matrix.render(rows), encoding="utf-8")
     monkeypatch.setattr(matrix, "DOCUMENT", document)
     monkeypatch.setattr(matrix, "load", lambda: rows)
     monkeypatch.setattr(route_coverage, "collect_routes", lambda: [])
+    monkeypatch.setattr(route_coverage, "gate_problems", lambda routes: [])
     monkeypatch.delenv("VERIFICATION_STRICT", raising=False)
     assert matrix.main(["--check"]) == 0
     monkeypatch.setenv("VERIFICATION_STRICT", "1")
     assert matrix.main(["--check"]) == 1
+
+
+def test_strict_cli_refuses_stale_document_and_nonexistent_proof(monkeypatch, tmp_path):
+    rows = [{"id": "bound-proof", "since": "3.3", "area": "backend", "claim": "A maintained behavior has an executable proof.",
+             "proof": ["pytest::tests/test_missing.py::test_missing"], "routes": [], "status": "proven"}]
+    document = tmp_path / "verification.md"
+    document.write_text(matrix.render(rows), encoding="utf-8")
+    monkeypatch.setattr(matrix, "ROOT", tmp_path)
+    monkeypatch.setattr(matrix, "DOCUMENT", document)
+    monkeypatch.setattr(matrix, "load", lambda: rows)
+    monkeypatch.setattr(route_coverage, "collect_routes", lambda: [])
+    monkeypatch.setattr(route_coverage, "gate_problems", lambda routes: [])
+    monkeypatch.setenv("VERIFICATION_STRICT", "1")
+    assert matrix.main(["--check"]) == 1
+    proof = tmp_path / "tests/test_missing.py"
+    proof.parent.mkdir()
+    proof.write_text("def test_missing():\n    assert 2 + 2 == 4\n", encoding="utf-8")
+    document.write_text("stale generated content", encoding="utf-8")
+    assert matrix.main(["--check"]) == 1
+    document.write_text(matrix.render(rows), encoding="utf-8")
+    assert matrix.main(["--check"]) == 0
+
+
+def test_cli_refuses_native_authorization_regression(monkeypatch, tmp_path):
+    document = tmp_path / "verification.md"
+    document.write_text(matrix.render([]), encoding="utf-8")
+    monkeypatch.setattr(matrix, "DOCUMENT", document)
+    monkeypatch.setattr(matrix, "load", lambda: [])
+    monkeypatch.setattr(route_coverage, "collect_routes", lambda: [])
+    monkeypatch.setattr(route_coverage, "gate_problems", lambda routes: ["anonymous route accepted"])
+    assert matrix.main(["--check"]) == 1
+
+
+def test_proof_resolver_rejects_comments_and_unregistered_scenario_strings(tmp_path):
+    lab = tmp_path / "scripts/lab"
+    lab.mkdir(parents=True)
+    source = lab / "ui-acceptance.py"
+    source.write_text('# self.check("login.retired", True)\nlabel = "login.retired"\n', encoding="utf-8")
+    assert matrix.proof_problem("ui::login.retired", tmp_path) == "no such ui scenario"
+    source.write_text('def scenario(self):\n    self.check("login.current", 200 == 200)\n', encoding="utf-8")
+    assert matrix.proof_problem("ui::login.current", tmp_path) is None
+    assert matrix.proof_problem("ui::login.current_extra", tmp_path) == "no such ui scenario"
+
+
+def test_proof_resolver_follows_parameterized_browser_checks(tmp_path):
+    script = tmp_path / "checks.py"
+    script.write_text(
+        'def helper(self, label):\n    self.check(label, True)\n'
+        'def scenario(self):\n'
+        '    self.helper("audit.layout")\n'
+        '    for protocol, label in (("naive", "clients.naive"), ("mieru", "clients.mieru")):\n'
+        '        self.check(label, protocol != "")\n',
+        encoding="utf-8",
+    )
+    assert set(matrix.check_names(script)) == {"audit.layout", "clients.naive", "clients.mieru"}
+
+
+def test_non_gap_without_proof_and_undocumented_gap_fail_closed():
+    assert matrix.row_problems([{"id": "empty", "status": "proven", "proof": []}]) == [
+        "empty: non-gap row has no proof",
+    ]
+    assert matrix.row_problems([{"id": "unknown", "status": "gap", "proof": []}]) == [
+        "unknown: gap has no explicit missing behavior",
+    ]
 
 def test_the_rendered_document_is_the_fixture(rows):
     assert DOCUMENT.read_text(encoding="utf-8") == matrix.render(rows), \
@@ -91,8 +160,7 @@ def test_the_rendered_document_is_the_fixture(rows):
 
 
 def test_no_gap_survives_the_release_gate(rows):
-    """`VERIFICATION_STRICT=1` (the full gate on the release tree) refuses a matrix with a
-    hole; a working tree in the middle of v0.6 may still carry them."""
+    """The release gate refuses every explicitly documented behavioral gap."""
     gaps = [row["id"] for row in rows if row["status"] == "gap"]
     if os.environ.get("VERIFICATION_STRICT") == "1":
         assert gaps == [], gaps
