@@ -203,3 +203,18 @@ def test_a_missing_compose_file_refuses_before_anything_stops(host):
     assert not any(" stop" in line or line.startswith("tag ") for line in log)
 
 
+def test_check_reads_systemd_quoted_and_continued_compose_values_without_mutating(host):
+    content = (
+        f'PROXY_CONTROL_COMPOSE_DIR="{host["project"]}"\n'
+        'PROXY_CONTROL_COMPOSE_FILES="compose.yaml:\\\ncompose.xray-router.yaml"\n'
+        "PROXY_CONTROL_PANEL_IMAGE='mtproxy-panel'\n"
+        "PROXY_CONTROL_PANEL_VOLUME='mtproxy_panel-data'\n"
+    )
+    host["agent_env"].write_text(content)
+    volumes = _state(host)["volumes"]
+    result, log = _run(host, "--check")
+    assert result.returncode == 0, result.stderr
+    assert "check passed" in result.stdout
+    assert host["agent_env"].read_text() == content
+    assert _state(host)["volumes"] == volumes
+    assert _nothing_stopped(log)

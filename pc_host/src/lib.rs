@@ -9,6 +9,7 @@
 //! | [`runner`] | the three command contracts, a recording fake, process-group kill with `/proc` proof | `installer/audit.py:CommandRunner`, `adapters/core.py:_DefaultCoreRunner` |
 //! | [`archive`] | `PANEL_SYNC`, panel archive preflight, reviewed artifacts, safe tar/zip extraction, release identity | `version_agent/service.py:77-85, 945-986`, `installer/release.py`, `installer/cli.py:138-160` |
 //! | [`net`] | HTTPS with per-hop redirect allow-list, size caps, timeouts | `version_agent/upstream.py:open_allowed, fetch_https` |
+//! | [`envfile`] | systemd EnvironmentFile quoting, escapes and continuations without shell expansion | native host and service configuration |
 //! | [`error`] | `TransactionError` and subclasses with their Python class names | `installer/transaction.py:56-74` |
 //!
 //! The crate is Linux-only (procfs, `*at` system calls). It has no async runtime and no
@@ -57,10 +58,12 @@
 //! - `url`: `split(url) -> SplitResult { scheme, netloc, path, query, fragment }` with
 //!   `hostname()`, `username()`, `password()`; `join(base, reference)`.
 //! - `pytext`: `py_repr`, `py_path_str`, `py_title`, `text_mode`, `tail_chars`, `head_chars`.
+//! - `envfile`: `read(path) -> io::Result<BTreeMap<String, String>>` (missing files mean no overrides).
 //! - crate root: `INSTALLER_PATH`, `constant_time_eq`, re-exports `TxError`, `operation_lock`,
 //!   `OperationLock`.
 
 pub mod archive;
+pub mod envfile;
 pub mod error;
 pub mod fs;
 pub mod json;
