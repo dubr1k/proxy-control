@@ -29,13 +29,11 @@ import sys
 import tempfile
 import time
 import urllib.request
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
-
-from installer.release import ReleaseManifest, safe_extract_zip, verify_artifact  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("routing_spike", HERE / "routing-spike.py")
 routing_spike = importlib.util.module_from_spec(_spec)
@@ -65,20 +63,34 @@ def sha256_file(path: Path) -> str:
 
 
 def stage_xray(cache: Path, work: Path) -> tuple[Path, dict]:
-    """The pinned archive (downloaded once into the lab cache, digest-checked every time),
-    extracted by the release extractor into `work/xray`."""
-    manifest = ReleaseManifest.from_bytes((ROOT / "release" / "external-artifacts.json").read_bytes())
-    pin = manifest.external_artifact("xray", "amd64")
+    """Digest-check the lab cache and unpack only the reviewed manifest members."""
+    manifest = json.loads((ROOT / "release" / "external-artifacts.json").read_text())
+    artifact = next(item for item in manifest["artifacts"] if item["name"] == "xray")
+    pin = artifact["platforms"]["amd64"]
     cache.mkdir(parents=True, exist_ok=True)
-    archive = cache / pin.url.rsplit("/", 1)[1]
-    if not archive.exists() or sha256_file(archive) != pin.sha256:
-        with urllib.request.urlopen(pin.url, timeout=120) as response, archive.open("wb") as sink:
+    archive = cache / pin["url"].rsplit("/", 1)[1]
+    if not archive.exists() or sha256_file(archive) != pin["sha256"]:
+        with urllib.request.urlopen(pin["url"], timeout=120) as response, archive.open("wb") as sink:
             shutil.copyfileobj(response, sink)
-    verify_artifact(archive, pin.sha256)
+    if sha256_file(archive) != pin["sha256"]:
+        raise Spike("pinned Xray archive digest mismatch")
     destination = work / "xray"
-    safe_extract_zip(archive, destination, dict(pin.members))
-    return destination, {"version": pin.version, "archive_sha256": pin.sha256,
-                         "members": {name: sha256_file(destination / name) for name in pin.members}}
+    destination.mkdir()
+    with zipfile.ZipFile(archive) as package:
+        for name, member in pin["members"].items():
+            if Path(name).name != name or len([item for item in package.infolist() if item.filename == name]) != 1:
+                raise Spike("invalid or duplicate pinned Xray member")
+            info = package.getinfo(name)
+            if info.file_size != member["size"]:
+                raise Spike("pinned Xray member size mismatch")
+            path = destination / name
+            with package.open(info) as source, path.open("xb") as target:
+                shutil.copyfileobj(source, target)
+            if sha256_file(path) != member["sha256"]:
+                raise Spike("pinned Xray member digest mismatch")
+            path.chmod(int(member["mode"], 8))
+    return destination, {"version": artifact["version"], "archive_sha256": pin["sha256"],
+                         "members": {name: sha256_file(destination / name) for name in pin["members"]}}
 
 
 # --- the router config under test (spec §6) ------------------------------------------

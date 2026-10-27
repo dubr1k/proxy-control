@@ -465,13 +465,14 @@ stage_mita_package() {
       printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status
     fi
     install -m 0644 "$cache" "/var/lib/proxy-control/$name"
-  done < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
-import sys
-from installer.adapters.mieru import _MIERU_CLIENT_PINS, _MITA_PINS
-for pins in (_MITA_PINS, _MIERU_CLIENT_PINS):
-    url, package_digest, _executable_digest = pins[sys.argv[1]]
-    print(url, package_digest)
-' "$architecture")
+  done < <(python3 -c '
+import json,sys
+manifest=json.load(open(sys.argv[1]))
+for name in ("mita", "mieru"):
+    artifact=next(item for item in manifest["artifacts"] if item["name"]==name)
+    pin=artifact["platforms"][sys.argv[2]]
+    print(pin["url"], pin["sha256"])
+' "$RELEASE_ROOT/release/external-artifacts.json" "$architecture")
 }
 
 stage_xray_package() {
@@ -479,11 +480,12 @@ stage_xray_package() {
   # archive in /var/lib/proxy-control and the installer extracts only its reviewed members.
   local name cache url digest
   install -d -m 0755 /root/lab-artifacts /var/lib/proxy-control
-  read -r url digest < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
-from installer.adapters.xray_router import _XRAY_PINS
-url, archive_digest, _members = _XRAY_PINS["amd64"]
-print(url, archive_digest)
-')
+  read -r url digest < <(python3 -c '
+import json,sys
+manifest=json.load(open(sys.argv[1]))
+pin=next(item for item in manifest["artifacts"] if item["name"]=="xray")["platforms"]["amd64"]
+print(pin["url"], pin["sha256"])
+' "$RELEASE_ROOT/release/external-artifacts.json")
   name=${url##*/}
   cache=/root/lab-artifacts/$name
   if ! printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status 2>/dev/null; then

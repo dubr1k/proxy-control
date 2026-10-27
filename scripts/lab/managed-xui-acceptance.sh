@@ -12,7 +12,6 @@
 set -Eeuo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-PREFIX=${PREFIX:-/}
 XUI_ROOT=/usr/local/x-ui
 XUI_DB=/etc/x-ui
 UNIT=/etc/systemd/system/x-ui.service
@@ -27,61 +26,9 @@ require_clean_host() {
   [[ $EUID -eq 0 ]] || fail "run as root on a disposable server"
   [[ ! -e $XUI_ROOT ]] || fail "$XUI_ROOT exists; this runs on a host with no 3x-ui"
   [[ ! -e $XUI_DB ]] || fail "$XUI_DB exists; this runs on a host with no 3x-ui"
-  command -v python3 >/dev/null || fail "python3 is required"
+  [[ ${PC_MANAGED_XUI_LIVE:-} == ams-test ]] || fail "explicit lab acknowledgement required: PC_MANAGED_XUI_LIVE=ams-test"
 }
 
-architecture() {
-  case "$(dpkg --print-architecture)" in
-    amd64) printf 'amd64' ;;
-    *) fail "this project targets x86-64 only" ;;
-  esac
-}
-
-stage_three_xui() {
-  local arch url digest archive
-  arch=$(architecture)
-  url=$(python3 -c "
-import json,sys
-d=json.load(open('$ROOT/release/external-artifacts.json'))
-for a in d['artifacts']:
-    if a['name']=='three_xui':
-        print(a['platforms']['$arch']['url']); break
-")
-  digest=$(python3 -c "
-import json
-d=json.load(open('$ROOT/release/external-artifacts.json'))
-for a in d['artifacts']:
-    if a['name']=='three_xui':
-        print(a['platforms']['$arch']['sha256']); break
-")
-  archive=$(mktemp)
-  curl -fsSL -o "$archive" "$url"
-  printf '%s  %s\n' "$digest" "$archive" | sha256sum -c - >/dev/null \
-    || fail "the pinned 3x-ui digest does not match"
-  local staging
-  staging=$(mktemp -d)
-  tar -xzf "$archive" -C "$staging"
-  install -d -m 0755 "$XUI_ROOT" "$XUI_DB"
-  cp -a "$staging/x-ui/." "$XUI_ROOT/"
-  chmod 0755 "$XUI_ROOT/x-ui" "$XUI_ROOT/bin/xray-linux-$arch"
-  rm -rf "$staging" "$archive"
-
-  cat > "$UNIT" <<'UNITFILE'
-[Unit]
-Description=3x-ui staged by the managed acceptance run
-After=network.target
-[Service]
-Type=simple
-# x-ui launches Xray by a relative path, so it only works from its own tree.
-WorkingDirectory=/usr/local/x-ui
-ExecStart=/usr/local/x-ui/x-ui run
-Restart=on-failure
-[Install]
-WantedBy=multi-user.target
-UNITFILE
-  systemctl daemon-reload
-  systemctl enable --now x-ui >/dev/null
-}
 
 wait_for_port() {
   local port=$1 protocol=${2:-tcp} deadline
@@ -98,44 +45,12 @@ wait_for_port() {
 }
 
 provision() {
-  PYTHONPATH="$ROOT" python3 - <<'PY'
-import sys
-from pathlib import Path
-
-from installer.adapters.three_xui import ThreeXuiAdapter
-from installer.model import (
-    DomainConfig,
-    FirewallConfig,
-    HostMode,
-    InstallerConfig,
-    Profile,
-    ThreeXuiConfig,
-    ThreeXuiMode,
-)
-
-config = InstallerConfig(
-    schema=1,
-    host_mode=HostMode.FRESH,
-    profile=Profile.CORE,
-    acme_email="lab@example.invalid",
-    initial_user="owner",
-    domains=DomainConfig(panel="panel.lab.test", mtproxy="proxy.lab.test"),
-    mieru=None,
-    three_xui=ThreeXuiConfig(
-        mode=ThreeXuiMode.MANAGED_NEW,
-        panel_domain="xui.lab.test",
-        vless_tcp_domain="vless.lab.test",
-        vless_xhttp_domain="xhttp.lab.test",
-        hysteria_domain="hy2.lab.test",
-    ),
-    firewall=FirewallConfig(manage_ufw=False),
-)
-
-adapter = ThreeXuiAdapter(source_dir=Path("."), panel_username="labowner")
-action = adapter._managed_action(config)
-report = adapter.provision(action, password="acceptance-panel-password")
-print(f"provisioned inbounds={report['inbounds']}")
-PY
+  if [[ -n ${PC_MANAGED_XUI_TEST_BIN:-} ]]; then
+    "$PC_MANAGED_XUI_TEST_BIN" --ignored --exact real_managed_three_xui_native_provision --nocapture
+  else
+    cargo test --manifest-path "$ROOT/installer/Cargo.toml" --locked --test managed_three_xui_live \
+      -- --ignored --exact real_managed_three_xui_native_provision --nocapture
+  fi
 }
 
 cleanup() {
@@ -149,14 +64,14 @@ cleanup() {
   rm -f "$UNIT"
   systemctl daemon-reload || true
   rm -rf "$XUI_ROOT" "$XUI_DB"
+  rm -f /etc/proxy-control/three-xui-owned
+  rm -rf /var/lib/proxy-control/three-xui
   rm -rf /etc/letsencrypt/live/xui.lab.test /etc/letsencrypt/live/hy2.lab.test
 }
 
 main() {
   require_clean_host
   trap cleanup EXIT
-  stage_three_xui
-  wait_for_port 2053 || fail "the staged 3x-ui never answered on its default port"
 
   # The panel and Hysteria2 need certificates that exist: 3x-ui refuses a settings form
   # whose certificate path is absent. In a real install Core issues them before this

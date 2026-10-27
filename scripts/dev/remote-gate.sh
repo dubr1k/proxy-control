@@ -23,7 +23,7 @@ sync_tree() {
     --exclude dist --exclude dist-again --exclude __pycache__ --exclude .pytest_cache \
     --exclude .ruff_cache --exclude node_modules --exclude .DS_Store --exclude .hermes \
     --exclude secrets --exclude .env --exclude graphify-out --exclude .superpowers \
-    --exclude .claude --exclude target \
+    --exclude .claude --exclude .worktrees --exclude target \
     "$ROOT/" "$HOST:$REMOTE/"
 }
 
@@ -34,15 +34,68 @@ remote() {
 ensure_venv='test -x .venv/bin/python || python3 -m venv .venv; .venv/bin/pip install -q -r panel/requirements-dev.txt'
 build_images='docker build -q -f panel/Dockerfile -t mtproxy-panel:latest . >/dev/null && docker build -q -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest . >/dev/null && docker build -q -f xray_router_manager/Dockerfile -t mtproxy-xray-router:latest . >/dev/null'
 
+# Match CI's native black-box prerequisites. Explicit binary paths permit reuse
+# of the lab's already built artifacts, but never fall back to a Python runtime.
+prepare_native="export PATH=\$HOME/.cargo/bin:\$PATH PANEL_IMPL=rust \
+  && if test -n '${PANEL_RUST_BIN:-}'; then export PANEL_RUST_BIN='${PANEL_RUST_BIN:-}'; \
+     else cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks \
+       && export PANEL_RUST_BIN=\$PWD/panel/target/debug/panel; fi \
+  && test -x \"\$PANEL_RUST_BIN\" \
+  && if test -n '${PC_INSTALLER_BIN:-}'; then installer='${PC_INSTALLER_BIN:-}'; \
+     else cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer \
+       && installer=\$PWD/installer/target/debug/proxy-control-installer; fi \
+  && test -x \"\$installer\" \
+  && { test \"\$installer\" -ef installer/bin/linux-amd64/proxy-control-installer \
+       || install -D -m 0755 \"\$installer\" installer/bin/linux-amd64/proxy-control-installer; } \
+  && if test -n '${PC_VERSION_AGENT_BIN:-}'; then agent='${PC_VERSION_AGENT_BIN:-}'; \
+     else cargo build --manifest-path version_agent/Cargo.toml --locked --bin proxy-control-version-agent \
+       && agent=\$PWD/version_agent/target/debug/proxy-control-version-agent; fi \
+  && test -x \"\$agent\" \
+  && { test \"\$agent\" -ef version_agent/bin/linux-amd64/proxy-control-version-agent \
+       || install -D -m 0755 \"\$agent\" version_agent/bin/linux-amd64/proxy-control-version-agent; }"
+
+# Same completeness policy as CI: collection/runtime skips and -k/-m deselection
+# make a gate fail. Positional test files remain useful for the quick tier.
+native_pytest='.venv/bin/python - "$@" <<'"'"'PY'"'"'
+import sys
+import pytest
+
+class FullSuite:
+    deselected = 0
+    skipped = 0
+
+    def pytest_deselected(self, items):
+        self.deselected += len(items)
+
+    def pytest_collectreport(self, report):
+        if report.skipped:
+            self.skipped += 1
+
+    def pytest_runtest_logreport(self, report):
+        if report.skipped:
+            self.skipped += 1
+
+guard = FullSuite()
+status = pytest.main(["-q", "-ra", "-p", "no:cacheprovider", *sys.argv[1:]], plugins=[guard])
+if guard.deselected or guard.skipped:
+    print(f"Incomplete test suite: {guard.deselected} deselected, {guard.skipped} skipped", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(status)
+PY
+'
+
 case $LEVEL in
   quick)
     sync_tree
-    remote "$ensure_venv && .venv/bin/ruff check . && .venv/bin/python -m pytest -q -p no:cacheprovider $*"
+    pytest_args=
+    if (($#)); then printf -v pytest_args '%q ' "$@"; fi
+    remote "$ensure_venv && $prepare_native && .venv/bin/ruff check . && set -- $pytest_args && $native_pytest"
     ;;
   full)
     sync_tree
-    remote "$ensure_venv && $build_images && .venv/bin/ruff check . \
-      && VERIFICATION_STRICT=${VERIFICATION_STRICT:-0} .venv/bin/python -m pytest -q -p no:cacheprovider \
+    remote "$ensure_venv && $prepare_native && $build_images && .venv/bin/ruff check . \
+      && export VERIFICATION_STRICT=${VERIFICATION_STRICT:-0} && $native_pytest
+      test \$? = 0 \
       && .venv/bin/python -m unittest -q tests/test_deploy.py \
       && .venv/bin/python scripts/dev/route-coverage.py > /dev/null \
       && python3 scripts/check-doc-links.py \
@@ -231,7 +284,9 @@ case $LEVEL in
       && files=(--env-file .env -f compose.yaml) \
       && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait xray-router naive-manager mieru-manager"
-    remote "install -d -m 0755 /opt/proxy-control && rm -rf /opt/proxy-control/version_agent && cp -r version_agent /opt/proxy-control/version_agent \
+    remote "$prepare_native && rm -rf /opt/proxy-control/version_agent \
+      && install -d -m 0755 /opt/proxy-control/version_agent/bin/linux-amd64 \
+      && install -o root -g root -m 0755 version_agent/bin/linux-amd64/proxy-control-version-agent /opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent \
       && install -d -m 0750 /etc/proxy-control \
       && install -o root -g root -m 0644 deploy/version-agent.service /etc/systemd/system/version-agent.service \
       && install -o root -g root -m 0644 deploy/proxy-control-version-agent.tmpfiles.conf /etc/tmpfiles.d/proxy-control-version-agent.conf \
@@ -252,10 +307,10 @@ case $LEVEL in
     # The managed-new 3x-ui path against the real pinned 3x-ui (v0.1, re-proven in v0.6): the
     # lab node's coexistence fixture (a stub x-ui) is moved aside for the run and put back.
     sync_tree
-    remote "rm -rf /root/xui-fixture-backup && mkdir -p /root/xui-fixture-backup \
+    remote "$prepare_native && rm -rf /root/xui-fixture-backup && mkdir -p /root/xui-fixture-backup \
       && { test -e /usr/local/x-ui && mv /usr/local/x-ui /root/xui-fixture-backup/usr-local-x-ui || true; } \
       && { test -e /etc/x-ui && mv /etc/x-ui /root/xui-fixture-backup/etc-x-ui || true; } \
-      && { bash scripts/lab/managed-xui-acceptance.sh && echo MANAGED_XUI_OK || echo MANAGED_XUI_FAILED; } \
+      && { PC_MANAGED_XUI_LIVE=ams-test PC_INSTALLER_BIN=\"\$installer\" PC_MANAGED_XUI_TEST_BIN='${PC_MANAGED_XUI_TEST_BIN:-}' bash scripts/lab/managed-xui-acceptance.sh && echo MANAGED_XUI_OK || echo MANAGED_XUI_FAILED; } \
       && rm -rf /usr/local/x-ui /etc/x-ui \
       && { test -e /root/xui-fixture-backup/usr-local-x-ui && mv /root/xui-fixture-backup/usr-local-x-ui /usr/local/x-ui || true; } \
       && { test -e /root/xui-fixture-backup/etc-x-ui && mv /root/xui-fixture-backup/etc-x-ui /etc/x-ui || true; }" | tee /dev/stderr | grep -q MANAGED_XUI_OK && echo REMOTE_GATE_MANAGED_XUI_OK

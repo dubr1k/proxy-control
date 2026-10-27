@@ -84,9 +84,14 @@ def cleanup():
         for grant in http.get(f"/api/clients/{client_id}").json()["grants"]:
             http.post(f"/api/clients/grants/{grant['id']}/delete", headers=H)
         http.post(f"/api/clients/{client_id}/state", json={"state": "archived"}, headers=H)
-    sh("docker", "exec", "proxy-control-panel", "python", "-c",
-       "import sqlite3,os;db=sqlite3.connect(os.environ.get('PANEL_DATABASE','/data/panel.sqlite3'));"
-       "db.execute(\"delete from sessions where username='awgcheck'\");db.execute(\"delete from admins where username='awgcheck'\");db.commit()")
+    response = http.get("/api/admins")
+    response.raise_for_status()
+    for admin in response.json()["items"]:
+        if admin["username"] == "awgcheck":
+            deleted = http.delete(f"/api/admins/{admin['id']}", headers=H)
+            if deleted.status_code != 204:
+                raise RuntimeError(f"temporary admin cleanup failed: HTTP {deleted.status_code}")
+    http.close()
     print(f"REAL_HOST_RESULT fails={len(fails)}", flush=True)
 
 

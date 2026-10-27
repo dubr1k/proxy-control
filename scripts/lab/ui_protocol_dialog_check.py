@@ -94,10 +94,21 @@ class ProtocolFixture:
                             if not ready:
                                 return
                             for source in ready:
-                                data = source.recv(65536)
+                                try:
+                                    data = source.recv(65536)
+                                except ConnectionResetError:
+                                    if source is self.request:
+                                        return
+                                    raise
                                 if not data:
                                     return
-                                (upstream if source is self.request else self.request).sendall(data)
+                                destination = upstream if source is self.request else self.request
+                                try:
+                                    destination.sendall(data)
+                                except (ConnectionResetError, BrokenPipeError):
+                                    if destination is self.request:
+                                        return
+                                    raise
 
             self.relay = socketserver.ThreadingTCPServer(listener.getsockname(), Relay, bind_and_activate=False)
             self.relay.socket.close()
