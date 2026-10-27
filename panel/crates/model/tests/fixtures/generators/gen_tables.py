@@ -2,9 +2,9 @@
 `str.encode("idna")` (RFC 3490 nameprep through CPython's `stringprep`, Unicode 3.2) and the code
 points `str.isdigit()` accepts that `int()` refuses.
 
-Run with the panel's interpreter (Python 3.13), e.g. on ams-test:
+Run with external Python 3.13 on ams-test (never inside the native panel image):
 
-    /root/dev/proxy-control/.venv/bin/python -I \
+    python3.13 -I \
         panel/crates/model/tests/fixtures/generators/gen_tables.py panel/crates/model/src/routing/tables.rs
 """
 import stringprep

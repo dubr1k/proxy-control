@@ -1,12 +1,11 @@
 """Tables and golden vectors for `panel_core::pytext`: Python 3.13's text semantics.
 
-Run with the panel image's interpreter (Python 3.13, Unicode 15.1), e.g.:
+Run with external Python 3.13 (Unicode 15.1) on ams-test:
 
-    docker run --rm --network none -v "$PWD:/src:ro" -v "$OUT:/out" --entrypoint python \
-        proxy_panel_by_dubr1k-panel:latest -I /src/panel/crates/core/tests/fixtures/generators/gen_pytext.py /out
+    python3.13 -I panel/crates/core/tests/fixtures/generators/gen_pytext.py "$OUT"
 
-Writes `/out/tables.rs` (the Unicode tables the Rust code embeds: `str.isspace`, `str.isprintable`,
-decimal digits) and `/out/pytext.json` (the vectors the Rust tests replay).
+Writes `$OUT/tables.rs` (the Unicode tables the Rust code embeds: `str.isspace`, `str.isprintable`,
+decimal digits) and `$OUT/pytext.json` (the vectors the Rust tests replay).
 """
 from __future__ import annotations
 

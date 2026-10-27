@@ -1,4 +1,4 @@
-"""Record datetime.fromisoformat acceptance with the production Python 3.13.5.
+"""Record datetime.fromisoformat acceptance with the historical Python 3.13.5 oracle.
 
 Run inside python:3.13.5-slim; the JSON on stdout is committed as fromisoformat.json.
 Only acceptance and tzinfo presence matter to UserLimits.expiration_rfc3339.
@@ -8,7 +8,7 @@ import json
 import sys
 from datetime import datetime
 
-assert sys.version_info[:3] == (3, 13, 5), "goldens require production Python 3.13.5"
+assert sys.version_info[:3] == (3, 13, 5), "goldens require the historical Python 3.13.5 oracle"
 
 CASES = [
     "",
