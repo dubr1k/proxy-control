@@ -108,10 +108,12 @@ fn manifest_bytes(mutate: impl FnOnce(&mut Value)) -> Vec<u8> {
 }
 
 #[test]
-fn reviewed_manifest_and_fixture_are_identical_and_strictly_valid() {
-    let fixture = fs::read(repo_file("tests/fixtures/releases/valid-manifest.json")).unwrap();
-    assert_eq!(fs::read(repo_file("release/external-artifacts.json")).unwrap(), fixture);
-    assert_eq!(ReleaseManifest::from_bytes(&fixture).unwrap().schema_version, 1);
+fn reviewed_manifest_and_historical_fixture_are_strictly_valid() {
+    // Parser fixtures are historical inputs, not another source of current release defaults.
+    for path in ["release/external-artifacts.json", "tests/fixtures/releases/valid-manifest.json"] {
+        let bytes = fs::read(repo_file(path)).unwrap();
+        assert_eq!(ReleaseManifest::from_bytes(&bytes).unwrap().schema_version, 1);
+    }
 }
 
 #[test]

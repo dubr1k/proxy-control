@@ -215,13 +215,20 @@ impl VersionAgentAdapter {
             components.insert("mita".into(), json!({"version":"3.38.1","kind":"binary","source":"catalog","sha256":self.binary_digest("/usr/bin/mita","mita")?,"updated_at":now}));
         }
         if selected["router"] == "on" {
+            let manifest = pc_host::archive::ReleaseManifest::from_bytes(&fs::read(
+                self.host.context.tree.join("release/external-artifacts.json"),
+            )?)
+            .map_err(|_| self.host.error("release manifest is invalid"))?;
+            let pin = manifest
+                .external_artifact("xray", "amd64")
+                .map_err(|_| self.host.error("release artifact is not pinned"))?;
             let members: BTreeMap<_, _> = ["xray", "geoip.dat", "geosite.dat"]
                 .into_iter()
                 .map(|name| {
                     Ok((name, self.binary_digest(&format!("/usr/local/lib/proxy-control/xray-router/{name}"), name)?))
                 })
                 .collect::<Result<_, Error>>()?;
-            components.insert("xray".into(), json!({"version":"26.10.17","kind":"binary","source":"catalog","sha256":"ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158","members":members,"updated_at":now}));
+            components.insert("xray".into(), json!({"version":pin.version,"kind":"binary","source":"catalog","sha256":pin.sha256,"members":members,"updated_at":now}));
         }
         Ok(Value::Object(components))
     }

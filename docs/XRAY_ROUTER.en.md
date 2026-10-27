@@ -114,6 +114,11 @@ the connection.
   SHA-256 and mode); the manager re-checks all three digests before it starts anything
   (`XRAY_ROUTER_*_SHA256` in `.env.xray-router`) and, on a mismatch, answers
   `artifact_mismatch` (503) instead of running an unpinned binary.
+  The approved pin is [Xray-core 26.10.21](https://github.com/XTLS/Xray-core/releases/tag/v26.10.21),
+  a non-prerelease; upstream withdrew 26.10.17 for a root-CA security fix. The approved
+  amd64 archive is 15,100,223 bytes; the manifest pins its SHA-256 and all three members'
+  digests, sizes and modes. A fresh version-agent state takes its version and archive
+  digest from that validated manifest; a repair preserves existing updater/operator state.
 - **Manager** (`xray_router_manager`, a Rust binary since 4.0): a supervisor around one child `xray run`. Its
   state is a sequence of **generations** (`generations/<n>/config.json`), `current.json`
   (the running one), `journal.json` (per service: current, previous, history) and
