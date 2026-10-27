@@ -846,20 +846,13 @@ Python используется инструментами сборки, раз�
 
 ## Разработка
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r panel/requirements-dev.txt
-.venv/bin/ruff check .
-.venv/bin/python -m pytest -q
-python3 scripts/check-doc-links.py
-git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
-git ls-files -z '*.sh' | xargs -0 -r shellcheck
-git diff --check
-```
+Сборка и проверки выполняются нативно на Ubuntu 24.04 с закреплённым Rust 1.99.
+Внешние HTTP- и браузерные проверки используют Python, но запускают панель отдельным
+Rust-процессом. Подготовка бинарников, образов и тестового окружения, команды проверок —
+в [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Установщик проверяется на архиве выпуска в двух стендах — [tests/lab/README.md](tests/lab/README.md).
-Правила участия — [CONTRIBUTING.md](CONTRIBUTING.md), рабочий протокол для ИИ-агентов —
-[AGENTS.md](AGENTS.md).
+Приёмка установщика на архиве выпуска описана в [tests/lab/README.md](tests/lab/README.md).
+Рабочий протокол для ИИ-агентов — [AGENTS.md](AGENTS.md).
 
 ## Лицензия и благодарности
 

@@ -861,20 +861,13 @@ are pinned in `panel/requirements-dev.txt`.
 
 ## Development
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r panel/requirements-dev.txt
-.venv/bin/ruff check .
-.venv/bin/python -m pytest -q
-python3 scripts/check-doc-links.py
-git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
-git ls-files -z '*.sh' | xargs -0 -r shellcheck
-git diff --check
-```
+Builds and checks run natively on Ubuntu 24.04 with the pinned Rust 1.99 toolchain.
+External HTTP and browser checks use Python but launch the panel as a separate Rust
+process. Binary, image and test-environment prerequisites and verification commands
+are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The installer is validated against a release archive in two labs:
-[tests/lab/README.md](tests/lab/README.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md);
-the development protocol for AI agents: [AGENTS.md](AGENTS.md).
+Release-archive installer acceptance is described in [tests/lab/README.md](tests/lab/README.md).
+The development protocol for AI agents is [AGENTS.md](AGENTS.md).
 
 ## License and acknowledgements
 

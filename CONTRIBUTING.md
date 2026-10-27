@@ -18,8 +18,10 @@ cargo test --manifest-path installer/Cargo.toml --locked
 cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
 cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
 install -D -m 0755 installer/target/debug/proxy-control-installer installer/bin/linux-amd64/proxy-control-installer
-PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
-  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN .venv/bin/python -m pytest -q -ra
+docker build -f panel/Dockerfile -t mtproxy-panel:latest .
+docker build -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest .
+PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" PANEL_TEST_IMAGE=mtproxy-panel:latest \
+  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN,PANEL_TEST_IMAGE .venv/bin/python -m pytest -q -ra
 .venv/bin/ruff check .
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck
