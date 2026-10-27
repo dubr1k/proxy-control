@@ -2007,7 +2007,7 @@ fn state_written_by_the_python_manager_is_read() {
             let rewritten = if name.contains("/generations/") {
                 String::from_utf8(config_bytes(&value)).unwrap()
             } else {
-                format!("{}\n", crate::pyjson::dumps(&value, &crate::pyjson::SORTED))
+                format!("{}\n", pc_common::json::dumps(&value, &crate::pyjson::SORTED))
             };
             assert_eq!(&rewritten, content.as_str().unwrap(), "{name}");
         }
@@ -2027,8 +2027,8 @@ fn state_written_by_the_python_manager_is_read() {
         }
         python_view["runtime_version"] = view["runtime_version"].clone();
         assert_eq!(
-            crate::pyjson::dumps(&view, &crate::pyjson::COMPACT),
-            crate::pyjson::dumps(&python_view, &crate::pyjson::COMPACT),
+            pc_common::json::dumps(&view, &crate::pyjson::COMPACT),
+            pc_common::json::dumps(&python_view, &crate::pyjson::COMPACT),
             "{tag}"
         );
     }
@@ -2037,8 +2037,8 @@ fn state_written_by_the_python_manager_is_read() {
     geodata["next_check_at"] = Value::Null;
     python_geodata["next_check_at"] = Value::Null;
     assert_eq!(
-        crate::pyjson::dumps(&geodata, &crate::pyjson::COMPACT),
-        crate::pyjson::dumps(&python_geodata, &crate::pyjson::COMPACT)
+        pc_common::json::dumps(&geodata, &crate::pyjson::COMPACT),
+        pc_common::json::dumps(&python_geodata, &crate::pyjson::COMPACT)
     );
     // And it keeps working on them: a change commits the next generation.
     let revision = manager.egress("mieru").unwrap()["revision"].clone();

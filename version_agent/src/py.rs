@@ -2,7 +2,7 @@
 //! `str.split()`, `str.splitlines`, `round(x, n)`, `int(str)`, truthiness of JSON values and
 //! the compact `json.dumps(…, sort_keys=True)` of the HTTP bodies.
 
-use pc_host::json::{dumps, Options};
+use pc_common::json::{dumps, float_repr, FloatMode, NumberMode, Options};
 use serde_json::Value;
 
 /// `str.isspace()` for one character (the set `str.strip()`/`str.split()` use).
@@ -179,7 +179,7 @@ pub fn scalar_text(value: &Value) -> Option<String> {
                 Some(int.to_string())
             } else {
                 let float = number.as_f64().unwrap_or(0.0);
-                Some(if float == 0.0 { String::new() } else { pc_host::json::float_repr(float) })
+                Some(if float == 0.0 { String::new() } else { float_repr(float, FloatMode::Python) })
             }
         }
         Value::String(text) => Some(text.clone()),
@@ -187,7 +187,13 @@ pub fn scalar_text(value: &Value) -> Option<String> {
     }
 }
 
-const BODY: Options = Options { indent: None, separators: Some((",", ":")), sort_keys: true, ensure_ascii: true };
+const BODY: Options = Options {
+    indent: None,
+    separators: Some((",", ":")),
+    sort_keys: true,
+    ensure_ascii: true,
+    numbers: NumberMode::Python(FloatMode::Python),
+};
 
 /// `json.dumps(value, separators=(",", ":"), sort_keys=True)`: every HTTP body of the agent.
 pub fn body(value: &Value) -> Vec<u8> {
@@ -208,7 +214,7 @@ mod tests {
             let Some(ndigits) = case["ndigits"].as_u64() else { continue };
             let input: f64 = case["input_repr"].as_str().unwrap().parse().unwrap();
             let got = round(input, ndigits as usize);
-            assert_eq!(pc_host::json::float_repr(got), case["json"].as_str().unwrap(), "round({input}, {ndigits})");
+            assert_eq!(float_repr(got, FloatMode::Python), case["json"].as_str().unwrap(), "round({input}, {ndigits})");
             checked += 1;
         }
         assert!(checked >= 20);

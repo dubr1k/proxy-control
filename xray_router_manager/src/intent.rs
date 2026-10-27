@@ -167,7 +167,7 @@ fn is_geo_code(text: &str) -> bool {
 }
 
 pub fn canonical(document: &Value) -> Vec<u8> {
-    pyjson::dumps(document, &pyjson::SORTED).into_bytes()
+    pc_common::json::dumps(document, &pyjson::SORTED).into_bytes()
 }
 
 pub fn document_digest(document: &Value) -> String {
@@ -1142,8 +1142,8 @@ pub(crate) mod tests {
             match (result, entry.get("error")) {
                 (Ok(document), None) => {
                     if let Some(output) = entry["output"].as_str() {
-                        assert_eq!(pyjson::dumps(&document, &pyjson::COMPACT), output, "{input}");
-                        let redacted = pyjson::dumps(&redact_intent(&document), &pyjson::COMPACT);
+                        assert_eq!(pc_common::json::dumps(&document, &pyjson::COMPACT), output, "{input}");
+                        let redacted = pc_common::json::dumps(&redact_intent(&document), &pyjson::COMPACT);
                         assert_eq!(redacted, entry["redacted"].as_str().unwrap());
                     }
                     assert_eq!(document_digest(&document), entry["digest"].as_str().unwrap(), "{input}");
@@ -1164,7 +1164,11 @@ pub(crate) mod tests {
             let input = &entry["input"];
             match (validate_exit(input), entry.get("error")) {
                 (Ok(exit), None) => {
-                    assert_eq!(pyjson::dumps(&exit, &pyjson::COMPACT), entry["output"].as_str().unwrap(), "{input}");
+                    assert_eq!(
+                        pc_common::json::dumps(&exit, &pyjson::COMPACT),
+                        entry["output"].as_str().unwrap(),
+                        "{input}"
+                    );
                     let outbound = crate::render::config_bytes(&crate::render::exit_outbound("exit:naive:e", &exit));
                     assert_eq!(String::from_utf8(outbound).unwrap(), entry["outbound"].as_str().unwrap());
                 }

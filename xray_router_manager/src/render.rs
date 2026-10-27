@@ -486,7 +486,7 @@ pub fn render_config(input: &RenderInput) -> Result<Value> {
 /// The bytes a generation file carries: `json.dumps(sort_keys=True, separators=(",", ":"))` and
 /// a newline.
 pub fn config_bytes(config: &Value) -> Vec<u8> {
-    let mut bytes = pyjson::dumps(config, &pyjson::SORTED).into_bytes();
+    let mut bytes = pc_common::json::dumps(config, &pyjson::SORTED).into_bytes();
     bytes.push(b'\n');
     bytes
 }
@@ -692,7 +692,7 @@ pub(crate) mod tests {
         let mut rotated = input(json!({}), None);
         rotated.ingresses[0].password = "r".repeat(32);
         assert_ne!(generation_digest(&plain), generation_digest(&render_config(&rotated).unwrap()));
-        let masked = pyjson::dumps(&redact(&plain), &pyjson::DEFAULT);
+        let masked = pc_common::json::dumps(&redact(&plain), &pyjson::DEFAULT);
         assert!(
             !masked.contains(&"p".repeat(32)) && !masked.contains("naive-abc") && masked.contains("\"user\": \"***\"")
         );
@@ -867,7 +867,7 @@ pub(crate) mod tests {
         let mut render = input(json!({"naive": intent}), None);
         render.lanes = lanes();
         render.relay = Some(relay(vec![("relay:x:direct".into(), hop_c()["uuid"].clone())]));
-        let masked = pyjson::dumps(&redact(&render_config(&render).unwrap()), &pyjson::DEFAULT);
+        let masked = pc_common::json::dumps(&redact(&render_config(&render).unwrap()), &pyjson::DEFAULT);
         for secret in [
             hop()["uuid"].as_str().unwrap().to_string(),
             hop_c()["uuid"].as_str().unwrap().to_string(),

@@ -203,7 +203,7 @@ pub fn validate_document(document: &Value) -> Result<Value> {
 }
 
 pub fn canonical(document: &Value) -> String {
-    crate::pyjson::dumps(document, crate::pyjson::CANONICAL)
+    pc_common::json::dumps(document, &crate::pyjson::CANONICAL)
 }
 
 #[cfg(test)]

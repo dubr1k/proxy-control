@@ -170,7 +170,11 @@ fn json_vectors_from_python() {
     let mut count = 0;
     for case in floats.as_array().unwrap() {
         let value = parse_hex_float(case["hex"].as_str().unwrap());
-        assert_eq!(pc_host::json::float_repr(value), case["repr"].as_str().unwrap(), "{case}");
+        assert_eq!(
+            pc_common::json::float_repr(value, pc_common::json::FloatMode::Python),
+            case["repr"].as_str().unwrap(),
+            "{case}"
+        );
         if value.is_finite() {
             assert_eq!(canonical(&serde_json::json!(value)), case["json"].as_str().unwrap(), "{case}");
         }

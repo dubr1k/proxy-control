@@ -305,11 +305,16 @@ pub fn evidence_from_checkpoint(action_id: &str, recorded: &Value) -> Result<Opt
 
 /// `str(item)` of a JSON scalar the way the report command stringifies observations.
 fn py_str(value: &Value) -> String {
-    pc_host::archive::identity::py_str(value).unwrap_or_else(|| pc_host::json::dumps(value, &PY_REPR_LIKE))
+    pc_host::archive::identity::py_str(value).unwrap_or_else(|| pc_common::json::dumps(value, &PY_REPR_LIKE))
 }
 
-const PY_REPR_LIKE: pc_host::json::Options =
-    pc_host::json::Options { indent: None, separators: None, sort_keys: false, ensure_ascii: false };
+const PY_REPR_LIKE: pc_common::json::Options = pc_common::json::Options {
+    indent: None,
+    separators: None,
+    sort_keys: false,
+    ensure_ascii: false,
+    numbers: pc_common::json::NumberMode::Python(pc_common::json::FloatMode::Python),
+};
 
 /// The operator notes of the public report (`cli._write_reports`).
 pub fn operator_notes(config: &InstallerConfig) -> Vec<String> {

@@ -72,7 +72,7 @@ pub fn validate_quota(value: &Value) -> Result<()> {
 
 /// `json.dumps(state, ensure_ascii=False, indent=2) + "\n"`.
 pub fn encode_state(state: &Value) -> Vec<u8> {
-    let mut text = crate::pyjson::dumps(state, crate::pyjson::STATE);
+    let mut text = pc_common::json::dumps(state, &crate::pyjson::STATE);
     text.push('\n');
     text.into_bytes()
 }

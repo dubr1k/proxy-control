@@ -945,7 +945,7 @@ pub fn safe_name(text: &str) -> bool {
 
 /// `json.dumps(value, ensure_ascii=False)` as a TOML basic string.
 fn toml_string(value: &str) -> String {
-    pc_host::json::dumps(&serde_json::Value::String(value.to_string()), &pc_host::json::Options::CANONICAL)
+    pc_host::json::canonical(&serde_json::Value::String(value.to_string()))
 }
 
 fn toml_bool(value: bool) -> &'static str {

@@ -8,6 +8,7 @@ description = "Shared host plumbing of the Proxy Control installer and version-a
 publish = false
 
 [dependencies]
+pc_common = { path = "../pc_common" }
 # Gzip for release archives (miniz_oxide backend, no C).
 flate2 = "1"
 getrandom = "0.3"

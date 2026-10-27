@@ -4,14 +4,17 @@
 //! Unix socket, one request per connection, a shared token in a manager-specific header, and
 //! errors as `{"detail": …, "code": …}`. This crate holds that protocol once, together with the
 //! few host primitives every manager needs (atomic state files, bounded subprocesses, the log
-//! line format).
+//! line format), plus byte-contract JSON formatting and shared Python text/value primitives.
 
 pub mod client;
 pub mod error;
 pub mod fsutil;
 pub mod http;
+pub mod json;
 pub mod logger;
 pub mod process;
+pub mod pytext;
+pub mod pyvalue;
 pub mod server;
 
 pub use error::ApiError;

@@ -18,7 +18,7 @@ pub const MAX_BODY: usize = 8192;
 /// A JSON body as `json.dumps(payload, separators=(",", ":"))` wrote it.
 pub fn json_response(status: u16, payload: &Value) -> Response {
     let mut response = Response::empty(status);
-    response.body = crate::pyjson::dumps(payload, crate::pyjson::COMPACT).into_bytes();
+    response.body = pc_common::json::dumps(payload, &crate::pyjson::COMPACT).into_bytes();
     response
 }
 

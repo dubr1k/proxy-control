@@ -757,8 +757,14 @@ pub fn parse_xray_inbounds(value: &Value, redactor: &Redactor) -> Vec<Value> {
 
 /// `json.dumps(item, sort_keys=True)` (default separators, ASCII).
 fn sort_key(value: &Value) -> String {
-    let options = pc_host::json::Options { indent: None, separators: None, sort_keys: true, ensure_ascii: true };
-    pc_host::json::dumps(value, &options)
+    let options = pc_common::json::Options {
+        indent: None,
+        separators: None,
+        sort_keys: true,
+        ensure_ascii: true,
+        numbers: pc_common::json::NumberMode::Python(pc_common::json::FloatMode::Python),
+    };
+    pc_common::json::dumps(value, &options)
 }
 
 /// `parse_ufw_ipv6_config(text)`: exactly one `IPV6=yes|no` assignment.

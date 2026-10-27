@@ -25,7 +25,7 @@ fn record_with(user: &str, upload: Value, download: Value, overrides: &[(&str, V
     for (key, item) in overrides {
         value.insert(key.to_string(), item.clone());
     }
-    crate::pyjson::dumps(&Value::Object(value), crate::pyjson::COMPACT) + "\n"
+    pc_common::json::dumps(&Value::Object(value), &crate::pyjson::COMPACT) + "\n"
 }
 
 fn record(upload: i64, download: i64) -> String {
@@ -683,10 +683,7 @@ fn schema_of(db: &Path) -> String {
 /// The access log the Python collector consumed when it wrote the fixture database.
 fn python_log() -> String {
     let line = |user: &str, up: i64, down: i64| {
-        crate::pyjson::dumps(
-            &json!({"request": {"method": "CONNECT"}, "status": 200, "user_id": user, "bytes_read": up, "size": down}),
-            crate::pyjson::COMPACT,
-        ) + "\n"
+        pc_common::json::dumps(&json!({"request": {"method": "CONNECT"}, "status": 200, "user_id": user, "bytes_read": up, "size": down}), &crate::pyjson::COMPACT) + "\n"
     };
     line("alice", 10, 20) + &line("bob", 1, 2) + &line("carol", 5, 5) + "partial"
 }

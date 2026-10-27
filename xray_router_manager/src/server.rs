@@ -22,7 +22,7 @@ pub const MAX_BODY: usize = 32_768;
 /// `json.dumps(value, separators=(",", ":"))` with the manager's headers.
 pub fn send(status: u16, value: &Value) -> Response {
     let mut response = Response::json(status, &Value::Null);
-    response.body = pyjson::dumps(value, &pyjson::COMPACT).into_bytes();
+    response.body = pc_common::json::dumps(value, &pyjson::COMPACT).into_bytes();
     response
 }
 

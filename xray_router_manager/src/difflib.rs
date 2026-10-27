@@ -166,8 +166,8 @@ mod tests {
     fn golden_diffs_match_the_python_plan() {
         let golden: Vec<serde_json::Value> = serde_json::from_str(GOLDEN).unwrap();
         for entry in &golden {
-            let before = crate::pyjson::dumps(&entry["before"], &crate::pyjson::INDENT1_SORTED);
-            let after = crate::pyjson::dumps(&entry["after"], &crate::pyjson::INDENT1_SORTED);
+            let before = pc_common::json::dumps(&entry["before"], &crate::pyjson::INDENT1_SORTED);
+            let after = pc_common::json::dumps(&entry["after"], &crate::pyjson::INDENT1_SORTED);
             let (before, after): (Vec<&str>, Vec<&str>) = (before.split('\n').collect(), after.split('\n').collect());
             let expected: Vec<String> = serde_json::from_value(entry["diff"].clone()).unwrap();
             assert_eq!(changed_lines(&before, &after), expected, "{}", entry["after"]);

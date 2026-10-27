@@ -134,7 +134,7 @@ impl Admin {
     /// `command_reload`: adapt the live Caddyfile, move the listener, POST it to `/load`.
     pub fn reload(&self, caddyfile: &Path) -> Result<()> {
         let config = rewrite_listener(self.adapt(caddyfile)?)?;
-        let body = crate::pyjson::dumps(&config, crate::pyjson::COMPACT);
+        let body = pc_common::json::dumps(&config, &crate::pyjson::COMPACT);
         let (status, _) = self.post("/load", "application/json", true, body.as_bytes())?;
         if status != 200 && status != 204 {
             return Err(Error::runtime("Caddy reload failed"));
@@ -354,7 +354,7 @@ mod tests {
         );
         let config = json!({"apps": {"http": {"servers": {"srv0": {"listen": [":443"], "routes": [{"handle": [
             {"handler": "forward_proxy", "x": 1.5e-05, "y": "é\u{2028}"}]}]}}}}});
-        let body = crate::pyjson::dumps(&rewrite_listener(config).unwrap(), crate::pyjson::COMPACT);
+        let body = pc_common::json::dumps(&rewrite_listener(config).unwrap(), &crate::pyjson::COMPACT);
         let expected: &[u8] = b"POST /load HTTP/1.1\r\nAccept-Encoding: identity\r\nContent-Length: 187\r\nHost: 127.0.0.1:2019\r\nUser-Agent: Python-urllib/3.13\r\nContent-Type: application/json\r\nCache-Control: must-revalidate\r\nConnection: close\r\n\r\n{\"apps\":{\"http\":{\"servers\":{\"srv0\":{\"listen\":[\":4443\"],\"routes\":[{\"handle\":[{\"handler\":\"forward_proxy\",\"x\":1.5e-05,\"y\":\"\\u00e9\\u2028\"}]}],\"automatic_https\":{\"disable_redirects\":true}}}}}}";
         assert_eq!(request_bytes(ADMIN_ADDRESS, "/load", "application/json", true, body.as_bytes()), expected);
         assert_eq!(Admin::default().address, "127.0.0.1:2019");

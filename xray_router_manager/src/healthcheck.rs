@@ -49,7 +49,7 @@ pub fn run(arguments: &[String], env: &HashMap<String, String>) -> (i32, Option<
             // its cover; the keypair is minted once, by the manager.
             let port = py_int(port, 10).unwrap_or(0);
             let payload = serde_json::json!({"server_name": server_name, "port": port as i64});
-            let payload = crate::pyjson::dumps(&payload, &crate::pyjson::DEFAULT);
+            let payload = pc_common::json::dumps(&payload, &crate::pyjson::DEFAULT);
             request(socket, token, "POST", "/v1/relay", Some(payload.as_bytes()), Duration::from_secs(30))
         }
         _ => return (1, None, Some(USAGE.into())),

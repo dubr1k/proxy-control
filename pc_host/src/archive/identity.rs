@@ -83,7 +83,7 @@ pub fn py_str(value: &Value) -> Option<String> {
         Value::Number(number) => Some(match (number.as_i64(), number.as_u64(), number.as_f64()) {
             (Some(i), _, _) => i.to_string(),
             (_, Some(u), _) => u.to_string(),
-            (_, _, Some(f)) => crate::json::float_repr(f),
+            (_, _, Some(f)) => pc_common::json::float_repr(f, pc_common::json::FloatMode::Python),
             _ => return None,
         }),
         Value::Array(_) | Value::Object(_) => None,

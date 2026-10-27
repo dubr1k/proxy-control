@@ -3,7 +3,16 @@ use crate::error::Error;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 fn compact(value: &Value) -> String {
-    pc_host::json::dumps(value, &pc_host::json::Options { ensure_ascii: true, ..pc_host::json::Options::CANONICAL })
+    pc_common::json::dumps(
+        value,
+        &pc_common::json::Options {
+            indent: None,
+            separators: Some((",", ":")),
+            sort_keys: true,
+            ensure_ascii: true,
+            numbers: pc_common::json::NumberMode::Python(pc_common::json::FloatMode::Python),
+        },
+    )
 }
 fn client_id() -> String {
     let hex = pc_host::fs::uuid4_hex();

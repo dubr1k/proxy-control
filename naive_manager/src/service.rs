@@ -759,7 +759,7 @@ impl NaiveManager {
     }
 
     pub(crate) fn write_transaction(&self, transaction: &Map<String, Value>) -> Result<()> {
-        let mut text = crate::pyjson::dumps(&Value::Object(transaction.clone()), crate::pyjson::COMPACT);
+        let mut text = pc_common::json::dumps(&Value::Object(transaction.clone()), &crate::pyjson::COMPACT);
         text.push('\n');
         self.fs.atomic_write(&self.transaction_file(), text.as_bytes(), 0o600)?;
         self.fs.after_transaction(transaction)

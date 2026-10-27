@@ -23,6 +23,7 @@ test-fakes = []
 [dependencies]
 # The configuration, the model, the planner, reports, credentials and the command line.
 installer_core = { package = "installer-core", path = "../installer_core" }
+pc_common = { path = "../pc_common" }
 pc_host = { path = "../pc_host" }
 # The ingress migration's private flock and Unix ownership checks.
 libc = "0.2"

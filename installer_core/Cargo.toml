@@ -13,6 +13,7 @@ path = "src/lib.rs"
 
 [dependencies]
 libc = "0.2"
+pc_common = { path = "../pc_common" }
 pc_host = { path = "../pc_host" }
 # No `preserve_order`: every JSON this crate writes is key-sorted (the plan digest depends on it).
 serde_json = "1"

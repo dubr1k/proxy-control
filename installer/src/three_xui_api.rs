@@ -249,7 +249,7 @@ pub(super) fn python_repr(value: &Value, nested: bool) -> String {
         Value::String(value) => pc_host::pytext::py_repr(value),
         Value::Number(value) => {
             if value.is_f64() {
-                pc_host::json::float_repr(value.as_f64().unwrap())
+                pc_common::json::float_repr(value.as_f64().unwrap(), pc_common::json::FloatMode::Python)
             } else {
                 value.to_string()
             }
@@ -388,9 +388,15 @@ impl<T: Transport> ThreeXuiApi<T> {
             "json" => {
                 headers.insert("Content-Type".into(), "application/json".into());
                 Some(
-                    pc_host::json::dumps(
+                    pc_common::json::dumps(
                         &Value::Object(payload.clone()),
-                        &pc_host::json::Options { ensure_ascii: true, ..pc_host::json::Options::CANONICAL },
+                        &pc_common::json::Options {
+                            indent: None,
+                            separators: Some((",", ":")),
+                            sort_keys: true,
+                            ensure_ascii: true,
+                            numbers: pc_common::json::NumberMode::Python(pc_common::json::FloatMode::Python),
+                        },
                     )
                     .into_bytes(),
                 )

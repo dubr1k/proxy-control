@@ -9,6 +9,7 @@ use installer_core::config::normalize_domain;
 use installer_core::ipaddr::{ip_address, ipv4_address, ipv6_address};
 use installer_core::planner::Fact;
 use installer_core::pystr::{is_space, lower, split_whitespace, strip};
+use pc_common::json::{dumps, float_repr, FloatMode, NumberMode, Options};
 use serde_json::Value;
 
 fn vectors() -> PathBuf {
@@ -110,13 +111,19 @@ fn str_of_scalars_matches_python() {
 
 #[test]
 fn json_strings_and_order_match_python() {
+    let ascii = Options {
+        indent: None,
+        separators: None,
+        sort_keys: true,
+        ensure_ascii: true,
+        numbers: NumberMode::Python(FloatMode::Python),
+    };
     for case in load("json-strings.json") {
         let text: String =
             case["codepoints"].as_array().unwrap().iter().map(|v| codepoint(v.as_str().unwrap())).collect();
         let value = Value::String(text);
         assert_eq!(pc_host::json::canonical(&value), case["ensure_ascii_false"].as_str().unwrap());
-        let ascii = pc_host::json::Options { indent: None, separators: None, sort_keys: true, ensure_ascii: true };
-        assert_eq!(pc_host::json::dumps(&value, &ascii), case["ensure_ascii_true"].as_str().unwrap());
+        assert_eq!(dumps(&value, &ascii), case["ensure_ascii_true"].as_str().unwrap());
     }
     let order = &load("json-key-order.json")[0];
     let mut object = serde_json::Map::new();
@@ -126,7 +133,7 @@ fn json_strings_and_order_match_python() {
     let object = Value::Object(object);
     assert_eq!(pc_host::json::canonical(&object), order["compact_sorted"].as_str().unwrap());
     assert_eq!(
-        pc_host::json::dumps(&object, &pc_host::json::Options::PRETTY2),
+        dumps(&object, &Options { indent: Some(2), ensure_ascii: false, ..ascii }),
         order["indent2_sorted"].as_str().unwrap()
     );
     let set = Fact::Set(vec![
@@ -143,12 +150,7 @@ fn json_strings_and_order_match_python() {
     let ordered: Vec<String> = match set.canonical().unwrap() {
         Value::Array(items) => items
             .iter()
-            .map(|item| {
-                pc_host::json::dumps(
-                    item,
-                    &pc_host::json::Options { indent: None, separators: None, sort_keys: true, ensure_ascii: false },
-                )
-            })
+            .map(|item| dumps(item, &Options { ensure_ascii: false, ..ascii }))
             .collect(),
         _ => unreachable!(),
     };
@@ -191,6 +193,6 @@ fn from_hex(text: &str) -> f64 {
 fn float_repr_matches_python() {
     for case in load("float-repr.json") {
         let value = from_hex(case["hex"].as_str().unwrap());
-        assert_eq!(pc_host::json::float_repr(value), case["repr"].as_str().unwrap(), "{}", case["hex"]);
+        assert_eq!(float_repr(value, FloatMode::Python), case["repr"].as_str().unwrap(), "{}", case["hex"]);
     }
 }

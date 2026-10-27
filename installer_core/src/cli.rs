@@ -377,8 +377,14 @@ impl StatusView {
 pub fn render_report_written(path: &Path, json_output: bool) -> String {
     let shown = crate::pystr::py_path_str(&path.to_string_lossy());
     if json_output {
-        let options = pc_host::json::Options { indent: None, separators: None, sort_keys: true, ensure_ascii: true };
-        format!("{}\n", pc_host::json::dumps(&json!({"report": shown}), &options))
+        let options = pc_common::json::Options {
+            indent: None,
+            separators: None,
+            sort_keys: true,
+            ensure_ascii: true,
+            numbers: pc_common::json::NumberMode::Python(pc_common::json::FloatMode::Python),
+        };
+        format!("{}\n", pc_common::json::dumps(&json!({"report": shown}), &options))
     } else {
         format!("Wrote the public acceptance report to {shown}\n")
     }

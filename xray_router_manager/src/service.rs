@@ -107,7 +107,7 @@ fn py_str(value: Option<&Value>) -> String {
         Some(Value::String(text)) => text.clone(),
         Some(Value::Bool(true)) => "True".into(),
         Some(Value::Bool(false)) => "False".into(),
-        Some(other) => pyjson::dumps(other, &pyjson::DEFAULT),
+        Some(other) => pc_common::json::dumps(other, &pyjson::DEFAULT),
     }
 }
 
@@ -281,7 +281,7 @@ impl XrayRouterManager {
     }
 
     fn write_json(&self, name: &str, value: &Value) -> Result<()> {
-        let mut data = pyjson::dumps(value, &pyjson::SORTED).into_bytes();
+        let mut data = pc_common::json::dumps(value, &pyjson::SORTED).into_bytes();
         data.push(b'\n');
         atomic_write(&self.state_dir.join(name), &data, 0o600)?;
         Ok(())
@@ -482,7 +482,7 @@ impl XrayRouterManager {
     fn publish_mtproxy_credential(&self) -> Result<()> {
         let Some(socket) = &self.mtproxy_socket else { return Ok(()) };
         let record = self.mtproxy_credential()?;
-        let mut data = pyjson::dumps(&record, &pyjson::SORTED).into_bytes();
+        let mut data = pc_common::json::dumps(&record, &pyjson::SORTED).into_bytes();
         data.push(b'\n');
         let directory = socket.parent().unwrap_or(Path::new("."));
         atomic_write(&directory.join("ingress-mtproxy.json"), &data, 0o600)?;
@@ -1148,8 +1148,8 @@ impl XrayRouterManager {
     }
 
     fn diff(before: &Value, after: &Value) -> Vec<String> {
-        let old = pyjson::dumps(before, &pyjson::INDENT1_SORTED);
-        let new = pyjson::dumps(after, &pyjson::INDENT1_SORTED);
+        let old = pc_common::json::dumps(before, &pyjson::INDENT1_SORTED);
+        let new = pc_common::json::dumps(after, &pyjson::INDENT1_SORTED);
         let old: Vec<&str> = old.split('\n').collect();
         let new: Vec<&str> = new.split('\n').collect();
         difflib::changed_lines(&old, &new)

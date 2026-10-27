@@ -176,7 +176,7 @@ fn py_str(value: &Value) -> String {
         Value::Null => "None".into(),
         Value::Bool(true) => "True".into(),
         Value::Bool(false) => "False".into(),
-        other => pyjson::dumps(other, &pyjson::DEFAULT),
+        other => pc_common::json::dumps(other, &pyjson::DEFAULT),
     }
 }
 
@@ -194,7 +194,7 @@ pub fn register(keypair: &(String, String), opener: &Opener) -> Result<Value, Wa
     let tos = tos_now();
     let body = json!({"key": public, "install_id": "", "fcm_token": "", "tos": tos, "model": "PC", "serial_number": "",
                       "locale": "en_US"});
-    let body = pyjson::dumps(&body, &pyjson::DEFAULT);
+    let body = pc_common::json::dumps(&body, &pyjson::DEFAULT);
     let (status, data) = opener("POST", &format!("{API}/reg"), &HEADERS, Some(body.as_bytes()))?;
     let data = match data {
         Some(Value::Object(data)) if status == 200 => data,

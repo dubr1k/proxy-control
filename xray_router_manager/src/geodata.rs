@@ -500,7 +500,7 @@ impl GeodataStore {
 
     pub fn write_meta(&self, meta: &Map<String, Value>) -> Result<()> {
         fs::create_dir_all(&self.directory)?;
-        let mut data = pyjson::dumps(&Value::Object(meta.clone()), &pyjson::SORTED).into_bytes();
+        let mut data = pc_common::json::dumps(&Value::Object(meta.clone()), &pyjson::SORTED).into_bytes();
         data.push(b'\n');
         crate::util::atomic_write_geodata(&self.directory.join("meta.json"), &data, 0o600)?;
         Ok(())
