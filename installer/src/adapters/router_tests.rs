@@ -291,7 +291,15 @@ fn managed_xui_actions_match_python_goldens() {
 #[test]
 fn router_action_matches_python_golden() {
     let root = TempDir::new("router-golden");
-    let context = context(&root);
+    let mut context = context(&root);
+    // Replay the recorded release pin, not the independently evolving live default.
+    context.tree = root.path().join("source");
+    fs::create_dir_all(context.tree.join("release")).unwrap();
+    fs::copy(
+        tree().join("tests/fixtures/releases/valid-manifest.json"),
+        context.tree.join("release/external-artifacts.json"),
+    )
+    .unwrap();
     let config =
         installer_core::config::load_config(&tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml"))
             .unwrap();
