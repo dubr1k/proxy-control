@@ -148,10 +148,9 @@ fn json_strings_and_order_match_python() {
         Fact::Int(10),
     ]);
     let ordered: Vec<String> = match set.canonical().unwrap() {
-        Value::Array(items) => items
-            .iter()
-            .map(|item| dumps(item, &Options { ensure_ascii: false, ..ascii }))
-            .collect(),
+        Value::Array(items) => {
+            items.iter().map(|item| dumps(item, &Options { ensure_ascii: false, ..ascii })).collect()
+        }
         _ => unreachable!(),
     };
     let expected: Vec<String> = order["set_order_by_compact_json"]

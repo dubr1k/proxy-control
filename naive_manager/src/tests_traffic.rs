@@ -683,7 +683,10 @@ fn schema_of(db: &Path) -> String {
 /// The access log the Python collector consumed when it wrote the fixture database.
 fn python_log() -> String {
     let line = |user: &str, up: i64, down: i64| {
-        pc_common::json::dumps(&json!({"request": {"method": "CONNECT"}, "status": 200, "user_id": user, "bytes_read": up, "size": down}), &crate::pyjson::COMPACT) + "\n"
+        pc_common::json::dumps(
+            &json!({"request": {"method": "CONNECT"}, "status": 200, "user_id": user, "bytes_read": up, "size": down}),
+            &crate::pyjson::COMPACT,
+        ) + "\n"
     };
     line("alice", 10, 20) + &line("bob", 1, 2) + &line("carol", 5, 5) + "partial"
 }

@@ -401,10 +401,8 @@ fn labels_override_display_names_without_becoming_manifest_fields_or_changing_se
     assert_eq!(outbound[0]["password"], "naive-pass-01");
     let raw = text(Format::Raw, &manifest, &artifacts, &options);
     assert!(raw.contains("#My%20phone"));
-    let json: Value = serde_json::from_slice(
-        &renderers::render(Format::Manifest, &manifest, &artifacts, &options).unwrap(),
-    )
-    .unwrap();
+    let json: Value =
+        serde_json::from_slice(&renderers::render(Format::Manifest, &manifest, &artifacts, &options).unwrap()).unwrap();
     assert!(json["grants"][0].get("label").is_none());
     assert!(json["grants"][0].get("node_name").is_none());
 }

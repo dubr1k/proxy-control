@@ -464,7 +464,8 @@ fn step(grant_id: Option<&Value>, key: &(Value, Value)) -> Value {
 async fn set_client_placement(panel: &PanelClient, arguments: &Map<String, Value>) -> Result<ToolResult, Fail> {
     let client_id = py::str_of(&arg_or(arguments, "client_id", json!("")));
     let placement_value = arg(arguments, "placement");
-    let placement = if pc_common::pyvalue::truthy(&placement_value) { py::iterate(&placement_value)? } else { Vec::new() };
+    let placement =
+        if pc_common::pyvalue::truthy(&placement_value) { py::iterate(&placement_value)? } else { Vec::new() };
     let desired: Vec<(Value, Value)> = placement.iter().map(item_key).collect::<Result<_, _>>()?;
     let client_value = Value::String(client_id.clone());
     let current = panel.get(&encode_path("/api/clients/{client_id}", &[("client_id", &client_value)]), &[]).await?;

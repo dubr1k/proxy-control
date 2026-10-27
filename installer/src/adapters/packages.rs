@@ -609,12 +609,17 @@ mod tests {
             let checkpoint = if resume_apply {
                 let applied = adapter.reconcile_apply(&action, prepared).unwrap();
                 assert_eq!(applied["installer_added"], json!({"nginx-full": "1.0"}));
-                assert_eq!(runner.argvs().iter().filter(|a| a.starts_with(&["apt-get".into(), "install".into()])).count(), 1);
+                assert_eq!(
+                    runner.argvs().iter().filter(|a| a.starts_with(&["apt-get".into(), "install".into()])).count(),
+                    1
+                );
                 applied
             } else {
                 prepared
             };
-            assert!(adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success);
+            assert!(
+                adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success
+            );
             assert_eq!(*state.lock().unwrap(), BTreeMap::from([("curl".into(), "8.0".into())]));
         }
     }

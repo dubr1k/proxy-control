@@ -244,6 +244,38 @@ fn every_acceptance_failure_and_inconsistent_count_is_refused() {
     assert!(good.details().values().all(|value| value.is_boolean() || value.is_u64()));
 }
 
+#[test]
+fn source_install_does_not_deploy_local_cargo_artifacts() {
+    use std::os::unix::fs::symlink;
+    let root = crate::testkit::TempDir::new("core-source-artifacts");
+    let source = root.path().join("release");
+    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    for relative in COPY_FILES {
+        let destination = source.join(relative);
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        fs::copy(shipped.join(relative), destination).unwrap();
+    }
+    for directory in COPY_DIRECTORIES {
+        fs::create_dir_all(source.join(directory)).unwrap();
+    }
+    let panel_build = source.join("panel/target/debug");
+    fs::create_dir_all(&panel_build).unwrap();
+    fs::write(panel_build.join("local-build-state"), b"private development artifact").unwrap();
+    let shared_build = root.path().join("shared-build");
+    fs::create_dir(&shared_build).unwrap();
+    fs::write(shared_build.join("local-build-state"), b"private shared development artifact").unwrap();
+    symlink(&shared_build, source.join("installer/target")).unwrap();
+    let adapter = CoreAdapter::new(&AdapterContext {
+        root: root.path().into(),
+        tree: source,
+        runner: Arc::new(pc_host::runner::RecordingRunner::new()),
+    });
+    adapter.write_generation(&selected(), None).unwrap();
+    let project = root.path().join("opt/mtproxy-shared443");
+    assert!(!project.join("panel/target").exists(), "local Cargo output reached the installed panel");
+    assert!(!project.join("installer/target").exists(), "a linked Cargo cache reached the installed host tree");
+}
+
 fn owned_core() -> (crate::testkit::TempDir, Arc<CoreAdapter>) {
     use pc_host::runner::{RecordingRunner, Reply};
     use std::sync::Mutex;

@@ -390,8 +390,6 @@ fn real_unstaged_xray_router_native_lifecycle() {
     let manifest =
         ReleaseManifest::from_bytes(&fs::read(tree.join("release/external-artifacts.json")).unwrap()).unwrap();
     let pin = manifest.external_artifact("xray", "amd64").unwrap();
-    assert_eq!(pin.version, "26.10.21");
-    assert_eq!(pin.url, "https://github.com/XTLS/Xray-core/releases/download/v26.10.21/Xray-linux-64.zip");
     let mut config =
         installer_core::config::load_config(&tree.join("examples/installer/core-trusttunnel.toml")).unwrap();
     config.egress = Some(installer_core::model::EgressConfig { router: true, ..Default::default() });
@@ -421,7 +419,7 @@ fn real_unstaged_xray_router_native_lifecycle() {
         assert_eq!(metadata.len(), member.size);
         assert_eq!(metadata.mode() & 0o777, member.mode);
     }
-    assert!(text(docker(&["exec", ROUTER, "/opt/xray/xray", "version"])).contains("26.10.21"));
+    assert!(text(docker(&["exec", ROUTER, "/opt/xray/xray", "version"])).contains(&pin.version));
     assert_eq!(engine(&context).resume().unwrap().status, Status::Active);
     let generation = assert_runtime();
     credential_and_connect_proof();

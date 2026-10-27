@@ -6,9 +6,9 @@ use installer_core::argparse::Arg;
 use installer_core::config::{parse_config, render_config};
 use serde_json::{Map, Value};
 
-fn corpus() -> Option<Value> {
-    let path = std::env::var("INSTALLER_CORE_DIFF").ok()?;
-    Some(serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+fn corpus() -> Value {
+    let path = std::env::var("INSTALLER_CORE_DIFF").expect("INSTALLER_CORE_DIFF must name the external Python corpus");
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
 }
 
 /// Outcomes that differ on purpose (DIFFERENCES.md, host WP3): a scoped IPv6 DNS address, and a
@@ -40,7 +40,7 @@ fn deliberate(input: &str, python: &Value, rust_error: Option<&str>) -> bool {
 #[test]
 #[ignore]
 fn configs_match_python() {
-    let Some(corpus) = corpus() else { return };
+    let corpus = corpus();
     let mut mismatches = Vec::new();
     let cases = corpus["configs"].as_array().unwrap();
     for case in cases {
@@ -76,7 +76,7 @@ fn configs_match_python() {
 #[test]
 #[ignore]
 fn command_lines_match_python() {
-    let Some(corpus) = corpus() else { return };
+    let corpus = corpus();
     let parser = installer_core::cli::python_parser();
     let mut mismatches = 0;
     let records = corpus["argv"].as_array().unwrap();

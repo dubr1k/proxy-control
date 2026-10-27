@@ -299,7 +299,7 @@ mod tests {
             numbers: NumberMode::Python(FloatMode::Python),
         };
         // An exact shortest-digit tie is deliberately different in the older managers.
-        let tie = json!(789296645419347.25);
+        let tie = json!(789_296_645_419_347.0 + 0.25);
         assert_eq!(dumps(&tie, &options), "789296645419347.2");
         assert_eq!(
             dumps(&tie, &Options { numbers: NumberMode::Python(FloatMode::RustShortest), ..options }),

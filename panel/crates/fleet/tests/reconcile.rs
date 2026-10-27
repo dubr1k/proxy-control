@@ -306,7 +306,7 @@ async fn options_drift_when_the_adapter_cannot_apply_a_pushed_option() {
 }
 
 #[tokio::test]
-async fn option_drift_never_overrides_a_suspended_resources_disabled_runtime() {
+async fn option_drift_is_reported_without_reenabling_a_suspended_resource() {
     let node = world();
     accept(&node, push(1, vec![enabled("mtproxy", "dave")], json!({"grant:dave:1": "0".repeat(32)}))).await;
     apply(&node, 1).await;
@@ -314,7 +314,8 @@ async fn option_drift_never_overrides_a_suspended_resources_disabled_runtime() {
     accept(&node, push(2, vec![drifted], json!({}))).await;
     let (observed, _) = apply(&node, 2).await;
     assert_eq!(node.runtime.telemt.state().users["dave"]["enabled"], false);
-    assert_eq!(observed.resources[0].state.as_str(), "disabled");
+    // As in the archived node: keep suspension effective without hiding an unapplied option.
+    assert_eq!(observed.resources[0].state.as_str(), "drifted");
 }
 
 #[tokio::test]

@@ -273,17 +273,21 @@ fn agent_verify_reads_selected_state_and_still_rejects_version_drift() {
     let action = agent.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
     agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
     let _socket = socket(dir.path());
-    let mut state: Value = serde_json::from_slice(
-        &fs::read(dir.path().join("var/lib/proxy-control/version-agent/state.json")).unwrap(),
-    ).unwrap();
+    let mut state: Value =
+        serde_json::from_slice(&fs::read(dir.path().join("var/lib/proxy-control/version-agent/state.json")).unwrap())
+            .unwrap();
     state["components"]["telemt"]["version"] = json!("operator-current");
     let selected_state = "/var/lib/proxy-control/version-agent/operator state.json";
     put(dir.path(), selected_state, &state.to_string());
     put(dir.path(), "/etc/proxy-control/version-agent.env", &format!(
         "PROXY_CONTROL_VERSION_STATE=\"{selected_state}\"\nPROXY_CONTROL_COMPOSE_FILES=compose.yaml\nPROXY_CONTROL_XRAY_ROUTER=off\n",
     ));
-    let components: Map<_, _> = state["components"].as_object().unwrap().iter()
-        .map(|(name, value)| (name.clone(), json!({"current":value["version"]}))).collect();
+    let components: Map<_, _> = state["components"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(name, value)| (name.clone(), json!({"current":value["version"]})))
+        .collect();
     let response = json!({"enabled":true,"components":components}).to_string();
     let runner = Arc::new(RecordingRunner::with_responder(move |call| {
         if call.argv.last().is_some_and(|arg| arg.ends_with("/v1/versions")) {
@@ -910,9 +914,11 @@ fn agent_seed_refuses_an_unvalidated_xray_manifest() {
         let xray = manifest["artifacts"].as_array_mut().unwrap().iter_mut().find(|v| v["name"] == "xray").unwrap();
         xray["platforms"]["amd64"]["sha256"] = json!("invalid");
         let invalid = if duplicate_key {
-            fs::read_to_string(repository().join("release/external-artifacts.json"))
-                .unwrap()
-                .replacen("\"schema_version\": 1,", "\"schema_version\": 1, \"schema_version\": 1,", 1)
+            fs::read_to_string(repository().join("release/external-artifacts.json")).unwrap().replacen(
+                "\"schema_version\": 1,",
+                "\"schema_version\": 1, \"schema_version\": 1,",
+                1,
+            )
         } else {
             manifest.to_string()
         };
@@ -1070,9 +1076,14 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
         ("etc/proxy-control/operator-versions.json", "operator-approved"),
         ("etc/proxy-control/versions.json", "default-approved"),
     ] {
-        put(root, path, &json!({"schema":1,"components":{"telemt":[{
-            "version":version,"kind":"image","image":format!("example/telemt@sha256:{}", "a".repeat(64))
-        }]}}).to_string());
+        put(
+            root,
+            path,
+            &json!({"schema":1,"components":{"telemt":[{
+                "version":version,"kind":"image","image":format!("example/telemt@sha256:{}", "a".repeat(64))
+            }]}})
+            .to_string(),
+        );
     }
     put(
         root,
@@ -1112,9 +1123,13 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
     ));
     fs::set_permissions(shim.join("docker"), fs::Permissions::from_mode(0o755)).unwrap();
     let output = Command::new(&release_installer)
-        .arg("--root").arg(root).arg("--source").arg(&tree)
+        .arg("--root")
+        .arg(root)
+        .arg("--source")
+        .arg(&tree)
         .args(["update-host", "--version", include_str!("../../../VERSION").trim(), "--sha256", &"a".repeat(64)])
-        .output().unwrap();
+        .output()
+        .unwrap();
     assert!(output.status.success(), "update-host: {}", String::from_utf8_lossy(&output.stderr));
     daemon.0.kill().unwrap();
     daemon.0.wait().unwrap();
@@ -1122,7 +1137,8 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
     assert_operator_files(versions());
     // A subsequent operator edit may use systemd quoting without changing the files.
     let env_path = root.join("etc/proxy-control/version-agent.env");
-    let quoted = fs::read_to_string(&env_path).unwrap()
+    let quoted = fs::read_to_string(&env_path)
+        .unwrap()
         .replace(
             "PROXY_CONTROL_VERSION_CATALOG=/etc/proxy-control/operator-versions.json",
             "PROXY_CONTROL_VERSION_CATALOG=\"/etc/proxy-control/operator-versions.json\"",
@@ -1157,7 +1173,8 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
     assert!(root.join("etc/proxy-control/operator-versions.json").is_file());
     let preserved: Value = serde_json::from_slice(
         &fs::read(root.join("var/lib/proxy-control/version-agent/operator/state.json")).unwrap(),
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(preserved["components"]["telemt"]["version"], "operator-current");
     println!("WP5b isolated smoke: fresh install; real installed daemon; update-host whole-engine repair; distinct operator catalog/state survive restart, resume/repair/status; uninstall preserve-data: PASS");
 }

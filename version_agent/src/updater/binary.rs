@@ -304,7 +304,9 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
         let payload = fs::read(&extracted)?;
         chmod(&extracted, 0o755)?;
         let output = run(agent, &argv(&[&extracted_arg, "version"]), 30)?;
-        let first = pc_common::pytext::splitlines(pc_common::pytext::strip(&output)).first().map(|l| pc_common::pytext::strip(l).to_string());
+        let first = pc_common::pytext::splitlines(pc_common::pytext::strip(&output))
+            .first()
+            .map(|l| pc_common::pytext::strip(l).to_string());
         Ok((payload, first.unwrap_or_default()))
     })();
     let _ = unlink_missing_ok(&extracted);

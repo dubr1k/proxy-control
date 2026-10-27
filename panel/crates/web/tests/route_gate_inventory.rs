@@ -62,8 +62,13 @@ fn audit_registered_route_gates_over_http() {
     let mut schema_keys = BTreeSet::new();
     let schema: Value = serde_json::from_slice(panel_web::routes::openapi::DOCUMENT).unwrap();
     let csrf = owner.csrf();
-    let key_response = owner.send(&panel, "POST", "/api/keys", &[("X-CSRF-Token", &csrf)],
-                                  Some(r#"{"name":"route-audit","scope":"node-sync"}"#));
+    let key_response = owner.send(
+        &panel,
+        "POST",
+        "/api/keys",
+        &[("X-CSRF-Token", &csrf)],
+        Some(r#"{"name":"route-audit","scope":"node-sync"}"#),
+    );
     assert_eq!(key_response.status, 201);
     let bearer = format!("Bearer {}", key_response.json()["plaintext"].as_str().unwrap());
     for route in routes.routes() {
@@ -123,8 +128,7 @@ fn audit_registered_route_gates_over_http() {
                 row["admin_detail"] = json!(observed(&admin_response));
             }
             if !public && template.starts_with("/api/fleet/v2/") {
-                let key_response = Client::default().send(&panel, method, &url,
-                                                          &[("Authorization", &bearer)], body);
+                let key_response = Client::default().send(&panel, method, &url, &[("Authorization", &bearer)], body);
                 row["node_key_status"] = json!(key_response.status);
                 row["node_key_detail"] = json!(observed(&key_response));
             }
@@ -132,10 +136,18 @@ fn audit_registered_route_gates_over_http() {
         }
     }
     assert_eq!(keys.iter().filter(|(m, p)| PUBLIC.contains(&(m.as_str(), p.as_str()))).count(), PUBLIC.len());
-    let document_keys: BTreeSet<(String, String)> = schema["paths"].as_object().unwrap().iter().flat_map(|(path, ops)| {
-        ops.as_object().unwrap().keys().filter(|method| ["get", "post", "put", "patch", "delete", "head"]
-            .contains(&method.as_str())).map(|method| (method.to_ascii_uppercase(), path.clone()))
-    }).collect();
+    let document_keys: BTreeSet<(String, String)> = schema["paths"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .flat_map(|(path, ops)| {
+            ops.as_object()
+                .unwrap()
+                .keys()
+                .filter(|method| ["get", "post", "put", "patch", "delete", "head"].contains(&method.as_str()))
+                .map(|method| (method.to_ascii_uppercase(), path.clone()))
+        })
+        .collect();
     assert_eq!(schema_keys, document_keys, "native router and published OpenAPI diverged");
     rows.sort_by(|a, b| (a["path"].as_str(), a["method"].as_str()).cmp(&(b["path"].as_str(), b["method"].as_str())));
     println!("ROUTE_GATE_INVENTORY_BEGIN{}ROUTE_GATE_INVENTORY_END", serde_json::to_string(&rows).unwrap());
@@ -151,8 +163,13 @@ fn scoped_keys_and_admin_role_reach_only_their_http_boundaries() {
     let mut admin = Client::default();
     assert_eq!(admin.login(&panel, "admin", "correct horse battery staple").status, 204);
     let admin_csrf = admin.csrf();
-    let refusal = admin.send(&panel, "POST", "/api/keys", &[("X-CSRF-Token", &admin_csrf)],
-                             Some(r#"{"name":"foreign","scope":"admin"}"#));
+    let refusal = admin.send(
+        &panel,
+        "POST",
+        "/api/keys",
+        &[("X-CSRF-Token", &admin_csrf)],
+        Some(r#"{"name":"foreign","scope":"admin"}"#),
+    );
     assert_eq!((refusal.status, observed(&refusal).as_str()), (403, "insufficient role"));
     let csrf = owner.csrf();
     for scope in ["monitor", "node-sync"] {
@@ -160,23 +177,24 @@ fn scoped_keys_and_admin_role_reach_only_their_http_boundaries() {
         let created = owner.send(&panel, "POST", "/api/keys", &[("X-CSRF-Token", &csrf)], Some(&body));
         assert_eq!(created.status, 201);
         let bearer = format!("Bearer {}", created.json()["plaintext"].as_str().unwrap());
-        let read = Client::default().send(&panel, "GET", "/api/host",
-                                          &[("Authorization", &bearer)], None);
+        let read = Client::default().send(&panel, "GET", "/api/host", &[("Authorization", &bearer)], None);
         if scope == "monitor" {
             assert_eq!(read.status, 200);
-            let write = Client::default().send(&panel, "POST", "/api/keys",
-                                               &[("Authorization", &bearer)],
-                                               Some(r#"{"name":"unauthorized","scope":"admin"}"#));
+            let write = Client::default().send(
+                &panel,
+                "POST",
+                "/api/keys",
+                &[("Authorization", &bearer)],
+                Some(r#"{"name":"unauthorized","scope":"admin"}"#),
+            );
             assert_eq!((write.status, observed(&write).as_str()), (403, "insufficient role"));
-            let fleet = Client::default().send(&panel, "GET", "/api/fleet/v2/identity",
-                                               &[("Authorization", &bearer)], None);
-            assert_eq!((fleet.status, observed(&fleet).as_str()),
-                       (403, "a node-sync or admin API key is required"));
+            let fleet =
+                Client::default().send(&panel, "GET", "/api/fleet/v2/identity", &[("Authorization", &bearer)], None);
+            assert_eq!((fleet.status, observed(&fleet).as_str()), (403, "a node-sync or admin API key is required"));
         } else {
-            assert_eq!((read.status, observed(&read).as_str()),
-                       (403, "node-sync key is limited to the fleet API"));
-            let fleet = Client::default().send(&panel, "GET", "/api/fleet/v2/identity",
-                                               &[("Authorization", &bearer)], None);
+            assert_eq!((read.status, observed(&read).as_str()), (403, "node-sync key is limited to the fleet API"));
+            let fleet =
+                Client::default().send(&panel, "GET", "/api/fleet/v2/identity", &[("Authorization", &bearer)], None);
             assert_eq!(fleet.status, 200, "node-sync key must reach the fleet handler");
         }
     }

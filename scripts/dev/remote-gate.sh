@@ -18,11 +18,13 @@ esac
 
 sync_tree() {
   "${SSH[@]}" "mkdir -p $REMOTE && git config --global --add safe.directory $REMOTE >/dev/null 2>&1 || true"
-  rsync -a --delete --no-owner --no-group -e "ssh -o BatchMode=yes" \
+  # Do not restore the workstation's timestamps: clock skew can make Cargo reuse an old binary.
+  # Only root credentials are private inputs; frozen synthetic fixture files must still sync.
+  rsync -rlpDc --delete -e "ssh -o BatchMode=yes" \
     --exclude .venv --exclude .lab-state --exclude lab-results --exclude lab-results-container \
     --exclude dist --exclude dist-again --exclude __pycache__ --exclude .pytest_cache \
     --exclude .ruff_cache --exclude node_modules --exclude .DS_Store --exclude .hermes \
-    --exclude secrets --exclude .env --exclude graphify-out --exclude .superpowers \
+    --exclude /secrets --exclude '/.env*' --exclude graphify-out --exclude .superpowers \
     --exclude .claude --exclude .worktrees --exclude target \
     "$ROOT/" "$HOST:$REMOTE/"
 }

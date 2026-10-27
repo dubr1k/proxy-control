@@ -276,6 +276,7 @@ dependencies = [
  "getrandom 0.4.3",
  "installer-core",
  "libc",
+ "pc_common",
  "pc_host",
  "rustls",
  "serde",
@@ -287,6 +288,7 @@ name = "installer-core"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "pc_common",
  "pc_host",
  "serde_json",
 ]
@@ -388,6 +390,7 @@ dependencies = [
  "flate2",
  "getrandom 0.3.4",
  "libc",
+ "pc_common",
  "rustls",
  "rustls-native-certs",
  "serde",

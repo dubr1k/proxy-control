@@ -21,7 +21,6 @@ pub fn str(value: &Value) -> String {
     }
 }
 
-
 /// Whether `json.loads` would have made a `float` of this number (it had a fraction or an
 /// exponent); integers beyond `u64` also arrive here as floats (see the crate docs).
 pub fn is_float(number: &Number) -> bool {

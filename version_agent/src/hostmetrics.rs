@@ -459,7 +459,9 @@ impl MetricsSampler {
         let mut values = HashMap::new();
         for line in pc_common::pytext::splitlines(&self.read("meminfo").unwrap_or_default()) {
             let (key, rest) = line.split_once(':').unwrap_or((line, ""));
-            if let Some(first) = pc_common::pytext::split(rest).first().filter(|f| pc_common::pytext::is_ascii_digits(f)) {
+            if let Some(first) =
+                pc_common::pytext::split(rest).first().filter(|f| pc_common::pytext::is_ascii_digits(f))
+            {
                 if let Ok(number) = first.parse::<i64>() {
                     values.insert(key.to_string(), number * 1024);
                 }
@@ -537,7 +539,10 @@ impl MetricsSampler {
         for line in pc_common::pytext::splitlines(&text).into_iter().skip(2) {
             let (name, rest) = line.split_once(':').unwrap_or((line, ""));
             let fields = pc_common::pytext::split(rest);
-            if fields.len() >= 9 && pc_common::pytext::is_ascii_digits(fields[0]) && pc_common::pytext::is_ascii_digits(fields[8]) {
+            if fields.len() >= 9
+                && pc_common::pytext::is_ascii_digits(fields[0])
+                && pc_common::pytext::is_ascii_digits(fields[8])
+            {
                 if let (Ok(rx), Ok(tx)) = (fields[0].parse::<i64>(), fields[8].parse::<i64>()) {
                     let name = pc_common::pytext::strip(name).to_string();
                     match found.iter_mut().find(|(known, _)| *known == name) {
@@ -620,7 +625,8 @@ impl MetricsSampler {
             let scope = self.config.cgroup.join("system.slice").join(format!("docker-{id}.scope"));
             let read = |file: &str| std::fs::read(scope.join(file)).ok().and_then(|data| String::from_utf8(data).ok());
             let Some(cpu_text) = read("cpu.stat") else { continue };
-            let Some(mem) = read("memory.current").and_then(|text| pc_common::pytext::strip(&text).parse::<i64>().ok()) else {
+            let Some(mem) = read("memory.current").and_then(|text| pc_common::pytext::strip(&text).parse::<i64>().ok())
+            else {
                 continue;
             };
             let usage = pc_common::pytext::splitlines(&cpu_text)

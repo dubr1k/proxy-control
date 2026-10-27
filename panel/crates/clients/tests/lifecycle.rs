@@ -446,9 +446,7 @@ async fn compensation_never_sends_a_node_confirmed_remote_step_to_a_local_manage
             "ref": format!("grant:{grant_id}"), "protocol": "naive",
             "runtime_username": "alice", "state": "enabled",
         }]));
-        database
-            .transaction(|db| provisioning.remote_applied(db, &observed, &HashSet::new(), None))
-            .unwrap();
+        database.transaction(|db| provisioning.remote_applied(db, &observed, &HashSet::new(), None)).unwrap();
         assert_eq!(provisioning.status(&in_flight).unwrap()["status"], "applying");
     }));
     env.provisioning.faults.set("after_apply", "naive");
@@ -459,7 +457,10 @@ async fn compensation_never_sends_a_node_confirmed_remote_step_to_a_local_manage
     assert_eq!(env.fake(Protocol::Naive).names(), ["alice"]);
     assert_eq!(env.fake(Protocol::Naive).users.lock().unwrap()["alice"].password, b"unrelated-local-credential");
     let tombstone = env.database.with_connection(|db| store::grant(db, &alice.id)).unwrap();
-    assert_eq!((tombstone.desired_state, tombstone.observed_state), (GrantDesiredState::Deleted, GrantObservedState::Enabled));
+    assert_eq!(
+        (tombstone.desired_state, tombstone.observed_state),
+        (GrantDesiredState::Deleted, GrantObservedState::Enabled)
+    );
     assert!(!env.fake(Protocol::Naive).calls.lock().unwrap().iter().any(|call| call == "delete:alice"));
 }
 

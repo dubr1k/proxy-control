@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 use std::io;
 
-
 pub const DEFAULT_PANEL_URL: &str = "http://panel:8787";
 pub const DEFAULT_PANEL_KEY_FILE: &str = "/run/secrets/mcp-panel-key";
 pub const DEFAULT_TOKEN_FILE: &str = "/run/secrets/mcp-token";

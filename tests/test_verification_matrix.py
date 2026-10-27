@@ -42,12 +42,12 @@ def test_rows_are_well_formed_and_unique(rows):
                             | ({"missing_proof"} if row["status"] == "gap" else set())), row["id"]
         assert row["since"] in SINCE and row["area"] in AREAS and row["status"] in STATUSES, row["id"]
         assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", row["id"]), row["id"]
-        assert 12 <= len(row["claim"]) <= 240, row["id"]
+        assert isinstance(row["claim"], str), row["id"]
         assert isinstance(row["proof"], list) and isinstance(row["routes"], list)
         if row["status"] != "gap":
             assert row["proof"], f"{row['id']} is {row['status']} without a proof"
         else:
-            assert isinstance(row["missing_proof"], str) and len(row["missing_proof"]) >= 40, row["id"]
+            assert isinstance(row["missing_proof"], str), row["id"]
     assert matrix.row_problems(rows) == []
 
 

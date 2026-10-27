@@ -880,7 +880,10 @@ mod tests {
             .replace("X-Forwarded-For $remote_addr;", "X-Forwarded-For $proxy_add_x_forwarded_for;");
         fs::write(root.join(PANEL), old_panel).unwrap();
         for name in [".mtproxy-owned", ".env"] {
-            fs::copy(recorded.join("root/files/opt/mtproxy-shared443").join(name), project.join(name)).unwrap();
+            let target = project.join(name);
+            fs::copy(recorded.join("root/files/opt/mtproxy-shared443").join(name), &target).unwrap();
+            // Source archives may be group-writable; host-private fixture files must not be.
+            fs::set_permissions(target, fs::Permissions::from_mode(0o600)).unwrap();
         }
         let mut state = TransactionState::from_value(
             &serde_json::from_slice(&fs::read(recorded.join("journal/state.json")).unwrap()).unwrap(),

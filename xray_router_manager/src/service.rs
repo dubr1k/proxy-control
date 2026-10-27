@@ -47,9 +47,7 @@ use crate::render::{
     self, config_bytes, generation_digest, Ingress, LaneAccount, Ports, Relay, RenderInput, RENDER_VERSION,
 };
 use crate::runner::{free_port, Handle, XrayRunner};
-use crate::util::{
-    atomic_write, now_iso, sha256_hex, token_hex, token_urlsafe, unlink_missing_ok, uuid4,
-};
+use crate::util::{atomic_write, now_iso, sha256_hex, token_hex, token_urlsafe, unlink_missing_ok, uuid4};
 use crate::warp;
 use pc_common::pytext::{
     head_chars as first_chars, is_space as py_isspace, strip as py_strip, tail_chars as last_chars,

@@ -409,7 +409,8 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
     if confirm == Confirm::Required {
         description.push_str("\n\nIrreversible: requires confirm=true.");
     }
-    let required_body = pc_common::pyvalue::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null));
+    let required_body =
+        pc_common::pyvalue::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null));
     Ok(Operation {
         name,
         method: method.to_string(),

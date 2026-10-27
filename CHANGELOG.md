@@ -14,6 +14,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
   on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
 - Fresh native installations no longer select or own a Python interpreter. Existing package
   journals keep their recorded ownership so repair and uninstall do not remove a pre-existing Python.
+- Native host commands decode systemd environment quoting, escapes and line continuations
+  without shell expansion. Repair keeps the operator's version catalog and state selections;
+  project, socket, GID and enabled-profile fields remain installer-controlled.
 
 ### Changed
 - The Rust panel routing engine preserves policy preview/apply/rollback, custom exits, per-grant lanes, relays, chains and destination explanations. Escaped protocol-manager errors retain their HTTP status and protocol-specific response; actual runtime crashes remain HTTP 500.
@@ -21,21 +24,38 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
 - Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
 - The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.
-- Fleet, backup and QEMU acceptance launch the native panel and installer commands. QEMU smoke
-  remains offline and checks invalid-config refusal without host mutations; the full modes run
-  the native lifecycle matrix. The external backup controller copies SQLite online from the
-  inspected data mount without requiring Python inside the panel container.
+- Fleet, backup and native Ubuntu acceptance invoke the panel and installer binaries.
+  The external backup controller copies SQLite online from the inspected data mount
+  without requiring Python inside the panel container.
+- Share JSON serialization and text/value primitives across Rust components while retaining
+  each persisted format's ordering, escaping, spacing and historical number rendering.
 - Panel self-updates refuse installed Fleet v1 systemd units, on-disk overlays and legacy Compose containers in either historical project before touching release files or the database. Existing certificates, journals and volumes require an explicit migration to Fleet v2.
+- Pin Xray-core to [26.10.21](https://github.com/XTLS/Xray-core/releases/tag/v26.10.21):
+  upstream withdrew 26.10.17 for a certificate-trust security update. The installer,
+  archive/member checks, prompts and seeded agent state use the same reviewed pin.
 
 ### Fixed
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
 - Request JSON deeper than 128 containers is rejected before validation. Previously, a deeply nested login body could exhaust a panel worker's stack and stop the process.
 - Core installer lifecycle operations reject forged checkpoint ownership outside the planned
   generation before starting or stopping services or removing files.
+- Recognized ingress upgrades update Core/Nginx ownership and the accepted plan together.
+  Journal-write or reload failures restore both configurations and the previous journal.
+- An explicit host-command `--version` no longer reads a missing source `VERSION` first;
+  manager rebuilds refuse an empty running-image identity before changing containers.
+- Router reinstall after a failed start verifies preserved private manager state instead
+  of trying to initialize it as empty; credentials survive rollback and subsequent repair.
+- Lab synchronization compares file contents without restoring workstation timestamps,
+  avoiding stale Cargo binaries after cross-host clock skew. Root credentials stay excluded
+  while frozen synthetic test fixtures are retained.
+- Installing from a development checkout excludes Cargo `target` directories and linked
+  build caches from both the deployed generation and its ownership inventory.
 
 ### Removed
 - Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
 - Fleet v1 agent and ingress Compose overlays, Dockerfiles, example environments and systemd units are no longer shipped; existing deployments are not automatically removed.
+- Remove production Python implementations and their runtime dependencies. Python remains
+  only in external release, development and acceptance tools, including the archived-3.3 oracle.
 
 ### Installer
 - Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.

@@ -3,7 +3,6 @@
 
 use serde_json::Value;
 
-
 const V4_BITS: u32 = 32;
 const V6_BITS: u32 = 128;
 

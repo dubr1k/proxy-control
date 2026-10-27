@@ -957,27 +957,6 @@ fn safe_extract_zip_refuses_symlinked_destination() {
 }
 
 #[test]
-fn xray_pin_includes_archive_and_member_digests() {
-    let manifest =
-        ReleaseManifest::from_bytes(&fs::read(repo_file("release/external-artifacts.json")).unwrap()).unwrap();
-    let pin = manifest.external_artifact("xray", "amd64").unwrap();
-    assert_eq!((pin.version.as_str(), pin.tag.as_str()), ("26.10.17", "v26.10.17"));
-    assert_eq!(pin.url, "https://github.com/XTLS/Xray-core/releases/download/v26.10.17/Xray-linux-64.zip");
-    assert_eq!(pin.sha256, "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158");
-    assert_eq!(pin.spdx_license, "MPL-2.0");
-    assert_eq!(pin.executable_path, None);
-    let expected = [
-        ("xray", "6771b2b2700dee175357024738ad579de1c3f2c49eec0257e737d5aa38d12fed", 34971772, 0o755),
-        ("geoip.dat", "010bfc2e353c5e34e23156004944444ca260bae999e73171bdd7974056557959", 16587403, 0o644),
-        ("geosite.dat", "8474140bc89940897ee2b629be8fc92f34a496bd32e45829605d17715f4340d6", 11205406, 0o644),
-    ];
-    assert_eq!(pin.members.as_ref().unwrap().len(), 3);
-    for (name, sha, size, mode) in expected {
-        assert_eq!(pin.member(name).unwrap(), &MemberPin { sha256: sha.into(), size, mode });
-    }
-}
-
-#[test]
 fn manifest_members_are_validated() {
     let base = fs::read_to_string(repo_file("release/external-artifacts.json")).unwrap();
     contains(

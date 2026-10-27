@@ -85,8 +85,10 @@ impl HostReader {
         let mut values: Vec<(String, i64)> = Vec::new();
         for line in pc_common::pytext::splitlines(&text) {
             let (key, rest) = line.split_once(':').unwrap_or((line, ""));
-            if let Some(number) =
-                pc_common::pytext::split(rest).first().filter(|f| pc_common::pytext::is_ascii_digits(f)).and_then(|f| f.parse::<i64>().ok())
+            if let Some(number) = pc_common::pytext::split(rest)
+                .first()
+                .filter(|f| pc_common::pytext::is_ascii_digits(f))
+                .and_then(|f| f.parse::<i64>().ok())
             {
                 values.retain(|(known, _)| known != key);
                 values.push((key.to_string(), number * 1024));

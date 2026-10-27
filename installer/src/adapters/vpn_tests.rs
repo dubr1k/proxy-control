@@ -249,9 +249,7 @@ fn trusttunnel_rejects_shared_domains_and_conflicting_loopback_ports() {
         .replace("[domains]", "[domains]\nmieru = \"mieru.example.com\"")
         .replace("[trusttunnel]", "[mieru]\ntcp_ports = [4453]\nudp_ports = [46002]\n\n[trusttunnel]");
     assert!(installer_core::config::parse_config(&mieru).unwrap_err().0.contains("4453"));
-    let awg = format!(
-        "{base}\n[amneziawg]\nenabled = true\nversions = [\"2.0\"]\nports = {{ \"2.0\" = 4453 }}\n"
-    );
+    let awg = format!("{base}\n[amneziawg]\nenabled = true\nversions = [\"2.0\"]\nports = {{ \"2.0\" = 4453 }}\n");
     assert!(installer_core::config::parse_config(&awg).unwrap_err().0.contains("4453"));
     let metrics = base.replace("[trusttunnel]", "[trusttunnel]\nlisten_port = 1987");
     assert!(installer_core::config::parse_config(&metrics).unwrap_err().0.contains("metrics"));

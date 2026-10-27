@@ -60,8 +60,8 @@ pub(crate) fn py_eq_int(value: &Value, expected: i64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pc_common::pyvalue::truthy as py_truthy;
     use panel_core::serde_json::json;
+    use pc_common::pyvalue::truthy as py_truthy;
 
     #[test]
     fn str_of_scalars_is_python_str() {

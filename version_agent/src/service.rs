@@ -198,7 +198,8 @@ impl AgentConfig {
         ))?;
         config.telemt_container = var("PROXY_CONTROL_TELEMT_CONTAINER", "proxy-control-mtproxy");
         config.health_timeout = health_timeout;
-        config.upstream_enabled = pc_common::pytext::strip(&var("PROXY_CONTROL_UPSTREAM_CHECK", "on")).to_lowercase() != "off";
+        config.upstream_enabled =
+            pc_common::pytext::strip(&var("PROXY_CONTROL_UPSTREAM_CHECK", "on")).to_lowercase() != "off";
         config.router_enabled = matches!(
             pc_common::pytext::strip(&var("PROXY_CONTROL_XRAY_ROUTER", "off")).to_lowercase().as_str(),
             "on" | "1" | "true" | "yes"
@@ -212,7 +213,8 @@ impl AgentConfig {
         config.panel_image = get("PROXY_CONTROL_PANEL_IMAGE").filter(|v| !v.is_empty());
         config.panel_container = var("PROXY_CONTROL_PANEL_CONTAINER", "proxy-control-panel");
         config.panel_volume = get("PROXY_CONTROL_PANEL_VOLUME").filter(|v| !v.is_empty());
-        config.auto_rebuild_managers = pc_common::pytext::strip(&var("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1")) != "0";
+        config.auto_rebuild_managers =
+            pc_common::pytext::strip(&var("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1")) != "0";
         Ok(config)
     }
 }
@@ -432,7 +434,8 @@ impl VersionAgent {
             .run_text(&["docker", "inspect", "--format", "{{range .Config.Env}}{{println .}}{{end}}", container], 30)
             .ok()?;
         for line in pc_common::pytext::splitlines(&env) {
-            let (name, value) = pc_common::pytext::strip(line).split_once('=').unwrap_or((pc_common::pytext::strip(line), ""));
+            let (name, value) =
+                pc_common::pytext::strip(line).split_once('=').unwrap_or((pc_common::pytext::strip(line), ""));
             if name == key && !value.is_empty() {
                 return Some(value.strip_prefix('v').unwrap_or(value).to_string());
             }
@@ -773,7 +776,12 @@ impl VersionAgent {
         let project = format!("label=com.docker.compose.project={}", self.project());
         let service = format!("label=com.docker.compose.service={service}");
         let listed = self.run_text(&["docker", "ps", "-a", "--filter", &project, "--filter", &service, "-q"], 30)?;
-        Ok(pc_common::pytext::splitlines(&listed).into_iter().map(pc_common::pytext::strip).filter(|l| !l.is_empty()).map(String::from).collect())
+        Ok(pc_common::pytext::splitlines(&listed)
+            .into_iter()
+            .map(pc_common::pytext::strip)
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect())
     }
 
     /// `_service_rebuilt`: nothing runs for the service, or its containers' images were created

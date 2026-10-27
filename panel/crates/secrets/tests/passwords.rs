@@ -85,18 +85,3 @@ fn rust_made_hashes_were_verified_by_python() {
         assert_eq!(verdict(phc, password), "ok");
     }
 }
-
-/// Writes fresh Rust-made hashes for the generator to verify with argon2-cffi:
-/// `RUST_MADE_OUT=/path cargo test -p panel-secrets --test passwords -- --ignored`.
-#[test]
-#[ignore]
-fn print_rust_made_hashes() {
-    let out = std::env::var("RUST_MADE_OUT").expect("RUST_MADE_OUT names the output file");
-    let policy = PasswordHasher::panel();
-    let items: Vec<panel_core::serde_json::Value> =
-        ["correct horse battery staple", "пароль-с-кириллицей-🙂", "exactly12chr"]
-            .iter()
-            .map(|password| panel_core::serde_json::json!({"password": password, "phc": policy.hash(password)}))
-            .collect();
-    std::fs::write(out, panel_core::serde_json::to_string_pretty(&items).unwrap()).unwrap();
-}

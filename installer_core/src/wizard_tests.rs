@@ -1407,12 +1407,8 @@ fn router_question_names_the_pinned_xray_version() {
     let expected = &manifest.external_artifact("xray", "amd64").unwrap().version;
     for locale in Locale::ALL {
         let temp = TempDir::new();
-        let (transcript, _, _) = scripted(
-            &tt_answers(&["yes", "gate.example.com"]),
-            &temp.join("router.toml"),
-            locale,
-            &temp.0,
-        );
+        let (transcript, _, _) =
+            scripted(&tt_answers(&["yes", "gate.example.com"]), &temp.join("router.toml"), locale, &temp.0);
         assert!(transcript.contains(&format!("Xray-core {expected}")), "{transcript}");
     }
 }

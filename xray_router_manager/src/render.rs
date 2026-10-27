@@ -441,7 +441,8 @@ pub fn render_config(input: &RenderInput) -> Result<Value> {
     let no_accounts = Vec::new();
     let mut rules: Vec<Value> = Vec::new();
     for tag in &services {
-        let intent = input.intents.get(*tag).filter(|intent| pc_common::pyvalue::truthy(intent)).unwrap_or(&passthrough);
+        let intent =
+            input.intents.get(*tag).filter(|intent| pc_common::pyvalue::truthy(intent)).unwrap_or(&passthrough);
         let (extra, chain_tags) = chain_outbounds(tag, intent);
         outbounds.extend(extra);
         if by_tag[tag].socket.is_some() {

@@ -7,6 +7,7 @@ import os
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
@@ -69,7 +70,7 @@ def test_native_agent_health_and_socket_permissions(agent):
     status, health = request(agent, "GET", "/v1/health")
     assert status == 200
     assert health["status"] == "ok" and health["implementation"] == "rust"
-    assert health["version"]
+    assert health["version"] == (Path(__file__).resolve().parents[1] / "VERSION").read_text().strip()
 
 
 @pytest.mark.parametrize("method,path,body", [("POST", "/v1/host", "{}"), ("POST", "/v1/update", "[]"), ("POST", "/v1/update", "not-json"), ("POST", "/v1/update", '{}'), ("GET", "/not-a-route", None)])

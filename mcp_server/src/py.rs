@@ -7,9 +7,9 @@
 
 use std::io;
 
-use serde_json::{Map, Value};
 use pc_common::pytext::strip;
 use pc_common::pyvalue::type_name;
+use serde_json::{Map, Value};
 
 /// A Python exception escaping a handler: the JSON-RPC error message is `str(exc)`.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -983,6 +983,7 @@ dependencies = [
  "base64 0.22.1",
  "getrandom 0.3.4",
  "libc",
+ "pc_common",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1003,6 +1004,7 @@ dependencies = [
  "panel-model",
  "panel-protocols",
  "panel-secrets",
+ "pc_common",
  "serde_json",
  "tokio",
 ]
@@ -1071,6 +1073,7 @@ version = "0.1.0"
 dependencies = [
  "indexmap",
  "panel-core",
+ "pc_common",
  "serde_json",
 ]
 
@@ -1095,6 +1098,7 @@ dependencies = [
  "panel-managers",
  "panel-model",
  "panel-protocols",
+ "pc_common",
  "serde_json",
  "sha2",
 ]
@@ -1141,6 +1145,7 @@ dependencies = [
  "getrandom 0.3.4",
  "libc",
  "panel-core",
+ "pc_common",
  "sha2",
  "subtle",
 ]

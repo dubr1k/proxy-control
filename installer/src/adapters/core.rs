@@ -1987,7 +1987,7 @@ fn names(directory: &Path) -> Result<BTreeSet<String>, Error> {
 }
 
 fn ignored_source(name: &str) -> bool {
-    name == "tests" || name == "__pycache__" || name.ends_with(".pyc") || name.contains(".sqlite3")
+    matches!(name, "tests" | "__pycache__" | "target") || name.ends_with(".pyc") || name.contains(".sqlite3")
 }
 
 fn collect_source_files(root: &Path, relative: &Path, files: &mut Vec<PathBuf>) -> Result<(), Error> {

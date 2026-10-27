@@ -2,17 +2,32 @@
 
 ## Required repository gates
 
+Run native builds and runtime checks on the disposable Ubuntu host, not a production node.
+The commands below assume its root shell: the installer ownership tests intentionally
+require real root permissions. Python is the external controller only.
+
 ```sh
+set -Eeuo pipefail
 python3 -m venv .venv
 .venv/bin/pip install -r panel/requirements-dev.txt
-cargo test --manifest-path panel/Cargo.toml --workspace --locked
-cargo test --manifest-path version_agent/Cargo.toml --locked
-cargo test --manifest-path installer/Cargo.toml --locked
+export CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$PWD/target"
+cargo install cargo-audit --version 0.22.2 --locked
+for crate in pc_common pc_host installer_core installer version_agent deploy/mieru-client \
+  xray_router_manager naive_manager mcp_server mieru_manager awg_manager trusttunnel_manager panel; do
+  cargo audit --file "$crate/Cargo.lock" --deny warnings
+  cargo fmt --manifest-path "$crate/Cargo.toml" --all --check
+  cargo clippy --manifest-path "$crate/Cargo.toml" --workspace --all-targets --locked -- -D warnings
+  cargo test --manifest-path "$crate/Cargo.toml" --workspace --locked
+done
 cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
 cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
-install -D -m 0755 installer/target/debug/proxy-control-installer installer/bin/linux-amd64/proxy-control-installer
-PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
-  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN .venv/bin/python -m pytest -q -ra
+cargo build --manifest-path version_agent/Cargo.toml --locked --bin proxy-control-version-agent
+install -D -m 0755 "$CARGO_TARGET_DIR/debug/proxy-control-installer" installer/bin/linux-amd64/proxy-control-installer
+install -D -m 0755 "$CARGO_TARGET_DIR/debug/proxy-control-version-agent" version_agent/bin/linux-amd64/proxy-control-version-agent
+docker build -f panel/Dockerfile -t mtproxy-panel:latest .
+docker build -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest .
+docker build -f xray_router_manager/Dockerfile -t mtproxy-xray-router:latest .
+PANEL_IMPL=rust PANEL_RUST_BIN="$CARGO_TARGET_DIR/debug/panel" .venv/bin/python -m pytest -q -ra
 .venv/bin/ruff check .
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck
@@ -33,7 +48,12 @@ namespace.
 ## Lab tiers on the disposable host
 
 `scripts/dev/remote-gate.sh <tier>` syncs the working tree to the lab host (`ams-test` by
-default; production hosts are refused) and runs one tier there:
+default; production hosts are refused) and runs one tier there.
+
+Sync uses checksums without preserving workstation timestamps. Changed source receives
+the stand's write time instead of an older workstation time, avoiding stale Cargo output
+after cross-host clock skew. Root `.env*` and `secrets/` stay private; frozen synthetic
+environment/secret fixtures below the test directories are retained.
 
 | Tier | What it proves | How |
 | --- | --- | --- |

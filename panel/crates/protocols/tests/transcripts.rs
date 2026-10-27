@@ -838,10 +838,8 @@ async fn telemt_adapter_wraps_a_failing_readback() {
         };
         let failure = json!({"method":"current_access", "args":["alice"], "kwargs":{},
             "error":{"class":"TelemtError", "message":"Telemt API error (502)", "status_code":502}});
-        let queues = Arc::new(Mutex::new(HashMap::from([
-            ("telemt".into(), VecDeque::from([first, failure])),
-        ])));
-        let adapter = TelemtAdapter::new(Replay { id: "telemt".into(), queues: queues.clone() });
+        let queues = Arc::new(Mutex::new(HashMap::from([("telemt".into(), VecDeque::from([first, failure]))])));
+        let adapter = TelemtAdapter::<_, Replay>::new(Replay { id: "telemt".into(), queues: queues.clone() });
         let grant = grant_ref(&json!({"protocol":"mtproxy", "runtime_username":"alice"}));
         let error = match action {
             "enable" => adapter.enable(&grant).await.unwrap_err(),

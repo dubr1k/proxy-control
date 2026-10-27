@@ -20,6 +20,7 @@ Desktop.ini
 .gemini/
 .agent/
 .hermes/
+.superpowers/
 
 .worktrees/
 # graphify knowledge graph (owner, 2026-10-01: «сделай граф проекта, чтобы агентам было проще
@@ -43,8 +44,8 @@ secrets/*
 # протокольные overlay установки (.env.naive, .env.mieru, .env.xray-router, .env.mcp) — конфигурация хоста, не репозитория
 .env.*
 !.env.*.example
-# Host golden fixtures (scripts/dev/record-host-goldens.py) keep the overlays a fake install
-# renders; every value in them is a seeded stand-in.
+# Frozen host goldens keep synthetic overlays from the historical installation;
+# every value in them is a seeded stand-in.
 !tests/fixtures/host-golden/**/.env
 !tests/fixtures/host-golden/**/.env.*
 *.log
@@ -63,6 +64,9 @@ lab-results-container/
 # invisible to the clean-tree check the second build performs.
 dist/
 dist-again/
+
+# Cargo output for every standalone crate and workspace.
+target/
 
 # Prebuilt host binaries: built from the crates of release/host-binaries.list by
 # release/Dockerfile.host-binaries and injected into the archive by release/build.py, never

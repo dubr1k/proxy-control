@@ -904,7 +904,8 @@ impl MieruManager {
         }
         let desired_hash = hash_value(&expected);
         let generation = get(state, "generation")?.clone();
-        let next_generation = pc_common::pyvalue::strict_int(&generation).ok_or_else(|| Error::internal("generation"))? + 1;
+        let next_generation =
+            pc_common::pyvalue::strict_int(&generation).ok_or_else(|| Error::internal("generation"))? + 1;
         let revision = get_str(state, "revision")?.to_string();
         let next_revision = hash_value(&json!({
             "config": expected,
@@ -1294,7 +1295,8 @@ impl MieruManager {
             pyjson::dumps(value, true, Some(1)).split('\n').map(str::to_string).collect()
         };
         let before = lines(&egress::redact_section(section));
-        let planned = if pc_common::pyvalue::truthy(&target) { egress::redact_section(Some(&target)) } else { Value::Null };
+        let planned =
+            if pc_common::pyvalue::truthy(&target) { egress::redact_section(Some(&target)) } else { Value::Null };
         let after = lines(&planned);
         let diff: Vec<String> = crate::difflib::changed_lines(&before, &after)
             .into_iter()

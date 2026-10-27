@@ -4,7 +4,7 @@
 use serde_json::{Map, Value};
 
 use crate::error::{Error, Result};
-use crate::{pyip, pyjson};
+use crate::pyip;
 
 const TOP_FIELDS: &[&str] =
     &["portBindings", "users", "advancedSettings", "loggingLevel", "mtu", "egress", "dns", "trafficPattern"];

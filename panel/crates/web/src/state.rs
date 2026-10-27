@@ -369,6 +369,31 @@ mod tests {
     }
 
     #[test]
+    fn expired_password_reveals_are_removed_on_consume_and_swept_on_create() {
+        use axum::response::IntoResponse;
+
+        let clock = Arc::new(FakeClock::default());
+        let reveals = Reveals::new(60, clock.clone());
+        let requested = reveals.create(serde_json::json!({"password": "expired-requested"}), "owner");
+        let unclaimed = reveals.create(serde_json::json!({"password": "expired-unclaimed"}), "owner");
+        clock.advance(30.0);
+        let live = reveals.create(serde_json::json!({"password": "still-live"}), "owner");
+        clock.advance(31.0);
+
+        let expired = reveals.consume(&requested, "another-session").unwrap_err().into_response();
+        assert_eq!(expired.status().as_u16(), 410);
+        assert!(!lock(&reveals.items).contains_key(&requested));
+        let replacement = reveals.create(serde_json::json!({"password": "replacement"}), "owner");
+        {
+            let retained = lock(&reveals.items);
+            assert!(!retained.contains_key(&unclaimed), "unrequested expired plaintext must be dropped too");
+            assert!(retained.contains_key(&live), "sweeping expired entries must preserve live secrets");
+        }
+        assert_eq!(reveals.consume(&live, "owner").unwrap()["password"], "still-live");
+        assert_eq!(reveals.consume(&replacement, "owner").unwrap()["password"], "replacement");
+    }
+
+    #[test]
     fn panel_clock_switches_to_the_fake_time() {
         let clock = PanelClock::default();
         assert!(clock.time() > 1_700_000_000.0);
