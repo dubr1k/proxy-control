@@ -1,61 +1,38 @@
-"""Run both rolling-upgrade directions over real HTTPS (Python 3.13.5 + a test-hooks Rust panel).
+"""Native central/node delivery over real HTTPS with private-address and certificate pin checks.
 
-PANEL_RUST_BIN=/target/debug/panel PYTHONPATH=. python panel/crates/fleet-central/tests/fixtures/mixed_delivery.py
-The only managers used are the harness's private socket servers; no installed service is touched.
+PANEL_RUST_BIN=/target/debug/panel PYTHONPATH=. python panel/crates/fleet-central/tests/fixtures/native_tls_delivery.py
+The managers are private harness socket servers; no installed service is touched.
+This supplements native coverage; it does NOT prove Python 3.3 ↔ Rust 4.0 interoperability.
+The old mixed launcher incorrectly toggled IMPL on a native-only harness and was retired.
 """
 from __future__ import annotations
 
 import asyncio
 import contextlib
-import datetime
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
 import ssl
-import sys
+import subprocess
 import tempfile
 
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
-
-from panel.fleet_v2.protocol import GenerationDocument, canonical_digest
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
-from panel.telemt import MemoryTelemt
-from panel.tests.harness import server as python_server
-
-
-def rust_harness():
-    name = "panel.tests.harness.rust_mixed_server"
-    spec = importlib.util.spec_from_file_location(name, python_server.__file__)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    setattr(module, "IMPL", "rust")
-    return module
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
+from panel.tests.harness.memories.telemt import MemoryTelemt
+from panel.tests.harness.memories.wire import document_digest
+from panel.tests.harness.server import start_panel
 
 
 def certificate(directory):
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "fleet.node.test")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key())
-            .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(minutes=1))
-            .not_valid_after(now + datetime.timedelta(days=1))
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName("fleet.node.test")]), critical=False)
-            .sign(key, hashes.SHA256()))
     cert_path, key_path = directory / "cert.pem", directory / "tls.key"
-    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
-    key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                          serialization.NoEncryption()))
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(key_path), "-out", str(cert_path), "-days", "1",
+                    "-subj", "/CN=fleet.node.test", "-addext", "subjectAltName=DNS:fleet.node.test"],
+                   check=True, capture_output=True)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cert_path, key_path)
-    pin = hashlib.sha256(cert.public_bytes(serialization.Encoding.DER)).hexdigest()
+    pin = hashlib.sha256(ssl.PEM_cert_to_DER_cert(cert_path.read_text())).hexdigest()
     return context, pin
 
 
@@ -65,13 +42,12 @@ async def request(http, method, path, body=None, expected=200):
     return response.json()
 
 
-async def direction(directory, rust, central_impl, node_impl):
+async def delivery(directory):
     directory.mkdir()
-    modules = {"rust": rust, "python": python_server}
-    node = modules[node_impl].start_panel(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
+    node = start_panel(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
         naive=MemoryNaive(), mieru=MemoryMieru(), telemt=MemoryTelemt(public_host="runtime.node.example"),
         naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example", vnext_writer="domain")
-    central = modules[central_impl].start_panel(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
+    central = start_panel(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
         telemt=MemoryTelemt(), naive_enabled=True, mieru_enabled=True,
         naive_public_host="central.example", vnext_writer="domain")
     seen = []
@@ -130,14 +106,14 @@ async def direction(directory, rust, central_impl, node_impl):
         with node.db() as db:
             managed = dict(db.execute("SELECT * FROM managed_generations ORDER BY generation DESC LIMIT 1").fetchone())
         assert states == ["active"] * 3
-        digest = canonical_digest(GenerationDocument.model_validate_json(desired["document_json"]))
+        digest = document_digest(json.loads(desired["document_json"]))
         assert desired["digest"] == managed["digest"] == digest
         links = await request(central.client, "POST", f"/api/clients/{client['id']}/links")
         revealed = await request(central.client, "GET", "/api/reveal/" + links["reveal_token"])
         assert "runtime.node.example" in json.dumps(revealed) and "public.node.example" in json.dumps(revealed)
         assert await central.naive.list_users() == [] and await central.telemt.list_users() == []
         await request(central.client, "DELETE", f"/api/nodes/{node_id}?force=true")
-        print(json.dumps({"central": central_impl, "node": node_impl, "tls_private_negatives": 3,
+        print(json.dumps({"central": "rust", "node": "rust", "tls_private_negatives": 3,
                           "delivered_protocols": 3, "generation": desired["generation"], "digest": digest,
                           "http_requests": len(seen)}, sort_keys=True), flush=True)
     finally:
@@ -148,14 +124,9 @@ async def direction(directory, rust, central_impl, node_impl):
 
 
 async def main():
-    assert sys.version_info[:3] == (3, 13, 5), sys.version
     assert os.environ.get("PANEL_RUST_BIN"), "PANEL_RUST_BIN must name a test-hooks panel"
-    python_server.IMPL = "python"
-    rust = rust_harness()
-    with tempfile.TemporaryDirectory(prefix="fleet-mixed-") as temporary:
-        directory = Path(temporary)
-        await direction(directory / "rust-central", rust, "rust", "python")
-        await direction(directory / "python-central", rust, "python", "rust")
+    with tempfile.TemporaryDirectory(prefix="fleet-native-tls-") as temporary:
+        await delivery(Path(temporary) / "pair")
 
 
 if __name__ == "__main__":

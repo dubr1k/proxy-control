@@ -22,7 +22,7 @@ from unittest import mock
 
 import httpx
 
-from panel.naive import MemoryNaive
+from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.conftest import login
 from panel.tests.harness.fake_managers import FakeManagers, attach_pending
 from panel.tests.harness.server import start_panel

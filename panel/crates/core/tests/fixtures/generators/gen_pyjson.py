@@ -1,9 +1,8 @@
 """Golden vectors for `panel_core::pyjson`: what Python's `json.dumps` (and pydantic's JSON) writes.
 
-Run with the panel image's interpreter (Python 3.13, pydantic-core installed), e.g.:
+Run with external Python 3.13 and panel/requirements-dev.txt installed, on ams-test:
 
-    docker run --rm --network none -v "$PWD:/src:ro" -v "$OUT:/out" --entrypoint python \
-        proxy_panel_by_dubr1k-panel:latest -I /src/panel/crates/core/tests/fixtures/generators/gen_pyjson.py /out
+    .venv/bin/python -I panel/crates/core/tests/fixtures/generators/gen_pyjson.py "$OUT"
 
 Floats and strings are scalars, recorded with the writers that differ for them; structures carry
 their input as `json.dumps(value)` text and the output of every variant below.
