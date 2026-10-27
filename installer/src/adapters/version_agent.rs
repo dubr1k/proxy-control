@@ -87,8 +87,15 @@ impl VersionAgentAdapter {
             ),
             ("PROXY_CONTROL_VERSION_SOCKET", SOCKET.to_owned()),
             ("PROXY_CONTROL_VERSION_SOCKET_GID", "10001".into()),
-            ("PROXY_CONTROL_VERSION_CATALOG", CATALOG.to_owned()),
-            ("PROXY_CONTROL_VERSION_STATE", STATE.to_owned()),
+            // Catalog/state are operator-selected; only a fresh env gets these defaults.
+            (
+                "PROXY_CONTROL_VERSION_CATALOG",
+                old.get("PROXY_CONTROL_VERSION_CATALOG").cloned().unwrap_or_else(|| CATALOG.into()),
+            ),
+            (
+                "PROXY_CONTROL_VERSION_STATE",
+                old.get("PROXY_CONTROL_VERSION_STATE").cloned().unwrap_or_else(|| STATE.into()),
+            ),
         ];
         let overrides: BTreeMap<_, _> = overrides.into_iter().collect();
         let mut seen = BTreeSet::new();
@@ -418,7 +425,9 @@ impl Adapter for VersionAgentAdapter {
         let listed = versions["components"]
             .as_object()
             .ok_or_else(|| self.host.error("the version-agent lists no components"))?;
-        let recorded: Value = serde_json::from_str(&self.host.text(STATE)?)
+        let env = pc_host::envfile::read(&self.host.path(ENV)?)?;
+        let state_path = env.get("PROXY_CONTROL_VERSION_STATE").map_or(STATE, String::as_str);
+        let recorded: Value = serde_json::from_str(&self.host.text(state_path)?)
             .map_err(|_| self.host.error("the version-agent state is unreadable"))?;
         let recorded =
             recorded["components"].as_object().ok_or_else(|| self.host.error("the version-agent state is invalid"))?;
@@ -446,7 +455,6 @@ impl Adapter for VersionAgentAdapter {
             }
             current.insert(name.into(), entry.get("current").cloned().unwrap_or(Value::Null));
         }
-        let env = env_values(&self.host.text(ENV)?);
         for (key, value) in [
             ("PROXY_CONTROL_COMPOSE_FILES", &selected["compose-files"]),
             ("PROXY_CONTROL_XRAY_ROUTER", &selected["router"]),
