@@ -546,7 +546,7 @@ def check_english_grant_node_label(browser):
     """Render the shipped grant row in English without rewriting the operator's account name."""
     browser.js("localStorage.setItem('proxy-control.lang', 'en')")
     browser.dt.call("Page.navigate", {"url": f"{browser.fixture.base}/?i18n={secrets.token_hex(4)}#clients"})
-    browser.wait("document.documentElement.lang === 'en' && !!document.querySelector('#view')", "English panel loaded")
+    browser.wait("document.documentElement?.lang === 'en' && !!document.querySelector('#view')", "English panel loaded")
     translated = browser.js("""(async () => {
         const { grantRowHtml } = await import('/static/js/grant.js');
         const list = document.createElement('ul');

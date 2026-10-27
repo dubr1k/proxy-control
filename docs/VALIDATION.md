@@ -45,6 +45,16 @@ and `/run`. The gate requires exactly one passing test; an ignored default Cargo
 result is not evidence for that smoke, and no host paths are mutated outside the
 namespace.
 
+## Static host build inputs
+
+`release/build.py --build-binaries DIR` stages tracked files from the listed crates,
+VERSION and `release/host-binaries.list`, plus the explicitly declared embedded inputs.
+The installer's `include_str!` requires the tracked 3x-ui API contract at
+`tests/fixtures/three_xui/api-contract-3.10.2.json` in that build context. A missing
+or untracked declared input is refused before Docker runs; local cache files do
+not supply it. The contract is embedded in the binary, so the installed host does
+not need the fixture to run the installer.
+
 ## Lab tiers on the disposable host
 
 `scripts/dev/remote-gate.sh <tier>` syncs the working tree to the lab host (`ams-test` by

@@ -1152,6 +1152,26 @@ def test_native_trusttunnel_feature_disabled_hides_navigation_and_bookmark(nativ
     browser.healthy()
 
 
+def test_native_trusttunnel_language_wait_tolerates_a_missing_document(native_ui, monkeypatch):
+    from scripts.lab.ui_protocol_dialog_check import ProtocolBrowser
+
+    original_wait = ProtocolBrowser.wait
+    checked = []
+
+    def wait_with_loading_document(browser, expression, label):
+        if label == "English TrustTunnel":
+            # Reload can expose a document with no root yet. Exercise the actual
+            # readiness predicate in Chromium without touching live DOM/secrets.
+            assert browser.js(f"(() => {{ const document = {{documentElement: null}}; "
+                              f"return Boolean({expression}); }})()") is False
+            checked.append(True)
+        return original_wait(browser, expression, label)
+
+    monkeypatch.setattr(ProtocolBrowser, "wait", wait_with_loading_document)
+    test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, "en")
+    assert checked == [True]
+
+
 @pytest.mark.parametrize("language", ["ru", "en"])
 def test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, language):
     import tomllib
@@ -1162,7 +1182,7 @@ def test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, l
     browser.open_view("trusttunnel", "!!document.querySelector('.tt-overview')")
     if language == "en":
         browser.click("#lang-button")
-        browser.wait("document.documentElement.lang === 'en' && !!document.querySelector('.tt-overview')", "English TrustTunnel")
+        browser.wait("document.documentElement?.lang === 'en' && !!document.querySelector('.tt-overview')", "English TrustTunnel")
     require(browser.js("""[...document.querySelectorAll('[data-view=trusttunnel]')].every(item => !item.hidden)"""),
             "enabled TrustTunnel navigation hidden")
 

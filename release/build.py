@@ -77,6 +77,11 @@ HOST_BINARY_DIGESTS = "host-binaries.sha256"
 HOST_BINARY_BUILDER = "host-binaries.builder"
 HOST_TARGET = "x86_64-unknown-linux-musl"
 HOST_PLATFORM_DIR = "bin/linux-amd64"
+# Literal include_str! inputs outside a crate must be staged too. They remain
+# tracked build inputs, never files recovered from the workstation or a cache.
+HOST_BINARY_EMBEDDED_INPUTS = {
+    "installer": ("tests/fixtures/three_xui/api-contract-3.10.2.json",),
+}
 _CRATE_DIR_RE = re.compile(r"[a-z0-9_][a-z0-9_-]*(?:/[a-z0-9_][a-z0-9_-]*)*\Z")
 _BINARY_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
 _BUILDER_IMAGE_RE = re.compile(r"^ARG BUILDER_IMAGE=(\S+@sha256:[0-9a-f]{64})$", re.M)
@@ -349,18 +354,22 @@ def _run_builder(command: Sequence[str]) -> None:
 def build_host_binaries(source: Path, names: Sequence[str], destination: Path, *, epoch: int) -> None:
     """Build the listed host crates with the pinned builder into `destination`.
 
-    The build context is staged from tracked files only (VERSION, the list and every
-    listed crate that exists) and built with no layer cache, so every build starts from
-    the image and Cargo.lock alone."""
+    The build context is staged from tracked files only (VERSION, the list, every
+    listed crate and its declared embedded inputs) and built with no layer cache,
+    so every build starts from the image and Cargo.lock alone."""
     crates = host_crates(source, names)
     destination = Path(destination)
     if destination.exists() and any(destination.iterdir()):
         raise ReleaseBuildError(f"{destination} must be empty to receive the host binaries")
     prefixes = tuple(f"{crate}/" for crate in crates.directories)
-    wanted = [
-        name for name in names
-        if name in {"VERSION", HOST_BINARIES_LIST} or name.startswith(prefixes)
-    ]
+    embedded_inputs = {
+        name for crate in crates.directories for name in HOST_BINARY_EMBEDDED_INPUTS.get(crate, ())
+    }
+    missing = embedded_inputs - set(names)
+    if missing:
+        raise ReleaseBuildError(f"required build input {sorted(missing)[0]} must be tracked")
+    root_inputs = {"VERSION", HOST_BINARIES_LIST} | embedded_inputs
+    wanted = [name for name in names if name in root_inputs or name.startswith(prefixes)]
     with tempfile.TemporaryDirectory(prefix="proxy-control-host-binaries-") as staging:
         context = Path(staging) / "context"
         for name in wanted:

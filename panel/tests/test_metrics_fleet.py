@@ -220,7 +220,8 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server
     assert rows[0]["peak_bps"] == 5000 and rows[-1]["total_bytes"] is None
     # The compare row is deliberately unknown when the node is offline. Its separate
     # history can still retain measured protocol peaks if the last summary was cached.
-    offline = body["nodes"][-1]
+    # Detailed nodes follow node-id order, not the traffic-sorted compare table.
+    offline = next(row for row in body["nodes"] if row["node_id"] == ids["charlie"])
     assert offline["node_id"] == ids["charlie"] and offline["status"] == "unavailable"
     naive = offline["protocols"].get("naive")
     if naive and naive.get("peak_bps") is not None:

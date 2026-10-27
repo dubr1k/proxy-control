@@ -558,13 +558,14 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions(language)
 
 PROBE = "installer/bin/linux-amd64/proxy-control-installer"
 LIBRARY_FILE = "pc_common/src/lib.rs"
+THREE_XUI_CONTRACT = "tests/fixtures/three_xui/api-contract-3.10.2.json"
 
 
 def checkout_with_host_crates(tmp_path: Path) -> Path:
     """The fixture tree plus the real list, the real Dockerfile, an installer crate with the real
     Cargo.lock and a shared library crate: what the release builder sees in the repository."""
     root = clean_checkout(tmp_path, name="crate-source")
-    for name in (HOST_BINARIES_LIST, HOST_BINARIES_DOCKERFILE, "installer/Cargo.lock"):
+    for name in (HOST_BINARIES_LIST, HOST_BINARIES_DOCKERFILE, "installer/Cargo.lock", THREE_XUI_CONTRACT):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_bytes((ROOT / name).read_bytes())
     (root / "installer/Cargo.toml").write_text('[package]\nname = "installer"\n')
@@ -729,10 +730,32 @@ def test_binaries_from_and_no_binaries_exclude_each_other(tmp_path, capsys):
         build(tmp_path, "dist", tmp_path, binaries_from=tmp_path, binaries=False)
 
 
+def test_host_builder_stages_the_installers_embedded_three_xui_contract(tmp_path, monkeypatch):
+    source = checkout_with_host_crates(tmp_path)
+
+    def builder(command):
+        context = Path(command[-1])
+        contract = context / THREE_XUI_CONTRACT
+        assert contract.is_file(), "the installer compile-time 3x-ui contract is missing from the build context"
+        assert contract.read_bytes() == (source / THREE_XUI_CONTRACT).read_bytes()
+        output = command[command.index("--output") + 1]
+        fake_build(Path(output.removeprefix("type=local,dest=")), {PROBE: b"built probe"})
+
+    monkeypatch.setattr(release_build, "_run_builder", builder)
+    build(tmp_path, "dist", source)
+
+
+def test_host_builder_refuses_an_untracked_embedded_contract(tmp_path, no_docker):
+    source = checkout_with_host_crates(tmp_path)
+    git(source, "rm", "--cached", THREE_XUI_CONTRACT)
+    with pytest.raises(ReleaseBuildError, match="required build input.*must be tracked"):
+        release_build.build_host_binaries(source, tracked_files(source), tmp_path / "bin", epoch=FIXED_EPOCH)
+
+
 def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_path, monkeypatch):
     """Without a flag the release builds its binaries itself: no layer cache, amd64, the
     commit epoch, the `binaries` stage exported to a local directory, and a context staged
-    from tracked files of VERSION, the list and the listed crates — nothing else."""
+    from tracked VERSION, list, listed crates and their declared embedded inputs."""
     source = checkout_with_host_crates(tmp_path)
     (source / "installer/src/untracked.rs").write_text("// never staged\n")
     seen: dict[str, object] = {}
@@ -756,7 +779,7 @@ def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_pa
         assert flag in command
     assert seen["dockerfile"] == (ROOT / HOST_BINARIES_DOCKERFILE).read_bytes()
     assert seen["context"] == sorted(
-        ["VERSION", HOST_BINARIES_LIST, LIBRARY_FILE, "pc_common/Cargo.toml",
+        ["VERSION", HOST_BINARIES_LIST, LIBRARY_FILE, "pc_common/Cargo.toml", THREE_XUI_CONTRACT,
          "installer/Cargo.lock", "installer/Cargo.toml", "installer/src/main.rs"]
     )
     assert archive_member(built.archive, PROBE) == (0o755, b"built probe")
