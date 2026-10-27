@@ -3,7 +3,7 @@
 //! The foreign coexist frontend is never edited. Run without `--apply` to inspect the plan; the
 //! one-command host updater applies this after its panel update succeeds.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io;
@@ -11,8 +11,15 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use pc_host::fs::{atomic_write, durable_mkdir, token_hex};
+use pc_host::fs::{atomic_write, durable_mkdir, sha256_hex, token_hex};
 use pc_host::runner::{Bounded, HostRunner};
+use serde_json::Value;
+
+use crate::engine::{agent_managed_paths, assert_owned, read_matching_plan};
+use crate::handoff::{check_declaration, read_active_state, write_rebased};
+use crate::journal::{Phase, TransactionState};
+use crate::planner::InstallPlan;
+use crate::store::TransactionStore;
 
 const STREAM: &str = "etc/nginx/stream.d/proxy-control.conf";
 const PANEL: &str = "etc/nginx/conf.d/proxy-control-panel.conf";
@@ -46,6 +53,12 @@ impl From<io::Error> for UpgradeError {
 impl From<pc_host::TxError> for UpgradeError {
     fn from(error: pc_host::TxError) -> Self {
         Self(error.to_string())
+    }
+}
+
+impl From<crate::error::Error> for UpgradeError {
+    fn from(error: crate::error::Error) -> Self {
+        Self(error.message())
     }
 }
 
@@ -417,12 +430,223 @@ fn metadata_json(stream: &FileMetadata, panel: &FileMetadata) -> Vec<u8> {
     format!("{{{}, {}}}", entry("stream.conf", stream), entry("panel.conf", panel)).into_bytes()
 }
 
+struct JournalHandoff {
+    previous: TransactionState,
+    updated: TransactionState,
+    previous_plan: InstallPlan,
+    updated_plan: InstallPlan,
+}
+
+fn replace_digest(declaration: &mut Value, digest: &str) -> Result<(), UpgradeError> {
+    match declaration {
+        Value::String(value) => *value = digest.to_string(),
+        Value::Object(flags) if flags.get("sha256").is_some_and(Value::is_string) => {
+            flags.insert("sha256".into(), Value::String(digest.into()));
+        }
+        _ => return Err(UpgradeError::new("ingress ownership declaration is invalid")),
+    }
+    Ok(())
+}
+
+impl JournalHandoff {
+    fn prepare(
+        store: &TransactionStore,
+        project: &Path,
+        before_stream: &[u8],
+        before_panel: &[u8],
+        new_stream: &[u8],
+        new_panel: &[u8],
+        backend: &str,
+    ) -> Result<Option<Self>, UpgradeError> {
+        if !store.state_exists() && fs::symlink_metadata(store.state_path()).is_err() {
+            let legacy = store.root().join("var/lib/proxy-control/runtime.json");
+            if legacy.exists() || is_symlink(&legacy) {
+                return Err(UpgradeError::new("legacy runtime-v2 ingress requires an installer journal migration"));
+            }
+            return Ok(None);
+        }
+        if project != store.root().join("opt/mtproxy-shared443") {
+            return Err(UpgradeError::new("ingress project does not match installer ownership"));
+        }
+        let previous = read_active_state(store, "ingress ownership requires an active installer transaction")?;
+        let previous_plan = read_matching_plan(store, &previous)?;
+        assert_owned(store.root(), &previous.ownership(true)?, &agent_managed_paths())?;
+        let mut updated = previous.clone();
+        for (id, adapter, host, before, after) in [
+            ("core.runtime", "core", "/etc/nginx/conf.d/proxy-control-panel.conf", before_panel, new_panel),
+            ("nginx.routes", "nginx", "/etc/nginx/stream.d/proxy-control.conf", before_stream, new_stream),
+        ] {
+            let checkpoint = updated
+                .checkpoints
+                .iter_mut()
+                .find(|checkpoint| checkpoint.action_id == id && checkpoint.adapter == adapter)
+                .filter(|checkpoint| checkpoint.phase == Phase::Verified)
+                .ok_or_else(|| UpgradeError::new("active ingress checkpoint is unavailable"))?;
+            check_declaration(checkpoint)?;
+            let action = previous_plan
+                .actions
+                .iter()
+                .find(|action| action.id == id && action.adapter == adapter)
+                .ok_or_else(|| UpgradeError::new("ingress checkpoint does not belong to the approved plan"))?;
+            if checkpoint.data.get("owner").and_then(Value::as_str) != Some(action.owner.as_str())
+                || checkpoint.ownership.values().any(|entry| entry.action_id != id || entry.adapter != adapter)
+            {
+                return Err(UpgradeError::new("ingress checkpoint ownership identity is invalid"));
+            }
+            let before_digest = sha256_hex(before);
+            let after_digest = sha256_hex(after);
+            if adapter == "nginx" {
+                if checkpoint.data.get("owned_sha256").and_then(Value::as_str) != Some(&before_digest) {
+                    return Err(UpgradeError::new("Nginx checkpoint does not recognize the predecessor stream"));
+                }
+                let identity = checkpoint
+                    .data
+                    .get("route_identity")
+                    .and_then(Value::as_object)
+                    .ok_or_else(|| UpgradeError::new("Nginx route identity is invalid"))?;
+                if identity.get("original_path").and_then(Value::as_str) != Some(host)
+                    || identity.get("resolved_path").and_then(Value::as_str) != Some(host)
+                    || !matches!(identity.get("path_kind").and_then(Value::as_str), Some("missing" | "file"))
+                {
+                    return Err(UpgradeError::new("Nginx route identity does not match the owned ingress"));
+                }
+                if !checkpoint.ownership.contains_key(host) {
+                    let backup = checkpoint.data.get("backup_path").and_then(Value::as_str).unwrap_or("");
+                    let original = identity.get("original_sha256").and_then(Value::as_str);
+                    if identity.get("exists").and_then(Value::as_bool) != Some(true)
+                        || original.is_none()
+                        || !checkpoint.ownership.get(backup).is_some_and(|entry| {
+                            entry.kind == "file"
+                                && !entry.is_mutable()
+                                && !entry.preserve
+                                && Some(entry.sha256.as_str()) == original
+                        })
+                    {
+                        return Err(UpgradeError::new("Nginx checkpoint does not own its original rollback backup"));
+                    }
+                }
+                checkpoint.data.insert("owned_sha256".into(), Value::String(after_digest.clone()));
+            }
+            if let Some(entry) = checkpoint.ownership.get_mut(host) {
+                if entry.kind != "file" || entry.is_mutable() || entry.preserve || entry.sha256 != before_digest {
+                    return Err(UpgradeError::new("ingress checkpoint does not own the predecessor template"));
+                }
+                entry.sha256 = after_digest.clone();
+                let declared = checkpoint
+                    .data
+                    .get_mut("ownership")
+                    .and_then(Value::as_object_mut)
+                    .and_then(|declaration| declaration.get_mut(host))
+                    .ok_or_else(|| UpgradeError::new("ingress ownership declaration is missing"))?;
+                replace_digest(declared, &after_digest)?;
+            } else if adapter == "core" {
+                return Err(UpgradeError::new("Core checkpoint does not own the panel vhost"));
+            }
+            // Core keeps its pre-apply declaration as rollback provenance as well.
+            if adapter == "core" {
+                if let Some(declared) = checkpoint
+                    .data
+                    .get_mut("planned_ownership")
+                    .and_then(Value::as_object_mut)
+                    .and_then(|declaration| declaration.get_mut(host))
+                {
+                    replace_digest(declared, &after_digest)?;
+                }
+            }
+        }
+        let mut updated_plan = previous_plan.clone();
+        let action = updated_plan
+            .actions
+            .iter_mut()
+            .find(|action| action.id == "nginx.routes" && action.adapter == "nginx")
+            .ok_or_else(|| UpgradeError::new("active Nginx action is unavailable"))?;
+        let mut values = BTreeMap::new();
+        let mut routes = Vec::new();
+        for mutation in &action.mutations {
+            let (key, value) =
+                mutation.split_once('=').ok_or_else(|| UpgradeError::new("Nginx action is malformed"))?;
+            if key == "route" {
+                let (domain, destination) =
+                    value.split_once(' ').ok_or_else(|| UpgradeError::new("Nginx route is malformed"))?;
+                routes.push((domain.to_string(), destination.to_string()));
+            } else if values.insert(key, value).is_some() {
+                return Err(UpgradeError::new("Nginx action is malformed"));
+            }
+        }
+        let required = [
+            ("mode", "fresh"),
+            ("target", "/etc/nginx/stream.d/proxy-control.conf"),
+            ("resolved_path", "/etc/nginx/stream.d/proxy-control.conf"),
+            ("variable", "$proxy_control_backend"),
+            ("symlink_target", "-"),
+        ];
+        if required.iter().any(|(key, expected)| values.get(key) != Some(expected))
+            || !matches!(values.get("path_kind").copied(), Some("missing" | "file"))
+            || !matches!(values.get("client_ip").copied(), None | Some("legacy" | "proxy"))
+            || values.get("panel_tls_backend").is_some_and(|value| *value != backend)
+            || !matches!(values.get("stream_context").copied(), None | Some("create" | "present"))
+            || values.keys().any(|key| {
+                ![
+                    "mode",
+                    "target",
+                    "resolved_path",
+                    "variable",
+                    "symlink_target",
+                    "path_kind",
+                    "client_ip",
+                    "panel_tls_backend",
+                    "stream_context",
+                ]
+                .contains(key)
+            })
+            || crate::adapters::nginx::render_fresh(&routes, "proxy", backend)?.as_slice() != new_stream
+        {
+            return Err(UpgradeError::new("Nginx action differs from the recognized ingress upgrade"));
+        }
+        let client_ip = values.get("client_ip").copied();
+        let backend_missing = !values.contains_key("panel_tls_backend");
+        // Only the recognized template's client-IP semantics change. Keep all other actions,
+        // routes, configuration, release identity and audit facts exactly as approved.
+        if client_ip == Some("legacy") {
+            *action.mutations.iter_mut().find(|entry| entry.starts_with("client_ip=")).expect("client-IP mutation") =
+                "client_ip=proxy".into();
+        } else if client_ip.is_none() {
+            action.mutations.push("client_ip=proxy".into());
+        }
+        if backend_missing {
+            action.mutations.push(format!("panel_tls_backend={backend}"));
+        }
+        updated.plan_digest = updated_plan.digest();
+        updated.accepted_digest = updated.plan_digest.clone();
+        Ok(Some(Self { previous, updated, previous_plan, updated_plan }))
+    }
+
+    fn commit(&self, store: &TransactionStore) -> Result<(), UpgradeError> {
+        if store.read_state()? != self.previous || store.read_plan()? != self.previous_plan {
+            return Err(UpgradeError::new("installer journal changed during ingress upgrade"));
+        }
+        if self.updated_plan != self.previous_plan {
+            store.write_plan(&self.updated_plan)?;
+        }
+        write_rebased(store, &self.previous, &self.updated, "ingress ownership journal could not be restored")?;
+        Ok(())
+    }
+
+    fn restore(&self, store: &TransactionStore) -> Result<(), UpgradeError> {
+        if self.updated_plan != self.previous_plan {
+            store.write_plan(&self.previous_plan)?;
+        }
+        write_rebased(store, &self.updated, &self.previous, "ingress ownership journal rollback failed")?;
+        Ok(())
+    }
+}
 fn upgrade_inner(
     project: &Path,
     root: &Path,
     apply: bool,
     runner: &dyn HostRunner,
     reload: &dyn Fn(&dyn HostRunner) -> Result<(), UpgradeError>,
+    store: &TransactionStore,
 ) -> Result<UpgradeOutcome, UpgradeError> {
     let marker = project.join(".mtproxy-owned");
     let stream = root.join(STREAM);
@@ -441,6 +665,8 @@ fn upgrade_inner(
     if !apply {
         return Ok(UpgradeOutcome::Pending);
     }
+    let handoff =
+        JournalHandoff::prepare(store, project, &before_stream, &before_panel, &new_stream, &new_panel, &backend)?;
     let old_sockets = unix_sockets(&[&before_stream, &before_panel]);
     let new_sockets = unix_sockets(&[&new_stream, &new_panel]);
     for name in new_sockets.difference(&old_sockets) {
@@ -477,6 +703,11 @@ fn upgrade_inner(
     atomic_write(&backup.join("stream.conf"), &before_stream, 0o600, None)?;
     atomic_write(&backup.join("panel.conf"), &before_panel, 0o600, None)?;
     atomic_write(&backup.join("metadata.json"), &metadata_json(&stream_metadata, &panel_metadata), 0o600, None)?;
+    if handoff.is_some() {
+        for name in ["plan.json", "state.json", "ownership.json", "report.json"] {
+            atomic_write(&backup.join(name), &read_owned(&store.directory().join(name))?, 0o600, None)?;
+        }
+    }
 
     let write = |stream_bytes: &[u8], panel_bytes: &[u8]| -> Result<(), UpgradeError> {
         for (path, bytes, metadata) in
@@ -489,22 +720,34 @@ fn upgrade_inner(
     if read_owned(&stream)? != before_stream || read_owned(&panel)? != before_panel {
         return Err(UpgradeError::new("ingress changed while preparing its backup"));
     }
+    let mut journal_started = false;
     let result = (|| {
         write(&new_stream, &new_panel)?;
         run_checked(runner, &["nginx", "-t"])?;
-        reload(runner)
+        reload(runner)?;
+        if read_owned(&stream)? != new_stream || read_owned(&panel)? != new_panel {
+            return Err(UpgradeError::new("ingress changed during reload"));
+        }
+        if let Some(handoff) = &handoff {
+            journal_started = true;
+            handoff.commit(store)?;
+        }
+        Ok(())
     })();
-    if result.is_err() {
+    if let Err(error) = result {
         let rollback = (|| {
             write(&before_stream, &before_panel)?;
             run_checked(runner, &["nginx", "-t"])?;
             reload(runner)
         })();
-        if rollback.is_err() {
+        // Even a failed rollback reload must not leave the new ownership behind.
+        let journal_rollback =
+            if journal_started { handoff.as_ref().expect("journal handoff started").restore(store) } else { Ok(()) };
+        if rollback.is_err() || journal_rollback.is_err() {
             return Err(UpgradeError::new(format!("ingress rollback failed; private backup: {}", backup.display())));
         }
         return Err(UpgradeError::new(format!(
-            "ingress upgrade failed; original configuration restored; private backup: {}",
+            "ingress upgrade failed ({error}); original configuration restored; private backup: {}",
             backup.display()
         )));
     }
@@ -530,16 +773,19 @@ pub fn upgrade_with_reload(
     runner: &dyn HostRunner,
     reload: &dyn Fn(&dyn HostRunner) -> Result<(), UpgradeError>,
 ) -> Result<UpgradeOutcome, UpgradeError> {
+    let store = TransactionStore::new(root)?;
     if !apply {
-        return upgrade_inner(project, root, false, runner, reload);
+        return upgrade_inner(project, root, false, runner, reload, &store);
     }
     if !project.is_dir() || is_symlink(project) {
         return Err(UpgradeError::new("project directory is unavailable or unsafe"));
     }
-    let plan = upgrade_inner(project, root, false, runner, reload)?;
+    let plan = upgrade_inner(project, root, false, runner, reload, &store)?;
     if plan != UpgradeOutcome::Pending {
         return Ok(plan);
     }
+    // Serialize the templates and their handoff with repair, updates and uninstall.
+    let _operation = store.locked()?;
     let state = root.join(STATE);
     for path in state.ancestors() {
         if is_symlink(path) {
@@ -563,7 +809,7 @@ pub fn upgrade_with_reload(
     if unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&lock), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         return Err(io::Error::last_os_error().into());
     }
-    let result = upgrade_inner(project, root, true, runner, reload);
+    let result = upgrade_inner(project, root, true, runner, reload, &store);
     // SAFETY: unlocking the still-open descriptor; close then happens through Drop.
     unsafe {
         libc::flock(std::os::fd::AsRawFd::as_raw_fd(&lock), libc::LOCK_UN);
@@ -600,6 +846,296 @@ mod tests {
         fs::write(root.join(STREAM), golden("legacy/stream.conf")).unwrap();
         fs::write(root.join(PANEL), golden("legacy/panel.conf")).unwrap();
         (directory, project)
+    }
+
+    fn journal_predecessor(label: &str) -> (TempDir, PathBuf, TransactionStore) {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (directory, project) = predecessor(label);
+        let root = directory.path();
+        let recorded = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/installs/core");
+        let mut plan = InstallPlan::from_value(
+            &serde_json::from_slice(&fs::read(recorded.join("journal/plan.json")).unwrap()).unwrap(),
+        )
+        .unwrap();
+        let nginx = plan.actions.iter_mut().find(|action| action.adapter == "nginx").unwrap();
+        nginx.mutations.retain(|entry| !entry.starts_with("client_ip=") && !entry.starts_with("panel_tls_backend="));
+        let routes: Vec<_> = nginx
+            .mutations
+            .iter()
+            .filter_map(|entry| entry.strip_prefix("route="))
+            .map(|entry| {
+                let (domain, backend) = entry.split_once(' ').unwrap();
+                (domain.to_string(), backend.to_string())
+            })
+            .collect();
+        fs::write(
+            root.join(STREAM),
+            crate::adapters::nginx::render_fresh(&routes, "legacy", "127.0.0.1:8443").unwrap(),
+        )
+        .unwrap();
+        let old_panel = fs::read_to_string(recorded.join("root/files").join(PANEL))
+            .unwrap()
+            .replace(PROXY_LISTENER, "")
+            .replace("X-Forwarded-For $remote_addr;", "X-Forwarded-For $proxy_add_x_forwarded_for;");
+        fs::write(root.join(PANEL), old_panel).unwrap();
+        for name in [".mtproxy-owned", ".env"] {
+            fs::copy(recorded.join("root/files/opt/mtproxy-shared443").join(name), project.join(name)).unwrap();
+        }
+        let mut state = TransactionState::from_value(
+            &serde_json::from_slice(&fs::read(recorded.join("journal/state.json")).unwrap()).unwrap(),
+        )
+        .unwrap();
+        // Import the Python checkpoint shapes, narrowing only the unrelated fixture's scope.
+        state.checkpoints.retain(|checkpoint| ["core", "nginx"].contains(&checkpoint.adapter.as_str()));
+        for checkpoint in &mut state.checkpoints {
+            checkpoint.ownership.retain(|path, _| {
+                [
+                    "/etc/nginx/conf.d/proxy-control-panel.conf",
+                    "/etc/nginx/stream.d/proxy-control.conf",
+                    "/opt/mtproxy-shared443/.mtproxy-owned",
+                    "/opt/mtproxy-shared443/.env",
+                ]
+                .contains(&path.as_str())
+            });
+            checkpoint
+                .data
+                .get_mut("ownership")
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .retain(|path, _| checkpoint.ownership.contains_key(path));
+            for (path, entry) in &mut checkpoint.ownership {
+                let digest = sha256_hex(&fs::read(root.join(path.trim_start_matches('/'))).unwrap());
+                entry.sha256 = digest.clone();
+                replace_digest(&mut checkpoint.data.get_mut("ownership").unwrap()[path], &digest).unwrap();
+                if path.ends_with("/stream.d/proxy-control.conf") {
+                    checkpoint.data.insert("owned_sha256".into(), Value::String(digest));
+                }
+            }
+        }
+        state.plan_digest = plan.digest();
+        state.accepted_digest = state.plan_digest.clone();
+        let store = TransactionStore::new(root).unwrap();
+        store.write_plan(&plan).unwrap();
+        crate::engine::persist(&store, &state).unwrap();
+        fs::set_permissions(store.directory(), fs::Permissions::from_mode(0o700)).unwrap();
+        durable_mkdir(&root.join(STATE), 0o700).unwrap();
+        fs::write(project.join("operator.conf"), b"operator config remains untouched\n").unwrap();
+        (directory, project, store)
+    }
+
+    fn journal_bytes(store: &TransactionStore) -> Vec<Vec<u8>> {
+        ["plan.json", "state.json", "ownership.json", "report.json"]
+            .iter()
+            .map(|name| fs::read(store.directory().join(name)).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn journal_write_failures_restore_running_configs_plan_and_ownership() {
+        use crate::store::JournalFile;
+        use std::cell::RefCell;
+
+        for fault in [JournalFile::Plan, JournalFile::State, JournalFile::Ownership, JournalFile::Report] {
+            let (directory, project, store) = journal_predecessor("ingress-journal-failure");
+            let root = directory.path();
+            let before = journal_bytes(&store);
+            let stream = fs::read(root.join(STREAM)).unwrap();
+            let panel = fs::read(root.join(PANEL)).unwrap();
+            let operator = fs::read(project.join(".env")).unwrap();
+            let mut fired = false;
+            store.set_fault_hook(Some(Box::new(move |file, _| {
+                if file == fault && !fired {
+                    fired = true;
+                    return Err(crate::error::Error::other("OSError", "injected journal write"));
+                }
+                Ok(())
+            })));
+            let running = RefCell::new(Vec::new());
+            let reload = |_runner: &dyn HostRunner| {
+                running.borrow_mut().push((fs::read(root.join(STREAM))?, fs::read(root.join(PANEL))?));
+                Ok(())
+            };
+            let runner = RecordingRunner::new();
+            let error = upgrade_inner(&project, root, true, &runner, &reload, &store).unwrap_err();
+            assert!(error.to_string().contains("original configuration restored"), "{fault:?}: {error}");
+            assert_eq!(
+                *running.borrow(),
+                vec![
+                    (stream_template(&stream, "127.0.0.1:8443").unwrap(), panel_template(&panel).unwrap().0),
+                    (stream.clone(), panel.clone()),
+                ]
+            );
+            assert_eq!(fs::read(root.join(STREAM)).unwrap(), stream);
+            assert_eq!(fs::read(root.join(PANEL)).unwrap(), panel);
+            assert_eq!(journal_bytes(&store), before, "{fault:?}");
+            assert_eq!(fs::read(project.join(".env")).unwrap(), operator);
+            assert_eq!(fs::read(project.join("operator.conf")).unwrap(), b"operator config remains untouched\n");
+            let backup = fs::read_dir(root.join(STATE)).unwrap().next().unwrap().unwrap().path();
+            assert_eq!(fs::read(backup.join("stream.conf")).unwrap(), stream);
+            assert_eq!(fs::read(backup.join("panel.conf")).unwrap(), panel);
+            for (index, name) in ["plan.json", "state.json", "ownership.json", "report.json"].iter().enumerate() {
+                assert_eq!(fs::read(backup.join(name)).unwrap(), before[index]);
+            }
+            assert_owned(root, &store.read_state().unwrap().ownership(true).unwrap(), &agent_managed_paths()).unwrap();
+        }
+    }
+
+    #[test]
+    fn managed_reload_failure_keeps_original_journal_and_templates() {
+        let (directory, project, store) = journal_predecessor("ingress-managed-reload");
+        let root = directory.path();
+        let journal = journal_bytes(&store);
+        let stream = fs::read(root.join(STREAM)).unwrap();
+        let panel = fs::read(root.join(PANEL)).unwrap();
+        let runner = RecordingRunner::new();
+        runner.reply_once(&["systemctl", "reload", "nginx"], Reply::exit(1, "", "failed"));
+        let reload = |runner: &dyn HostRunner| run_checked(runner, &["systemctl", "reload", "nginx"]);
+        let error = upgrade_with_reload(&project, root, true, &runner, &reload).unwrap_err();
+        assert!(error.to_string().contains("original configuration restored"));
+        assert_eq!(journal_bytes(&store), journal);
+        assert_eq!(fs::read(root.join(STREAM)).unwrap(), stream);
+        assert_eq!(fs::read(root.join(PANEL)).unwrap(), panel);
+    }
+
+    #[test]
+    fn already_approved_proxy_semantics_keep_the_original_plan_digest() {
+        let (directory, project, store) = journal_predecessor("ingress-current-plan");
+        let mut plan = store.read_plan().unwrap();
+        let action = plan.actions.iter_mut().find(|action| action.adapter == "nginx").unwrap();
+        action.mutations.extend(["client_ip=proxy".into(), "panel_tls_backend=127.0.0.1:8443".into()]);
+        let mut state = store.read_state().unwrap();
+        state.plan_digest = plan.digest();
+        state.accepted_digest = state.plan_digest.clone();
+        store.write_plan(&plan).unwrap();
+        crate::engine::persist(&store, &state).unwrap();
+        let before = fs::read(store.plan_path()).unwrap();
+        upgrade_with_reload(&project, directory.path(), true, &RecordingRunner::new(), &|_| Ok(())).unwrap();
+        assert_eq!(fs::read(store.plan_path()).unwrap(), before);
+        let updated = store.read_state().unwrap();
+        assert_eq!(updated.plan_digest, state.plan_digest);
+        assert_eq!(updated.accepted_digest, state.accepted_digest);
+        assert_owned(directory.path(), &updated.ownership(true).unwrap(), &agent_managed_paths()).unwrap();
+    }
+
+    #[test]
+    fn existing_router_keeps_its_original_rollback_backup_owned_through_repair() {
+        use crate::adapter::Adapter;
+        use crate::adapters::{nginx::NginxAdapter, AdapterContext};
+
+        let (directory, project, store) = journal_predecessor("ingress-original-backup");
+        let root = directory.path();
+        let observed_root = root.to_path_buf();
+        let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+            if call.argv == ["nginx", "-T"] {
+                let stream = fs::read_to_string(observed_root.join(STREAM)).unwrap();
+                return Some(Reply::ok(&format!(
+                    "# configuration file /etc/nginx/nginx.conf:\nstream {{ include /etc/nginx/stream.d/*.conf; }}\n# configuration file /etc/nginx/stream.d/proxy-control.conf:\n{stream}"
+                )));
+            }
+            Some(Reply::ok(""))
+        }));
+        let adapter =
+            NginxAdapter::new(&AdapterContext { root: root.into(), tree: root.into(), runner: runner.clone() });
+        let mut plan = store.read_plan().unwrap();
+        let action = plan.actions.iter_mut().find(|action| action.adapter == "nginx").unwrap();
+        *action.mutations.iter_mut().find(|entry| entry.starts_with("path_kind=")).unwrap() = "path_kind=file".into();
+        let data = adapter.apply(action, adapter.prepare(action).unwrap()).unwrap();
+        let backup = data["backup_path"].as_str().unwrap().to_string();
+        let original = fs::read(root.join(backup.trim_start_matches('/'))).unwrap();
+        let mut state = store.read_state().unwrap();
+        let checkpoint = state.checkpoints.iter_mut().find(|checkpoint| checkpoint.adapter == "nginx").unwrap();
+        let entry = checkpoint.ownership.remove("/etc/nginx/stream.d/proxy-control.conf").unwrap();
+        checkpoint.ownership.insert(backup.clone(), entry);
+        checkpoint.data = data;
+        let original_ownership = checkpoint.ownership.clone();
+        state.plan_digest = plan.digest();
+        state.accepted_digest = state.plan_digest.clone();
+        store.write_plan(&plan).unwrap();
+        crate::engine::persist(&store, &state).unwrap();
+        upgrade_with_reload(&project, root, true, runner.as_ref(), &|_| Ok(())).unwrap();
+        let updated = store.read_state().unwrap();
+        let nginx = updated.checkpoint("nginx.routes").unwrap();
+        assert_eq!(nginx.ownership, original_ownership);
+        let plan = store.read_plan().unwrap();
+        let action = plan.actions.iter().find(|action| action.adapter == "nginx").unwrap();
+        adapter.repair(action, nginx.data.clone()).unwrap();
+        assert_eq!(fs::read(root.join(backup.trim_start_matches('/'))).unwrap(), original);
+        assert_owned(root, &updated.ownership(true).unwrap(), &agent_managed_paths()).unwrap();
+    }
+
+    #[test]
+    fn incompatible_or_drifted_journals_refuse_before_mutating_ingress() {
+        for defect in
+            ["origin", "interrupted", "declaration", "operator-drift", "plan", "derived", "owner", "missing-owner"]
+        {
+            let (directory, project, store) = journal_predecessor("ingress-preflight");
+            let root = directory.path();
+            let mut state = store.read_state().unwrap();
+            match defect {
+                "origin" => state.origin = "runtime-v2".into(),
+                "interrupted" => state.status = crate::journal::Status::Applying,
+                "declaration" => {
+                    state.checkpoints[0].data.get_mut("ownership").unwrap().as_object_mut().unwrap().clear();
+                }
+                "owner" => {
+                    state
+                        .checkpoints
+                        .iter_mut()
+                        .find(|checkpoint| checkpoint.adapter == "core")
+                        .unwrap()
+                        .data
+                        .insert("owner".into(), Value::String("operator".into()));
+                }
+                "missing-owner" => {
+                    let core = state.checkpoints.iter_mut().find(|checkpoint| checkpoint.adapter == "core").unwrap();
+                    core.ownership.remove("/etc/nginx/conf.d/proxy-control-panel.conf");
+                    core.data
+                        .get_mut("ownership")
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("/etc/nginx/conf.d/proxy-control-panel.conf");
+                }
+                "operator-drift" => fs::write(project.join(".env"), b"operator changed this\n").unwrap(),
+                "plan" => {
+                    let mut plan = store.read_plan().unwrap();
+                    plan.actions
+                        .iter_mut()
+                        .find(|action| action.adapter == "nginx")
+                        .unwrap()
+                        .mutations
+                        .push("unrecognized=operator-setting".into());
+                    state.plan_digest = plan.digest();
+                    state.accepted_digest = state.plan_digest.clone();
+                    store.write_plan(&plan).unwrap();
+                }
+                _ => {}
+            }
+            crate::engine::persist(&store, &state).unwrap();
+            if defect == "derived" {
+                store.write_ownership(&Default::default()).unwrap();
+            }
+            let journal = journal_bytes(&store);
+            let stream = fs::read(root.join(STREAM)).unwrap();
+            let panel = fs::read(root.join(PANEL)).unwrap();
+            let runner = RecordingRunner::new();
+            let reload = |_runner: &dyn HostRunner| panic!("preflight must not reload");
+            assert!(upgrade_with_reload(&project, root, true, &runner, &reload).is_err(), "{defect}");
+            assert!(runner.calls().is_empty(), "{defect}");
+            assert_eq!(journal_bytes(&store), journal, "{defect}");
+            assert_eq!(fs::read(root.join(STREAM)).unwrap(), stream, "{defect}");
+            assert_eq!(fs::read(root.join(PANEL)).unwrap(), panel, "{defect}");
+        }
+        let (directory, project) = predecessor("ingress-runtime-v2");
+        let legacy = directory.path().join("var/lib/proxy-control/runtime.json");
+        fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+        fs::write(&legacy, b"{}\n").unwrap();
+        let error =
+            upgrade_with_reload(&project, directory.path(), true, &RecordingRunner::new(), &|_| Ok(())).unwrap_err();
+        assert!(error.to_string().contains("runtime-v2"));
+        assert_eq!(fs::read(directory.path().join(STREAM)).unwrap(), golden("legacy/stream.conf"));
     }
 
     #[test]
@@ -743,5 +1279,189 @@ mod tests {
         assert!(upgrade_with_reload(&project, root, true, &runner, &reload).is_err());
         assert_eq!(fs::read(occupied).unwrap(), b"foreign");
         assert_eq!(fs::read(root.join(STREAM)).unwrap(), golden("legacy/stream.conf"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "root-only real Nginx in private mount/network namespaces"]
+    fn native_journal_failure_restores_live_nginx_and_original_journal() {
+        use crate::store::JournalFile;
+        use std::cell::Cell;
+        use std::io::{Read, Write};
+        use std::net::{TcpListener, TcpStream};
+        use std::process::{Child, Command, Stdio};
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        const NAME: &str = "ingress_upgrade::tests::native_journal_failure_restores_live_nginx_and_original_journal";
+        if std::env::var_os("PC_INGRESS_PRIVATE_NAMESPACE").is_none() {
+            let output = Command::new("unshare")
+                .args(["--mount", "--net", "--propagation", "private"])
+                .arg(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--ignored", "--nocapture"])
+                .env("PC_INGRESS_PRIVATE_NAMESPACE", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "native namespace: {}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        fn checked(program: &str, arguments: &[&std::ffi::OsStr]) {
+            let output = Command::new(program).args(arguments).output().unwrap();
+            assert!(output.status.success(), "{program}: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        struct Process(Child);
+        impl Drop for Process {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let (directory, project, store) = journal_predecessor("ingress-live-journal");
+        let root = directory.path();
+        checked("mount", &["-t".as_ref(), "tmpfs".as_ref(), "tmpfs".as_ref(), "/run".as_ref()]);
+        checked("ip", &["link".as_ref(), "set".as_ref(), "lo".as_ref(), "up".as_ref()]);
+        let certificates = root.join("certificates");
+        let certificate = certificates.join("live/relay.example.com");
+        fs::create_dir_all(&certificate).unwrap();
+        checked(
+            "openssl",
+            &[
+                "req".as_ref(),
+                "-x509".as_ref(),
+                "-newkey".as_ref(),
+                "rsa:2048".as_ref(),
+                "-nodes".as_ref(),
+                "-days".as_ref(),
+                "1".as_ref(),
+                "-subj".as_ref(),
+                "/CN=panel.example.com".as_ref(),
+                "-keyout".as_ref(),
+                certificate.join("privkey.pem").as_os_str(),
+                "-out".as_ref(),
+                certificate.join("fullchain.pem").as_os_str(),
+            ],
+        );
+        checked("mount", &["--bind".as_ref(), certificates.as_os_str(), "/etc/letsencrypt".as_ref()]);
+        fs::write(root.join("etc/nginx/nginx.conf"), format!(
+            "load_module /usr/lib/nginx/modules/ngx_stream_module.so;\nuser root;\npid {}/nginx.pid;\nerror_log {}/nginx.log;\nevents {{}}\nhttp {{ access_log off; include {}/{}; }}\nstream {{ include {}/{}; }}\n",
+            root.display(), root.display(), root.display(), PANEL, root.display(), STREAM,
+        )).unwrap();
+        checked("mount", &["--bind".as_ref(), root.join("etc/nginx").as_os_str(), "/etc/nginx".as_ref()]);
+        let listener = TcpListener::bind("127.0.0.1:8787").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopping = stop.clone();
+        let upstream = std::thread::spawn(move || {
+            while !stopping.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut socket, _)) => {
+                        socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+                        let mut request = Vec::new();
+                        let mut buffer = [0; 2048];
+                        while !request.ends_with(b"\r\n\r\n") {
+                            let size = socket.read(&mut buffer).unwrap();
+                            if size == 0 {
+                                break;
+                            }
+                            request.extend_from_slice(&buffer[..size]);
+                        }
+                        let request = String::from_utf8(request).unwrap();
+                        let forwarded =
+                            request.lines().find_map(|line| line.strip_prefix("X-Forwarded-For: ")).unwrap();
+                        write!(socket, "HTTP/1.0 200 OK\r\nContent-Length: {}\r\n\r\n{forwarded}", forwarded.len())
+                            .unwrap();
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(10))
+                    }
+                    Err(error) => panic!("native upstream: {error}"),
+                }
+            }
+        });
+        let nginx = Process(
+            Command::new("nginx")
+                .args(["-g", "daemon off;"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while TcpStream::connect("127.0.0.1:443").is_err() {
+            assert!(Instant::now() < deadline, "private Nginx did not start");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let request = || {
+            let output = Command::new("curl")
+                .args([
+                    "--silent",
+                    "--show-error",
+                    "--insecure",
+                    "--noproxy",
+                    "*",
+                    "--max-time",
+                    "3",
+                    "--resolve",
+                    "panel.example.com:443:127.0.0.1",
+                    "-H",
+                    "X-Forwarded-For: 203.0.113.7",
+                    "https://panel.example.com/",
+                ])
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "real request: {}", String::from_utf8_lossy(&output.stderr));
+            String::from_utf8(output.stdout).unwrap()
+        };
+        assert_eq!(request(), "203.0.113.7, 127.0.0.1");
+        let original = journal_bytes(&store);
+        let mut fired = false;
+        store.set_fault_hook(Some(Box::new(move |file, _| {
+            if file == JournalFile::State && !fired {
+                fired = true;
+                return Err(crate::error::Error::other("OSError", "injected native state write"));
+            }
+            Ok(())
+        })));
+        let generation = Cell::new(0);
+        let children = || -> BTreeSet<u32> {
+            fs::read_to_string(format!("/proc/{}/task/{}/children", nginx.0.id(), nginx.0.id()))
+                .unwrap()
+                .split_whitespace()
+                .map(|pid| pid.parse().unwrap())
+                .collect()
+        };
+        let reload = |_runner: &dyn HostRunner| {
+            let old = children();
+            checked("nginx", &["-s".as_ref(), "reload".as_ref()]);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut previous = BTreeSet::new();
+            loop {
+                let current = children();
+                let fresh: BTreeSet<_> = current.difference(&old).copied().collect();
+                // This smoke has no long-lived clients: wait for the old acceptors to exit,
+                // not merely for their replacement to have forked.
+                if current.is_disjoint(&old) && !fresh.is_disjoint(&previous) {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "private Nginx did not activate new workers");
+                previous = fresh;
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            generation.set(generation.get() + 1);
+            assert_eq!(request(), if generation.get() == 1 { "127.0.0.1" } else { "203.0.113.7, 127.0.0.1" });
+            Ok(())
+        };
+        let error = upgrade_inner(&project, root, true, &pc_host::runner::SystemRunner, &reload, &store).unwrap_err();
+        assert!(error.to_string().contains("original configuration restored"), "{error}");
+        assert_eq!(generation.get(), 2);
+        assert_eq!(journal_bytes(&store), original);
+        assert_owned(root, &store.read_state().unwrap().ownership(true).unwrap(), &agent_managed_paths()).unwrap();
+        drop(nginx);
+        stop.store(true, Ordering::Relaxed);
+        upstream.join().unwrap();
     }
 }

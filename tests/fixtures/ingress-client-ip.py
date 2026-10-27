@@ -43,7 +43,7 @@ def request(port, host, source):
     return result.split(b"\r\n\r\n", 1)[1]
 
 
-def main(root):
+def main(root, raw_host="naive.example.com"):
     key, cert = root / "key.pem", root / "cert.pem"
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
                     "-subj", "/CN=panel.example.com", "-keyout", str(key), "-out", str(cert)],
@@ -88,7 +88,7 @@ def main(root):
         assert request(public, "panel.example.com", "127.0.0.2") == b"127.0.0.2"
         assert request(public, "panel.example.com", "127.0.0.3") == b"127.0.0.3"
         assert request(private, "panel.example.com", "127.0.0.4") == b"127.0.0.4"
-        assert request(public, "naive.example.com", "127.0.0.2") == b"203.0.113.7"
+        assert request(public, raw_host, "127.0.0.2") == b"203.0.113.7"
     finally:
         if process is not None:
             process.terminate()
@@ -101,4 +101,4 @@ def main(root):
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]), *sys.argv[2:])

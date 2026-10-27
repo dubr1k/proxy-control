@@ -578,3 +578,107 @@ fn recorded_legacy_core_journal_keeps_exact_retired_script_but_refuses_other_scr
     forged["planned_ownership"].as_object_mut().unwrap().insert(neighbor, record);
     assert!(CoreCheckpoint::read(&forged, &action, true).unwrap().validate_paths(&selected()).is_err());
 }
+
+#[test]
+fn ingress_upgrade_hands_predecessor_ownership_to_actual_engine_repair() {
+    use crate::ingress_upgrade::{upgrade_with_reload, UpgradeOutcome};
+    use crate::journal::Status;
+    use pc_host::runner::{RecordingRunner, Reply};
+    use std::sync::Mutex;
+
+    let root = crate::testkit::TempDir::new("ingress-engine-handoff");
+    let observed_root = root.path().to_path_buf();
+    let image_owner = Arc::new(Mutex::new(None::<String>));
+    let observed_owner = image_owner.clone();
+    let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+        if call.argv == ["nginx", "-T"] {
+            let stream =
+                fs::read_to_string(observed_root.join("etc/nginx/stream.d/proxy-control.conf")).unwrap_or_default();
+            return Some(Reply::ok(&format!(
+                "# configuration file /etc/nginx/nginx.conf:\nstream {{ include /etc/nginx/stream.d/*.conf; }}\n# configuration file /etc/nginx/stream.d/proxy-control.conf:\n{stream}"
+            )));
+        }
+        if call.argv.first().is_some_and(|program| program.ends_with("/probe/install.sh")) {
+            *observed_owner.lock().unwrap() = call.argv.last().cloned();
+        }
+        if call.argv.starts_with(&["docker".into(), "image".into(), "inspect".into()]) {
+            return Some(match observed_owner.lock().unwrap().as_deref() {
+                None => Reply::exit(1, "", "image absent"),
+                Some(_) if call.argv[4] == "{{.Id}}" => Reply::ok(&format!("sha256:{}", "a".repeat(64))),
+                Some(owner) => Reply::ok(owner),
+            });
+        }
+        Some(Reply::ok(""))
+    }));
+    let context = AdapterContext {
+        root: root.path().into(),
+        tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
+        runner: runner.clone(),
+    };
+    let mut core = CoreAdapter::new(&context);
+    core.test_acceptance =
+        Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/installs/core/journal/plan.json");
+    let mut plan =
+        crate::planner::InstallPlan::from_value(&serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap()).unwrap();
+    plan.actions.retain(|action| ["core", "nginx"].contains(&action.adapter.as_str()));
+    plan.adapter_order.retain(|name| ["core", "nginx"].contains(&name.as_str()));
+    plan.adapter_dependencies.retain(|name, _| ["core", "nginx"].contains(&name.as_str()));
+    let nginx = plan.actions.iter_mut().find(|action| action.adapter == "nginx").unwrap();
+    // Before client-IP preservation these two mutations were absent, not explicit "legacy".
+    nginx.mutations.retain(|entry| !entry.starts_with("client_ip=") && !entry.starts_with("panel_tls_backend="));
+    let engine = crate::testkit::engine_for(
+        root.path(),
+        vec![Arc::new(core), Arc::new(super::super::nginx::NginxAdapter::new(&context))],
+    );
+    let mut predecessor = engine.apply(&plan, &plan.digest()).unwrap();
+    let panel = root.path().join(PANEL_VHOST.trim_start_matches('/'));
+    let old_panel = fs::read_to_string(&panel)
+        .unwrap()
+        .replace("listen unix:/run/proxy-control-panel-tls.sock ssl proxy_protocol; set_real_ip_from unix:; real_ip_header proxy_protocol; ", "")
+        .replace("X-Forwarded-For $remote_addr;", "X-Forwarded-For $proxy_add_x_forwarded_for;");
+    fs::write(&panel, &old_panel).unwrap();
+    let core = predecessor.checkpoints.iter_mut().find(|checkpoint| checkpoint.adapter == "core").unwrap();
+    let old_digest = sha256_hex(old_panel.as_bytes());
+    core.ownership.get_mut(PANEL_VHOST).unwrap().sha256 = old_digest.clone();
+    for declaration in ["ownership", "planned_ownership"] {
+        core.data.get_mut(declaration).unwrap()[PANEL_VHOST]["sha256"] = json!(old_digest);
+    }
+    engine.persist(&predecessor).unwrap();
+    engine.assert_all_owned(&predecessor).unwrap();
+    let before_config = plan.config.clone();
+    let before_actions: Vec<_> = plan.actions.iter().filter(|action| action.adapter != "nginx").cloned().collect();
+    let reload = |_runner: &dyn pc_host::runner::HostRunner| Ok(());
+    let project = root.path().join("opt/mtproxy-shared443");
+    assert!(matches!(
+        upgrade_with_reload(&project, root.path(), true, runner.as_ref(), &reload).unwrap(),
+        UpgradeOutcome::Applied { .. }
+    ));
+    assert_eq!(engine.repair().unwrap().status, Status::Active);
+    let upgraded = engine.store().read_state().unwrap();
+    engine.assert_all_owned(&upgraded).unwrap();
+    let migrated = engine.store().read_plan().unwrap();
+    assert_eq!(migrated.digest(), upgraded.plan_digest);
+    assert_eq!(upgraded.accepted_digest, upgraded.plan_digest);
+    assert_eq!(migrated.config, before_config);
+    assert_eq!(
+        migrated.actions.iter().filter(|action| action.adapter != "nginx").cloned().collect::<Vec<_>>(),
+        before_actions
+    );
+    let repaired = engine.store().read_state().unwrap();
+    assert_eq!(
+        upgrade_with_reload(&project, root.path(), true, runner.as_ref(), &reload).unwrap(),
+        UpgradeOutcome::Current
+    );
+    assert_eq!(engine.store().read_state().unwrap(), repaired);
+    fs::copy(root.path().join("etc/nginx/stream.d/proxy-control.conf"), root.path().join("stream.conf")).unwrap();
+    fs::copy(&panel, root.path().join("panel.conf")).unwrap();
+    let consumer = std::process::Command::new("python3")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/ingress-client-ip.py"))
+        .arg(root.path())
+        .arg("relay.example.com")
+        .output()
+        .unwrap();
+    assert!(consumer.status.success(), "real upgraded ingress consumer: {}", String::from_utf8_lossy(&consumer.stderr));
+}
