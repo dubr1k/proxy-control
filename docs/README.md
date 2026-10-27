@@ -44,7 +44,7 @@ boundary you are changing.
   [архитектура панели и узлов](VNEXT_ARCHITECTURE.md), [матрица возможностей клиентов](VNEXT_CAPABILITIES.md)
 - [Проверки выпуска](VALIDATION.md), [матрица сверки функций](VERIFICATION_MATRIX.md),
   [матрица проверок безопасности](SECURITY_TEST_MATRIX.md), [события аудита](AUDIT_EVENTS.md)
-- Решения: [ADR 001](adr/001-pull-only-node-transport.md) — транспорт узлов только на опрос,
+- Решения: [ADR 001](adr/001-pull-only-node-transport.md) — прежний транспорт узлов (заменён ADR 008),
   [ADR 002](adr/002-declarative-generations.md) — декларативные поколения,
   [ADR 003](adr/003-one-writer-per-resource.md) — один писатель на ресурс,
   [ADR 004](adr/004-client-access-grant-subscription.md) — клиент, доступ и подписка,
@@ -131,7 +131,7 @@ boundary you are changing.
   [panel and node architecture](VNEXT_ARCHITECTURE.md), [client capability matrix](VNEXT_CAPABILITIES.md)
 - [Release validation](VALIDATION.md), [function verification matrix](VERIFICATION_MATRIX.md),
   [security test matrix](SECURITY_TEST_MATRIX.md), [audit events](AUDIT_EVENTS.md)
-- Decisions: [ADR 001](adr/001-pull-only-node-transport.md) — pull-only node transport,
+- Decisions: [ADR 001](adr/001-pull-only-node-transport.md) — superseded node transport (replaced by ADR 008),
   [ADR 002](adr/002-declarative-generations.md) — declarative generations,
   [ADR 003](adr/003-one-writer-per-resource.md) — one writer per resource,
   [ADR 004](adr/004-client-access-grant-subscription.md) — client, access grant and subscription,

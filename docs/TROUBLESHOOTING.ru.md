@@ -33,7 +33,7 @@ docker compose logs --since=15m --tail=300 panel mtproxy naive-manager mieru-man
 - убедитесь, что owner активен и не удалён;
 - проверьте clock/timezone, cookie domain/Secure и reverse-proxy headers;
 - учитывайте login throttling;
-- initial owner создаётся через `panel.cli create-admin --password-stdin`;
+- initial owner создаётся через `panel cli create-admin --password-stdin`;
 - не передавайте пароль в argv или shell history.
 
 ## MTProxy healthy, но клиент не подключается

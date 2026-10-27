@@ -1,21 +1,18 @@
 # ADR 008: Panel-to-panel transport with scoped API keys
 
-Status: accepted (v0.3). Supersedes the transport direction of ADR 001; keeps its
-typed-payload rule. Applies ADR 002 and ADR 003 unchanged.
+Status: accepted. Supersedes the transport direction of ADR 001; keeps its
+typed-payload rule. Applies ADR 002 and ADR 003.
 
 ## Context
 
-ADR 001 chose a pull-only, outbound-only mTLS agent so that a node never listens
-for control traffic. The price was an enrollment ritual — an offline CA, CSR
-transfer, `fleet-bind-cert` — and a separate ingress and agent process on every
-host. Fleet v1 shipped with it, and no production host was ever enrolled.
+A separate mTLS agent and ingress require certificate enrollment and additional
+processes on every host. The panel already exposes an HTTPS administrative surface;
+node transport can reuse it without turning every administrative endpoint into a
+remote-execution contract.
 
-The owner's requirement for v0.3 is the 3x-ui operating model: a panel issues an
-API key from its web interface, and the central panel adds that panel by URL and
-key from a "Nodes" screen — no CLI, no certificates to move, nothing installed
-beyond the panel image. Every production host already publishes its panel over
-HTTPS with a WebPKI certificate, so the inbound surface ADR 001 avoided already
-exists; the question is only what that surface accepts.
+A panel issues an API key from its web interface, and the central panel adds that
+panel by URL and key from the "Nodes" screen. No separate agent, ingress or offline
+CA is installed.
 
 ## Decision
 
@@ -56,8 +53,9 @@ authenticated with a scoped Bearer API key:
 - A compromised central panel can reach every node it manages — the same
   boundary 3x-ui accepts. A compromised node learns nothing about other nodes:
   the key is one-directional and the node holds no central credential.
-- Fleet v1 (mTLS, Telemt-only) stays frozen and byte-compatible; it is not
-  extended and not removed in v0.3.
+- Fleet v1 services are retired, not installed or served by the native release.
+  Prior-host state must be detected, backed up and explicitly migrated before
+  update; frozen identifiers remain documented in [compatibility](../COMPATIBILITY.md).
 
 ## Non-goals
 

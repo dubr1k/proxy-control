@@ -33,7 +33,7 @@ A `401` from a protected API without a session is expected. An unauthenticated r
 - confirm an active owner remains;
 - inspect clock, cookie domain/Secure, and reverse-proxy headers;
 - account for login throttling;
-- create the initial owner with `panel.cli create-admin --password-stdin`;
+- create the initial owner with `panel cli create-admin --password-stdin`;
 - never pass passwords through argv or shell history.
 
 ## MTProxy is healthy but clients fail

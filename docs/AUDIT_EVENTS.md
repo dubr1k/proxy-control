@@ -57,7 +57,7 @@ routing target rows, and the read-only `GET /api/trusttunnel/overview` writes no
 | `subscription.reveal` | subscription id | the link was shown again from escrow (owner/admin, «Показать» in the client window) |
 | `client.links.reveal` | client id | the client's own links were rebuilt from escrow and shown (owner/admin, «Показать ссылки» in the client window); the detail names the grants, never a link |
 
-System events (actor `system`, `ip = local`) share the table — `panel/events.py` records them
+System events (actor `system`, `ip = local`) share the table — the native panel records them
 so the journal and `GET /api/events` tell one story:
 
 | Event | Target | Recorded by |
@@ -71,11 +71,11 @@ so the journal and `GET /api/events` tell one story:
 
 | Action | Target | Recorded by |
 | --- | --- | --- |
-| `node.register`, `node.rename`, `node.enable`, `node.disable`, `node.certificates.revoke_all` | node id | Fleet v1 registry (`node.enable`/`node.disable` only for v1 transport) |
-| `fleet.node.create`, `fleet.command.queue` | node id | Fleet v1 routes |
+| `node.register`, `node.rename`, `node.enable`, `node.disable`, `node.certificates.revoke_all` | node id | historical Fleet v1 registry rows retained in restored databases; not emitted by native routes |
+| `fleet.node.create`, `fleet.command.queue` | node id | historical Fleet v1 rows; no native Fleet v1 routes |
 | `node.link` | node guid | «Добавить узел» (`auto_import`) |
 | `node.link.update` | node guid | link changes (`changed` lists the fields; a new key is never recorded) |
-| `node.pause` / `node.resume` | node guid | pausing a link — also what «disable»/«enable» and `panel.cli node-disable` record for a linked panel |
+| `node.pause` / `node.resume` | node guid | pausing a link — also what «disable»/«enable» and `panel cli node-disable` record for a linked panel |
 | `node.import` | node guid | importing the node's users (`accounts`, `without_credential`, `already_linked`; `auto: true` when the heartbeat adopted them by itself, actor `system`) |
 | `node.version.update` | node guid | updating a component on a linked panel |
 | `node.unlink` | node guid | «Удалить» a linked panel (`node_released`, `node_error` — the class of the node's refusal, `released_imported`; a forced deletion adds `forced` and `abandoned_provisioned`) |

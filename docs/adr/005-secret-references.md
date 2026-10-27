@@ -1,17 +1,15 @@
 # ADR 005: Secrets travel as references
 
-Status: accepted (v0.2)
+Status: accepted
 
 ## Context
 
-Before v0.2 the panel never stores a credential: MTProxy links are read back from
-Telemt, Naive passwords live in the manager's own state, and a Mieru password is
-visible exactly once, in memory, during a one-time reveal. That is safe, but it
-cannot serve a durable subscription — a link that must render tomorrow needs the
-credential tomorrow.
+MTProxy links can be read from Telemt and Naive credentials from the manager's
+state, but a Mieru password is only available during issuance or rotation.
+A durable subscription needs the credential tomorrow, not just at issuance.
 
-Storing credentials is a new breach class. It has to be introduced with an
-explicit threat model instead of "the database is private anyway".
+Storing credentials creates a breach class that requires an explicit threat model
+instead of assuming that the database is private.
 
 ## Decision
 
@@ -46,5 +44,5 @@ explicit threat model instead of "the database is private anyway".
 ## Non-goals
 
 - Protecting secrets from a compromised panel process.
-- An external KMS or HSM in v0.2.
+- An external KMS or HSM.
 - Re-revealing a credential after its one-time window.

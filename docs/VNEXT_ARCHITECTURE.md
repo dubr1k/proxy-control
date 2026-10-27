@@ -100,7 +100,7 @@ Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
   reveal and the subscription response itself (ADR 005).
 - Values live in `secret_versions`, AES-256-GCM, under a master key stored
   outside the database (`secrets/panel-master-key` →`/run/panel/master-key`).
-  The installer creates it on install and on upgrade; `panel.cli master-key-init`
+  The installer creates it on install and on upgrade; `panel cli master-key-init`
   exists for installations assembled by hand.
 - The panel starts without the key while no encrypted row exists, and refuses to
   start when rows exist and the key is missing.
@@ -113,7 +113,7 @@ Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 
 One stable URL can always return the current bundle, but consumers differ, so
 every cell of the matrix is explicit (`supported | unsupported | unproven`) and
-lives in `tests/fixtures/vnext-capabilities.json`. As of 2026-09-10:
+lives in `panel/crates/subscriptions/src/compatibility.rs`. The summary below covers:
 
 | Client | MTProxy | Naive | Mieru |
 | --- | --- | --- | --- |
@@ -194,7 +194,7 @@ Native components (paths relative to `panel/crates/`):
 
 ## Decision records
 
-- [ADR 001 — Pull-only node transport](adr/001-pull-only-node-transport.md)
+- [ADR 001 — Superseded pull-only transport; retained typed-payload boundary](adr/001-pull-only-node-transport.md)
 - [ADR 002 — Declarative immutable generations](adr/002-declarative-generations.md)
 - [ADR 003 — One writer per resource](adr/003-one-writer-per-resource.md)
 - [ADR 004 — Client, AccessGrant and subscription as a projection](adr/004-client-access-grant-subscription.md)
@@ -204,6 +204,5 @@ Native components (paths relative to `panel/crates/`):
 - [ADR 008 — Panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
 - [ADR 009 — Lanes per client and chains through the fleet's relays](adr/009-lanes-and-chains.md)
 
-See also the [capability matrix](VNEXT_CAPABILITIES.md) (machine-readable source:
-`tests/fixtures/vnext-capabilities.json`), [compatibility
+See also the [capability matrix](VNEXT_CAPABILITIES.md), [compatibility
 guarantees](COMPATIBILITY.md) and [validation gates](VALIDATION.md).

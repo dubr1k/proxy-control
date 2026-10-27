@@ -1,18 +1,15 @@
 # ADR 002: Declarative immutable generations
 
-Status: proposed (v0.3)
+Status: accepted
 
 ## Context
 
-Fleet v1 moves imperative commands: "create this user", "rotate that secret".
-After an offline window the panel cannot tell whether a node applied a command,
-applied it twice, or never received it, so recovery relies on the operator.
-3x-ui converges instead by merging snapshots in both directions, which requires
-no formal field ownership and silently resurrects deleted resources.
+Imperative commands such as "create this user" cannot describe the complete desired
+state after an offline window. Recovery must distinguish a missing application
+from a duplicate without relying on an operator or bidirectional snapshot merge.
 
-Fleet v2 (v0.3) needs a model where a node can be offline for a day and still
-converge without an operator, and where "what should this node run" is a value
-the panel can print, diff and store.
+Fleet v2 uses a model where "what should this node run" is a value the panel can
+print, diff and store.
 
 ## Decision
 
@@ -44,5 +41,5 @@ content-addressed document produced by the panel. Nodes report an
 
 - A workflow engine, DAGs or arbitrary task graphs.
 - Bidirectional state merge between panel and node.
-- Generations in v0.2: the local node applies desired state directly through the
-  domain service; the generation store lands with Fleet v2.
+- Local-node transport: local desired state is applied directly through the domain
+  service rather than sent to another panel.

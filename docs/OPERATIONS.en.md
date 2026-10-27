@@ -143,7 +143,7 @@ Before sharing logs, remove passwords, complete access URLs, QR/reveal payloads,
 
 A client subscription URL (`https://<subscription domain>/s/<token>`) is a bearer
 credential: whoever holds it receives every access of that client. By design it
-never reaches a log — the panel runs uvicorn without an access log, the Nginx
+never reaches a log — the native Rust panel has no request access log, the Nginx
 `server` block for the subscription domain has `access_log off`, and the panel
 stores the token's hash plus a copy encrypted under the panel master
 key — no key, no copy. Showing the URL in the panel («Показать» in the client
