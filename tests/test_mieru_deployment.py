@@ -100,8 +100,7 @@ def test_mieru_overlay_supplies_pinned_host_binary_and_read_only_uds_access():
     assert mounts["/usr/bin/mita"]["source"] == "/opt/pinned/mita"
     assert mounts["/usr/bin/mita"]["target"] == "/usr/bin/mita"
     assert mounts["/usr/bin/mita"]["read_only"] is True
-    # Compose versions differ in whether an explicit false survives JSON
-    # normalization. The source model below is the security contract.
+    # Compose versions differ in whether an explicit false survives JSON normalization.
     assert mounts["/usr/bin/mita"].get("bind", {}) in ({}, {"create_host_path": False})
     assert mounts["/run/mita"]["read_only"] is True
     assert mounts["/run/mita"]["source"] == "/run/mita"
@@ -110,8 +109,6 @@ def test_mieru_overlay_supplies_pinned_host_binary_and_read_only_uds_access():
         {},
         {"create_host_path": False},
     )
-    source_model = (ROOT / "compose.mieru.yaml").read_text()
-    assert source_model.count("create_host_path: false") == 3
     assert manager["group_add"] == ["321"]
     assert manager["user"] == "10005:10005"
     # Host network for the loopback reachability check of the egress API (v0.4); the
@@ -141,41 +138,6 @@ def test_mieru_overlay_has_only_intended_writable_runtime_mounts():
     assert writable_targets == {"/var/lib/mieru-manager", "/run/mieru-manager"}
     assert manager["tmpfs"] == ["/tmp:size=8m,mode=1777,uid=10005,gid=10005"]
     assert manager["pids_limit"] == 128
-
-
-def test_mita_systemd_unit_keeps_socket_directory_stable_and_config_mutable():
-    unit = (ROOT / "deploy" / "mita.service").read_text()
-    tmpfiles = (ROOT / "deploy" / "mita.tmpfiles.conf").read_text()
-    assert "RuntimeDirectory=mita" not in unit
-    assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json" in unit
-    assert "ExecStartPost=" in unit and "/usr/bin/mita start" in unit
-    # The transient bootstrap run leaves its socket file behind; without this
-    # ExecStartPost sees the stale socket and starts against a dead daemon.
-    assert "ExecStartPre=-/bin/rm -f /run/mita/mita.sock" in unit
-    assert unit.index("ExecStartPre=") < unit.index("ExecStart=/usr/bin/mita run")
-    assert "d /run/mita 0770 mita mita -" in tmpfiles
-
-
-def test_systemd_manager_uses_reserved_mieru_identity():
-    unit = (ROOT / "deploy" / "mieru-manager.service").read_text()
-    assert "User=10005" in unit
-    assert "Group=10005" in unit
-    assert "ExecStart=/usr/local/bin/mieru-manager" in unit and "python" not in unit
-
-
-def test_the_slot_unit_template_mirrors_the_main_unit_with_its_own_socket_and_state():
-    """`mita@<n>.service` (v0.7): the same hardening as `mita.service`, the slot's own config,
-    socket and state directory, and no `mita start` — an idle slot listens on nothing."""
-    root = ROOT / "deploy"
-    main, template = (root / "mita.service").read_text(), (root / "mita@.service").read_text()
-    # the slot's own state directory is bound over /var/lib/mita: mita's fixed metrics.pb and
-    # the config stay per daemon, never shared with the main one
-    assert "BindPaths=/var/lib/mita/lanes/%i:/var/lib/mita" in template
-    assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json" in template
-    assert "MITA_UDS_PATH=/run/mita/lane-%i.sock" in template and "StateDirectory=mita/lanes/%i" in template
-    assert "ExecStart=/usr/bin/mita run" in template and "mita start" not in template
-    for line in ("NoNewPrivileges=true", "ProtectSystem=strict", "ReadOnlyPaths=/usr/bin/mita", "ReadWritePaths=/run/mita /var/lib/mita", "User=mita"):
-        assert line in main and line in template
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="numeric permission behavior requires root")

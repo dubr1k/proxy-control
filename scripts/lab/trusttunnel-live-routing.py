@@ -1,7 +1,8 @@
 """Live TrustTunnel check (routing through the Xray-router) against an installed node.
 
-Run on the node itself (it resolves the gate name to 127.0.0.1) with the panel's own Python:
-  TT_LIVE_PANEL=<panel domain> TT_LIVE_GATE=<trusttunnel domain> python scripts/lab/trusttunnel-live-routing.py
+Run on the lab node itself (it resolves the gate name to 127.0.0.1), using the external
+dev venv installed from panel/requirements-dev.txt, not an installed panel interpreter:
+  TT_LIVE_PANEL=<panel domain> TT_LIVE_GATE=<trusttunnel domain> .venv/bin/python scripts/lab/trusttunnel-live-routing.py
 Needs a node installed with [trusttunnel] enabled (routing: also [egress] router = true).
 Prints statuses only; never passwords.
 """

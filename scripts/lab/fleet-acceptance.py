@@ -1582,10 +1582,6 @@ class Scenario:
                                 60, "warp reachable again")
         self.check("r08_targets_report_warp_back", bool(up), f"after {elapsed}s")
 
-        # routing-09: the capability handshake is covered by unit tests (a v0.3 node is not
-        # on this stand); the real capability is what routing-01 read.
-        self.report["routing_09_legacy_capability"] = "unit-tested (panel/tests/test_routing_fleet.py)"
-
         # routing-10: what routing never touches. Then the reset: direct, no rules, applied
         # and the policies gone — the node keeps only the managers' journal.
         self.check("r10_nginx_untouched", self.host.nginx_sha256() == baseline["nginx"])
