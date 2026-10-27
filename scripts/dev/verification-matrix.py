@@ -16,6 +16,7 @@ Proof forms:
     doc::<path>                     a document that exists (a policy, a matrix)
 """
 from __future__ import annotations
+import ast
 
 import json
 import os
@@ -30,6 +31,52 @@ DOCUMENT = ROOT / "docs/VERIFICATION_MATRIX.md"
 STATUS_MARK = {"proven": "✅ proven", "fixed-in-0.6": "🔧 fixed in 0.6", "gap": "⛔ gap"}
 
 
+def check_names(path: Path) -> list[str]:
+    """Read executable check calls, not comments or arbitrary string mentions."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    names = []
+    wrappers = {}
+    functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    for scope in functions:
+        bindings = {}
+        for loop in (node for node in ast.walk(scope) if isinstance(node, ast.For)):
+            try:
+                values = ast.literal_eval(loop.iter)
+            except (ValueError, TypeError):
+                continue
+            targets = loop.target.elts if isinstance(loop.target, (ast.Tuple, ast.List)) else [loop.target]
+            for value in values:
+                parts = value if isinstance(loop.target, (ast.Tuple, ast.List)) else [value]
+                for target, part in zip(targets, parts):
+                    if isinstance(target, ast.Name) and isinstance(part, str):
+                        bindings.setdefault(target.id, set()).add(part)
+        for node in ast.walk(scope):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            function = node.func
+            if not ((isinstance(function, ast.Attribute) and function.attr == "check")
+                    or (isinstance(function, ast.Name) and function.id == "check")):
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                names.append(first.value)
+            elif isinstance(first, ast.JoinedStr) and first.values and isinstance(first.values[0], ast.Constant):
+                names.append(first.values[0].value)
+            elif isinstance(first, ast.Name):
+                names.extend(bindings.get(first.id, ()))
+                parameters = [argument.arg for argument in scope.args.args if argument.arg != "self"]
+                if first.id in parameters:
+                    wrappers[scope.name] = parameters.index(first.id)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in wrappers:
+            index = wrappers[node.func.attr]
+            if index < len(node.args) and isinstance(node.args[index], ast.Constant):
+                value = node.args[index].value
+                if isinstance(value, str):
+                    names.append(value)
+    return names
+
+
 def proof_problem(proof: str, root: Path) -> str | None:
     kind, _, rest = proof.partition("::")
     if kind == "pytest":
@@ -37,9 +84,9 @@ def proof_problem(proof: str, root: Path) -> str | None:
         path = root / file
         if not path.is_file():
             return "no such file"
-        if not re.search(rf"^\s*(?:async )?def {re.escape(name)}\(", path.read_text(encoding="utf-8"), re.M):
-            return "no such test"
-        return None
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tests = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        return None if name.startswith("test_") and any(node.name == name for node in tests) else "no such test"
     if kind == "cargo":
         file, _, full_name = rest.partition("::")
         path = root / file
@@ -53,13 +100,11 @@ def proof_problem(proof: str, root: Path) -> str | None:
         text = (root / "scripts/lab/guest-runner.sh").read_text(encoding="utf-8")
         return None if re.search(rf"case_run {re.escape(rest)} |emit {re.escape(rest)} passed", text) else "no such scenario"
     if kind == "fleet":
-        text = (root / "scripts/lab/fleet-acceptance.py").read_text(encoding="utf-8")
-        return None if re.search(rf'check\(f?"{re.escape(rest)}_', text) else "no such check prefix"
+        path = root / "scripts/lab/fleet-acceptance.py"
+        return None if path.is_file() and any(name.startswith(rest + "_") for name in check_names(path)) else "no such check prefix"
     if kind == "ui":
         path = root / "scripts/lab/ui-acceptance.py"
-        if not path.is_file():
-            return "ui-acceptance.py is not in the tree"
-        return None if f'"{rest}' in path.read_text(encoding="utf-8") else "no such ui scenario"
+        return None if path.is_file() and rest in check_names(path) else "no such ui scenario"
     if kind == "script":
         return None if (root / rest).is_file() else "no such script"
     if kind == "doc":
@@ -80,13 +125,22 @@ def render(rows: list[dict]) -> str:
         "router/gate probe (`scripts/dev/route-coverage.py`), not the retired Python panel or static OpenAPI",
         "authorization labels. The probe checks anonymous, owner/admin/viewer sessions, CSRF and scoped",
         "keys against the registered router; `VERIFICATION_STRICT=1` refuses gaps. One row per maintained",
-        "function: its claim, proof, routes and status.",
+        "function: its claim, proof, routes and status. A proof binding is an executable acceptance",
+        "contract, not a record that the current combined tree passed it. Run the named tests/scenarios",
+        "on the native Ubuntu stand; neither a source-string assertion nor a document proves behavior.",
+        "Installer adapter tests use isolated filesystems and recorded host commands unless explicitly",
+        "named as a real process/HTTP probe; staged artifact tests do not prove upstream availability.",
         "",
     ]
     total = len(rows)
     counts = {status: sum(1 for row in rows if row["status"] == status) for status in STATUS_MARK}
     lines.append(f"**{total} rows** — " + ", ".join(f"{STATUS_MARK[s]}: {n}" for s, n in counts.items()) + ".")
     lines.append("")
+    gaps = [row for row in rows if row["status"] == "gap"]
+    if gaps:
+        lines += ["## Remaining behavior gaps", "", "| id | proof still required |", "| --- | --- |"]
+        lines += [f"| `{row['id']}` | {row['missing_proof']} |" for row in gaps]
+        lines.append("")
     for area in ("backend", "clients", "fleet", "routing", "router", "installer", "release", "ui"):
         subset = [row for row in rows if row["area"] == area]
         if not subset:
@@ -98,6 +152,14 @@ def render(rows: list[dict]) -> str:
             lines.append(f"| `{row['id']}` | {row['since']} | {row['claim']} | {proofs} | {routes} | {STATUS_MARK[row['status']]} |")
         lines.append("")
     return "\n".join(lines)
+
+
+def row_problems(rows: list[dict]) -> list[str]:
+    return ([f"{row['id']}: non-gap row has no proof" for row in rows if row["status"] != "gap" and not row["proof"]]
+            + [f"{row['id']}: gap has no explicit missing behavior" for row in rows
+               if row["status"] == "gap" and not row.get("missing_proof")]
+            + [f"{row['id']}: resolved row still declares a missing proof" for row in rows
+               if row["status"] != "gap" and row.get("missing_proof")])
 
 
 def route_problems(rows: list[dict], routes: list[dict]) -> list[str]:
@@ -113,12 +175,13 @@ def main(argv: list[str]) -> int:
         DOCUMENT.write_text(render(rows), encoding="utf-8")
         print(f"rendered {len(rows)} rows to {DOCUMENT.relative_to(ROOT)}")
         return 0
-    proofs = [f"{row['id']}: {proof} — {why}" for row in rows for proof in row["proof"]
+    proofs = row_problems(rows) + [f"{row['id']}: {proof} — {why}" for row in rows for proof in row["proof"]
               for why in [proof_problem(proof, ROOT)] if why]
     for problem in proofs:
         print("PROOF:", problem, file=sys.stderr)
     route_coverage = __import__("route-coverage")
-    routes = route_problems(rows, route_coverage.collect_routes())
+    inventory = route_coverage.collect_routes()
+    routes = route_problems(rows, inventory) + route_coverage.gate_problems(inventory)
     for problem in routes:
         print("ROUTE:", problem, file=sys.stderr)
     stale = DOCUMENT.read_text(encoding="utf-8") != render(rows) if DOCUMENT.is_file() else True

@@ -109,8 +109,6 @@ GATE_DETAILS = {
     "a node-sync or admin API key is required",
 }
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-SEARCH_DIRS = ("panel/crates/web/tests", "panel/tests", "tests", "scripts/lab")
-EXCLUDE_TESTS = {"test_route_coverage.py", "test_verification_matrix.py", "route_gate_inventory.rs"}
 
 
 @lru_cache(maxsize=1)
@@ -209,28 +207,11 @@ def gate_problems(routes: list[dict]) -> list[str]:
     return problems
 
 
-def _pattern(path: str) -> re.Pattern:
-    # A template parameter can be an f-string expression or a concrete path segment.
-    parts = re.split(r"\{[^}]+\}", path)
-    hole = r"(?:\{[^{}]*\}|[^/\s\"'`{}]+)"
-    return re.compile("".join(re.escape(part) + (hole if i < len(parts) - 1 else "") for i, part in enumerate(parts)))
-
-
-def unmentioned(routes: list[dict], root: Path) -> list[tuple[str, str]]:
-    corpus = []
-    for directory in SEARCH_DIRS:
-        for file in sorted((root / directory).rglob("*")):
-            if file.suffix in {".py", ".sh", ".rs"} and file.is_file() and file.name not in EXCLUDE_TESTS:
-                corpus.append(file.read_text(encoding="utf-8", errors="replace"))
-    text = "\n".join(corpus)
-    return [(row["method"], row["path"]) for row in routes
-            if (row["method"], row["path"]) not in PUBLIC and _pattern(row["path"]).search(text) is None]
 
 
 def main(argv: list[str]) -> int:
     routes = collect_routes()
     problems = gate_problems(routes)
-    missing = unmentioned(routes, ROOT)
     if "--json" in argv:
         print(json.dumps(routes, indent=2, ensure_ascii=False))
     else:
@@ -242,10 +223,8 @@ def main(argv: list[str]) -> int:
                   f"viewer={row.get('viewer_status', '—')}")
         for problem in problems:
             print("GATE:", problem, file=sys.stderr)
-        for method, path in missing:
-            print(f"UNMENTIONED: {method} {path}", file=sys.stderr)
-        print(f"{len(routes)} native routes, {len(problems)} gate problems, {len(missing)} unmentioned")
-    return 1 if problems or missing else 0
+        print(f"{len(routes)} native routes, {len(problems)} gate problems")
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":

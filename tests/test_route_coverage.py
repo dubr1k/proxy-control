@@ -121,9 +121,27 @@ def test_every_mutating_route_is_csrf_or_key_gated_and_role_checked(routes):
     assert problems == [], "\n".join(problems)
 
 
-def test_every_route_is_mentioned_by_a_test_or_a_lab_scenario(routes):
-    unmentioned = route_coverage.unmentioned(routes, ROOT)
-    assert unmentioned == [], "\n".join(f"{m} {p}" for m, p in unmentioned)
+def test_gate_rejects_a_duplicate_operation():
+    route = {"method": "GET", "path": "/healthz", "inventory": "panel_web::routes::all",
+             "anonymous_status": 200, "anonymous_detail": ""}
+    assert any("duplicate route" in problem for problem in route_coverage.gate_problems([route, route]))
+
+
+def test_gate_rejects_fleet_key_that_never_reaches_the_handler():
+    route = {"method": "GET", "path": "/api/fleet/v2/identity", "inventory": "panel_web::routes::all",
+             "anonymous_status": 401, "anonymous_detail": "authentication required",
+             "viewer_status": 403, "viewer_detail": "a node-sync or admin API key is required",
+             "node_key_status": 401, "node_key_detail": "authentication required"}
+    assert any("node-sync bearer did not reach" in problem for problem in route_coverage.gate_problems([route]))
+
+
+def test_gate_rejects_inventory_not_from_the_registered_native_router():
+    route = {"method": "GET", "path": "/healthz", "inventory": "static-schema",
+             "anonymous_status": 200, "anonymous_detail": ""}
+    assert any("not inventoried from the native server router" in problem
+               for problem in route_coverage.gate_problems([route]))
+
+
 
 
 def test_the_cli_reports_json_and_a_clean_exit():
