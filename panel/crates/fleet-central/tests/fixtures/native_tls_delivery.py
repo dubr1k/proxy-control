@@ -42,12 +42,13 @@ async def request(http, method, path, body=None, expected=200):
     return response.json()
 
 
-async def delivery(directory):
+async def delivery(directory, *, central_factory=start_panel, node_factory=start_panel,
+                   central_impl="rust", node_impl="rust"):
     directory.mkdir()
-    node = start_panel(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
+    node = node_factory(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
         naive=MemoryNaive(), mieru=MemoryMieru(), telemt=MemoryTelemt(public_host="runtime.node.example"),
         naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example", vnext_writer="domain")
-    central = start_panel(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
+    central = central_factory(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
         telemt=MemoryTelemt(), naive_enabled=True, mieru_enabled=True,
         naive_public_host="central.example", vnext_writer="domain")
     seen = []
@@ -113,7 +114,12 @@ async def delivery(directory):
         assert "runtime.node.example" in json.dumps(revealed) and "public.node.example" in json.dumps(revealed)
         assert await central.naive.list_users() == [] and await central.telemt.list_users() == []
         await request(central.client, "DELETE", f"/api/nodes/{node_id}?force=true")
-        print(json.dumps({"central": "rust", "node": "rust", "tls_private_negatives": 3,
+        node.client.headers["Authorization"] = "Bearer " + key
+        central_identity = await request(central.client, "GET", "/api/fleet/v2/identity")
+        node_identity = await request(node.client, "GET", "/api/fleet/v2/identity")
+        print(json.dumps({"central": central_impl, "node": node_impl, "tls_private_negatives": 3,
+                          "central_version": central_identity["panel_version"],
+                          "node_version": node_identity["panel_version"],
                           "delivered_protocols": 3, "generation": desired["generation"], "digest": digest,
                           "http_requests": len(seen)}, sort_keys=True), flush=True)
     finally:
