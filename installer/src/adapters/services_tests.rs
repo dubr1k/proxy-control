@@ -33,6 +33,7 @@ fn source(root: &Path) -> PathBuf {
         "deploy/proxy-control-version-agent.tmpfiles.conf",
         "deploy/version-agent.env.example",
         "compose.yaml",
+        "release/external-artifacts.json",
     ] {
         put(&tree, file, &fs::read_to_string(repository().join(file)).unwrap());
     }
@@ -837,8 +838,64 @@ fn agent_seed_records_full_profile_binaries_and_runtime_pin() {
     assert_eq!(components.len(), 4);
     assert_eq!(components["naive"]["runtime_version"], "v2.11.7 operator-pin");
     assert_eq!(components["mita"]["version"], "3.38.1");
-    assert_eq!(components["xray"]["version"], "26.10.17");
+    let manifest = pc_host::archive::ReleaseManifest::from_bytes(
+        &fs::read(repository().join("release/external-artifacts.json")).unwrap(),
+    )
+    .unwrap();
+    let pin = manifest.external_artifact("xray", "amd64").unwrap();
+    assert_eq!(components["xray"]["version"], pin.version);
+    assert_eq!(components["xray"]["sha256"], pin.sha256);
     assert_eq!(components["xray"]["members"].as_object().unwrap().len(), 3);
+    for name in ["xray", "geoip.dat", "geosite.dat"] {
+        let installed = dir.path().join("usr/local/lib/proxy-control/xray-router").join(name);
+        assert_eq!(components["xray"]["members"][name], pc_host::fs::sha256_file(&installed).unwrap());
+    }
+
+    // A repair must not replace an upstream/operator-selected runtime with the release default.
+    let mut updated = state;
+    updated["components"]["xray"]["version"] = json!("99.12.31");
+    updated["components"]["xray"]["sha256"] = json!("f".repeat(64));
+    updated["components"]["xray"]["source"] = json!("upstream");
+    let state_path = dir.path().join("var/lib/proxy-control/version-agent/state.json");
+    let updated = serde_json::to_vec(&updated).unwrap();
+    fs::write(&state_path, &updated).unwrap();
+    agent.repair(&action, agent.prepare(&action).unwrap()).unwrap();
+    assert!(agent.verify(&action).unwrap().success);
+    assert_eq!(fs::read(state_path).unwrap(), updated);
+}
+
+#[test]
+fn agent_seed_refuses_an_unvalidated_xray_manifest() {
+    for duplicate_key in [false, true] {
+        let dir = TempDir::new("s");
+        let context = context(dir.path(), agent_runner(dir.path()));
+        let manifest_path = context.tree.join("release/external-artifacts.json");
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let xray = manifest["artifacts"].as_array_mut().unwrap().iter_mut().find(|v| v["name"] == "xray").unwrap();
+        xray["platforms"]["amd64"]["sha256"] = json!("invalid");
+        let invalid = if duplicate_key {
+            fs::read_to_string(repository().join("release/external-artifacts.json"))
+                .unwrap()
+                .replacen("\"schema_version\": 1,", "\"schema_version\": 1, \"schema_version\": 1,", 1)
+        } else {
+            manifest.to_string()
+        };
+        fs::write(manifest_path, invalid).unwrap();
+        for path in [
+            "/usr/local/bin/caddy",
+            "/usr/bin/mita",
+            "/usr/local/lib/proxy-control/xray-router/xray",
+            "/usr/local/lib/proxy-control/xray-router/geoip.dat",
+            "/usr/local/lib/proxy-control/xray-router/geosite.dat",
+        ] {
+            put(dir.path(), path, "installed payload");
+        }
+        let agent = VersionAgentAdapter::new(&context);
+        let action = action_from_golden("version_agent", "kitchen-sink");
+        let error = agent.apply(&action, agent.prepare(&action).unwrap()).unwrap_err();
+        assert!(error.message().contains("release manifest is invalid"), "{error}");
+        assert!(!dir.path().join("var/lib/proxy-control/version-agent/state.json").exists());
+    }
 }
 #[test]
 fn missing_profile_binary_has_the_python_adapter_error_class() {

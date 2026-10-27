@@ -91,7 +91,7 @@ digest плана. Полная поверхность — профили, вс�
 
 Пинованные upstream-артефакты — `mita_3.38.1_<arch>.deb` (сервер) и
 `mieru_3.38.1_<arch>.deb` (официальный клиент, который запускает приёмка) для
-профиля с Mieru, `Xray-linux-64.zip` для Xray-router — класть не нужно (архив `trusttunnel-v1.1.0-linux-x86_64.tar.gz` для
+профиля с Mieru, `Xray-linux-64.zip` (Xray-core 26.10.21) для Xray-router — класть не нужно (архив `trusttunnel-v1.1.0-linux-x86_64.tar.gz` для
 необязательного TrustTunnel скачивает при сборке образа сам Docker): установщик
 скачивает их по закреплённым HTTPS-URL в `/var/lib/proxy-control/` и отказывается
 продолжать, если digest не совпадает с пином (несовпавший файл выбрасывается).
