@@ -1295,11 +1295,10 @@ HANDOFFPY
 }
 
 # Fleet v2 on the stand (v0.3 spec §10): the node just installed is linked to a second,
-# in-process central panel started from the release bytes under test, and the whole
+# native central panel copied from the node image under test, and the whole
 # flow (key → link → import → grants → disable/rotate/delete → offline convergence →
-# restart mid-apply → key revoke → unlink) runs over HTTPS with real clients. The
-# central is started by the dev venv's interpreter — the system python3 has neither
-# FastAPI nor uvicorn — but imports `panel` from the release tree ($ROOT).
+# restart mid-apply → key revoke → unlink) runs over HTTPS with real clients.
+# Python runs only the external HTTP controller; neither panel imports Python.
 DEV_PYTHON=${LAB_DEV_PYTHON:-/root/dev/proxy-control/.venv/bin/python}
 # The same pinned cores subscription-acceptance was proven with (v0.2 Task 19A).
 LAB_SINGBOX_IMAGE=${LAB_SINGBOX_IMAGE:-ghcr.io/sagernet/sing-box@sha256:4bed9332a0013fef72c31200a84e8fc0ed91a5ab2fe373a69f0acbbbbfbef3c5}

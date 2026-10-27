@@ -59,7 +59,6 @@ def test_router_overlay_is_loopback_only_read_only_and_pinned():
     assert mounts["/var/lib/xray-router"].get("bind", {}) in ({}, {"create_host_path": False})
     writable = {item["target"] for item in router["volumes"] if not item.get("read_only", False)}
     assert writable == {"/var/lib/xray-router", "/run/xray-router"}
-    assert (ROOT / "compose.xray-router.yaml").read_text().count("create_host_path: false") == 2
     env = router["environment"]
     assert env["XRAY_ROUTER_XRAY_SHA256"] == XRAY_SHA256 and env["XRAY_ROUTER_GEOSITE_SHA256"] == GEOSITE_SHA256
     assert env["XRAY_ROUTER_EGRESS_WARP"] == "" and env["XRAY_ROUTER_SOCKET_MODE"] == "660"

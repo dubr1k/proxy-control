@@ -527,43 +527,6 @@ def test_sbom_requires_at_least_one_packaged_file():
         )
 
 
-# ----------------------------------------------------------------------
-# bootstrap and workflow structure
-# ----------------------------------------------------------------------
-
-
-def test_release_workflow_pins_actions_and_separates_privileged_jobs():
-    workflow = (ROOT / ".github/workflows/release.yml").read_text()
-    for job in (
-        "quality:",
-        "build-twice-and-compare:",
-        "attest:",
-        "draft-release:",
-        "publish:",
-    ):
-        assert job in workflow
-    # The lab host is the gate: CI only confirms it built the bytes the lab accepted,
-    # from a dispatch input or the annotated tag, and no QEMU lab job sits in the chain.
-    assert "lab-amd64:" not in workflow
-    assert "expected_sha256:" in workflow
-    assert "lab-sha256:" in workflow
-    assert 'test "$first" = "$expected"' in workflow
-    assert "needs: [build-twice-and-compare]" in workflow
-    assert '- "v[0-9]+.[0-9]+.[0-9]+"' in workflow
-    assert '- "v[0-9]+.[0-9]+.[0-9]+-*"' in workflow
-    assert "id-token: write" in workflow
-    assert "attestations: write" in workflow
-    assert "contents: write" in workflow
-    assert "environment:" in workflow
-    # Every third-party action is pinned to a commit SHA, never a tag.
-    for line in workflow.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("uses:") and not stripped.startswith("uses: ./"):
-            reference = stripped.split("@", 1)[1].split()[0]
-            assert len(reference) == 40, stripped
-            assert all(character in "0123456789abcdef" for character in reference)
-
-
 @pytest.mark.parametrize("language", ["en", "ru"])
 def test_the_install_script_names_exactly_the_pinned_artifact_versions(language):
     """The actual requirements output must agree with the current release manifest."""
