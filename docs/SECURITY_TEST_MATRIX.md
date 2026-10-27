@@ -1,44 +1,34 @@
-# Матрица негативных и security-тестов vNext
+# Матрица негативных проверок безопасности
 
-Каждая угроза ниже сопоставлена с существующим тестом (`файл::имя`) или сценарием лаборатории (`scripts/lab/…`,
-имя `check` в `report.json`). Что здесь **не** заявляется: устойчивость к компрометации живого
-процесса центральной панели, у которого есть доступ к БД и мастер-ключ.
+Исполняемые привязки «функция → проверка → маршрут» ведутся в
+[единой матрице проверок](VERIFICATION_MATRIX.md). Здесь перечислены границы угроз,
+а не второй список имён тестов: удалённые unit-тесты Python и Fleet v1 не являются
+доказательством работы нативного выпуска. Python HTTP-, CLI- и лабораторные
+контроллеры остаются внешними клиентами Rust runtime.
 
-Гейт: все unit-тесты идут через `scripts/dev/remote-gate.sh quick|full` на `ams-test`; сценарии
-лаборатории — `remote-gate.sh lab-host`, `fleet`, `routing`, `router` на том же стенде
-(`docs/OPERATIONS.*`, «Release acceptance lab»).
+| Граница | Что должно отказываться безопасно | Где искать актуальные доказательства в единой матрице |
+| --- | --- | --- |
+| HTTP, сессии и API-ключи | Анонимный запрос, неверная роль, CSRF, неверный scope, отключённый или истёкший ключ | Панель, RBAC, аудит и API-ключи; нативный route-gate проверяет зарегистрированные маршруты |
+| Секреты и подписки | Отсутствующий мастер-ключ, чужой SecretRef, отозванный токен, раскрытие секрета в БД, логах, ошибках или аудите | Secret store, выдача/ротация/отзыв подписки, renderers и одноразовый reveal |
+| Владение ресурсом | Локальная запись в ресурс центра, скрытое присвоение foreign-ресурса, гонка двух писателей | Clients, импорт, жизненный цикл grants, Fleet node и routing |
+| Fleet v2 | Чужой master GUID, replay/downgrade, конфликт дайджеста, слишком большой документ, получение чужого credential | Fleet node/central, generations, reconcile и native ↔ archived 3.3 delivery |
+| Удалённые источники | Непроверенный TLS, неверный pin, SSRF, запрещённый URL, слишком большой ответ | Fleet linking/client и проверка release artifacts |
+| Транзакции и восстановление | Crash между prepare/apply/commit, повтор операции с другим intent, drift при resume, неудачный rollback | Installer transaction, менеджеры и Fleet reconcile |
+| Политика маршрутизации | Неизвестный backend, raw Xray JSON вместо intent, неподдерживаемое правило, изменение без attach, stale revision | Routing IR/compiler/service и router policies |
+| Xray artifacts и процессы | Несовпадение дайджеста, битые geodata, SIGKILL при swap, смерть дочернего процесса | Router runtime, installer-router, watchdog и last-known-good recovery |
+| Ingress, lanes и relay | Неаутентифицированный или кросс-сервисный SOCKS, неверный ключ, неподдерживаемая полоса, обход private-address запрета | Router attach/detach, lanes, chains и relay |
+| Недоступный egress | Молчаливый переход на direct, обход management bypass, блокировка доступа оператора | Routing policies и fail-closed проверки менеджеров; `approved_direct` должен быть явным |
+| Соседние службы | Изменение чужих путей, Nginx-маршрутов, firewall или Xray 3x-ui | Installer coexistence и router isolation; Xray 3x-ui не является backend панели |
+| TrustTunnel и AmneziaWG | Утечка credential, небезопасный сокет, чужое состояние, вход отключённого клиента, конфликт порта/домена | Протокольные адаптеры, native managers и installer adapters |
 
-| Угроза | Тест или сценарий |
-| --- | --- |
-| Сертификат узла: неизвестный CA, чужой узел | `panel/tests/test_agent_transport.py::test_tls_rejects_unknown_ca_and_route_rejects_certificate_for_other_node` |
-| Ключ узла: неверный, отключённый, истёкший, удалённый | `panel/tests/test_api_keys.py::test_wrong_disabled_expired_and_deleted_keys_do_not_authenticate`; отзыв в лаборатории — `scripts/lab/fleet-acceptance.py` `step_09_key_revoke` |
-| Узел A запрашивает bundle/секрет узла B | `panel/tests/test_fleet_v2_node_api.py::test_every_local_writer_refuses_a_central_resource`; `panel/tests/test_grant_lifecycle.py::test_bundle_never_renders_a_withdrawn_or_deleted_grant` |
-| Replay / downgrade / конфликт дайджеста | `panel/tests/test_fleet.py::test_result_upload_retry_is_idempotent_but_conflicting_replay_is_rejected`; `panel/tests/test_fleet_v2_node_api.py::test_push_conflicts_are_409_with_a_code`; `panel/tests/test_fleet_v2_pusher.py::test_an_applying_report_is_provisional_and_never_activates_a_pre_rotation_secret`; `mieru_manager/src/tests.rs::operation_id_reused_for_another_request_conflicts`; `xray_router_manager/src/tests.rs::apply_conflict_on_stale_revision`, `::apply_idempotent_by_operation_id` |
-| Слишком большие / сжатые запросы | `panel/tests/test_fleet_v2_post_merge.py::test_an_oversized_heartbeat_body_is_refused_before_it_is_parsed`; `tests/test_installer_release.py::test_compressed_archive_bytes_have_a_hard_bound`, `::test_decompressed_tar_and_extension_metadata_are_bounded`; `tests/test_release_zip.py::test_safe_extract_zip_rejects_oversized_and_undersized_members`; `tests/test_three_xui_api.py::test_api_refuses_an_oversized_response`; `panel/tests/test_routing_ir.py` (лимиты правил), `xray_router_manager/src/intent.rs::validate_document_limits_and_size` |
-| Secret-scan: экспорт БД, API, логи, аудит, desired/observed | `panel/tests/test_rbac_audit.py::test_mutations_create_secret_free_audit_records`; `panel/tests/test_fleet_v2_node_api.py::test_identity_status_and_inventory_are_secret_free`; `panel/tests/test_fleet_v2_generations.py::test_compile_is_pure_and_secret_free`; `panel/tests/test_subscription_renderers.py::test_rendering_leaves_no_secret_in_database_logs_or_errors`; `xray_router_manager/src/tests.rs::status_and_egress_views_have_no_credentials`; `naive_manager/src/tests_egress.rs::egress_views_never_contain_router_credential`; `mieru_manager/src/tests.rs::egress_views_never_contain_router_credential`; лаборатория `x02_credential_only_on_the_node`, `x13_no_credential_in_api_audit_or_logs`, `assert_secret_free(report)` |
-| SSRF для любого удалённого источника | `panel/tests/test_fleet_v2_client.py::test_url_validation_refuses_http_query_and_private_hosts`; `panel/tests/test_fleet_v2_central_routes.py::test_link_rejects_bad_key_private_url_and_self`; `tests/test_installer_release.py::test_manifest_rejects_noncanonical_or_control_bearing_url`; `xray_router_manager/src/intent.rs::provider_endpoint_accepts_socks5_only` |
-| Crash после каждого reconcile-checkpoint | `panel/tests/test_fleet_v2_reconcile.py::test_recovers_from_a_crash_between_create_and_record`; `panel/tests/test_fleet.py::test_exclusive_startup_recovery_marks_crash_residue_without_reexecution`; `naive_manager/src/tests_egress.rs::recovery_after_a_crash_between_write_and_reload`; `xray_router_manager/src/tests.rs::recover_after_crash_in_swapping_discards_candidate`, `::apply_ready_failure_restores_last_known_good`; `tests/test_installer_transaction.py::test_runtime_v2_resume_revalidates_drift_before_next_mutation`; лаборатория `step_08_restart_mid_apply` |
-| Попытка lockout управления маршрутизацией | `panel/tests/test_routing_fleet.py::test_local_apply_is_refused_while_a_central_manages_the_node`; `panel/tests/test_fleet_v2_node_api.py::test_every_local_writer_refuses_a_central_resource`; лаборатория `r01_node_local_managed_by_central` |
-| Конфликт двух писателей | `panel/tests/test_routing_ir.py::test_upsert_conflict`; `panel/tests/test_routing_service.py::test_apply_manager_conflict_marks_failed`; `naive_manager/src/tests_egress.rs::apply_conflicts_on_a_stale_revision_without_touching_anything`; `mieru_manager/src/tests.rs::apply_conflicts_and_refusals_leave_mita_untouched`; `xray_router_manager/src/tests.rs::rollback_conflict_on_stale_revision` |
-| Токен подписки: перебор, ротация, кэш | `panel/tests/test_subscription_http.py::test_absent_and_revoked_tokens_are_indistinguishable_404`, `::test_rate_limit_returns_429_and_counts_misses_too`, `::test_rotate_and_revoke_move_the_public_url`, `::test_expiry_boundary_invalidates_the_old_etag`, `::test_token_never_reaches_application_logs_or_audit`; `panel/tests/test_subscription_lifecycle.py::test_token_is_shown_once_and_only_its_hash_is_stored` |
-| Вредоносный ответ менеджера с секретом в тексте | `panel/tests/test_users_adapter_ui.py::test_access_returns_sanitized_conflict_for_malformed_upstream_url`; `naive_manager/src/egress.rs::redact_userinfo_masks_credentials_in_urls`; `mieru_manager/src/tests.rs::prepared_recovery_rejects_any_unauthenticated_metadata_before_side_effects`; `tests/test_fleet_acceptance_script.py::test_scenario_report_is_secret_free_and_stops_the_central_on_failure` |
-| Неаутентифицированный / кросс-сервисный SOCKS-доступ | `xray_router_manager/src/render.rs::render_inbounds_have_password_auth_no_udp_and_sniffing_route_only`; лаборатория `x08_ingress_without_credential_refused`, `x08_cross_service_credential_refused`, `x08_own_credential_accepted`; spike `docs/spikes/XRAY_EGRESS_ROUTER.md` (auth ingress) |
-| Подмена backend | `panel/tests/test_xray_routing_compiler.py::test_backend_accepts_xray_router_and_backends_for`, `::test_compile_native_policy_on_attached_service_is_unsupported`; `panel/tests/test_routing_router_service.py::test_apply_native_policy_on_attached_service_is_422`, `::test_apply_router_policy_on_detached_service_is_409_not_attached`; `panel/tests/test_routing_fleet_router.py::test_remote_apply_router_policy_on_node_without_capability_is_422` |
-| Сырой JSON Xray вместо intent | `xray_router_manager/src/intent.rs::validate_document_rejects_unknown_fields_schema_and_raw_json` |
-| Несовпадение дайджеста Xray/geodata | `xray_router_manager/src/tests.rs::bootstrap_artifact_mismatch_refuses_to_start`; `xray_router_manager/src/tests.rs::unix_api_reports_artifact_mismatch_and_broken_router`; `tests/test_installer_xray_router.py::test_prepare_refuses_missing_or_mismatched_archive`, `::test_verify_refuses_a_drifted_member`; `tests/test_release_zip.py::test_safe_extract_zip_rejects_member_digest_mismatch` |
-| Битый geodata / неизвестный код | `xray_router_manager/src/tests.rs::apply_test_failure_reports_geosite_unknown_and_keeps_generation`; лаборатория `x06_unknown_geosite_refused_by_xray` |
-| SIGKILL во время swap / смерть дочернего процесса | `xray_router_manager/src/tests.rs::recover_after_crash_in_swapping_discards_candidate`, `::watchdog_restarts_dead_process`, `::apply_lkg_failure_is_manual_intervention_and_broken_phase`; лаборатория `x10_watchdog_restarted_same_generation` |
-| Ротация ключей ingress | `xray_router_manager/src/tests.rs::credential_files_reread_on_bootstrap`, `::malformed_credential_is_manual_intervention`; `naive_manager/src/tests_egress.rs::bootstrap_rerenders_router_block_after_rotation`, `::bootstrap_adopts_the_installer_seed_after_rotation`; `mieru_manager/src/tests.rs::bootstrap_rerenders_after_rotation`, `::bootstrap_refreshes_the_installer_seed_after_rotation`; лаборатория `x14_old_credential_refused`, `x14_new_credential_accepted`, `x14_caddyfile_re_rendered_with_new_key` |
-| Drift нативного блока (upstream роутера убран руками) | `panel/tests/test_routing_router_service.py::test_native_block_drift_shows_detached` |
-| Ручная/параллельная правка маршрутизации 3x-ui, drift статического моста | Вне объёма: статический мост в Xray 3x-ui не реализован; роутер не читает и не пишет пути 3x-ui — `tests/test_deploy.py::test_no_reference_to_three_xui_paths_in_router`; лаборатория `x12_xui_untouched` |
-| Fail-closed при недоступном провайдере | `panel/tests/test_xray_routing_compiler.py::test_compile_router_provider_unreachable_fail_closed_and_approved_direct`; `xray_router_manager/src/tests.rs::apply_unreachable_warp_refuses_without_changes`; `naive_manager/src/tests_egress.rs::apply_router_unreachable_refuses_without_changes`; лаборатория `r08_apply_refused_fail_closed`, `x11_apply_refused_egress_unreachable`, `x11_warp_policy_fails_closed_without_provider` |
-| Bypass private-адресов роутером (DNS rebinding) | `xray_router_manager/src/render.rs::render_bypass_private_precedes_every_rule_per_tag`; `xray_router_manager/src/intent.rs::validate_document_rejects_private_geoip_and_empty_rule`; spike §«IPOnDemand» (`localtest.me` → 403 при AsIs, refused при IPOnDemand) |
-| Замороженные идентификаторы роутера, никаких путей 3x-ui | `tests/test_deploy.py::test_xray_router_frozen_identifiers`, `::test_no_reference_to_three_xui_paths_in_router`, `::test_backup_docs_list_router_state` |
-| TrustTunnel: пароль доступа в БД, логах и ошибках | `panel/tests/test_subscription_renderers.py::test_trusttunnel_password_stays_out_of_the_database_logs_and_errors`; `panel/tests/test_trusttunnel.py::test_a_bad_link_is_refused_without_echoing_it` |
-| TrustTunnel: менеджер без токена, сокет не приватный | `trusttunnel_manager/src/tests.rs::socket_is_private_and_token_is_required`, `::body_cap_and_malformed_bodies`; `pc_common/src/server.rs::a_panicking_handler_answers_500_without_detail` |
-| TrustTunnel: враждебные символы в имени и пароле (TOML, ссылка) | `trusttunnel_manager/src/tests.rs::toml_string_round_trips_hostile_characters`; `panel/tests/test_trusttunnel.py::test_toml_values_are_escaped_and_a_chain_is_split` |
-| TrustTunnel: чужое или повреждённое состояние менеджера | `trusttunnel_manager/src/state.rs::corrupt_or_foreign_state_is_refused` |
-| TrustTunnel: выключенный клиент продолжает входить | `trusttunnel_manager/src/tests.rs::disable_removes_from_credentials_and_enable_restores_the_same_password`; `panel/tests/test_trusttunnel.py::test_full_lifecycle_and_a_disabled_client_stops_authenticating` |
-| TrustTunnel: вход роутера без пароля слушает только loopback; полосы клиентов не поддерживаются | `xray_router_manager/src/tests.rs::bootstrap_opens_a_noauth_socks_inbound_on_the_loopback`, `::trusttunnel_has_no_lanes`; `panel/tests/test_routing_trusttunnel.py::test_enabling_a_lane_for_a_trusttunnel_grant_is_refused` |
-| TrustTunnel: узел без возможности получает ресурс | `panel/tests/test_trusttunnel.py::test_an_older_node_never_receives_the_resource`, `::test_the_generation_skips_a_node_without_the_capability` |
-| TrustTunnel: порт или домен занят другой службой | `tests/test_installer_trusttunnel.py::test_the_name_must_differ_from_every_other_name`, `::test_the_loopback_port_is_reserved_and_refused_to_mieru_and_amneziawg`, `::test_the_plan_refuses_a_claimed_loopback_port_but_accepts_its_own_listener` |
+Fleet v1 agent/ingress и runtime-v2 выведены из эксплуатации. Их прежние проверки
+не заявляют активную защиту нативного runtime. Обнаружение установленного состояния,
+резервное копирование и явный перенос остаются обязательными:
+[контракты совместимости](COMPATIBILITY.md), [обновление](UPGRADING.ru.md),
+[резервное копирование](BACKUP_RESTORE.ru.md).
+
+Проверки выполняются на выделенном Ubuntu-стенде `ams-test`, не на рабочем Mac.
+Команды и требования к свежим отчётам приведены в [VALIDATION](VALIDATION.md).
+Наличие сценария или старая успешная проверка не доказывают текущую ревизию.
+Это не защита от компрометации живого процесса центральной панели, которому
+по конструкции доступны база и мастер-ключ.

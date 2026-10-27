@@ -5,15 +5,19 @@ protocol cannot do, or that nobody has proven yet, is written down with a status
 and a reason. Nothing in the panel may offer a capability whose cell is not
 `supported`.
 
-The authoritative source is `tests/fixtures/vnext-capabilities.json`, and
-`tests/test_vnext_capabilities.py` fails if any cell is missing or carries an
-empty note. The tables below are a rendered snapshot; regenerate them when the
-fixture changes.
+Current protocol declarations live in `panel/crates/model/src/protocols.rs` and
+the adapters under `panel/crates/protocols/src/`; subscription-client compatibility
+lives in `panel/crates/subscriptions/src/compatibility.rs`. The tables below are a
+documentation snapshot, not a fixture consumed by the native runtime.
 
 Statuses: **yes** = `supported`, **no** = `unsupported`, **unproven** = plausible
 but not demonstrated on the lab host, **n/a** = `out_of_scope` for that row.
 
 ## Protocols and the Fleet v1 transport
+
+The `fleet_v1` column is a frozen historical transport snapshot, not a native
+runtime capability. No Fleet v1 agent, ingress or route is shipped; prior-host
+state requires explicit migration as described in [compatibility](COMPATIBILITY.md).
 
 | Capability | fleet_v1 | mtproxy | naive | mieru |
 | --- | --- | --- | --- | --- |
@@ -48,7 +52,7 @@ The cells that shape the control plane most:
   imported grant is captured as-is. mita stores only `hashedPassword`, so an
   imported Mieru grant becomes usable only through rotation — the panel says so
   and offers the rotation, including in bulk.
-- **`accounting` for Mieru is `no`.** `panel/mieru.py` requires the metrics
+- **`accounting` for Mieru is `no`.** The panel requires the metrics
   response to be exactly `capability: unavailable`,
   `reason: typed_histories_unavailable`. Quota usage and any per-period history
   for Mieru would be invented. Since 2.2.0 the panel does show mita's own

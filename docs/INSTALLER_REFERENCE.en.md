@@ -90,8 +90,8 @@ version and points at `bash install-release.sh --update`; by default (`quit`) it
 changes, and `continue` goes on with a reinstall. AmneziaWG and TrustTunnel are not part of a
 profile: they are separate questions, each preceded by an explanatory line. The review screen
 shows the answers under plain names; keys the wizard never asks (`schema`, AmneziaWG MTU and DNS,
-TrustTunnel's internal port) are hidden there. `install-release.sh` and `install.sh` run Python
-with `PYTHONDONTWRITEBYTECODE=1` so that root leaves no `.pyc` in the user's directory.
+TrustTunnel's internal port) are hidden there. `install-release.sh` verifies the release
+and `install.sh` invokes its native installer; neither runs a Python installer.
 
 ## Commands
 
@@ -397,7 +397,7 @@ boundary:
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
-| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (the bearer MCP clients present, 32 random bytes), `secrets/mcp-panel-key` (a panel API key of scope `admin` named `mcp`, issued through `panel.cli api-key-create`), the `mcp` Compose service (container `proxy-control-mcp`, overlay `compose.mcp.yaml`) and the marker `/etc/proxy-control/mcp-owned`; verify — the container is healthy, `https://<mcp>` over SNI answers 401 without a token and 200 to `initialize` with it; rollback removes the service, revokes the key (`api-key-revoke`) and removes the env, secrets and marker |
+| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (the bearer MCP clients present, 32 random bytes), `secrets/mcp-panel-key` (a panel API key of scope `admin` named `mcp`, issued through `panel cli api-key-create`), the `mcp` Compose service (container `proxy-control-mcp`, overlay `compose.mcp.yaml`) and the marker `/etc/proxy-control/mcp-owned`; verify — the container is healthy, `https://<mcp>` over SNI answers 401 without a token and 200 to `initialize` with it; rollback removes the service, revokes the key (`api-key-revoke`) and removes the env, secrets and marker |
 | `version_agent` | The agent's code under `/opt/proxy-control/version_agent`, `version-agent.service`, its tmpfiles fragment, `/etc/proxy-control/version-agent.env` and the ownership marker; the catalog `versions.json` and the state under `/var/lib/proxy-control/version-agent` are seeded only when absent and kept unless the purge is explicit |
 
 Each action is applied through a durable journal: prepare, apply, verify. An
@@ -590,7 +590,7 @@ is mutated:
 
 ## Recovery, repair, rollback, and uninstall
 
-Core host commands run in a dedicated process group. A timeout or Python interruption
+Core host commands run in a dedicated process group. A timeout
 kills that group, reaps the command and waits until no live group members remain before
 returning control to rollback. Standard output stays suppressed; standard error remains
 available for the caller's bounded, redacted diagnostic. Cleanup waits are bounded. If
@@ -676,8 +676,8 @@ release report. Details: [tests/lab/README.md](../tests/lab/README.md).
 
 ## Limits
 
-- Fleet v1 works with Telemt only. It neither declares nor accepts Naive, Mieru,
-  or 3x-ui lifecycle operations.
+- Fleet v1 services are retired. Existing state requires explicit migration to
+  Fleet v2 before a native update; see [compatibility](COMPATIBILITY.md).
 - Per-user Mieru accounting is deliberately reported as unavailable; the quota
   is a rolling admission check, not a billing counter.
 - The Mieru MSS clamp is a diagnostic-only host firewall change. The installer

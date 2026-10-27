@@ -423,13 +423,11 @@ and every WARP policy previews as `provider_unavailable`.
 
 ## Verification
 
-Unit: `panel/tests/test_routing_ir.py` (validation, the compiler against the capability
-matrix, the store), `test_routing_service.py`, `test_routing_routes.py`,
-`test_routing_fleet.py` (the generation section, the node, the pusher),
-`test_egress_adapters.py`, `naive_manager/src/egress.rs`, `naive_manager/src/tests_egress.rs`,
-`mieru_manager/src/tests.rs`; for the router `panel/tests/test_xray_routing_compiler.py`,
-`test_routing_router_service.py`, `test_routing_router_routes.py`,
-`test_routing_fleet_router.py`, `tests/test_xray_router_*.py`. Stand:
+Native unit coverage lives under `panel/crates/routing/src/tests/` and
+`panel/crates/routing/src/service_tests.rs`; manager enforcement and rollback
+coverage lives in `naive_manager/src/tests_egress.rs`, `mieru_manager/src/tests.rs`
+and `xray_router_manager/src/tests.rs`. Python HTTP and lab controllers remain
+external clients of the native runtime. Stand:
 `scripts/dev/remote-gate.sh routing` — the node's managers point at
 `scripts/lab/socks5-stub.py` (a SOCKS5 that logs every CONNECT target) and
 `fleet-acceptance.py --routing` proves whole-service WARP, block by domain and CIDR with

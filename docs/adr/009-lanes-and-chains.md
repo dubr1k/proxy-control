@@ -1,18 +1,15 @@
 # ADR 009: Lanes per client and chains through the fleet's relays
 
-Status: accepted (v0.7). Extends ADR 006 (the routing policy IR) and ADR 007 (enforcement
+Status: accepted. Extends ADR 006 (the routing policy IR) and ADR 007 (enforcement
 ownership); applies ADR 002 (generations), ADR 003 (one writer per resource) and ADR 005
 (secret references) unchanged.
 
 ## Context
 
-Through v0.6 a routing policy belonged to a *service* on a node: every client of NaiveProxy
-or Mieru went where the service's policy said, and the only exits were «direct» and the
-node's own WARP. The owner's requirement for v0.7 is the client's view of it: *«I am a
-client of node A; I want my own traffic — and only mine — routed by geosite/geoip rules
-through a node of my choice (B), the rest through A's WARP, and I want to set this up for
-every client I create.»* Three things had no place in the model: a policy that names one
-client, an exit that is another node of the fleet, and a way to compose several nodes.
+A whole-service policy cannot express a client's own traffic taking a different
+exit. Per-client routing needs three explicit concepts: a policy that names one
+client, an exit that is another node of the fleet, and a way to compose several
+nodes without sharing ownership of their runtime configuration.
 
 The spikes in `docs/spikes/CHAINS_PER_CLIENT.md` fixed what each runtime can do: Caddy's
 `forward_proxy` with `probe_resistance` falls through to the next handler when `basic_auth`
@@ -52,8 +49,8 @@ are cheap and independent.
   mints the key on its router, moves the user and reports the lane (and, for Mieru, the
   slot's link template as `learned.share_template`).
 - **Wire compatibility.** `lane` on a resource, the `relay` section and the observed
-  `relay`/`lanes` are absent from the wire and the digest when unused, so a v0.6 node and
-  central agree on every generation that carries none; a node without `egress.lanes.v1` /
+  `relay`/`lanes` are absent from the wire and the digest when unused, so panels
+  agree on every generation that carries none; a node without `egress.lanes.v1` /
   `relay.v1` is refused by code (`node_lacks_lanes`, `node_lacks_relay`) before anything
   is sent.
 
@@ -65,7 +62,7 @@ are cheap and independent.
 - A Mieru lane changes the client's link (the slot's port): the subscription follows, a
   hand-copied link does not. A Mieru lane user is still accepted on the main port and
   then follows the service's policy — the slot mirrors, the main daemon stays the source
-  of truth (a v0.7 limit).
+  of truth.
 - The compiled document of a policy that names a chain carries the relay accounts'
   UUIDs. The API, the diff and the history mask them; the panel's own tables
   (`routing_applies`, `routing_policies.desired_json`, `desired_generations`) keep them in

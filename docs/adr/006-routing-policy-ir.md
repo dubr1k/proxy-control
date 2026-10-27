@@ -1,6 +1,6 @@
 # ADR 006: Engine-neutral routing policy IR
 
-Status: accepted (v0.4.0-beta.1, 2026-09-14)
+Status: accepted
 
 ## Context
 
@@ -43,28 +43,24 @@ Routing policy is stored as an engine-neutral intermediate representation:
 
 ## Non-goals
 
-- Routing in v0.2 or v0.3.
 - Pools, health-based failover and per-grant selective routing before the
   capability cells are proven.
 - Exposing Xray JSON as the domain model.
 
-## As shipped in v0.4
+## Native implementation
 
-`panel/routing/models.py` is the IR (`RoutingPolicy`, `RoutingRule`, `RuleMatch`,
-`PolicyInput`); `panel/routing/compiler.py` compiles it for `naive_native` (Caddy
-forwardproxy `upstream` + `acl`) and `mieru_native` (mita `egress`) against the
-capabilities each manager declares — the cells proved on the stand
-(`docs/spikes/VNEXT_ROUTING_ENGINE.md`), not the engines' documentation. The backend is a
-field of the policy; the only egress is the host's WARP (`warp`), extensible without a
-migration; pools and named egress endpoints were left out until they have a consumer.
+The Rust routing model and compilers under `panel/crates/routing/src/` compile
+policies for `naive_native`, `mieru_native` and the dedicated Xray router against
+the capabilities each manager declares — the cells proved on the stand
+(`docs/spikes/VNEXT_ROUTING_ENGINE.md`), not the engines' documentation.
 What a backend cannot enforce is `unsupported` with the rule named, in the preview and
 the API; a WARP the node reports as down fails closed unless the policy chose
 `fallback = approved_direct`, and then the substitution is shown, never silent.
 `docs/ROUTING.en.md` describes the result.
 
-## Amended in v1.1 (2026-10-01): MTProxy through the Xray-router
+## MTProxy through the Xray-router
 
-Leaving MTProxy out was a scope decision of v0.4, not a property of Telemt: Telemt dials
+Telemt dials
 Telegram through `[[upstreams]]` (`socks5` with a login among them) and its config API changes
 them without a restart (`PATCH /v1/config`, then `POST /v1/system/reload`), proved on the stand.
 The owner wanted a central in one country to send a node's MTProxy out through another node.

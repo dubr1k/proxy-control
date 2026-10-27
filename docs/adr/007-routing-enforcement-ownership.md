@@ -1,9 +1,6 @@
 # ADR 007: Routing enforcement ownership
 
-Status: accepted for the native backends (v0.4.0-beta.1, 2026-09-14) and for the
-dedicated `xray-router` (v0.5.0-beta.1, 2026-09-16; spec
-`superpowers/specs/2026-09-16-v0.5-xray-router-design.md`, spike
-`spikes/XRAY_EGRESS_ROUTER.md`)
+Status: accepted for native backends and the dedicated `xray-router`.
 
 ## Context
 
@@ -15,7 +12,7 @@ template is exactly the drift ADR 003 forbids.
 
 ## Decision
 
-Enforcement backends are separate and explicitly owned. **Native backends (v0.4):** the
+Enforcement backends are separate and explicitly owned. **Native backends:** the
 egress configuration of a data plane belongs to the manager of that service and to
 nobody else — the naive-manager owns the marked block `# BEGIN NAIVE-MANAGER EGRESS …
 # END` inside `forward_proxy` of its Caddyfile, the mieru-manager owns the `egress`
@@ -27,7 +24,7 @@ first apply and restored verbatim by a rollback, never silently overwritten. A n
 managed by a central applies what the central's generation says and refuses a local
 apply (`managed_by_central`, ADR 003).
 
-**The dedicated router (v0.5):**
+**The dedicated router:**
 
 - the 3x-ui-owned Xray serves 3x-ui's own inbounds only. Proxy Control never
   writes policy generations into it;
@@ -51,11 +48,9 @@ apply (`managed_by_central`, ADR 003).
 - every apply is a transaction: render, `xray run -test`, swap, readback, commit; a
   failure restores the last known good generation, a provider that does not answer
   is a refusal (fail-closed), and the previous generation is one rollback away;
-- Naive and Mieru attach whole-service; per-grant routing stays `unsupported`
-  until identity propagation is proven by a spike; UDP through the router is
-  `unsupported` (mita's UDP stays direct);
-- at most one static, explicitly owned bridge into 3x-ui may be offered later,
-  and only after the upgrade/drift gate passes (not in v0.5);
+- Naive and Mieru attach whole-service; per-grant lanes are explicit opt-in routing
+  identities governed by [ADR 009](009-lanes-and-chains.md). UDP through the router
+  is `unsupported` (mita's UDP stays direct);
 - management access has an immutable bypass so a routing mistake cannot lock the
   operator out; rollback is out-of-band.
 
@@ -70,6 +65,4 @@ apply (`managed_by_central`, ADR 003).
 ## Non-goals
 
 - Replacing 3x-ui or taking over its inbounds.
-- Routing MTProxy/Telemt traffic (out of scope in v0.4–v1.0; since v1.1 it goes through this
-  same router — see ADR 006, «Amended in v1.1»).
-- Routing UDP through the router, or per-grant routing (both `unsupported` in v0.5).
+- Routing UDP through the router.

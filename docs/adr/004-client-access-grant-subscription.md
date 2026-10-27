@@ -1,14 +1,13 @@
 # ADR 004: Client, AccessGrant and subscription as a projection
 
-Status: accepted (v0.2), amended v0.10 (escrowed token)
+Status: accepted
 
 ## Context
 
-Until v0.2 a "user" is whatever a protocol calls a user: an MTProxy secret in
-Telemt, a Caddy/Naive credential, a mita account. The same person ends up as
-three unrelated rows, and the panel has no object to suspend, archive or hand a
-single link to. 3x-ui shows the opposite failure too: it uses mutable strings
-(email, tags, DB ids) as cross-node identity.
+A protocol account is an MTProxy secret in Telemt, a Caddy/Naive credential or a
+mita account. Treating those as unrelated subscribers leaves no single object to
+suspend, archive or hand a subscription link to. Mutable usernames and tags also
+cannot provide stable cross-node identity.
 
 Operators also expect one link per person, kept up to date — the shape 3x-ui's
 subscription URL has trained everyone to expect.
@@ -24,7 +23,7 @@ subscription URL has trained everyone to expect.
 - `ClientSubscription` is a stable, revocable token per client. The response is a
   **pull projection of the current grants**, recomputed per request; the panel
   never stores a rendered bundle.
-- **Since v0.10** the token is also kept encrypted under the panel keyring
+- The token is also kept encrypted under the panel keyring
   (`secret_versions`, purpose `subscription`). Showing the URL again is an
   owner/admin action that goes through a one-time reveal and writes an audit row;
   rotation and revocation retire the encrypted copy in the same transaction.

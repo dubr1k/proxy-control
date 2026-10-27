@@ -417,12 +417,11 @@ WARP-политика в предпросмотре — `provider_unavailable`.
 
 ## Проверка
 
-Unit: `panel/tests/test_routing_ir.py` (валидация, компилятор по матрице возможностей,
-хранилище), `test_routing_service.py`, `test_routing_routes.py`, `test_routing_fleet.py`
-(секция поколения, узел, pusher), `test_egress_adapters.py`, `naive_manager/src/egress.rs`,
-`naive_manager/src/tests_egress.rs`, `mieru_manager/src/tests.rs`; для роутера —
-`panel/tests/test_xray_routing_compiler.py`, `test_routing_router_service.py`,
-`test_routing_router_routes.py`, `test_routing_fleet_router.py`, `tests/test_xray_router_*.py`.
+Нативные unit-проверки находятся в `panel/crates/routing/src/tests/` и
+`panel/crates/routing/src/service_tests.rs`; применение и откат у менеджеров
+проверяют `naive_manager/src/tests_egress.rs`, `mieru_manager/src/tests.rs`
+и `xray_router_manager/src/tests.rs`. Python-контроллеры HTTP и лаборатории остаются
+внешними клиентами нативного runtime.
 Стенд: `scripts/dev/remote-gate.sh routing` — менеджеры узла смотрят на
 `scripts/lab/socks5-stub.py` (SOCKS5, который журналирует каждую CONNECT-цель), а
 `fleet-acceptance.py --routing` доказывает WARP на весь сервис, блокировки по домену и CIDR

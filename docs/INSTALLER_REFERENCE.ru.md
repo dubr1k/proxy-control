@@ -87,8 +87,8 @@ AmneziaWG (и тогда его версии и публичное имя), ст
 `continue` продолжает переустановку. AmneziaWG и TrustTunnel в профиль не входят: о них спрашивают
 отдельными вопросами, каждому предшествует строка-пояснение. Экран проверки показывает ответы
 под понятными названиями; ключи, которых мастер не задаёт (`schema`, MTU и DNS AmneziaWG,
-внутренний порт TrustTunnel), там скрыты. `install-release.sh` и `install.sh` запускают Python
-с `PYTHONDONTWRITEBYTECODE=1`, чтобы от root в каталоге пользователя не оставалось `.pyc`.
+внутренний порт TrustTunnel), там скрыты. `install-release.sh` проверяет выпуск,
+а `install.sh` вызывает его нативный установщик; Python-установщик не запускается.
 
 ## Команды
 
@@ -387,7 +387,7 @@ sudo bash install.sh plan --config examples/installer/existing-three-xui.toml --
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
 | `mieru` | Зафиксированным исполняемым mita, identity mita и стабильным UDS, токеном и состоянием manager, выбранными слушателями |
 | `three_xui` | В режиме `existing` — ничем, кроме владеемого маршрута; в `managed-new` — одним staged-поколением, его панелью и созданными им инбаундами |
-| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (bearer клиентов MCP, 32 случайных байта), `secrets/mcp-panel-key` (ключ API панели области `admin` с именем `mcp`, выпущенный через `panel.cli api-key-create`), Compose-сервисом `mcp` (контейнер `proxy-control-mcp`, overlay `compose.mcp.yaml`) и маркером `/etc/proxy-control/mcp-owned`; verify — контейнер healthy, `https://<mcp>` через SNI отвечает 401 без токена и 200 на `initialize` с ним; откат снимает сервис, отзывает ключ (`api-key-revoke`) и убирает env, секреты и маркер |
+| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (bearer клиентов MCP, 32 случайных байта), `secrets/mcp-panel-key` (ключ API панели области `admin` с именем `mcp`, выпущенный через `panel cli api-key-create`), Compose-сервисом `mcp` (контейнер `proxy-control-mcp`, overlay `compose.mcp.yaml`) и маркером `/etc/proxy-control/mcp-owned`; verify — контейнер healthy, `https://<mcp>` через SNI отвечает 401 без токена и 200 на `initialize` с ним; откат снимает сервис, отзывает ключ (`api-key-revoke`) и убирает env, секреты и маркер |
 | `version_agent` | Кодом агента в `/opt/proxy-control/version_agent`, `version-agent.service`, его tmpfiles-фрагментом, `/etc/proxy-control/version-agent.env` и маркером владения; каталог `versions.json` и state в `/var/lib/proxy-control/version-agent` создаются только при отсутствии и сохраняются без явного purge |
 
 Каждое действие применяется через durable-журнал: prepare, apply, verify.
@@ -563,8 +563,8 @@ TrustTunnel не добавляет: используется уже откры�
 
 ## Восстановление, repair, откат и удаление
 
-Команды хоста Core запускаются в отдельной группе процессов. При таймауте или
-Python-прерывании runner завершает группу, дожидается команды и отсутствия живых
+Команды хоста Core запускаются в отдельной группе процессов. При таймауте
+runner завершает группу, дожидается команды и отсутствия живых
 процессов группы, прежде чем вернуть управление откату. Стандартный вывод остаётся
 подавленным; stderr доступен вызывающему коду для ограниченной диагностики с удалением
 секретов. Ожидание очистки ограничено. Если остановку нельзя подтвердить, установщик
@@ -648,8 +648,8 @@ make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA2
 
 ## Ограничения
 
-- Fleet v1 работает только с Telemt. Он не объявляет и не принимает lifecycle-
-  операции Naive, Mieru или 3x-ui.
+- Службы Fleet v1 выведены из эксплуатации. Существующее состояние требует явного
+  переноса на Fleet v2 до нативного обновления; см. [совместимость](COMPATIBILITY.md).
 - Пер-пользовательский учёт Mieru намеренно сообщается как недоступный; квота —
   это скользящая проверка допуска, а не платёжный счётчик.
 - MSS clamp для Mieru — диагностическое изменение host firewall. Установщик
