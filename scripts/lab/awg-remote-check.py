@@ -2,18 +2,18 @@
 
 Three modes, because the parts run on different machines:
 
-  issue    (inside the central panel container)  python awg-remote-check.py issue <node_id> <panel-host>
+  issue    (external lab controller)  python awg-remote-check.py issue <node_id> <panel-host>
            creates a temporary owner, a test client and one access per AmneziaWG version on that node,
            waits until the node confirms them and prints one JSON document with the configs.
-  cleanup  (inside the central panel container)  python awg-remote-check.py cleanup <client_id> <panel-host>
+  cleanup  (external lab controller)  python awg-remote-check.py cleanup <client_id> <panel-host>
            deletes the accesses, archives the client and removes the temporary owner.
-  multi    (inside the central panel container)  python awg-remote-check.py multi <node_id> <panel-host>
+  multi    (external lab controller)  python awg-remote-check.py multi <node_id> <panel-host>
            like issue, for SEVERAL clients with different version sets (one only 1.5, one 2.0+3.1, one all
            three): proves that versions are chosen per client. Output is read by `connect-multi`.
-  cleanup-multi  (inside the panel container)    python awg-remote-check.py cleanup-multi <client_id,client_id,…> <panel-host>
+  cleanup-multi  (external lab controller) python awg-remote-check.py cleanup-multi <client_id,client_id,…> <panel-host>
   connect-multi  (on the client host, root, AWG_REMOTE=1) python awg-remote-check.py connect-multi <repo> <multi.json> <amneziawg-go>
            brings ALL tunnels of ALL clients up at the same time and checks each one.
-  overview (inside the panel container)          python awg-remote-check.py overview <panel-host>
+  overview (external lab controller) python awg-remote-check.py overview <panel-host>
            prints what the panel's AmneziaWG screen shows (versions, ports, peers), no secrets.
   connect  (on the client host, root, AWG_REMOTE=1) python awg-remote-check.py connect <repo> <issue.json> <amneziawg-go>
            brings up a real amneziawg-go client per version in a network namespace over the real
@@ -48,9 +48,10 @@ def panel_session(panel_host):
     import httpx
 
     password = secrets.token_urlsafe(24)
-    sh("/usr/local/bin/panel", "cli", "create-admin", "--username", "awgremote", "--role", "owner",
+    sh("docker", "exec", "-i", os.environ.get("PANEL_CONTAINER", "proxy-control-panel"),
+       "/usr/local/bin/panel", "cli", "create-admin", "--username", "awgremote", "--role", "owner",
        "--password-stdin", input=password + "\n", check=True)
-    http = httpx.Client(base_url="http://127.0.0.1:8787", headers={"Host": panel_host}, timeout=60)
+    http = httpx.Client(base_url=os.environ.get("PANEL_BASE_URL", "http://127.0.0.1:8787"), headers={"Host": panel_host}, timeout=60)
     csrf = http.get("/login").cookies["panel_csrf"]
     login = http.post("/api/auth/login", json={"username": "awgremote", "password": password},
                       headers={"X-CSRF-Token": csrf, "Cookie": f"panel_csrf={csrf}"})
@@ -63,14 +64,16 @@ def panel_session(panel_host):
     return http, {"X-CSRF-Token": csrf}
 
 
-def drop_admin():
-    from panel.settings import Settings
-    from panel.store import Store
-
-    store = Store(Settings().database_path)
-    for admin in store.admins():
+def drop_admin(http):
+    headers = {"X-CSRF-Token": http.headers["Cookie"].split("panel_csrf=", 1)[1].split(";", 1)[0]}
+    response = http.get("/api/admins")
+    response.raise_for_status()
+    for admin in response.json()["items"]:
         if admin["username"] == "awgremote":
-            store.delete_admin(admin["id"])
+            deleted = http.delete(f"/api/admins/{admin['id']}", headers=headers)
+            if deleted.status_code != 204:
+                raise RuntimeError(f"temporary admin cleanup failed: HTTP {deleted.status_code}")
+    http.close()
 
 
 def issue(node_id, panel_host):
@@ -98,7 +101,7 @@ def issue(node_id, panel_host):
                                       "port": grant["options"]["port"]}
         print(json.dumps(out))
     finally:
-        drop_admin()
+        drop_admin(http)
 
 
 def cleanup(client_id, panel_host):
@@ -109,7 +112,7 @@ def cleanup(client_id, panel_host):
         http.post(f"/api/clients/{client_id}/state", json={"state": "archived"}, headers=headers)
         print("cleaned", client_id)
     finally:
-        drop_admin()
+        drop_admin(http)
 
 
 def connect(repo, issue_json, binary):
@@ -216,7 +219,7 @@ def multi_issue(node_id, panel_host):
                                                           "port": grant["options"]["port"]}
         print(json.dumps(out))
     finally:
-        drop_admin()
+        drop_admin(http)
 
 
 def cleanup_multi(client_ids, panel_host):
@@ -228,7 +231,7 @@ def cleanup_multi(client_ids, panel_host):
             http.post(f"/api/clients/{client_id}/state", json={"state": "archived"}, headers=headers)
         print("cleaned", client_ids)
     finally:
-        drop_admin()
+        drop_admin(http)
 
 
 def connect_multi(repo, multi_json, binary):
@@ -313,7 +316,7 @@ def overview(panel_host):
                           "versions": [(v["version"], v["port"], v["running"], v["peers"]) for v in data.get("versions", [])],
                           "peers": len(data.get("peers", [])), "pending": len(data.get("pending", []))}))
     finally:
-        drop_admin()
+        drop_admin(http)
 
 
 if __name__ == "__main__":

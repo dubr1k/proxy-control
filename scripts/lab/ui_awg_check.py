@@ -1,163 +1,150 @@
-"""Real-browser check of the AmneziaWG screens: the version columns of the placement matrix and the
-access window with the config, its QR and the download. Lab helper (headless Chrome, memory manager).
+"""AWG browser smoke against an isolated native test-hooks panel and Chromium.
 
-  python scripts/lab/ui_awg_check.py [repo]
+Run with the external lab venv on ams-test, setting PANEL_RUST_BIN if needed:
+  python scripts/lab/ui_awg_check.py
+
+Manager doubles are test-owned HTTP fixtures. No installed panel is contacted.
+Only booleans/counts are returned from secret-bearing browser expressions; no
+screenshots, DOM/accessibility dumps, configs or exception payloads are emitted.
 """
-# ruff: noqa: E401, E701, E702
-import base64, json, subprocess, sys, tempfile, threading, time, urllib.request
-sys.path.insert(0, sys.argv[1] if len(sys.argv) > 1 else ".")
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
 from pathlib import Path
-import httpx, uvicorn
-from panel.amneziawg import MemoryAmneziawg
-from panel.app import Settings, create_app
-from panel.keyring import Keyring
-from panel.naive import MemoryNaive
-from panel.mieru import MemoryMieru
-from panel.telemt import MemoryTelemt
-from panel.versions import VersionClient
-from panel.tests.test_mobile_layout import DevTools
+import socket
+import sys
+import tempfile
+import time
 
-tmp = Path(tempfile.mkdtemp())
-key = tmp / "key"; Keyring.generate().save(key)
-settings = Settings(database_path=tmp / "p.sqlite3", master_key_file=key, session_cookie_secure=False,
-                    allowed_hosts=("127.0.0.1", "127.0.0.1:18787"), naive_public_host="naive.example.com",
-                    naive_enabled=True, mieru_enabled=True, amneziawg_enabled=True, amneziawg_public_host="vpn.example.com",
-                    version_agent_socket=str(tmp / "none.sock"))
-app = create_app(settings, telemt=MemoryTelemt(public_host="x.example"), naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(),
-                 version_client=VersionClient(str(tmp / "none.sock")))
-app.state.store.create_admin("owner", "correct horse battery staple", "owner")
-server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=18787, log_level="warning"))
-threading.Thread(target=server.run, daemon=True).start()
-time.sleep(2)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.lab.ui_protocol_dialog_check import (  # noqa: E402
+    ProtocolFixture, isolated_browser, make_panel, require,
+)
 
-base = "http://127.0.0.1:18787"
-http = httpx.Client(base_url=base)
-page = http.get("/login"); csrf = http.cookies["panel_csrf"]
-r = http.post("/api/auth/login", json={"username": "owner", "password": "correct horse battery staple"}, headers={"X-CSRF-Token": csrf})
-assert r.status_code in (200, 204), (r.status_code, r.text[:200])
-csrf = http.cookies["panel_csrf"]; h = {"X-CSRF-Token": csrf}
-cid = http.post("/api/clients", json={"display_name": "samsung"}, headers=h).json()["id"]
 
-profile = tmp / "chrome"
-proc = subprocess.Popen(["google-chrome", "--headless", "--no-sandbox", "--disable-gpu", "--remote-allow-origins=*",
-                         "--remote-debugging-port=0", f"--user-data-dir={profile}", "about:blank"],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-try:
-    port = None
-    for _ in range(600):
-        try:
-            lines = (profile / "DevToolsActivePort").read_text().splitlines()
-            if len(lines) >= 2: port = int(lines[0]); break
-        except Exception: pass
+class AwgFixture(ProtocolFixture):
+    async def _start(self, work, port):
+        self.central = make_panel(work, "central", ("1.5", "2.0", "3.1"), port)
+        self.panels.append(self.central)
+
+
+def check_awg(browser, fixture):
+    cid = fixture.api("/api/clients", "POST", {"display_name": "samsung", "subscription": False})["id"]
+    js, wait, click = browser.js, browser.wait, browser.click
+    browser.dt.call("Emulation.setDeviceMetricsOverride", {
+        "width": 1280, "height": 900, "deviceScaleFactor": 1, "mobile": False,
+    })
+    browser.dt.call("Page.navigate", {"url": fixture.base + "/#clients"})
+    card = f'[data-client-id="{cid}"] [data-client-action="placement"]'
+    wait(f"!!document.querySelector({json.dumps(card)})", "client placement action")
+    click(card)
+    wait("document.querySelectorAll('#placement-body input[data-node=local][data-protocol^=\"amneziawg:\"]').length === 3", "three AWG version cells")
+    require(js("[...document.querySelectorAll('#placement-body input[data-node=local][data-protocol^=\"amneziawg:\"]')].every(e => !e.disabled)"), "served versions selectable")
+    if js("!document.querySelector('#placement-username-row').hidden"):
+        browser.set_value("#placement-username", "samsung")
+    click('#placement-body input[data-node=local][data-protocol="amneziawg:1.5"]')
+    click('#placement-body input[data-node=local][data-protocol="amneziawg:3.1"]')
+    # Never capture any frame after the first issuance, including on failures.
+    browser.can_capture = False
+    click("#placement-actions button[data-placement-action=apply]")
+    wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "placement bundle")
+    grants = fixture.api(f"/api/clients/{cid}")["grants"]
+    awg = {g["options"]["version"]: g for g in grants if g["protocol"] == "amneziawg"}
+    require(set(awg) == {"1.5", "3.1"}, "only selected AWG versions issued")
+    require(all(g["observed_state"] == "enabled" and g["runtime_username"] == "samsung-awg" + v.replace(".", "") for v, g in awg.items()), "issued grants match placement")
+    require(js("document.querySelectorAll('#bundle-body img.link-qr').length === 2 && [...document.querySelectorAll('#bundle-body textarea.awg-conf')].every(e => e.value.startsWith('[Interface]\\nPrivateKey = ') && e.value.includes('\\n[Peer]\\n'))"), "bundle configs and QR present")
+    wait("document.querySelectorAll('#bundle-body img.link-qr').length === 2 && [...document.querySelectorAll('#bundle-body img.link-qr')].every(e => e.complete && e.naturalWidth > 0)", "bundle QR images decoded")
+    require(js("""(() => {
+        const configs = [...document.querySelectorAll('#bundle-body textarea.awg-conf')].map(t => t.value);
+        return ['samsung-awg15.conf', 'samsung-awg31.conf'].every(name => {
+            const link = [...document.querySelectorAll('#bundle-body a[download]')].find(a => a.download === name);
+            return !!link && configs.includes(decodeURIComponent(link.href.slice(link.href.indexOf(',') + 1)));
+        });
+    })()"""), "bundle config downloads match displayed configs")
+    js("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
+    browser.dt.call("Page.navigate", {"url": fixture.base + "/?grant=awg#clients"})
+    grant_selector = f'[data-grant-open="{awg["3.1"]["id"]}"]'
+    wait(f"!!document.querySelector({json.dumps(grant_selector)})", "issued grant row")
+    click(grant_selector)
+    wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "grant window")
+    require(js("(() => { const facts = document.querySelector('#grant-facts').textContent; return facts.includes('AmneziaWG 3.1') && facts.includes('10.66.31.') && facts.includes('51822/udp') && !document.querySelector('[data-grant-action=label]'); })()"), "AWG grant facts and actions")
+    click("[data-grant-action=show]")
+    wait("!!document.querySelector('#grant-link-body textarea.awg-conf')", "grant config reveal")
+    require(js("(() => { const text = document.querySelector('#grant-link-body textarea.awg-conf').value; const link = document.querySelector('#grant-link-body a[download=\"samsung-awg31.conf\"]'); window.__awgBeforeRotation = text; return text.startsWith('[Interface]\\nPrivateKey = ') && text.includes('Endpoint = awg.central.example:51822') && text.includes('HeaderProtectionKey') && !!document.querySelector('#grant-link-body img.link-qr') && !!link && decodeURIComponent(link.href.split(',').slice(1).join(',')) === text; })()"), "AWG 3.1 config, QR and downloadable content")
+    wait("document.querySelector('#grant-link-body img.link-qr')?.complete && document.querySelector('#grant-link-body img.link-qr')?.naturalWidth > 0", "grant QR image decoded")
+    downloads = fixture.central.workdir / "downloads"
+    downloads.mkdir()
+    browser.dt.call("Browser.setDownloadBehavior", {"behavior": "allow", "downloadPath": str(downloads)})
+    click('#grant-link-body a[download="samsung-awg31.conf"]')
+    downloaded = downloads / "samsung-awg31.conf"
+    deadline = time.monotonic() + 20
+    while not downloaded.is_file() and time.monotonic() < deadline:
         time.sleep(0.1)
-    targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list"))
-    dt = DevTools(next(t["webSocketDebuggerUrl"] for t in targets if t["type"] == "page"))
-    dt.call("Emulation.setDeviceMetricsOverride", {"width": 1280, "height": 900, "deviceScaleFactor": 1, "mobile": False})
-    dt.call("Network.enable")
-    for name in ("panel_session", "panel_csrf"):
-        if name in http.cookies:
-            dt.call("Network.setCookie", {"name": name, "value": http.cookies[name], "url": base})
-    errors = []
-    def ev(expr):
-        r = dt.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True})
-        if "exceptionDetails" in r: errors.append(str(r["exceptionDetails"])[:300])
-        return r["result"].get("value")
-    def shot(name):
-        img = dt.call("Page.captureScreenshot", {"format": "png"})
-        Path(f"/root/ui-awg-{name}.png").write_bytes(base64.b64decode(img["data"]))
-    def wait(expr, label, timeout=20):
-        end = time.time() + timeout
-        while time.time() < end:
-            if ev(expr): return
-            time.sleep(0.2)
-        shot("timeout-" + label); raise SystemExit(f"TIMEOUT waiting for {label}")
+    require(downloaded.is_file(), "Chromium config download completed")
+    digest = hashlib.sha256(downloaded.read_bytes()).hexdigest()
+    require(js(f"""(async () => {{
+        const bytes = new TextEncoder().encode(document.querySelector('#grant-link-body textarea.awg-conf').value);
+        const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+          .map(v => v.toString(16).padStart(2, '0')).join('');
+        return digest === {json.dumps(digest)};
+    }})()"""), "downloaded file matches displayed config")
+    rotate_path = f"/api/clients/grants/{awg['3.1']['id']}/rotate"
+    js(f"""(() => {{
+        window.__awgRotationStatus = 0;
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {{
+            const response = await originalFetch(...args);
+            const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+            if (new URL(url, location.href).pathname === {json.dumps(rotate_path)})
+                window.__awgRotationStatus = response.status;
+            return response;
+        }};
+        return true;
+    }})()""")
+    click("[data-grant-action=rotate]")
+    wait("document.querySelector('#confirm')?.open", "rotation confirmation")
+    click("#confirm-ok")
+    wait("window.__awgRotationStatus === 200", "native rotation response")
+    wait("!document.querySelector('#confirm')?.open && !document.querySelector('#grant-link-body textarea.awg-conf') && !!document.querySelector('[data-grant-action=show]')", "rotation cleared old reveal")
+    click("[data-grant-action=show]")
+    wait("!!document.querySelector('#grant-link-body textarea.awg-conf') && document.querySelector('#grant-link-body textarea.awg-conf').value !== window.__awgBeforeRotation", "rotated config differs")
+    js("delete window.__awgBeforeRotation; [...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
+    click('.nav-item[data-view=amneziawg]')
+    wait("document.querySelectorAll('.data-row.naive-grid').length === 2", "AWG screen grants")
+    require(js("['51820/udp', '51821/udp', '51822/udp'].every(port => [...document.querySelectorAll('.awg-overview article strong')].some(e => e.textContent.trim() === port))"), "AWG screen version ports")
+    click("[data-awg-action=open]")
+    wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "grant window from AWG screen")
+    js("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
+    click("#add")
+    wait("document.querySelector('#awg-modal')?.open", "AWG creation dialog")
+    browser.set_value("#new-awg-user", "screen-made")
+    js("document.querySelectorAll('[data-awg-version]').forEach(e => { e.checked = ['2.0', '3.1'].includes(e.dataset.awgVersion); e.dispatchEvent(new Event('input', {bubbles:true})); }); true")
+    wait("!document.querySelector('#create-awg').disabled", "AWG creation enabled")
+    click("#create-awg")
+    wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "screen creation bundle")
+    require(js("['screen-made-awg20.conf', 'screen-made-awg31.conf'].every(name => !!document.querySelector('#bundle-body a[download=\"' + name + '\"]'))"), "screen-selected versions downloaded")
+    js("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
+    wait("['screen-made-awg20', 'screen-made-awg31'].every(name => [...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === name))", "screen-created grant rows")
+    browser.healthy()
 
-    dt.call("Page.navigate", {"url": base + "/#clients"})
-    wait("!!document.querySelector('[data-client-id] [data-client-action=placement]')", "client-card")
-    ev("document.querySelector('[data-client-id] [data-client-action=placement]').click()")
-    wait("!!document.querySelector('#placement-body input[data-protocol]')", "placement-matrix")
-    heads = ev("[...document.querySelectorAll('#placement-body thead th')].map(t=>t.textContent.trim())")
-    assert heads[1:] == ["MTProxy", "NaiveProxy", "Mieru", "AmneziaWG 1.5", "AmneziaWG 2.0", "AmneziaWG 3.1"], heads
-    shot("matrix")
-    if ev("!document.querySelector('#placement-username-row').hidden"):
-        ev("document.querySelector('#placement-username').value='samsung'")
-    ev("document.querySelector('#placement-body input[data-protocol=\"amneziawg:1.5\"]').click()")
-    ev("document.querySelector('#placement-body input[data-protocol=\"amneziawg:3.1\"]').click()")
-    ev("document.querySelector('#placement-actions button[data-placement-action=apply]').click()")
-    end = time.time() + 20
-    while time.time() < end:
-        grants = http.get(f"/api/clients/{cid}").json()["grants"]
-        if len([g for g in grants if g["protocol"] == "amneziawg"]) == 2: break
-        time.sleep(0.3)
-    awg = {g["options"]["version"]: g for g in http.get(f"/api/clients/{cid}").json()["grants"] if g["protocol"] == "amneziawg"}
-    assert sorted(awg) == ["1.5", "3.1"], awg
-    assert awg["1.5"]["runtime_username"] == "samsung-awg15" and awg["3.1"]["runtime_username"] == "samsung-awg31"
-    assert awg["3.1"]["options"]["port"] == 51822 and awg["3.1"]["observed_state"] == "enabled"
-    # the issued-links dialog shows each config as a text area with its QR and a download
-    wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "bundle-dialog")
-    titles = ev("[...document.querySelectorAll('#bundle-body h3')].map(e=>e.textContent.trim())")
-    assert titles == ["AmneziaWG · samsung-awg15", "AmneziaWG · samsung-awg31"], titles
-    assert ev("document.querySelectorAll('#bundle-body img.link-qr').length") == 2
-    assert ev("[...document.querySelectorAll('#bundle-body a[download]')].map(a=>a.download).sort().join()") == "samsung-awg15.conf,samsung-awg31.conf"
-    assert ev("document.querySelector('#bundle-body textarea.awg-conf').value.split('\\n').length") > 10
-    shot("bundle")
-    ev("document.querySelector('#bundle-modal').close()")
-    time.sleep(0.3)
-    assert "AmneziaWG выдаётся файлом" in ev("document.querySelector('#subscription-unavailable').textContent"), "wrong subscription hint"
-    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
-    time.sleep(0.3)
-    dt.call("Page.navigate", {"url": base + "/#clients"})
-    wait("!!document.querySelector('[data-grant-open]')", "grant-rows")
-    rows = ev("[...document.querySelectorAll('.grant-proto')].map(e=>e.textContent.trim())")
-    assert "AmneziaWG 1.5" in rows and "AmneziaWG 3.1" in rows, rows
-    ev("[...document.querySelectorAll('[data-grant-open]')].find(b=>b.textContent.includes('AmneziaWG 3.1')).click()")
-    wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "grant-window")
-    facts = ev("document.querySelector('#grant-facts').textContent")
-    assert "AmneziaWG 3.1" in facts and "10.66.31." in facts and "51822/udp" in facts and "Название в подписке" not in facts, facts
-    assert ev("!document.querySelector('[data-grant-action=label]')") is True
-    shot("grant-window")
-    ev("document.querySelector('[data-grant-action=show]').click()")
-    wait("!!document.querySelector('#grant-link-body textarea.awg-conf')", "config-shown")
-    text = ev("document.querySelector('#grant-link-body textarea.awg-conf').value")
-    assert text.startswith("[Interface]\nPrivateKey = ") and "Endpoint = vpn.example.com:51822" in text and "HeaderProtectionKey" in text, text[:200]
-    assert ev("!!document.querySelector('#grant-link-body img.link-qr')") is True
-    href = ev("[...document.querySelectorAll('#grant-link-body a')].find(a=>a.textContent.includes('.conf')).href")
-    assert href.startswith("data:text/plain;charset=utf-8,%5BInterface%5D"), href[:60]
-    assert ev("[...document.querySelectorAll('#grant-link-body a')].find(a=>a.textContent.includes('.conf')).download") == "samsung-awg31.conf"
-    shot("config")
-    # rotate asks the AmneziaWG-specific question
-    ev("document.querySelector('[data-grant-action=rotate]').click()")
-    wait("[...document.querySelectorAll('dialog[open]')].some(d => d.textContent.includes('Ротировать ключи?'))", "rotate-confirm")
-    shot("rotate-confirm")
-    # the AmneziaWG screen of its own
-    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
-    assert ev("!document.querySelector('.nav-item[data-view=amneziawg]').hidden") is True, "the nav item is hidden"
-    ev("document.querySelector('.nav-item[data-view=amneziawg]').click()")
-    wait("document.querySelectorAll('.awg-overview article').length >= 4 && document.querySelectorAll('.data-row.naive-grid').length >= 2", "amneziawg-screen")
-    cards = ev("[...document.querySelectorAll('.awg-overview article small:first-child')].map(e=>e.textContent.trim())")
-    assert any("AmneziaWG 1.5" in c for c in cards) and any("AmneziaWG 3.1" in c for c in cards), cards
-    ports = ev("[...document.querySelectorAll('.awg-overview article strong')].map(e=>e.textContent.trim())")
-    assert {"51820/udp", "51821/udp", "51822/udp"} <= set(ports), ports
-    names = ev("[...document.querySelectorAll('.data-row .identity b')].map(e=>e.textContent.trim())")
-    assert "samsung-awg15" in names and "samsung-awg31" in names, names
-    assert "samsung" in ev("document.querySelector('.data-row .identity').textContent")
-    shot("screen")
-    ev("document.querySelector('[data-awg-action=open]').click()")
-    wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "access-window-from-screen")
-    shot("screen-open")
-    # issue an access from the screen itself
-    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
-    assert ev("!document.querySelector('#add').hidden") is True, "the add button is hidden on the AmneziaWG screen"
-    ev("document.querySelector('#add').click()")
-    wait("document.querySelector('#awg-modal')?.open", "awg-modal")
-    assert ev("document.querySelector('#awg-modal .icon-button.close').textContent.trim()") == "×", "the close cross is missing"
-    ev("(() => { const i = document.querySelector('#new-awg-user'); i.value = 'screen-made'; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('[data-awg-version=\"3.1\"]').click(); })()")
-    wait("!document.querySelector('#create-awg').disabled", "awg-create-enabled")
-    ev("document.querySelector('#create-awg').click()")
-    wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "awg-bundle-from-screen")
-    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
-    wait("[...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === 'screen-made-awg20') && [...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === 'screen-made-awg31')", "screen-made-rows")
-    shot("screen-issued")
-    print("UI_AWG_OK errors=", errors)
-finally:
-    proc.terminate()
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args()
+    with tempfile.TemporaryDirectory(prefix="awg-browser-") as directory, socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        fixture = AwgFixture(Path(directory), listener)
+        try:
+            fixture.login()
+            with isolated_browser(Path(directory), fixture) as browser:
+                check_awg(browser, fixture)
+        finally:
+            fixture.close()
+    print("UI_AWG_OK placement_versions=3 issued=2 rotation=true screen_created=2 browser_errors=0 captures=0")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from panel.tests.harness.memories.telemt import MemoryTelemt, TelemtIndeterminate
+from panel.tests.harness.memories.telemt import MemoryTelemt
 
 pytestmark = pytest.mark.anyio
 

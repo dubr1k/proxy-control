@@ -22,6 +22,7 @@ import re
 import shutil
 import socket
 import statistics
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -524,10 +525,18 @@ def phase_sse(panel: Panel, base: str) -> None:
 
 
 def panel_db(sql: str) -> list:
-    code = ("import sqlite3,os,json;db=sqlite3.connect('file:'+os.environ.get('PANEL_DATABASE','/data/panel.sqlite3')+'?mode=ro',uri=True);"
-            f"print(json.dumps(db.execute({sql!r}).fetchall()))")
-    out = sh("docker", "exec", "proxy-control-panel", "python", "-c", code)
-    return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else []
+    # SQLite runs in the external controller, never inside the native panel image.
+    inspected = sh("docker", "inspect", "proxy-control-panel", check_rc=True)
+    container = json.loads(inspected.stdout)[0]
+    env = dict(item.split("=", 1) for item in container["Config"]["Env"] if "=" in item)
+    database = Path(env.get("PANEL_DATABASE", "/data/panel.sqlite3"))
+    for mount in sorted(container["Mounts"], key=lambda item: len(item["Destination"]), reverse=True):
+        destination = Path(mount["Destination"])
+        if database.is_relative_to(destination):
+            host_path = Path(mount["Source"]) / database.relative_to(destination)
+            with sqlite3.connect(host_path.as_uri() + "?mode=ro", uri=True) as db:
+                return db.execute(sql).fetchall()
+    raise RuntimeError("panel database is not exposed by a lab Docker mount")
 
 
 def phase_history(panel: Panel, rig: Rig | None, moved: dict, t_start_wall: float, summary_before: dict | None) -> None:

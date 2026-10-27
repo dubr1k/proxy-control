@@ -37,8 +37,8 @@ default; production hosts are refused) and runs one tier there:
 
 | Tier | What it proves | How |
 | --- | --- | --- |
-| `quick <pytest args…>` | ruff + the selected tests | `.venv` on the host |
-| `full` | the required repository gates above, plus image builds, doc links, JS syntax, shellcheck, unit files | same |
+| `quick <pytest args…>` | native prerequisites, ruff + the selected external test files; skips/deselection fail | `.venv` on the host |
+| `full` | native prerequisites, complete external pytest suite, image builds, doc links, JS syntax, shellcheck, unit files | same |
 | `compose` | every supported Compose model renders; native images build | same |
 | `lab-container` | the release archive installs into a fresh Ubuntu 24.04 container (audit → plan → coexistence) | `scripts/lab/docker_lab.py` |
 | `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on the bare host: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | `scripts/lab/guest-runner.sh host` from the extracted archive |
@@ -58,6 +58,39 @@ successful native run and retain the report without exposing credentials or link
 LAB_RESET=1 LAB_KEEP_INSTALL=1 scripts/dev/remote-gate.sh lab-host   # REMOTE_GATE_LAB_HOST_OK
 scripts/dev/remote-gate.sh fleet                                     # FLEET_ACCEPTANCE_OK, REMOTE_GATE_FLEET_OK
 ```
+
+Both `quick` and `full` prepare the test-hooks Rust panel and native installer and
+version-agent using the same Cargo commands and canonical binary locations as CI.
+`PANEL_RUST_BIN`, `PC_INSTALLER_BIN` and `PC_VERSION_AGENT_BIN` may identify already
+built **Linux** binaries on the disposable host; they do not select a Python runtime.
+Quick accepts positional test files, but `-k`/`-m` deselection and any collection or
+runtime skip fail the gate. Python runs only as the external test/lab controller.
+
+Focused native browser and sampler proofs (run on ams-test with its external venv):
+
+```sh
+PANEL_RUST_BIN=/path/to/test-hooks/panel .venv/bin/python scripts/lab/ui_awg_check.py
+PANEL_RUST_BIN=/path/to/test-hooks/panel .venv/bin/python scripts/lab/ui_protocol_dialog_check.py
+PC_VERSION_AGENT_BIN=/path/to/proxy-control-version-agent .venv/bin/python scripts/lab/agent-metrics-check.py --perf 5
+PC_MANAGED_XUI_LIVE=ams-test PC_INSTALLER_BIN=/path/to/proxy-control-installer \
+  bash scripts/lab/managed-xui-acceptance.sh
+```
+
+`ui_awg_check.py` uses fresh SQLite/key/profile files, a native panel process and
+test-owned HTTP managers. It proves browser placement/version selection, config
+and QR delivery, matching downloadable content, grant windows, actual key rotation
+and creation from the AWG screen. It emits only counts/booleans, never screenshots,
+DOM/accessibility dumps or config contents. It is a focused desktop smoke, **not**
+the installed-stack `ui` tier or a visual layout review. The protocol-dialog smoke
+may capture only empty states/unsubmitted dialogs before any issuance.
+
+The sampler proof uses real native-agent HTTP and nft counters in private mount
+and network namespaces. The managed 3x-ui proof is an explicitly destructive native
+integration test (`real_managed_three_xui_native_provision`), not a Python adapter
+import: it stages the pinned upstream bytes and verifies the database, TLS HTTP
+API, effective Xray config and actual inbound listeners. It needs a clean test host
+and Cargo unless `PC_MANAGED_XUI_TEST_BIN` points at its prebuilt test executable.
+An unavailable pinned upstream archive is a blocker, not evidence from a fixture.
 
 `LAB_KEEP_INSTALL=1` leaves the installed node running for the `fleet` tier, but
 reports `uninstall` and `coexistence` as `skipped`. This is **not** a full `lab-host`

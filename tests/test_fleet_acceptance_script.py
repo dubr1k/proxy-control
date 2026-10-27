@@ -33,8 +33,8 @@ REQUIRED = ["--node-url", "https://panel.lab.test", "--node-password-file", "/ro
 def test_defaults_follow_the_brief_and_the_controller_rulings():
     args = fa.parse_args(REQUIRED)
     assert args.central_port == 8791 and args.central_host == "127.0.0.1"
-    # Ruling 3: the interpreter that starts the central and the tree it imports `panel` from.
-    assert args.python == sys.executable
+    # By default the controller copies the native executable from the installed node image.
+    assert args.panel_bin is None
     assert args.source == ROOT
     assert args.node_username == "owner" and args.node_container == "proxy-control-panel"
     assert args.heartbeat_seconds == 3 and args.bulk_grants == 20
@@ -47,11 +47,11 @@ def test_defaults_follow_the_brief_and_the_controller_rulings():
     assert args.client_ca_file is None  # WebPKI unless the lab hands over its own CA
 
 
-def test_interpreter_and_source_are_independent_and_cores_can_be_skipped(tmp_path):
-    args = fa.parse_args(REQUIRED + ["--python", "/root/dev/.venv/bin/python", "--source", str(tmp_path),
+def test_native_binary_and_source_are_independent_and_cores_can_be_skipped(tmp_path):
+    args = fa.parse_args(REQUIRED + ["--panel-bin", str(tmp_path / "bin/panel"), "--source", str(tmp_path),
                                      "--singbox-image", "", "--mihomo-image", "", "--mtproxy-probe", "",
                                      "--cleanup", "--bulk-grants", "5"])
-    assert args.python == "/root/dev/.venv/bin/python" and args.source == tmp_path
+    assert args.panel_bin == (tmp_path / "bin/panel").resolve() and args.source == tmp_path
     assert args.singbox_image == "" and args.mihomo_image == "" and args.mtproxy_probe == ""
     assert args.cleanup is True and args.bulk_grants == 5
     # 4.0: node B's router is the Rust binary built in the same tree, unless named.
@@ -162,7 +162,8 @@ def test_central_environment_points_at_the_source_tree_and_disables_every_runtim
     assert env["PANEL_FLEET_HEARTBEAT_SECONDS"] == "3"
     assert env["PANEL_SUBSCRIPTION_URL"] == "http://127.0.0.1:8791"
     assert env["PANEL_VERSION_FILE"] == str(tmp_path / "VERSION")
-    assert env["PYTHONPATH"] == str(tmp_path)
+    assert env["PANEL_STATIC_DIR"] == str(tmp_path / "panel/static")
+    assert env["PANEL_LISTEN"] == "tcp:127.0.0.1:8791"
     # The central's own runtimes are unreachable on purpose: it manages the node's.
     assert env["TELEMT_API_URL"].startswith("http://127.0.0.1:")
 
