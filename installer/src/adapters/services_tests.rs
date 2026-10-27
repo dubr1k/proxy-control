@@ -219,11 +219,16 @@ fn repair_preserves_operator_values_and_deduplicates_env() {
             (k.into(), v.into())
         })
         .collect();
-    let text = agent.env_text(&selected,"PROXY_CONTROL_UPSTREAM_CHECK=off\r\nPROXY_CONTROL_VERSION_HEALTH_TIMEOUT=420\nPROXY_CONTROL_EXTRA=kept\nPROXY_CONTROL_EXTRA=bad\nPROXY_CONTROL_COMPOSE_FILES=bad\n").unwrap();
+    let text = agent.env_text(&selected,"PROXY_CONTROL_UPSTREAM_CHECK=off\r\nPROXY_CONTROL_VERSION_HEALTH_TIMEOUT=420\nPROXY_CONTROL_EXTRA=kept\nPROXY_CONTROL_EXTRA=bad\nPROXY_CONTROL_COMPOSE_FILES=bad\nPROXY_CONTROL_COMPOSE_DIR=bad\nPROXY_CONTROL_VERSION_SOCKET=bad\nPROXY_CONTROL_VERSION_SOCKET_GID=bad\nPROXY_CONTROL_VERSION_CATALOG=/etc/proxy-control/operator-versions.json\nPROXY_CONTROL_VERSION_STATE=/var/lib/proxy-control/version-agent/operator/state.json\n").unwrap();
     for line in [
         "PROXY_CONTROL_UPSTREAM_CHECK=off\n",
         "PROXY_CONTROL_VERSION_HEALTH_TIMEOUT=420\n",
         "PROXY_CONTROL_EXTRA=kept\n",
+        "PROXY_CONTROL_COMPOSE_DIR=/opt/mtproxy-shared443\n",
+        "PROXY_CONTROL_VERSION_SOCKET=/run/proxy-control/version-agent.sock\n",
+        "PROXY_CONTROL_VERSION_SOCKET_GID=10001\n",
+        "PROXY_CONTROL_VERSION_CATALOG=/etc/proxy-control/operator-versions.json\n",
+        "PROXY_CONTROL_VERSION_STATE=/var/lib/proxy-control/version-agent/operator/state.json\n",
     ] {
         assert!(text.contains(line));
     }
@@ -260,6 +265,37 @@ fn agent_engine_fresh_repair_and_uninstall_own_the_complete_tree() {
     assert_eq!(engine.uninstall(false).unwrap().status, Status::Uninstalled);
     assert!(dir.path().join("var/lib/proxy-control/version-agent/state.json").exists());
     assert!(!dir.path().join("opt/proxy-control/version_agent").exists());
+}
+#[test]
+fn agent_verify_reads_selected_state_and_still_rejects_version_drift() {
+    let dir = TempDir::new("s");
+    let agent = VersionAgentAdapter::new(&context(dir.path(), agent_runner(dir.path())));
+    let action = agent.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+    agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
+    let _socket = socket(dir.path());
+    let mut state: Value = serde_json::from_slice(
+        &fs::read(dir.path().join("var/lib/proxy-control/version-agent/state.json")).unwrap(),
+    ).unwrap();
+    state["components"]["telemt"]["version"] = json!("operator-current");
+    let selected_state = "/var/lib/proxy-control/version-agent/operator state.json";
+    put(dir.path(), selected_state, &state.to_string());
+    put(dir.path(), "/etc/proxy-control/version-agent.env", &format!(
+        "PROXY_CONTROL_VERSION_STATE=\"{selected_state}\"\nPROXY_CONTROL_COMPOSE_FILES=compose.yaml\nPROXY_CONTROL_XRAY_ROUTER=off\n",
+    ));
+    let components: Map<_, _> = state["components"].as_object().unwrap().iter()
+        .map(|(name, value)| (name.clone(), json!({"current":value["version"]}))).collect();
+    let response = json!({"enabled":true,"components":components}).to_string();
+    let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+        if call.argv.last().is_some_and(|arg| arg.ends_with("/v1/versions")) {
+            return Some(Reply::ok(&response));
+        }
+        health_reply(call)
+    }));
+    let agent = VersionAgentAdapter::new(&context(dir.path(), runner));
+    assert!(agent.verify(&action).unwrap().success);
+    state["components"]["telemt"]["version"] = json!("unrecorded-running-version");
+    put(dir.path(), selected_state, &state.to_string());
+    assert!(agent.verify(&action).unwrap_err().message().contains("state does not record"));
 }
 #[test]
 fn repair_migrates_pre40_python_checkpoint_and_removes_stale_python() {
@@ -972,10 +1008,11 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
         let child = Command::new("/bin/bash")
             .args([
                 "-c",
-                "until test -f \"$PROXY_CONTROL_VERSION_STATE\"; do sleep 0.05; done; exec \"$1\"",
+                "until test -f \"$PROXY_CONTROL_VERSION_STATE\"; do sleep 0.05; done; set -a; source \"$2/etc/proxy-control/version-agent.env\"; set +a; export PROXY_CONTROL_COMPOSE_DIR=\"$2/opt/mtproxy-shared443\" PROXY_CONTROL_VERSION_SOCKET=\"$2/run/proxy-control/version-agent.sock\" PROXY_CONTROL_VERSION_CATALOG=\"$2$PROXY_CONTROL_VERSION_CATALOG\" PROXY_CONTROL_VERSION_STATE=\"$2$PROXY_CONTROL_VERSION_STATE\" PROXY_CONTROL_UPSTREAM_CHECK=off PROXY_CONTROL_UPSTREAM_CHECK_INTERVAL=0; exec \"$1\"",
                 "agent-start",
             ])
             .arg(binary)
+            .arg(root)
             .env("PROXY_CONTROL_COMPOSE_DIR", root.join("opt/mtproxy-shared443"))
             .env("PROXY_CONTROL_COMPOSE_FILES", "compose.yaml")
             .env("PROXY_CONTROL_VERSION_SOCKET", root.join("run/proxy-control/version-agent.sock"))
@@ -1021,12 +1058,80 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(50));
     }
+    // Both paths are inside the shipped unit's existing ReadWritePaths. Distinct
+    // defaults expose a silent switch even when both agent generations are healthy.
+    let default_state = root.join("var/lib/proxy-control/version-agent/state.json");
+    let mut state: Value = serde_json::from_slice(&fs::read(&default_state).unwrap()).unwrap();
+    state["components"]["telemt"]["version"] = json!("operator-current");
+    put(root, "var/lib/proxy-control/version-agent/operator/state.json", &state.to_string());
+    state["components"]["telemt"]["version"] = json!("default-current");
+    fs::write(&default_state, state.to_string()).unwrap();
+    for (path, version) in [
+        ("etc/proxy-control/operator-versions.json", "operator-approved"),
+        ("etc/proxy-control/versions.json", "default-approved"),
+    ] {
+        put(root, path, &json!({"schema":1,"components":{"telemt":[{
+            "version":version,"kind":"image","image":format!("example/telemt@sha256:{}", "a".repeat(64))
+        }]}}).to_string());
+    }
     put(
         root,
         "etc/proxy-control/version-agent.env",
-        "PROXY_CONTROL_UPSTREAM_CHECK=off\nPROXY_CONTROL_VERSION_HEALTH_TIMEOUT=321\n",
+        &format!("PROXY_CONTROL_UPSTREAM_CHECK=off\nPROXY_CONTROL_VERSION_HEALTH_TIMEOUT=321\nPROXY_CONTROL_COMPOSE_DIR={}/opt/mtproxy-shared443\nPROXY_CONTROL_COMPOSE_FILES=compose.yaml\nPROXY_CONTROL_VERSION_CATALOG=/etc/proxy-control/operator-versions.json\nPROXY_CONTROL_VERSION_STATE=/var/lib/proxy-control/version-agent/operator/state.json\n",root.display()),
     );
-    assert_eq!(engine.repair().unwrap().status, Status::Active);
+    daemon.0.kill().unwrap();
+    daemon.0.wait().unwrap();
+    daemon = start(&installed);
+    let versions = || {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let out = Command::new("/usr/bin/curl")
+                .args(["--fail", "--silent", "--unix-socket"])
+                .arg(root.join("run/proxy-control/version-agent.sock"))
+                .arg("http://version-agent/v1/versions")
+                .output()
+                .unwrap();
+            if out.status.success() {
+                return serde_json::from_slice::<Value>(&out.stdout).unwrap();
+            }
+            assert!(Instant::now() < deadline, "installed agent did not return after restart");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    let assert_operator_files = |value: Value| {
+        assert_eq!(value["components"]["telemt"]["current"], "operator-current");
+        assert_eq!(value["components"]["telemt"]["available"][0]["version"], "operator-approved");
+    };
+    assert_operator_files(versions());
+    // Exercise update-host's actual final whole-engine repair, not only env rendering.
+    // The panel already has this release; Docker is the external boundary, while
+    // migrate-agent, health, persisted journal and the installed daemon are real.
+    put(root, "commands/docker", &format!(
+        "#!/bin/sh\ncase \"$*\" in\n'inspect --format {{{{index .Config.Labels \"com.docker.compose.project\"}}}} proxy-control-panel') echo proxy_panel_by_dubr1k;;\n'exec proxy-control-panel cat /app/VERSION') echo {};;\nesac\n",
+        include_str!("../../../VERSION").trim()
+    ));
+    fs::set_permissions(shim.join("docker"), fs::Permissions::from_mode(0o755)).unwrap();
+    let output = Command::new(&release_installer)
+        .arg("--root").arg(root).arg("--source").arg(&tree)
+        .args(["update-host", "--version", include_str!("../../../VERSION").trim(), "--sha256", &"a".repeat(64)])
+        .output().unwrap();
+    assert!(output.status.success(), "update-host: {}", String::from_utf8_lossy(&output.stderr));
+    daemon.0.kill().unwrap();
+    daemon.0.wait().unwrap();
+    daemon = start(&installed);
+    assert_operator_files(versions());
+    // A subsequent operator edit may use systemd quoting without changing the files.
+    let env_path = root.join("etc/proxy-control/version-agent.env");
+    let quoted = fs::read_to_string(&env_path).unwrap()
+        .replace(
+            "PROXY_CONTROL_VERSION_CATALOG=/etc/proxy-control/operator-versions.json",
+            "PROXY_CONTROL_VERSION_CATALOG=\"/etc/proxy-control/operator-versions.json\"",
+        )
+        .replace(
+            "PROXY_CONTROL_VERSION_STATE=/var/lib/proxy-control/version-agent/operator/state.json",
+            "PROXY_CONTROL_VERSION_STATE='/var/lib/proxy-control/version-agent/operator/state.json'",
+        );
+    fs::write(env_path, quoted).unwrap();
     let mut interrupted = engine.store().read_state().unwrap();
     interrupted.status = Status::Applying;
     interrupted.checkpoints[0].phase = Phase::Applying;
@@ -1043,7 +1148,16 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
     assert!(fs::read_to_string(root.join("etc/proxy-control/version-agent.env"))
         .unwrap()
         .contains("PROXY_CONTROL_VERSION_HEALTH_TIMEOUT=321\n"));
+    daemon.0.kill().unwrap();
+    daemon.0.wait().unwrap();
+    daemon = start(&installed);
+    assert_operator_files(versions());
     drop(daemon);
     assert_eq!(engine.uninstall(false).unwrap().status, Status::Uninstalled);
-    println!("WP5b isolated smoke: fresh engine install; installed Rust daemon health; repair; new CLI resume/repair/status; uninstall preserve-data: PASS");
+    assert!(root.join("etc/proxy-control/operator-versions.json").is_file());
+    let preserved: Value = serde_json::from_slice(
+        &fs::read(root.join("var/lib/proxy-control/version-agent/operator/state.json")).unwrap(),
+    ).unwrap();
+    assert_eq!(preserved["components"]["telemt"]["version"], "operator-current");
+    println!("WP5b isolated smoke: fresh install; real installed daemon; update-host whole-engine repair; distinct operator catalog/state survive restart, resume/repair/status; uninstall preserve-data: PASS");
 }
