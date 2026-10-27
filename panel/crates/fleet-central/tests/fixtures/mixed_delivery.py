@@ -12,6 +12,8 @@ imports only the native external harness; the legacy application runs in a child
 with only the verified source as PYTHONPATH and its own interpreter/dependencies.
 The native implementation and its reported version are reported separately: the
 candidate may still carry 3.3.0 until the final release-version cutover.
+The archived central also consumes a non-null unavailable-router identity extension
+from the native node; this is a real 3.3 consumer proof, not a claim about v0.4.
 """
 from __future__ import annotations
 
@@ -118,7 +120,7 @@ async def main():
         await delivery(root / "native-central", central_factory=start_panel, node_factory=start_legacy,
                        central_impl="rust", node_impl="python-3.3")
         await delivery(root / "legacy-central", central_factory=start_legacy, node_factory=start_panel,
-                       central_impl="python-3.3", node_impl="rust")
+                       central_impl="python-3.3", node_impl="rust", extended_router_identity=True)
 
 
 if __name__ == "__main__":
