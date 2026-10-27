@@ -20,8 +20,8 @@ import tempfile
 from panel.tests.harness.memories.mieru import MemoryMieru
 from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.harness.memories.telemt import MemoryTelemt
-from panel.tests.harness.memories.wire import document_digest
 from panel.tests.harness.server import start_panel
+from panel.tests.test_fleet_v2_delivery import digests_match
 
 
 def certificate(directory):
@@ -47,10 +47,10 @@ async def delivery(directory, *, central_factory=start_panel, node_factory=start
     directory.mkdir()
     node = node_factory(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
         naive=MemoryNaive(), mieru=MemoryMieru(), telemt=MemoryTelemt(public_host="runtime.node.example"),
-        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example", vnext_writer="domain")
+        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example")
     central = central_factory(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
         telemt=MemoryTelemt(), naive_enabled=True, mieru_enabled=True,
-        naive_public_host="central.example", vnext_writer="domain")
+        naive_public_host="central.example")
     seen = []
     tls, pin = certificate(directory)
 
@@ -101,14 +101,11 @@ async def delivery(directory, *, central_factory=start_panel, node_factory=start
         await node.settle()
         await central.tick("pusher")
         assert (await request(central.client, "GET", f"/api/operations/{operation['operation_id']}"))["status"] == "succeeded"
+        desired = digests_match(node, central, node_id)
         with central.db() as db:
-            desired = dict(db.execute("SELECT * FROM desired_generations ORDER BY generation DESC LIMIT 1").fetchone())
             states = [row[0] for row in db.execute("SELECT state FROM secret_versions WHERE purpose='grant.credential'")]
-        with node.db() as db:
-            managed = dict(db.execute("SELECT * FROM managed_generations ORDER BY generation DESC LIMIT 1").fetchone())
         assert states == ["active"] * 3
-        digest = document_digest(json.loads(desired["document_json"]))
-        assert desired["digest"] == managed["digest"] == digest
+        digest = desired["digest"]
         links = await request(central.client, "POST", f"/api/clients/{client['id']}/links")
         revealed = await request(central.client, "GET", "/api/reveal/" + links["reveal_token"])
         assert "runtime.node.example" in json.dumps(revealed) and "public.node.example" in json.dumps(revealed)

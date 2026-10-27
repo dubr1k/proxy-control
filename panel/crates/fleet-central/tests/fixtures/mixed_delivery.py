@@ -56,7 +56,8 @@ class LegacyPanel(PanelServer):
         if node_routes:
             raise ValueError("mixed fixture routes nodes through real TLS, not hostname remapping")
         self.socket = os.path.join(self.managers.directory, "panel.sock")
-        self.env = {**self._rust_env({}), "PYTHONPATH": str(self.source), "PYTHONNOUSERSITE": "1"}
+        self.env = {**self._rust_env({}), "PYTHONPATH": str(self.source), "PYTHONNOUSERSITE": "1",
+                    "PANEL_VNEXT_WRITER": "domain"}
         self.log_path = self.workdir / f"{self.name}-python-3.3.log"
         with self.log_path.open("ab") as output:
             self.process = subprocess.Popen(
