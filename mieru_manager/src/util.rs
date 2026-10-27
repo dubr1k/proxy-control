@@ -177,7 +177,7 @@ pub fn now_timestamp() -> f64 {
 /// `int(text, base)` of Python for the octal socket mode: optional sign, `0o` prefix, `_`
 /// between digits.
 pub fn parse_int(text: &str, base: u32) -> Option<i64> {
-    let text = pyjson::strip(text);
+    let text = pc_common::pytext::strip(text);
     let (negative, digits) = match text.as_bytes().first() {
         Some(b'-') => (true, &text[1..]),
         Some(b'+') => (false, &text[1..]),

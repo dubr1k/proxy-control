@@ -130,35 +130,7 @@ pub fn truncate(text: &str, limit: usize) -> &str {
 /// `\r` escaped; other C0 controls, DEL and non-printable characters as `\xhh`, `\uhhhh` or
 /// `\Uhhhhhhhh`.
 pub fn repr(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') { '"' } else { '\'' };
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push(quote);
-    for ch in text.chars() {
-        match ch {
-            _ if ch == quote || ch == '\\' => {
-                out.push('\\');
-                out.push(ch);
-            }
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            _ if (ch as u32) < 0x20 || ch as u32 == 0x7f => {
-                let _ = write!(out, "\\x{:02x}", ch as u32);
-            }
-            _ if (ch as u32) < 0x7f || is_printable_char(ch) => out.push(ch),
-            _ if (ch as u32) <= 0xff => {
-                let _ = write!(out, "\\x{:02x}", ch as u32);
-            }
-            _ if (ch as u32) <= 0xffff => {
-                let _ = write!(out, "\\u{:04x}", ch as u32);
-            }
-            _ => {
-                let _ = write!(out, "\\U{:08x}", ch as u32);
-            }
-        }
-    }
-    out.push(quote);
-    out
+    pc_common::pytext::repr_with_printable(text, is_printable_char)
 }
 
 /// What `int()`/`float()` see first: Unicode whitespace becomes `' '`, decimal digits of any script

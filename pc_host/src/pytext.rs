@@ -1,7 +1,6 @@
 //! Python string forms that leak into messages and bytes: `repr(str)`, `str(Path)`,
 //! `str.title()`, and text-mode subprocess decoding.
 
-use std::fmt::Write as _;
 use std::path::{Component, Path};
 
 /// `repr(text)` for a Python `str`: single quotes unless the text holds a single quote and no
@@ -13,34 +12,7 @@ use std::path::{Component, Path};
 /// `U+205F`–`U+206F`, `U+3000`, `U+FEFF`) and noncharacters `U+FFFE`/`U+FFFF` are escaped; every
 /// other character is kept, as CPython keeps every printable one.
 pub fn py_repr(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') { '"' } else { '\'' };
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push(quote);
-    for ch in text.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if !printable(c) => {
-                let code = c as u32;
-                if code <= 0xff {
-                    let _ = write!(out, "\\x{code:02x}");
-                } else if code <= 0xffff {
-                    let _ = write!(out, "\\u{code:04x}");
-                } else {
-                    let _ = write!(out, "\\U{code:08x}");
-                }
-            }
-            c => out.push(c),
-        }
-    }
-    out.push(quote);
-    out
+    pc_common::pytext::repr_with_printable(text, printable)
 }
 
 fn printable(c: char) -> bool {
@@ -110,28 +82,10 @@ pub fn text_mode(bytes: &[u8]) -> String {
     decoded.replace("\r\n", "\n").replace('\r', "\n")
 }
 
-/// The last `limit` characters of `text` (`text[-limit:]`; empty for `limit == 0`).
-pub fn tail_chars(text: &str, limit: usize) -> &str {
-    if limit == 0 {
-        return "";
-    }
-    match text.char_indices().rev().nth(limit - 1) {
-        Some((index, _)) => &text[index..],
-        None => text,
-    }
-}
-
-/// The first `limit` characters of `text` (`text[:limit]`).
-pub fn head_chars(text: &str, limit: usize) -> &str {
-    match text.char_indices().nth(limit) {
-        Some((index, _)) => &text[..index],
-        None => text,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pc_common::pytext::{head_chars, tail_chars};
 
     #[test]
     fn repr_matches_python() {

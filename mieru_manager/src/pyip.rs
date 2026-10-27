@@ -3,7 +3,6 @@
 
 use serde_json::Value;
 
-use crate::pyjson;
 
 const V4_BITS: u32 = 32;
 const V6_BITS: u32 = 128;
@@ -143,7 +142,7 @@ pub fn is_address(value: &Value) -> bool {
     match value {
         Value::String(text) => address_version(text).is_some(),
         Value::Bool(_) => true,
-        Value::Number(_) => pyjson::int_of(value).is_some_and(|n| n >= 0),
+        Value::Number(_) => pc_common::pyvalue::strict_int(value).is_some_and(|n| n >= 0),
         _ => false,
     }
 }
@@ -153,7 +152,7 @@ pub fn is_network(value: &Value) -> bool {
     match value {
         Value::String(text) => network_str(text).is_some(),
         Value::Bool(_) => true,
-        Value::Number(_) => pyjson::int_of(value).is_some_and(|n| n >= 0),
+        Value::Number(_) => pc_common::pyvalue::strict_int(value).is_some_and(|n| n >= 0),
         _ => false,
     }
 }

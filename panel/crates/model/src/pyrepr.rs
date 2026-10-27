@@ -21,18 +21,6 @@ pub fn str(value: &Value) -> String {
     }
 }
 
-/// `type(value).__name__`.
-pub fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::Number(number) if is_float(number) => "float",
-        Value::Number(_) => "int",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-    }
-}
 
 /// Whether `json.loads` would have made a `float` of this number (it had a fraction or an
 /// exponent); integers beyond `u64` also arrive here as floats (see the crate docs).

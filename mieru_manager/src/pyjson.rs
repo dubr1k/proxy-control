@@ -32,18 +32,6 @@ pub fn canonical(value: &Value) -> String {
     dumps(value, true, None)
 }
 
-/// Python's `bool(value)`.
-pub fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
-    }
-}
-
 /// An integer as Python sees it: `True` is 1, `1.0` equals 1.
 fn as_int(value: &Value) -> Option<i128> {
     match value {
@@ -90,15 +78,6 @@ pub fn eq_int(value: &Value, number: i64) -> bool {
     is_numeric(value) && as_int(value) == Some(i128::from(number))
 }
 
-/// A Python `int` (not a `bool`, not a float), as `isinstance(value, int) and not
-/// isinstance(value, bool)` accepts it.
-pub fn int_of(value: &Value) -> Option<i128> {
-    match value {
-        Value::Number(n) if n.is_i64() || n.is_u64() => as_int(value),
-        _ => None,
-    }
-}
-
 /// Python's `str(value)` for the values a config holds; containers as their `repr`.
 pub fn py_str(value: &Value) -> String {
     match value {
@@ -123,34 +102,14 @@ fn py_repr(value: &Value) -> String {
 }
 
 fn repr_str(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') { '"' } else { '\'' };
-    let mut out = String::from(quote);
-    for ch in text.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => out.push_str(&format!("\\x{:02x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push(quote);
-    out
-}
-
-/// Python's `str.strip()`: Unicode whitespace plus the separators `\x1c`–`\x1f`.
-pub fn strip(text: &str) -> &str {
-    text.trim_matches(|c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c))
+    pc_common::pytext::repr_with_printable(text, |_| true)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pc_common::pytext::strip;
+    use pc_common::pyvalue::{strict_int as int_of, truthy};
     use serde_json::json;
 
     #[test]

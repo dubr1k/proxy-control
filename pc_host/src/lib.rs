@@ -57,7 +57,8 @@
 //!   `AGENT_USER_AGENT`, `MAX_REDIRECTS`, `DEFAULT_TIMEOUT`.
 //! - `url`: `split(url) -> SplitResult { scheme, netloc, path, query, fragment }` with
 //!   `hostname()`, `username()`, `password()`; `join(base, reference)`.
-//! - `pytext`: `py_repr`, `py_path_str`, `py_title`, `text_mode`, `tail_chars`, `head_chars`.
+//! - `pytext`: `py_repr`, `py_path_str`, `py_title`, `text_mode`. Character slicing lives in
+//!   `pc_common::pytext::{tail_chars, head_chars}`.
 //! - `envfile`: `read(path) -> io::Result<BTreeMap<String, String>>` (missing files mean no overrides).
 //! - crate root: `INSTALLER_PATH`, `constant_time_eq`, re-exports `TxError`, `operation_lock`,
 //!   `OperationLock`.

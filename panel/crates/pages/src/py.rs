@@ -7,10 +7,7 @@ use serde_json::{json, Map, Number, Value};
 
 use crate::{Fault, PageResult};
 
-/// `type(value).__name__` for a crash message.
-fn type_name(value: &Value) -> &'static str {
-    panel_model::pyrepr::type_name(value)
-}
+use pc_common::pyvalue::type_name;
 
 /// `value.get(...)` needs a dict: anything else is an `AttributeError`.
 pub fn dict(value: &Value) -> PageResult<&Map<String, Value>> {

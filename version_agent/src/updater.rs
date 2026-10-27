@@ -545,7 +545,7 @@ pub fn rewrite_env_line(path: &Path, key: &str, value: &str) -> Step<Option<Vec<
     let prefix = format!("{key}=");
     let mut replaced = false;
     let mut result: Vec<String> = Vec::new();
-    for line in crate::py::splitlines(&text) {
+    for line in pc_common::pytext::splitlines(&text) {
         if line.starts_with(&prefix) {
             if !replaced {
                 result.push(format!("{key}={value}"));
@@ -581,7 +581,7 @@ fn block_header(line: &str) -> Option<&str> {
     let first = bytes.next()?;
     let ok = (first.is_ascii_lowercase() || first.is_ascii_digit())
         && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
-        && tail.chars().all(crate::py::is_space);
+        && tail.chars().all(pc_common::pytext::is_space);
     ok.then_some(name)
 }
 
@@ -591,7 +591,7 @@ fn block_header(line: &str) -> Option<&str> {
 pub fn override_with(text: &str, service: &str, lines: &[String]) -> String {
     let mut blocks: Vec<(String, Vec<String>)> = Vec::new();
     let mut current: Option<usize> = None;
-    for line in crate::py::splitlines(text) {
+    for line in pc_common::pytext::splitlines(text) {
         if let Some(name) = block_header(line) {
             match blocks.iter().position(|(known, _)| known == name) {
                 Some(index) => {

@@ -24,7 +24,9 @@ use serde_json::{json, Map, Value};
 use crate::errors::{Error, Result};
 use crate::https;
 use crate::pyjson;
-use crate::util::{first_chars, iso_utc, json_int, py_decimal, py_isspace, py_strip, py_truthy, sha256_hex};
+use crate::util::{iso_utc, py_decimal, sha256_hex};
+use pc_common::pytext::{head_chars as first_chars, is_space as py_isspace, strip as py_strip};
+use pc_common::pyvalue::{strict_int as json_int, truthy as py_truthy};
 
 pub const FILES: [&str; 2] = ["geosite", "geoip"];
 pub const SOURCE_KINDS: [&str; 6] = ["xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom"];

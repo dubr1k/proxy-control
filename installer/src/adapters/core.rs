@@ -2189,14 +2189,14 @@ fn redact_assignments(value: &str, keywords: &[&str], word_boundary: bool) -> St
 
 fn sanitize_diagnostic(value: &str, max_chars: usize) -> String {
     let redacted = redact_assignments(value, &["password", "token", "secret", "auth"], false);
-    pc_host::pytext::tail_chars(&redacted, max_chars).replace('\n', " ").trim().to_string()
+    pc_common::pytext::tail_chars(&redacted, max_chars).replace('\n', " ").trim().to_string()
 }
 
 fn sanitize_compose_diagnostic(value: &str, max_chars: usize) -> String {
     let clean = value.split_whitespace().collect::<Vec<_>>().join(" ");
     let bearer = redact_bearer(&clean);
     let redacted = redact_assignments(&bearer, &["password", "secret", "token", "authorization"], true);
-    pc_host::pytext::tail_chars(&redacted, max_chars).to_string()
+    pc_common::pytext::tail_chars(&redacted, max_chars).to_string()
 }
 
 fn redact_bearer(value: &str) -> String {

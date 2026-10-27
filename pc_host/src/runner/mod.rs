@@ -328,12 +328,12 @@ pub fn capture_text(returncode: i32, output: &str, limit: usize) -> String {
         // Python's `output[-0:]` is the whole text.
         return full;
     }
-    crate::pytext::tail_chars(&full, limit).to_string()
+    pc_common::pytext::tail_chars(&full, limit).to_string()
 }
 
 /// `"diagnostic unavailable: <Class>"[:limit]`.
 pub fn capture_unavailable(class_name: &str, limit: usize) -> String {
-    crate::pytext::head_chars(&format!("diagnostic unavailable: {class_name}"), limit).to_string()
+    pc_common::pytext::head_chars(&format!("diagnostic unavailable: {class_name}"), limit).to_string()
 }
 
 static INTERRUPTED: AtomicBool = AtomicBool::new(false);

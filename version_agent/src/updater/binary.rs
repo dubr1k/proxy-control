@@ -105,7 +105,7 @@ fn read_pin(pin: &Path) -> Step<Option<String>> {
     }
     let text = String::from_utf8(fs::read(pin)?)
         .map_err(|_| Failure::other("UnicodeDecodeError", "'utf-8' codec can't decode the runtime pin"))?;
-    Ok(Some(crate::py::strip(&text).to_string()))
+    Ok(Some(pc_common::pytext::strip(&text).to_string()))
 }
 
 /// `_assert_pin`.
@@ -122,8 +122,8 @@ fn slot_units(agent: &VersionAgent, service: &str) -> Step<Vec<String>> {
     let pattern = format!("{service}@*.service");
     let listed = run(agent, &argv(&["systemctl", "list-units", "--plain", "--no-legend", &pattern]), 30)?;
     let mut units = Vec::new();
-    for line in crate::py::splitlines(&listed) {
-        let name = crate::py::split(line).first().copied().unwrap_or("");
+    for line in pc_common::pytext::splitlines(&listed) {
+        let name = pc_common::pytext::split(line).first().copied().unwrap_or("");
         if name.starts_with(&format!("{service}@")) && name.ends_with(".service") {
             units.push(name.trim_end_matches(".service").to_string());
         }
@@ -289,7 +289,7 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
         (dockerfile.to_string_lossy().into_owned(), directory.to_string_lossy().into_owned());
     run(agent, &argv(&["docker", "build", "-f", &dockerfile_arg, "-t", &image, &directory_arg]), 900)?;
     let container = run(agent, &argv(&["docker", "create", "--entrypoint", "/caddy", &image, "version"]), 60)?;
-    let container = crate::py::strip(&container).to_string();
+    let container = pc_common::pytext::strip(&container).to_string();
     let id_ok =
         (12..=64).contains(&container.len()) && container.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
     if !id_ok {
@@ -304,7 +304,7 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
         let payload = fs::read(&extracted)?;
         chmod(&extracted, 0o755)?;
         let output = run(agent, &argv(&[&extracted_arg, "version"]), 30)?;
-        let first = crate::py::splitlines(crate::py::strip(&output)).first().map(|l| crate::py::strip(l).to_string());
+        let first = pc_common::pytext::splitlines(pc_common::pytext::strip(&output)).first().map(|l| pc_common::pytext::strip(l).to_string());
         Ok((payload, first.unwrap_or_default()))
     })();
     let _ = unlink_missing_ok(&extracted);

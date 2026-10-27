@@ -249,7 +249,7 @@ impl App {
     fn authorized(&self, request: &Request<Incoming>) -> bool {
         let header = header_text(request, hyper::header::AUTHORIZATION).unwrap_or_default();
         let (scheme, credential) = header.split_once(' ').unwrap_or((header.as_str(), ""));
-        let presented = crate::py::strip(credential);
+        let presented = pc_common::pytext::strip(credential);
         scheme.to_lowercase() == "bearer"
             && !presented.is_empty()
             && pc_common::constant_time_eq(presented.as_bytes(), &self.token)

@@ -173,10 +173,10 @@ impl From<UpdateError> for AgentError {
 
 /// `str(text).strip().replace("\n", " ")[:300]` and the stderr tail: one link of the failure log.
 fn link(class: &str, message: &str, stderr: Option<&str>) -> String {
-    let text: String = crate::py::strip(message).replace('\n', " ").chars().take(300).collect();
+    let text: String = pc_common::pytext::strip(message).replace('\n', " ").chars().take(300).collect();
     let mut text = format!("{class}: {text}");
     if let Some(stderr) = stderr {
-        let stderr = crate::py::strip(stderr).replace('\n', " ");
+        let stderr = pc_common::pytext::strip(stderr).replace('\n', " ");
         if !stderr.is_empty() {
             let count = stderr.chars().count();
             let tail: String = stderr.chars().skip(count.saturating_sub(400)).collect();

@@ -592,7 +592,7 @@ fn telemt_build_offers_nothing_when_the_registry_is_unreadable() {
     let current = BTreeMap::from([("telemt".to_string(), Some("3.5.9".to_string()))]);
     let result = &check_all(&current, &table, false)["telemt"];
     assert_eq!(result["candidates"], json!([]));
-    assert!(crate::py::truthy(&result["last_error"]));
+    assert!(pc_common::pyvalue::truthy(&result["last_error"]));
 }
 
 #[test]
@@ -602,7 +602,7 @@ fn telemt_build_failure_of_github_keeps_the_registry_candidates() {
     let kinds: Vec<&str> =
         result["candidates"].as_array().unwrap().iter().map(|c| c["kind"].as_str().unwrap()).collect();
     assert_eq!(kinds, ["image"]);
-    assert!(crate::py::truthy(&result["last_error"]));
+    assert!(pc_common::pyvalue::truthy(&result["last_error"]));
 }
 
 #[test]

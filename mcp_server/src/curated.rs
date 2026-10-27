@@ -198,7 +198,7 @@ fn arg_or(arguments: &Map<String, Value>, key: &str, default: Value) -> Value {
 /// `Alice Example` → `alice-example`: what the panel's dialog proposes, within the runtime
 /// username rule `[A-Za-z0-9_.-]{1,64}`.
 pub fn derive_username(display_name: &str) -> String {
-    let lowered = py::strip(display_name).to_lowercase();
+    let lowered = pc_common::pytext::strip(display_name).to_lowercase();
     let mut value = String::new();
     let mut in_run = false;
     for c in lowered.chars() {
@@ -222,7 +222,7 @@ fn strip_qr(payload: &Value) -> Result<Value, PyErr> {
     let generation = field("generation")?;
     let url = field("url")?;
     let variants_value = field("variants")?;
-    let variants_value = if py::truthy(&variants_value) { variants_value } else { json!({}) };
+    let variants_value = if pc_common::pyvalue::truthy(&variants_value) { variants_value } else { json!({}) };
     let mut variants = Map::new();
     for (name, item) in py::items(&variants_value)? {
         if item.is_object() {
@@ -249,10 +249,10 @@ fn metrics_node(entry: &Value) -> Result<Value, PyErr> {
     let net = if net.is_object() { net } else { json!({}) };
     let load = field(&host, "load")?;
     let protocols_value = field(entry, "protocols")?;
-    let protocols_value = if py::truthy(&protocols_value) { protocols_value } else { json!({}) };
+    let protocols_value = if pc_common::pyvalue::truthy(&protocols_value) { protocols_value } else { json!({}) };
     let mut protocols = Map::new();
     for (name, item) in py::items(&protocols_value)? {
-        if item.is_object() && py::truthy(item.get("available").unwrap_or(&Value::Null)) {
+        if item.is_object() && pc_common::pyvalue::truthy(item.get("available").unwrap_or(&Value::Null)) {
             protocols.insert(
                 name,
                 json!({
@@ -263,7 +263,7 @@ fn metrics_node(entry: &Value) -> Result<Value, PyErr> {
             );
         }
     }
-    let or_empty = |value: Value| if py::truthy(&value) { value } else { json!({}) };
+    let or_empty = |value: Value| if pc_common::pyvalue::truthy(&value) { value } else { json!({}) };
     let mut out = Map::new();
     out.insert("node_id".into(), field(entry, "node_id")?);
     out.insert("name".into(), field(entry, "name")?);
@@ -283,7 +283,7 @@ fn metrics_node(entry: &Value) -> Result<Value, PyErr> {
     out.insert("net_tx_bps".into(), field(&net, "tx_bps")?);
     out.insert("protocols".into(), Value::Object(protocols));
     let alerts_value = field(entry, "alerts")?;
-    let alerts_value = if py::truthy(&alerts_value) { alerts_value } else { json!([]) };
+    let alerts_value = if pc_common::pyvalue::truthy(&alerts_value) { alerts_value } else { json!([]) };
     let mut alerts = Vec::new();
     for alert in py::iterate(&alerts_value)? {
         if alert.is_object() {
@@ -307,7 +307,7 @@ async fn metrics_data(panel: &PanelClient) -> Value {
     let reduce = || -> Result<Value, PyErr> {
         let ts = py::get(&live, "ts")?.cloned().unwrap_or(Value::Null);
         let nodes_value = py::get(&live, "nodes")?.cloned().unwrap_or(Value::Null);
-        let nodes_value = if py::truthy(&nodes_value) { nodes_value } else { json!([]) };
+        let nodes_value = if pc_common::pyvalue::truthy(&nodes_value) { nodes_value } else { json!([]) };
         let mut nodes = Vec::new();
         for node in py::iterate(&nodes_value)? {
             if node.is_object() {
@@ -344,9 +344,9 @@ async fn nodes_data(panel: &PanelClient) -> Result<Value, Fail> {
 
 /// `str((options or {}).get("version") or "2.0")`.
 fn awg_version(options: &Value) -> Result<String, PyErr> {
-    let options = if py::truthy(options) { options.clone() } else { json!({}) };
+    let options = if pc_common::pyvalue::truthy(options) { options.clone() } else { json!({}) };
     let version = py::get(&options, "version")?.cloned().unwrap_or(Value::Null);
-    Ok(if py::truthy(&version) { py::str_of(&version) } else { "2.0".into() })
+    Ok(if pc_common::pyvalue::truthy(&version) { py::str_of(&version) } else { "2.0".into() })
 }
 
 /// AmneziaWG versions are different accesses on one node, so the version is part of the key.
@@ -375,7 +375,7 @@ fn key_eq(a: &(Value, Value), b: &(Value, Value)) -> bool {
 fn hashable(key: &(Value, Value)) -> Result<(), PyErr> {
     for part in [&key.0, &key.1] {
         if part.is_array() || part.is_object() {
-            return Err(PyErr::type_error(format!("unhashable type: '{}'", py::type_name(part))));
+            return Err(PyErr::type_error(format!("unhashable type: '{}'", pc_common::pyvalue::type_name(part))));
         }
     }
     Ok(())
@@ -383,7 +383,7 @@ fn hashable(key: &(Value, Value)) -> Result<(), PyErr> {
 
 fn account(item: &Value, username: &str) -> Result<Value, PyErr> {
     let runtime = py::get(item, "runtime_username")?.cloned().unwrap_or(Value::Null);
-    if py::truthy(&runtime) {
+    if pc_common::pyvalue::truthy(&runtime) {
         return Ok(py::getitem(item, "runtime_username")?.clone());
     }
     if py::getitem(item, "protocol")?.as_str() == Some("amneziawg") {
@@ -401,7 +401,7 @@ fn grants_body(placement: &[Value], username: &str) -> Result<Value, PyErr> {
         let node_id = py::get(item, "node_id")?.cloned().unwrap_or_else(|| json!("local"));
         let runtime_username = account(item, username)?;
         let options = py::get(item, "options")?.cloned().unwrap_or(Value::Null);
-        let options = if py::truthy(&options) { options } else { json!({}) };
+        let options = if pc_common::pyvalue::truthy(&options) { options } else { json!({}) };
         grants.push(
             json!({"protocol": protocol, "node_id": node_id, "runtime_username": runtime_username, "options": options}),
         );
@@ -410,12 +410,12 @@ fn grants_body(placement: &[Value], username: &str) -> Result<Value, PyErr> {
 }
 
 async fn create_client(panel: &PanelClient, arguments: &Map<String, Value>) -> Result<ToolResult, Fail> {
-    let display_name = py::strip(&py::str_of(&arg_or(arguments, "display_name", json!("")))).to_string();
+    let display_name = pc_common::pytext::strip(&py::str_of(&arg_or(arguments, "display_name", json!("")))).to_string();
     if display_name.is_empty() {
         return Ok(text_result(&json!({"error": "display_name is required"}), true));
     }
     let placement = arg(arguments, "placement");
-    let placement = if py::truthy(&placement) { py::iterate(&placement)? } else { Vec::new() };
+    let placement = if pc_common::pyvalue::truthy(&placement) { py::iterate(&placement)? } else { Vec::new() };
     let subscription = arg_or(arguments, "subscription", json!(true)) != Value::Bool(false);
     let client = panel
         .post("/api/clients", Some(&json!({"display_name": display_name, "subscription": subscription})), &[])
@@ -433,7 +433,7 @@ async fn create_client(panel: &PanelClient, arguments: &Map<String, Value>) -> R
         result.insert("grants".into(), panel.post(&path, Some(&body), &[]).await?);
     }
     let token = py::get(&client, "subscription_reveal_token")?.cloned().unwrap_or(Value::Null);
-    if py::truthy(&token) {
+    if pc_common::pyvalue::truthy(&token) {
         let revealed = reveal(panel, &token).await?;
         result.insert("subscription_url".into(), revealed["url"].clone());
         result.insert("subscription".into(), revealed);
@@ -464,7 +464,7 @@ fn step(grant_id: Option<&Value>, key: &(Value, Value)) -> Value {
 async fn set_client_placement(panel: &PanelClient, arguments: &Map<String, Value>) -> Result<ToolResult, Fail> {
     let client_id = py::str_of(&arg_or(arguments, "client_id", json!("")));
     let placement_value = arg(arguments, "placement");
-    let placement = if py::truthy(&placement_value) { py::iterate(&placement_value)? } else { Vec::new() };
+    let placement = if pc_common::pyvalue::truthy(&placement_value) { py::iterate(&placement_value)? } else { Vec::new() };
     let desired: Vec<(Value, Value)> = placement.iter().map(item_key).collect::<Result<_, _>>()?;
     let client_value = Value::String(client_id.clone());
     let current = panel.get(&encode_path("/api/clients/{client_id}", &[("client_id", &client_value)]), &[]).await?;
@@ -518,17 +518,17 @@ async fn set_client_placement(panel: &PanelClient, arguments: &Map<String, Value
     let mut username = Value::Null;
     for grant in &grants {
         let runtime = py::get(grant, "runtime_username")?.cloned().unwrap_or(Value::Null);
-        if py::truthy(&runtime) {
+        if pc_common::pyvalue::truthy(&runtime) {
             username = runtime;
             break;
         }
     }
-    let username = if py::truthy(&username) {
+    let username = if pc_common::pyvalue::truthy(&username) {
         py::str_of(&username)
     } else {
         let client = py::get_or(&current, "client", json!({}))?;
         let name = py::get(&client, "display_name")?.cloned().unwrap_or(Value::Null);
-        derive_username(&if py::truthy(&name) { py::str_of(&name) } else { client_id.clone() })
+        derive_username(&if pc_common::pyvalue::truthy(&name) { py::str_of(&name) } else { client_id.clone() })
     };
     let (mut enabled, mut disabled) = (Vec::new(), Vec::new());
     for entry in &disable {
@@ -592,7 +592,7 @@ fn routing_path(arguments: &Map<String, Value>, action: &str) -> String {
 /// `arguments.get("lane") or "svc"`.
 fn lane(arguments: &Map<String, Value>) -> Value {
     let lane = arg(arguments, "lane");
-    if py::truthy(&lane) {
+    if pc_common::pyvalue::truthy(&lane) {
         lane
     } else {
         json!("svc")
@@ -624,7 +624,7 @@ async fn routing_apply(panel: &PanelClient, arguments: &Map<String, Value>) -> R
 async fn audit_tail(panel: &PanelClient, arguments: &Map<String, Value>) -> Result<ToolResult, Fail> {
     let mut params: Vec<(&str, Value)> = Vec::new();
     let limit = arg(arguments, "limit");
-    let limit = if py::truthy(&limit) { limit } else { json!(50) };
+    let limit = if pc_common::pyvalue::truthy(&limit) { limit } else { json!(50) };
     params.push(("limit", Value::String(py::int_of(&limit)?)));
     for key in ["actor", "action", "target", "request_id", "before_id"] {
         params.push((key, arg(arguments, key)));

@@ -172,7 +172,7 @@ fn first_of(candidates: &Value) -> PageResult<Value> {
         Value::Object(_) => Err(Fault::crash("KeyError: 0")),
         other => Err(Fault::crash(format!(
             "TypeError: '{}' object is not subscriptable",
-            panel_model::pyrepr::type_name(other)
+            pc_common::pyvalue::type_name(other)
         ))),
     }
 }
@@ -312,7 +312,7 @@ pub fn find_user(items: &Value, username: &str) -> PageResult<Option<Value>> {
         other => {
             return Err(Fault::crash(format!(
                 "TypeError: '{}' object is not iterable",
-                panel_model::pyrepr::type_name(other)
+                pc_common::pyvalue::type_name(other)
             )))
         }
     }

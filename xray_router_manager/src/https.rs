@@ -386,7 +386,7 @@ pub fn probe_trace(port: u16, host: &str, timeout: f64) -> Result<serde_json::Va
     }
     let body = String::from_utf8_lossy(&response.body).into_owned();
     let mut fields = std::collections::HashMap::new();
-    for line in crate::util::py_splitlines(&body) {
+    for line in pc_common::pytext::splitlines(&body) {
         if let Some((key, value)) = line.split_once('=') {
             fields.insert(key.to_string(), value.to_string());
         }

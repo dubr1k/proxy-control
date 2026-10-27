@@ -31,7 +31,7 @@ fn object<'a>(value: &'a Value, fields: &[&str], name: &str) -> Result<&'a Map<S
 
 /// `_positive_int`: an int (not a bool) within `low..=high`.
 fn bounded_int(value: Option<&Value>, low: i128, high: i128, name: &str) -> Result<i128> {
-    match value.and_then(pyjson::int_of) {
+    match value.and_then(pc_common::pyvalue::strict_int) {
         Some(n) if (low..=high).contains(&n) => Ok(n),
         _ => Err(invalid(format!("invalid {name}"))),
     }
@@ -132,7 +132,7 @@ fn validate_traffic(value: &Value) -> Result<()> {
     let traffic =
         object(value, &["seed", "unlockAll", "tcpFragment", "nonce", "padding", "lowEntropy"], "trafficPattern")?;
     if let Some(seed) = traffic.get("seed") {
-        if !pyjson::int_of(seed).is_some_and(|n| (-(1i128 << 31)..=(1 << 31) - 1).contains(&n)) {
+        if !pc_common::pyvalue::strict_int(seed).is_some_and(|n| (-(1i128 << 31)..=(1 << 31) - 1).contains(&n)) {
             return Err(invalid("invalid traffic pattern seed"));
         }
     }
@@ -162,8 +162,8 @@ fn validate_traffic(value: &Value) -> Result<()> {
                 bounded_int(Some(length), 0, 12, &format!("nonce {key}"))?;
             }
         }
-        let min = node.get("minLen").and_then(pyjson::int_of).unwrap_or(0);
-        let max = node.get("maxLen").and_then(pyjson::int_of).unwrap_or(12);
+        let min = node.get("minLen").and_then(pc_common::pyvalue::strict_int).unwrap_or(0);
+        let max = node.get("maxLen").and_then(pc_common::pyvalue::strict_int).unwrap_or(12);
         if min > max {
             return Err(invalid("invalid traffic nonce length range"));
         }
@@ -285,7 +285,7 @@ pub fn validate_config(config: &Value, elevated: bool) -> Result<()> {
         }
         names.push(name);
         let (raw, hashed) = (user.get("password"), user.get("hashedPassword"));
-        if raw.is_some_and(pyjson::truthy) == hashed.is_some_and(pyjson::truthy) {
+        if raw.is_some_and(pc_common::pyvalue::truthy) == hashed.is_some_and(pc_common::pyvalue::truthy) {
             return Err(invalid("user requires exactly one credential"));
         }
         if let Some(raw) = raw.filter(|v| !v.is_null()) {
@@ -315,7 +315,7 @@ pub fn validate_config(config: &Value, elevated: bool) -> Result<()> {
             if user.get(flag).is_some_and(|v| !is_bool(v)) {
                 return Err(invalid(format!("invalid {flag}")));
             }
-            if user.get(flag).is_some_and(pyjson::truthy) && !elevated {
+            if user.get(flag).is_some_and(pc_common::pyvalue::truthy) && !elevated {
                 return Err(invalid("private/loopback SSRF flags require elevated approval"));
             }
         }
@@ -323,7 +323,7 @@ pub fn validate_config(config: &Value, elevated: bool) -> Result<()> {
 
     match config.get("mtu") {
         None => {}
-        Some(mtu) if pyjson::int_of(mtu).is_some_and(|n| (1280..=1500).contains(&n)) => {}
+        Some(mtu) if pc_common::pyvalue::strict_int(mtu).is_some_and(|n| (1280..=1500).contains(&n)) => {}
         Some(_) => return Err(invalid("MTU must be 1280 through 1500")),
     }
     if !str_in(config.get("loggingLevel"), "DEFAULT", LOG_LEVELS) {

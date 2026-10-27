@@ -107,7 +107,7 @@ impl FakeMita {
         let mut value = config.clone();
         if let Some(Value::Array(users)) = value.get_mut("users") {
             for user in users.iter_mut().filter_map(Value::as_object_mut) {
-                if user.get("password").is_some_and(pyjson::truthy) {
+                if user.get("password").is_some_and(pc_common::pyvalue::truthy) {
                     let raw = user["password"].as_str().unwrap().to_string();
                     let name = user["name"].as_str().unwrap().to_string();
                     user.insert("password".into(), json!(""));

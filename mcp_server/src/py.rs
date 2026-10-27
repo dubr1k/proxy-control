@@ -8,6 +8,8 @@
 use std::io;
 
 use serde_json::{Map, Value};
+use pc_common::pytext::strip;
+use pc_common::pyvalue::type_name;
 
 /// A Python exception escaping a handler: the JSON-RPC error message is `str(exc)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,29 +40,6 @@ impl PyErr {
 impl std::fmt::Display for PyErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.message)
-    }
-}
-
-pub fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::Number(number) if number.is_f64() => "float",
-        Value::Number(_) => "int",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-    }
-}
-
-pub fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(flag) => *flag,
-        Value::Number(number) => number.as_f64().is_some_and(|n| n != 0.0),
-        Value::String(text) => !text.is_empty(),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
     }
 }
 
@@ -148,16 +127,6 @@ pub fn strip_method(value: &Value) -> Result<String, PyErr> {
     }
 }
 
-/// Python's `str.isspace()` for one character.
-pub fn is_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
-}
-
-/// `str.strip()` without arguments.
-pub fn strip(text: &str) -> &str {
-    text.trim_matches(is_space)
-}
-
 /// `str(value)`.
 pub fn str_of(value: &Value) -> String {
     match value {
@@ -203,27 +172,7 @@ fn is_printable(c: char) -> bool {
 
 /// `repr(text)`.
 pub fn repr_str(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') { '"' } else { '\'' };
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push(quote);
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if is_printable(c) => out.push(c),
-            c if (c as u32) < 0x100 => out.push_str(&format!("\\x{:02x}", c as u32)),
-            c if (c as u32) < 0x10000 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push_str(&format!("\\U{:08x}", c as u32)),
-        }
-    }
-    out.push(quote);
-    out
+    pc_common::pytext::repr_with_printable(text, is_printable)
 }
 
 /// `repr(float)`: the shortest round-trip digits, positional between 1e-4 and 1e16, else
@@ -282,18 +231,7 @@ pub fn int_of(value: &Value) -> Result<String, PyErr> {
 }
 
 fn parse_int(text: &str) -> Option<String> {
-    let text = strip(text);
-    let (negative, digits) = match text.as_bytes().first() {
-        Some(b'-') => (true, &text[1..]),
-        Some(b'+') => (false, &text[1..]),
-        _ => (false, text),
-    };
-    if digits.is_empty() || digits.starts_with('_') || digits.ends_with('_') || digits.contains("__") {
-        return None;
-    }
-    if !digits.chars().all(|c| c.is_ascii_digit() || c == '_') {
-        return None;
-    }
+    let (negative, digits) = pc_common::pytext::ascii_int_parts(text)?;
     let clean: String = digits.chars().filter(char::is_ascii_digit).collect();
     let clean = clean.trim_start_matches('0');
     Some(match (clean.is_empty(), negative) {

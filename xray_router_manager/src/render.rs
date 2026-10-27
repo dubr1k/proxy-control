@@ -145,7 +145,7 @@ fn strings(value: &Value) -> impl Iterator<Item = &Value> {
 pub fn exit_outbound(tag: &str, spec: &Value) -> Value {
     let (protocol, address, port) = (spec["protocol"].as_str().unwrap_or(""), &spec["address"], &spec["port"]);
     let empty = json!({});
-    let credential = spec.get("credential").filter(|c| crate::util::py_truthy(c)).unwrap_or(&empty);
+    let credential = spec.get("credential").filter(|c| pc_common::pyvalue::truthy(c)).unwrap_or(&empty);
     let settings = match protocol {
         "socks" | "http" => {
             let mut server = Map::new();
@@ -165,10 +165,10 @@ pub fn exit_outbound(tag: &str, spec: &Value) -> Value {
         }
     };
     let tcp = json!({"network": "tcp"});
-    let transport = spec.get("transport").filter(|t| crate::util::py_truthy(t)).unwrap_or(&tcp);
+    let transport = spec.get("transport").filter(|t| pc_common::pyvalue::truthy(t)).unwrap_or(&tcp);
     let network = transport.get("network").and_then(Value::as_str).unwrap_or("tcp");
-    let truthy = |value: Option<&Value>| value.is_some_and(crate::util::py_truthy);
-    let path = |value: Option<&Value>| value.filter(|v| crate::util::py_truthy(v)).cloned().unwrap_or(json!("/"));
+    let truthy = |value: Option<&Value>| value.is_some_and(pc_common::pyvalue::truthy);
+    let path = |value: Option<&Value>| value.filter(|v| pc_common::pyvalue::truthy(v)).cloned().unwrap_or(json!("/"));
     let mut stream = Map::new();
     stream.insert("network".into(), json!(network));
     match network {
@@ -183,13 +183,13 @@ pub fn exit_outbound(tag: &str, spec: &Value) -> Value {
         }
         "grpc" => {
             let service =
-                transport.get("service_name").filter(|v| crate::util::py_truthy(v)).cloned().unwrap_or(json!(""));
+                transport.get("service_name").filter(|v| pc_common::pyvalue::truthy(v)).cloned().unwrap_or(json!(""));
             stream.insert("grpcSettings".into(), json!({"serviceName": service}));
         }
         _ => {}
     }
     let plain = json!({"kind": "none"});
-    let security = spec.get("security").filter(|s| crate::util::py_truthy(s)).unwrap_or(&plain);
+    let security = spec.get("security").filter(|s| pc_common::pyvalue::truthy(s)).unwrap_or(&plain);
     let fingerprint = security.get("fingerprint").cloned().unwrap_or(json!("chrome"));
     match security.get("kind").and_then(Value::as_str).unwrap_or("none") {
         "tls" => {
@@ -241,7 +241,7 @@ pub fn rule(tag: &str, rule: &Value, user: Option<&Value>, chain_tags: &HashMap<
     if !ports.is_empty() {
         entry.insert("port".into(), json!(ports.join(",")));
     }
-    if rule.get("protocols").is_some_and(crate::util::py_truthy) {
+    if rule.get("protocols").is_some_and(pc_common::pyvalue::truthy) {
         // What the ingress sniffer saw (`sniffing.enabled` with `routeOnly`): bittorrent, tls, …
         entry.insert("protocol".into(), rule["protocols"].clone());
     }
@@ -441,7 +441,7 @@ pub fn render_config(input: &RenderInput) -> Result<Value> {
     let no_accounts = Vec::new();
     let mut rules: Vec<Value> = Vec::new();
     for tag in &services {
-        let intent = input.intents.get(*tag).filter(|intent| crate::util::py_truthy(intent)).unwrap_or(&passthrough);
+        let intent = input.intents.get(*tag).filter(|intent| pc_common::pyvalue::truthy(intent)).unwrap_or(&passthrough);
         let (extra, chain_tags) = chain_outbounds(tag, intent);
         outbounds.extend(extra);
         if by_tag[tag].socket.is_some() {

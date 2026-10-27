@@ -30,7 +30,7 @@ pub fn wait_healthy(updater: &HostUpdater, agent: &VersionAgent, services: &[Str
             for container in containers {
                 let format = "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}";
                 let status = run(agent, &argv(&["docker", "inspect", "--format", format, &container]), 30)?;
-                let status = crate::py::strip(&status);
+                let status = pc_common::pytext::strip(&status);
                 if status != "healthy" && status != "running" {
                     states.push(format!("{service}={}", if status.is_empty() { "unknown" } else { status }));
                 }
@@ -83,7 +83,7 @@ pub fn update_manager(
     let previous = read_if_exists(&override_file)?;
     let project = agent.project();
     let image = run(agent, &argv(&["docker", "inspect", "--format", "{{.Image}}", container]), 30)?;
-    let image = crate::py::strip(&image).to_string();
+    let image = pc_common::pytext::strip(&image).to_string();
     if !super::is_image_id(&image) {
         return Err(refuse(format!("{service} image identity is unavailable")));
     }
@@ -212,7 +212,7 @@ pub fn rebuild_services(updater: &HostUpdater, agent: &VersionAgent, services: &
         let containers = agent.service_containers(service)?;
         if let Some(container) = containers.first() {
             let image = run(agent, &argv(&["docker", "inspect", "--format", "{{.Image}}", container]), 30)?;
-            let image = crate::py::strip(&image);
+            let image = pc_common::pytext::strip(&image);
             if super::is_image_id(image) {
                 let tag = format!("{project}-{service}:rollback-{stamp}");
                 run(agent, &argv(&["docker", "tag", image, &tag]), 60)?;

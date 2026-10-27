@@ -292,13 +292,13 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
             Some(location @ ("path" | "query")) => location.to_string(),
             _ => continue,
         };
-        if !py::truthy(&pname) {
+        if !pc_common::pyvalue::truthy(&pname) {
             continue;
         }
         let pname = parameter_name(&pname);
         let mut pschema = py::get_or(&parameter, "schema", json!({"type": "string"}))?;
         let description = py::get(&parameter, "description")?.cloned().unwrap_or(Value::Null);
-        if py::truthy(&description) && !py::contains(&pschema, "description")? {
+        if pc_common::pyvalue::truthy(&description) && !py::contains(&pschema, "description")? {
             match &mut pschema {
                 Value::Object(map) => {
                     map.insert("description".into(), description);
@@ -307,7 +307,7 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
                 other => {
                     return Err(PyErr::type_error(format!(
                         "'{}' object does not support item assignment",
-                        py::type_name(other)
+                        pc_common::pyvalue::type_name(other)
                     )))
                 }
             }
@@ -318,21 +318,21 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
         } else {
             query_params.push(pname.clone());
         }
-        if location == "path" || py::truthy(py::get(&parameter, "required")?.unwrap_or(&Value::Null)) {
+        if location == "path" || pc_common::pyvalue::truthy(py::get(&parameter, "required")?.unwrap_or(&Value::Null)) {
             required.push(Value::String(pname.clone()));
         }
         let mut enumeration = py::get(&pschema, "enum")?.cloned().unwrap_or(Value::Null);
-        if !py::truthy(&enumeration) {
+        if !pc_common::pyvalue::truthy(&enumeration) {
             enumeration = Value::Null;
             for item in py::iterate(&py::get_or(&pschema, "anyOf", json!([]))?)? {
                 let found = py::get(&item, "enum")?.cloned().unwrap_or(Value::Null);
-                if py::truthy(&found) {
+                if pc_common::pyvalue::truthy(&found) {
                     enumeration = found;
                     break;
                 }
             }
         }
-        if location == "path" && py::truthy(&enumeration) {
+        if location == "path" && pc_common::pyvalue::truthy(&enumeration) {
             py::dict_set(&mut param_enums, pname, py::iterate(&enumeration)?, |a, b| a == b);
         }
     }
@@ -362,7 +362,7 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
             properties.insert("body".into(), Value::Object(raw));
             body_keys = vec!["body".into()];
             body_is_raw = true;
-            if py::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null)) {
+            if pc_common::pyvalue::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null)) {
                 required.push(json!("body"));
             }
         }
@@ -376,7 +376,7 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
                 let Value::String(value) = value else {
                     return Err(PyErr::type_error(format!(
                         "replace() argument 2 must be str, not {}",
-                        py::type_name(value)
+                        pc_common::pyvalue::type_name(value)
                     )));
                 };
                 if is_irreversible(method, &path.replace(&format!("{{{pname}}}"), value)) {
@@ -409,7 +409,7 @@ fn build(name: String, method: &str, path: &str, operation: &Value, components: 
     if confirm == Confirm::Required {
         description.push_str("\n\nIrreversible: requires confirm=true.");
     }
-    let required_body = py::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null));
+    let required_body = pc_common::pyvalue::truthy(py::get(&request_body(operation)?, "required")?.unwrap_or(&Value::Null));
     Ok(Operation {
         name,
         method: method.to_string(),

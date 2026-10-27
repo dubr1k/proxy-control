@@ -57,21 +57,10 @@ pub(crate) fn py_eq_int(value: &Value, expected: i64) -> bool {
     }
 }
 
-/// `bool(value)`.
-pub(crate) fn py_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(flag) => *flag,
-        Value::Number(number) => number.as_f64().is_some_and(|value| value != 0.0),
-        Value::String(text) => !text.is_empty(),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pc_common::pyvalue::truthy as py_truthy;
     use panel_core::serde_json::json;
 
     #[test]

@@ -13,6 +13,7 @@ name = "panel_model"
 [dependencies]
 indexmap = "2"
 panel-core = { path = "../core" }
+pc_common = { path = "../../../pc_common" }
 # The same features as panel-core (unified across the workspace anyway): objects keep insertion
 # order like Python dicts, floats parse correctly rounded like `json.loads`.
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

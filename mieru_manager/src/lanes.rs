@@ -66,7 +66,7 @@ pub fn parse_slots(value: Option<&str>) -> Result<Vec<Slot>> {
     let Some(value) = value.filter(|v| !v.is_empty()) else { return Ok(Vec::new()) };
     let mut slots = Vec::new();
     for item in value.split(',') {
-        let parts: Vec<&str> = pyjson::strip(item).split(':').collect();
+        let parts: Vec<&str> = pc_common::pytext::strip(item).split(':').collect();
         let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
         if parts.len() != 4 || !digits(parts[0]) || !digits(parts[1]) {
             return Err(lanes_invalid("invalid lane slot list"));

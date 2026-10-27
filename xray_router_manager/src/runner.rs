@@ -10,7 +10,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::errors::{Error, Result};
-use crate::util::{last_chars, py_oserror, py_splitlines, py_strip};
+use crate::util::py_oserror;
+use pc_common::pytext::{splitlines as py_splitlines, strip as py_strip, tail_chars as last_chars};
 
 /// A started Xray: the child process of the real runner, or the id a test runner hands out.
 #[derive(Debug)]
@@ -133,7 +134,7 @@ impl XrayRunner for SubprocessXrayRunner {
         let text = if stdout.is_empty() { output.stderr_text() } else { stdout };
         Ok(py_splitlines(py_strip(&text))
             .first()
-            .map_or("unknown".into(), |line| crate::util::first_chars(line, 120).to_string()))
+            .map_or("unknown".into(), |line| pc_common::pytext::head_chars(line, 120).to_string()))
     }
 
     /// A fresh Reality keypair from the pinned binary, read off its labelled lines:
