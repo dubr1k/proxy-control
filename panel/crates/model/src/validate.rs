@@ -143,7 +143,7 @@ impl fmt::Display for ValidationError {
                 issue.msg,
                 issue.kind,
                 pyrepr::truncated_repr(&issue.input),
-                pyrepr::type_name(&issue.input),
+                pc_common::pyvalue::type_name(&issue.input),
                 issue.kind
             )?;
         }

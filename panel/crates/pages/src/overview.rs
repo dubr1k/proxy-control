@@ -60,7 +60,7 @@ fn live_rows(rows: &Value) -> PageResult<LiveRows<'_>> {
         other => {
             return Err(Fault::crash(format!(
                 "TypeError: '{}' object is not iterable",
-                panel_model::pyrepr::type_name(other)
+                pc_common::pyvalue::type_name(other)
             )));
         }
     };
@@ -78,7 +78,7 @@ fn mapping_key(value: &Value) -> PageResult<Option<&str>> {
     match value {
         Value::String(text) => Ok(Some(text)),
         Value::Array(_) | Value::Object(_) => {
-            Err(Fault::crash(format!("TypeError: unhashable type: '{}'", panel_model::pyrepr::type_name(value))))
+            Err(Fault::crash(format!("TypeError: unhashable type: '{}'", pc_common::pyvalue::type_name(value))))
         }
         _ => Ok(None),
     }
@@ -149,7 +149,7 @@ pub fn amneziawg(
         other => {
             return Err(Fault::crash(format!(
                 "TypeError: '{}' object is not iterable",
-                panel_model::pyrepr::type_name(other)
+                pc_common::pyvalue::type_name(other)
             )));
         }
     };

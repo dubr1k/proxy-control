@@ -713,7 +713,7 @@ pub(super) fn sanitize(value: &str) -> String {
         }
         pos = cursor;
     }
-    pc_host::pytext::tail_chars(&out, 1200).replace('\n', " ").trim().to_string()
+    pc_common::pytext::tail_chars(&out, 1200).replace('\n', " ").trim().to_string()
 }
 pub(super) fn clear_directory(path: &Path) -> Result<(), Error> {
     if fs::symlink_metadata(path).is_ok_and(|m| m.is_dir()) {

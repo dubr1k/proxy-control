@@ -147,7 +147,7 @@ pub fn is_telemt_base_image(text: &str) -> bool {
 }
 
 fn is_number(text: &str) -> bool {
-    crate::py::is_digits(text)
+    pc_common::pytext::is_ascii_digits(text)
 }
 
 /// `^\d+(?:\.\d+){1,3}$` (`TELEMT_RELEASE_VERSION`, `AMNEZIAWG_VERSION`, upstream

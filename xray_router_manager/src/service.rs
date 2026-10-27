@@ -48,10 +48,13 @@ use crate::render::{
 };
 use crate::runner::{free_port, Handle, XrayRunner};
 use crate::util::{
-    atomic_write, first_chars, json_int, last_chars, now_iso, py_isspace, py_strip, py_truthy, sha256_hex, token_hex,
-    token_urlsafe, unlink_missing_ok, uuid4,
+    atomic_write, now_iso, sha256_hex, token_hex, token_urlsafe, unlink_missing_ok, uuid4,
 };
 use crate::warp;
+use pc_common::pytext::{
+    head_chars as first_chars, is_space as py_isspace, strip as py_strip, tail_chars as last_chars,
+};
+use pc_common::pyvalue::{strict_int as json_int, truthy as py_truthy};
 
 /// v0.7: what this manager enforces beyond CAPABILITIES (docs/spikes/CHAINS_PER_CLIENT.md).
 pub const CAPABILITIES_V2: [&str; 3] = ["lanes", "chains", "relay"];

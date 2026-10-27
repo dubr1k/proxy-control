@@ -77,18 +77,18 @@ pub fn read_env_file(path: &Path) -> Result<BTreeMap<String, String>, String> {
 /// The parser behind [`read_env_file`].
 pub fn parse_env(text: &str) -> BTreeMap<String, String> {
     let mut values = BTreeMap::new();
-    for line in crate::py::splitlines(text) {
-        let line = crate::py::strip(line);
+    for line in pc_common::pytext::splitlines(text) {
+        let line = pc_common::pytext::strip(line);
         if line.is_empty() || line.starts_with('#') || !line.contains('=') {
             continue;
         }
         let (key, value) = line.split_once('=').unwrap_or((line, ""));
-        let mut value = crate::py::strip(value);
+        let mut value = pc_common::pytext::strip(value);
         let chars: Vec<char> = value.chars().collect();
         if chars.len() >= 2 && chars[0] == chars[chars.len() - 1] && matches!(chars[0], '"' | '\'') {
             value = &value[1..value.len() - 1];
         }
-        values.insert(crate::py::strip(key).to_string(), value.to_string());
+        values.insert(pc_common::pytext::strip(key).to_string(), value.to_string());
     }
     values
 }
@@ -105,7 +105,7 @@ fn port_in_range(port: u64) -> Option<u32> {
 
 /// `[0-9]{1,5}` as a number.
 fn short_number(text: &str) -> Option<u64> {
-    ((1..=5).contains(&text.len()) && crate::py::is_digits(text)).then(|| text.parse().unwrap_or(0))
+    ((1..=5).contains(&text.len()) && pc_common::pytext::is_ascii_digits(text)).then(|| text.parse().unwrap_or(0))
 }
 
 /// `_port_from_listen`: `127.0.0.1:4453`, `[::1]:4453` or `4453` -> 4453; else the default.
@@ -113,7 +113,7 @@ fn port_from_listen(value: Option<&str>, default: u32) -> u32 {
     let Some(value) = value.filter(|v| !v.is_empty()) else {
         return default;
     };
-    let value = crate::py::strip(value);
+    let value = pc_common::pytext::strip(value);
     // `(?:.*:)?([0-9]{1,5})`: digits after the last colon (or alone); `.` stops at a newline.
     let digits = match value.rfind(':') {
         Some(colon) if !value[..colon].contains('\n') => &value[colon + 1..],
@@ -175,7 +175,7 @@ fn lane_slot_ports(value: Option<&str>) -> Vec<u32> {
     let mut ports = Vec::new();
     for entry in value.unwrap_or("").split(',') {
         let parts: Vec<&str> = entry.split(':').collect();
-        if parts.len() >= 2 && crate::py::is_digits(parts[1]) {
+        if parts.len() >= 2 && pc_common::pytext::is_ascii_digits(parts[1]) {
             if let Some(port) = parts[1].parse::<u64>().ok().and_then(port_in_range) {
                 ports.push(port);
             }
@@ -265,7 +265,7 @@ pub fn discover_ports(sources: &Sources, env_reader: &EnvReader) -> Result<PortM
     let mut result = PortMap::new();
 
     let backend = base.get("MTPROXY_BACKEND_PORT").map(String::as_str).unwrap_or("");
-    let mtproxy = if crate::py::is_digits(backend) {
+    let mtproxy = if pc_common::pytext::is_ascii_digits(backend) {
         backend.parse::<u64>().ok().and_then(port_in_range).unwrap_or(DEFAULT_MTPROXY_PORT)
     } else {
         DEFAULT_MTPROXY_PORT

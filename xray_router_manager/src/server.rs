@@ -14,7 +14,8 @@ use crate::errors::Error;
 use crate::intent::NO_LANE_SERVICES;
 use crate::pyjson;
 use crate::service::XrayRouterManager;
-use crate::util::{first_chars, py_truthy};
+use pc_common::pytext::head_chars as first_chars;
+use pc_common::pyvalue::truthy as py_truthy;
 
 pub const TOKEN_HEADER: &str = "X-Xray-Router-Token";
 pub const MAX_BODY: usize = 32_768;

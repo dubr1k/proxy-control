@@ -194,7 +194,7 @@ pub fn read_credential(path: &Path) -> Result<Credential> {
         std::fs::read(path).map_err(|_| invalid("egress provider router credential is unavailable on this node"))?;
     let malformed = || invalid("egress provider router credential is malformed");
     let text = String::from_utf8(raw).map_err(|_| malformed())?;
-    let (user, password) = pyjson::strip(&text).split_once(':').ok_or_else(malformed)?;
+    let (user, password) = pc_common::pytext::strip(&text).split_once(':').ok_or_else(malformed)?;
     let user_ok = (1..=64).contains(&user.len())
         && user.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
     let password_ok = (16..=128).contains(&password.len())
@@ -277,7 +277,7 @@ fn endpoints(providers: &Providers) -> Vec<(&'static str, (String, u32))> {
 fn py_list(value: Option<&Value>) -> Option<Vec<Value>> {
     match value {
         None => Some(Vec::new()),
-        Some(v) if !pyjson::truthy(v) => Some(Vec::new()),
+        Some(v) if !pc_common::pyvalue::truthy(v) => Some(Vec::new()),
         Some(Value::Array(items)) => Some(items.clone()),
         Some(Value::String(s)) => Some(s.chars().map(|c| Value::String(c.to_string())).collect()),
         Some(Value::Object(map)) => Some(map.keys().map(|k| Value::String(k.clone())).collect()),
@@ -348,7 +348,7 @@ pub fn router_credential_stale(section: Option<&Value>, credential: &Credential)
     let Some(Value::Array(proxies)) = section.get("proxies") else { return false };
     for proxy in proxies.iter().filter_map(Value::as_object) {
         if proxy.get("name").and_then(Value::as_str) == Some("router") {
-            let auth = proxy.get("socks5Authentication").filter(|a| pyjson::truthy(a));
+            let auth = proxy.get("socks5Authentication").filter(|a| pc_common::pyvalue::truthy(a));
             let Some(auth) = auth.map(|a| a.as_object()) else { return true };
             let Some(auth) = auth else { return true };
             let field = |key: &str| auth.get(key).and_then(Value::as_str);

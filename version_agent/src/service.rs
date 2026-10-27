@@ -175,7 +175,7 @@ impl AgentConfig {
         let state_path =
             PathBuf::from(var("PROXY_CONTROL_VERSION_STATE", "/var/lib/proxy-control/version-agent/state.json"));
         let health = var("PROXY_CONTROL_VERSION_HEALTH_TIMEOUT", "60");
-        let health_timeout = py::strip(&health)
+        let health_timeout = pc_common::pytext::strip(&health)
             .parse::<f64>()
             .map_err(|_| format!("could not convert string to float: {}", pc_host::pytext::py_repr(&health)))?;
         let mut config =
@@ -198,9 +198,9 @@ impl AgentConfig {
         ))?;
         config.telemt_container = var("PROXY_CONTROL_TELEMT_CONTAINER", "proxy-control-mtproxy");
         config.health_timeout = health_timeout;
-        config.upstream_enabled = py::strip(&var("PROXY_CONTROL_UPSTREAM_CHECK", "on")).to_lowercase() != "off";
+        config.upstream_enabled = pc_common::pytext::strip(&var("PROXY_CONTROL_UPSTREAM_CHECK", "on")).to_lowercase() != "off";
         config.router_enabled = matches!(
-            py::strip(&var("PROXY_CONTROL_XRAY_ROUTER", "off")).to_lowercase().as_str(),
+            pc_common::pytext::strip(&var("PROXY_CONTROL_XRAY_ROUTER", "off")).to_lowercase().as_str(),
             "on" | "1" | "true" | "yes"
         );
         config.xray_bin_dir = var("PROXY_CONTROL_XRAY_BIN_DIR", "/usr/local/lib/proxy-control/xray-router").into();
@@ -212,7 +212,7 @@ impl AgentConfig {
         config.panel_image = get("PROXY_CONTROL_PANEL_IMAGE").filter(|v| !v.is_empty());
         config.panel_container = var("PROXY_CONTROL_PANEL_CONTAINER", "proxy-control-panel");
         config.panel_volume = get("PROXY_CONTROL_PANEL_VOLUME").filter(|v| !v.is_empty());
-        config.auto_rebuild_managers = py::strip(&var("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1")) != "0";
+        config.auto_rebuild_managers = pc_common::pytext::strip(&var("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1")) != "0";
         Ok(config)
     }
 }
@@ -227,7 +227,7 @@ pub fn consumer_overlays(value: &str) -> Result<BTreeMap<String, (PathBuf, Strin
             return Err(format!("invalid consumer overlay for {component}: expected path:key:service"));
         }
         result.insert(
-            py::strip(component).to_string(),
+            pc_common::pytext::strip(component).to_string(),
             (PathBuf::from(pieces[2]), pieces[1].to_string(), pieces[0].to_string()),
         );
     }
@@ -404,7 +404,7 @@ impl VersionAgent {
                 ],
                 30,
             )
-            .map(|text| py::strip(&text).to_string())
+            .map(|text| pc_common::pytext::strip(&text).to_string())
             .unwrap_or_default();
         if !label.is_empty() {
             return if label == LEGACY_COMPOSE_PROJECT { LEGACY_COMPOSE_PROJECT } else { COMPOSE_PROJECT }.to_string();
@@ -412,7 +412,7 @@ impl VersionAgent {
         let filter = format!("label=com.docker.compose.project={LEGACY_COMPOSE_PROJECT}");
         let legacy = self
             .run_text(&["docker", "ps", "-a", "-q", "--filter", &filter], 30)
-            .map(|text| py::strip(&text).to_string())
+            .map(|text| pc_common::pytext::strip(&text).to_string())
             .unwrap_or_default();
         if legacy.is_empty() { COMPOSE_PROJECT } else { LEGACY_COMPOSE_PROJECT }.to_string()
     }
@@ -431,8 +431,8 @@ impl VersionAgent {
         let env = self
             .run_text(&["docker", "inspect", "--format", "{{range .Config.Env}}{{println .}}{{end}}", container], 30)
             .ok()?;
-        for line in py::splitlines(&env) {
-            let (name, value) = py::strip(line).split_once('=').unwrap_or((py::strip(line), ""));
+        for line in pc_common::pytext::splitlines(&env) {
+            let (name, value) = pc_common::pytext::strip(line).split_once('=').unwrap_or((pc_common::pytext::strip(line), ""));
             if name == key && !value.is_empty() {
                 return Some(value.strip_prefix('v').unwrap_or(value).to_string());
             }
@@ -448,7 +448,7 @@ impl VersionAgent {
     /// `_panel_container_version`: `docker exec <panel> cat /app/VERSION`.
     pub fn panel_container_version(&self) -> Result<String, CommandError> {
         self.run_text(&["docker", "exec", &self.config.panel_container, "cat", "/app/VERSION"], 30)
-            .map(|text| py::strip(&text).to_string())
+            .map(|text| pc_common::pytext::strip(&text).to_string())
     }
 
     /// `_panel_current`: the running container's version, else the project's `VERSION`, else
@@ -462,7 +462,7 @@ impl VersionAgent {
             let file = std::fs::read(compose_dir.join("VERSION"))
                 .ok()
                 .and_then(|data| String::from_utf8(data).ok())
-                .map(|text| py::strip(&text).to_string())
+                .map(|text| pc_common::pytext::strip(&text).to_string())
                 .unwrap_or_default();
             if !file.is_empty() {
                 return Some(file);
@@ -547,13 +547,13 @@ impl VersionAgent {
                 "upstream": {
                     "checked_at": if upstream_enabled { checked_at.clone() } else { Value::Null },
                     "latest": field("latest"),
-                    "installable": probe.get("installable").is_some_and(py::truthy),
+                    "installable": probe.get("installable").is_some_and(pc_common::pyvalue::truthy),
                     "reason": field("reason"),
                     "last_error": field("last_error"),
                 },
             });
             if component == "panel" {
-                if heal && current.get("pending_rebuild").is_some_and(py::truthy) {
+                if heal && current.get("pending_rebuild").is_some_and(pc_common::pyvalue::truthy) {
                     current = self.heal_pending(current);
                 }
                 for key in ["last_error", "pending_rebuild", "previous_version", "rebuild_error", "managers_rebuilt_at"]
@@ -602,7 +602,7 @@ impl VersionAgent {
             let previous = cached.get("components").and_then(Value::as_object).cloned().unwrap_or_default();
             for (component, probe) in probes.iter_mut() {
                 // A source that failed keeps its previous candidates; the error rides alongside.
-                let error = probe.get("last_error").filter(|e| py::truthy(e)).cloned();
+                let error = probe.get("last_error").filter(|e| pc_common::pyvalue::truthy(e)).cloned();
                 if let (Some(error), Some(Value::Object(before))) = (error, previous.get(component)) {
                     let mut kept = before.clone();
                     kept.insert("last_error".into(), error);
@@ -773,7 +773,7 @@ impl VersionAgent {
         let project = format!("label=com.docker.compose.project={}", self.project());
         let service = format!("label=com.docker.compose.service={service}");
         let listed = self.run_text(&["docker", "ps", "-a", "--filter", &project, "--filter", &service, "-q"], 30)?;
-        Ok(py::splitlines(&listed).into_iter().map(py::strip).filter(|l| !l.is_empty()).map(String::from).collect())
+        Ok(pc_common::pytext::splitlines(&listed).into_iter().map(pc_common::pytext::strip).filter(|l| !l.is_empty()).map(String::from).collect())
     }
 
     /// `_service_rebuilt`: nothing runs for the service, or its containers' images were created
@@ -783,7 +783,7 @@ impl VersionAgent {
             let image = self
                 .run_text(&["docker", "inspect", "--format", "{{.Image}}", &container], 30)
                 .map_err(|e| e.to_string())?;
-            let image = py::strip(&image);
+            let image = pc_common::pytext::strip(&image);
             if !image.strip_prefix("sha256:").is_some_and(crate::catalog::is_sha256) {
                 return Err("container image identity is unavailable".into());
             }
@@ -1015,7 +1015,7 @@ pub fn load_state(path: &Path) -> Result<Map<String, Value>, UpdateError> {
 
 /// `_docker_epoch`: Docker's `Created` (RFC 3339 with an optional fraction) as epoch seconds.
 pub fn docker_epoch(value: &str) -> Result<i64, String> {
-    let text = py::strip(value);
+    let text = pc_common::pytext::strip(value);
     let unreadable = || format!("unreadable image creation time {}", pc_host::pytext::py_repr(value));
     let bytes = text.as_bytes();
     if bytes.len() < 20 || !text.is_ascii() {
@@ -1023,7 +1023,7 @@ pub fn docker_epoch(value: &str) -> Result<i64, String> {
     }
     let digits = |range: std::ops::Range<usize>| -> Option<i64> {
         let part = &text[range];
-        py::is_digits(part).then(|| part.parse().unwrap_or(0))
+        pc_common::pytext::is_ascii_digits(part).then(|| part.parse().unwrap_or(0))
     };
     let shape = bytes[4] == b'-' && bytes[7] == b'-' && bytes[10] == b'T' && bytes[13] == b':' && bytes[16] == b':';
     let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) =
@@ -1074,7 +1074,7 @@ pub fn docker_epoch(value: &str) -> Result<i64, String> {
 }
 
 fn digits_of(text: &str) -> Option<i64> {
-    py::is_digits(text).then(|| text.parse().unwrap_or(0))
+    pc_common::pytext::is_ascii_digits(text).then(|| text.parse().unwrap_or(0))
 }
 
 /// Days since 1970-01-01 of a proleptic Gregorian date (Howard Hinnant's algorithm).

@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 use std::io;
 
-use crate::py;
 
 pub const DEFAULT_PANEL_URL: &str = "http://panel:8787";
 pub const DEFAULT_PANEL_KEY_FILE: &str = "/run/secrets/mcp-panel-key";
@@ -53,7 +52,7 @@ fn read_secret(path: &str, variable: &str) -> Result<String, String> {
         let byte = err.as_bytes()[at];
         format!("'utf-8' codec can't decode byte 0x{byte:02x} in position {at}: invalid start byte")
     })?;
-    let value = py::strip(&text);
+    let value = pc_common::pytext::strip(&text);
     if value.is_empty() || value.contains(['\n', '\r']) {
         return Err(format!("{variable}: {path} must hold one non-empty line"));
     }
@@ -63,20 +62,20 @@ fn read_secret(path: &str, variable: &str) -> Result<String, String> {
 impl Config {
     pub fn from_env(env: &HashMap<String, String>) -> Result<Config, String> {
         let get = |key: &str, default: &str| env.get(key).cloned().unwrap_or_else(|| default.to_string());
-        let panel_host = py::strip(&get("MCP_PANEL_HOST", "")).to_string();
+        let panel_host = pc_common::pytext::strip(&get("MCP_PANEL_HOST", "")).to_string();
         if panel_host.is_empty() {
             return Err("MCP_PANEL_HOST is required: the panel's allowed host name".into());
         }
         let allowed: Vec<String> = get("MCP_ALLOWED_HOSTS", "")
             .split(',')
-            .map(|part| py::strip(part).to_string())
+            .map(|part| pc_common::pytext::strip(part).to_string())
             .filter(|part| !part.is_empty())
             .collect();
         if allowed.is_empty() {
             return Err("MCP_ALLOWED_HOSTS is required: the MCP domain and 127.0.0.1:8793, comma separated".into());
         }
         let bind = get("MCP_BIND", DEFAULT_BIND);
-        let bind = py::strip(&bind);
+        let bind = pc_common::pytext::strip(&bind);
         let (host, port) = bind.rsplit_once(':').unwrap_or(("", ""));
         let Some(port) = parse_port(port).filter(|_| !host.is_empty()) else {
             return Err("MCP_BIND must be host:port".into());
@@ -94,7 +93,7 @@ impl Config {
             bind_host: host.to_string(),
             bind_port: port,
             allowed_hosts: allowed,
-            public_url: py::strip(&get("MCP_PUBLIC_URL", "")).to_string(),
+            public_url: pc_common::pytext::strip(&get("MCP_PUBLIC_URL", "")).to_string(),
         })
     }
 }

@@ -32,7 +32,9 @@ use serde_json::{json, Map, Value};
 use crate::errors::{Error, Result};
 use crate::ipaddr;
 use crate::pyjson;
-use crate::util::{json_int, py_decimal, py_eq_int, py_int, py_isspace, py_strip, py_truthy, sha256_hex};
+use crate::util::{py_decimal, py_eq_int, py_int, sha256_hex};
+use pc_common::pytext::{is_space as py_isspace, strip as py_strip};
+use pc_common::pyvalue::{strict_int as json_int, truthy as py_truthy};
 
 pub const SCHEMA: i64 = 1;
 pub const SERVICES: [&str; 5] = ["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"];

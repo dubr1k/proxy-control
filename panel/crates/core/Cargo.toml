@@ -11,6 +11,7 @@ publish.workspace = true
 name = "panel_core"
 
 [dependencies]
+pc_common = { path = "../../../pc_common" }
 base64 = "0.22"
 getrandom = "0.3"
 libc = "0.2"

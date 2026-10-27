@@ -46,7 +46,7 @@ fn xray_status(agent: &VersionAgent) -> Step<Map<String, Value>> {
 /// `str(value or default)` of a status field.
 fn field_text(status: &Map<String, Value>, key: &str, default: &str) -> String {
     let value = status.get(key).cloned().unwrap_or(Value::Null);
-    if !crate::py::truthy(&value) {
+    if !pc_common::pyvalue::truthy(&value) {
         return default.to_string();
     }
     match value {
@@ -62,7 +62,7 @@ fn assert_xray_running(agent: &VersionAgent, expected: Option<&str>) -> Step<()>
         return Err(refuse(format!("xray-router is not idle: {}", field_text(&status, "phase", "unknown"))));
     }
     let reported = field_text(&status, "xray_version", "");
-    let words = crate::py::split(&reported);
+    let words = pc_common::pytext::split(&reported);
     let running = if words.len() >= 2 && words[0] == "Xray" { words[1] } else { "" };
     if let Some(expected) = expected {
         if running != expected {

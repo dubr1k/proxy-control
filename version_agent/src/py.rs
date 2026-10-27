@@ -1,75 +1,14 @@
-//! The few Python string and number semantics the agent's parsers and JSON rely on: `str.strip`,
-//! `str.split()`, `str.splitlines`, `round(x, n)`, `int(str)`, truthiness of JSON values and
-//! the compact `json.dumps(…, sort_keys=True)` of the HTTP bodies.
+//! Version-agent-specific Python number coercions, rounding and compact HTTP JSON.
+//! Shared text and JSON-value primitives live in `pc_common`.
 
 use pc_host::json::{dumps, Options};
 use serde_json::Value;
 
-/// `str.isspace()` for one character (the set `str.strip()`/`str.split()` use).
-pub fn is_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
-}
-
-/// `str.strip()`.
-pub fn strip(text: &str) -> &str {
-    text.trim_matches(is_space)
-}
-
-/// `str.split()` without arguments: runs of whitespace separate, no empty fields.
-pub fn split(text: &str) -> Vec<&str> {
-    text.split(is_space).filter(|part| !part.is_empty()).collect()
-}
-
-/// `str.splitlines()`: `\n`, `\r`, `\r\n`, `\v`, `\f`, `\x1c`–`\x1e`, `\x85`, U+2028, U+2029.
-pub fn splitlines(text: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let mut start = 0;
-    let mut chars = text.char_indices().peekable();
-    while let Some((index, c)) = chars.next() {
-        let breaks = matches!(
-            c,
-            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{1c}' | '\u{1d}' | '\u{1e}' | '\u{85}' | '\u{2028}' | '\u{2029}'
-        );
-        if !breaks {
-            continue;
-        }
-        lines.push(&text[start..index]);
-        let mut end = index + c.len_utf8();
-        if c == '\r' {
-            if let Some(&(next, '\n')) = chars.peek() {
-                chars.next();
-                end = next + 1;
-            }
-        }
-        start = end;
-    }
-    if start < text.len() {
-        lines.push(&text[start..]);
-    }
-    lines
-}
-
-/// A non-empty run of ASCII digits (`str.isdigit()` restricted to ASCII; DIFFERENCES).
-pub fn is_digits(text: &str) -> bool {
-    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
-}
-
 /// `int(text)` for base 10: surrounding whitespace, an optional sign, ASCII digits with single
 /// underscores between them. `None` where Python raises `ValueError` (and beyond `i64`).
 pub fn int(text: &str) -> Option<i64> {
-    let text = strip(text);
-    let (negative, body) = match text.as_bytes().first() {
-        Some(b'-') => (true, &text[1..]),
-        Some(b'+') => (false, &text[1..]),
-        _ => (false, text),
-    };
-    if body.is_empty() || body.starts_with('_') || body.ends_with('_') || body.contains("__") {
-        return None;
-    }
+    let (negative, body) = pc_common::pytext::ascii_int_parts(text)?;
     let digits: String = body.chars().filter(|&c| c != '_').collect();
-    if !is_digits(&digits) {
-        return None;
-    }
     let value: i64 = digits.parse().ok()?;
     Some(if negative { -value } else { value })
 }
@@ -123,18 +62,6 @@ pub fn round(value: f64, ndigits: usize) -> f64 {
 /// `round(value, ndigits)` as a JSON float.
 pub fn round_json(value: f64, ndigits: usize) -> Value {
     Value::from(round(value, ndigits))
-}
-
-/// `bool(value)` of a JSON value.
-pub fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(flag) => *flag,
-        Value::Number(number) => number.as_f64().is_some_and(|n| n != 0.0),
-        Value::String(text) => !text.is_empty(),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-    }
 }
 
 /// `isinstance(value, int)` (a bool counts) as an `i64`.
@@ -197,6 +124,8 @@ pub fn body(value: &Value) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pc_common::pytext::{split, splitlines, strip};
+    use pc_common::pyvalue::truthy;
     use serde_json::json;
 
     #[test]

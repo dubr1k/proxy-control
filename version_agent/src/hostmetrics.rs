@@ -68,8 +68,8 @@ impl Nft for SystemNft {
             Ok(output) if output.success() => Ok(output.stdout_text()),
             Ok(output) => {
                 let stderr = output.stderr_text();
-                let stderr = py::strip(&stderr);
-                Err(NftUnavailable(match py::splitlines(stderr).last() {
+                let stderr = pc_common::pytext::strip(&stderr);
+                Err(NftUnavailable(match pc_common::pytext::splitlines(stderr).last() {
                     Some(line) if !stderr.is_empty() => line.chars().take(200).collect(),
                     _ => "nft failed".into(),
                 }))
@@ -439,7 +439,7 @@ impl MetricsSampler {
     fn cpu_percent(&self, state: &mut State) -> Value {
         let Some(text) = self.read("stat").filter(|t| !t.is_empty()) else { return Value::Null };
         let first = text.split('\n').next().unwrap_or("");
-        let fields = py::split(first);
+        let fields = pc_common::pytext::split(first);
         if fields.len() < 6 || fields[0] != "cpu" {
             return Value::Null;
         }
@@ -457,9 +457,9 @@ impl MetricsSampler {
 
     fn meminfo(&self) -> HashMap<String, i64> {
         let mut values = HashMap::new();
-        for line in py::splitlines(&self.read("meminfo").unwrap_or_default()) {
+        for line in pc_common::pytext::splitlines(&self.read("meminfo").unwrap_or_default()) {
             let (key, rest) = line.split_once(':').unwrap_or((line, ""));
-            if let Some(first) = py::split(rest).first().filter(|f| py::is_digits(f)) {
+            if let Some(first) = pc_common::pytext::split(rest).first().filter(|f| pc_common::pytext::is_ascii_digits(f)) {
                 if let Ok(number) = first.parse::<i64>() {
                     values.insert(key.to_string(), number * 1024);
                 }
@@ -494,11 +494,11 @@ impl MetricsSampler {
             return state.root_device.clone();
         }
         state.device_resolved = true;
-        for line in py::splitlines(&self.read("self/mountinfo").unwrap_or_default()) {
+        for line in pc_common::pytext::splitlines(&self.read("self/mountinfo").unwrap_or_default()) {
             let (head, tail) = line.split_once(" - ").unwrap_or((line, ""));
-            let fields = py::split(head);
+            let fields = pc_common::pytext::split(head);
             if fields.len() > 4 && fields[4] == "/" && !tail.is_empty() {
-                let tail_fields = py::split(tail);
+                let tail_fields = pc_common::pytext::split(tail);
                 let source = tail_fields.get(1).copied().unwrap_or("");
                 if source.starts_with("/dev/") {
                     let real = std::fs::canonicalize(source).unwrap_or_else(|_| PathBuf::from(source));
@@ -512,8 +512,8 @@ impl MetricsSampler {
     fn disk_io(&self, state: &mut State, elapsed: Option<f64>) -> [(&'static str, Value); 3] {
         let empty = [("read_bps", Value::Null), ("write_bps", Value::Null), ("busy_percent", Value::Null)];
         let Some(device) = self.resolve_root_device(state).filter(|d| !d.is_empty()) else { return empty };
-        for line in py::splitlines(&self.read("diskstats").unwrap_or_default()) {
-            let parts = py::split(line);
+        for line in pc_common::pytext::splitlines(&self.read("diskstats").unwrap_or_default()) {
+            let parts = pc_common::pytext::split(line);
             if parts.len() > 12 && parts[2] == device {
                 let parsed = (parts[5].parse::<i64>(), parts[9].parse::<i64>(), parts[12].parse::<i64>());
                 let (Ok(read), Ok(write), Ok(ticks)) = parsed else { return empty };
@@ -534,12 +534,12 @@ impl MetricsSampler {
     fn net_dev(&self) -> Vec<(String, (i64, i64))> {
         let mut found: Vec<(String, (i64, i64))> = Vec::new();
         let text = self.read("net/dev").unwrap_or_default();
-        for line in py::splitlines(&text).into_iter().skip(2) {
+        for line in pc_common::pytext::splitlines(&text).into_iter().skip(2) {
             let (name, rest) = line.split_once(':').unwrap_or((line, ""));
-            let fields = py::split(rest);
-            if fields.len() >= 9 && py::is_digits(fields[0]) && py::is_digits(fields[8]) {
+            let fields = pc_common::pytext::split(rest);
+            if fields.len() >= 9 && pc_common::pytext::is_ascii_digits(fields[0]) && pc_common::pytext::is_ascii_digits(fields[8]) {
                 if let (Ok(rx), Ok(tx)) = (fields[0].parse::<i64>(), fields[8].parse::<i64>()) {
-                    let name = py::strip(name).to_string();
+                    let name = pc_common::pytext::strip(name).to_string();
                     match found.iter_mut().find(|(known, _)| *known == name) {
                         Some(entry) => entry.1 = (rx, tx),
                         None => found.push((name, (rx, tx))),
@@ -598,8 +598,8 @@ impl MetricsSampler {
             }
         };
         let mut names: Vec<(String, String)> = Vec::new();
-        for line in py::splitlines(&listing) {
-            let line = py::strip(line);
+        for line in pc_common::pytext::splitlines(&listing) {
+            let line = pc_common::pytext::strip(line);
             let (id, name) = line.split_once(' ').unwrap_or((line, ""));
             if id.len() == 64 && id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) && !name.is_empty() {
                 match names.iter_mut().find(|(known, _)| known == id) {
@@ -620,13 +620,13 @@ impl MetricsSampler {
             let scope = self.config.cgroup.join("system.slice").join(format!("docker-{id}.scope"));
             let read = |file: &str| std::fs::read(scope.join(file)).ok().and_then(|data| String::from_utf8(data).ok());
             let Some(cpu_text) = read("cpu.stat") else { continue };
-            let Some(mem) = read("memory.current").and_then(|text| py::strip(&text).parse::<i64>().ok()) else {
+            let Some(mem) = read("memory.current").and_then(|text| pc_common::pytext::strip(&text).parse::<i64>().ok()) else {
                 continue;
             };
-            let usage = py::splitlines(&cpu_text)
+            let usage = pc_common::pytext::splitlines(&cpu_text)
                 .into_iter()
                 .find(|line| line.starts_with("usage_usec "))
-                .and_then(|line| py::split(line).get(1).and_then(|v| v.parse::<i64>().ok()));
+                .and_then(|line| pc_common::pytext::split(line).get(1).and_then(|v| v.parse::<i64>().ok()));
             let Some(usage) = usage else { continue };
             seen.push(name.clone());
             let delta = state.containers.update(&name, usage);
@@ -653,7 +653,7 @@ impl MetricsSampler {
             _ => Value::Null,
         };
         let loadavg_text = self.read("loadavg").unwrap_or_default();
-        let loadavg: Vec<&str> = py::split(&loadavg_text).into_iter().take(3).collect();
+        let loadavg: Vec<&str> = pc_common::pytext::split(&loadavg_text).into_iter().take(3).collect();
         let load = if loadavg.len() == 3 {
             loadavg
                 .iter()
@@ -665,7 +665,7 @@ impl MetricsSampler {
             Value::Null
         };
         let uptime_text = self.read("uptime").unwrap_or_default();
-        let uptime = py::split(&uptime_text)
+        let uptime = pc_common::pytext::split(&uptime_text)
             .first()
             .and_then(|v| v.parse::<f64>().ok())
             .filter(|f| f.is_finite())
@@ -754,8 +754,8 @@ impl MetricsSampler {
         for name in ["net/tcp", "net/tcp6"] {
             let Some(text) = self.read(name) else { continue };
             readable = true;
-            for line in py::splitlines(&text).into_iter().skip(1) {
-                let fields = py::split(line);
+            for line in pc_common::pytext::splitlines(&text).into_iter().skip(1) {
+                let fields = pc_common::pytext::split(line);
                 if fields.len() > 3 && fields[3] == "01" {
                     let port = fields[1].rsplit_once(':').map_or(fields[1], |(_, port)| port);
                     if let Ok(key) = u32::from_str_radix(port, 16) {

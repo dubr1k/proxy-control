@@ -200,7 +200,7 @@ fn expected_readback(config: &Value) -> Value {
         for user in users.iter_mut().filter_map(Value::as_object_mut) {
             // Only a freshly supplied password is hashed: re-hashing the blanked one of an
             // earlier user would replace its credential and fail the readback.
-            if user.get("password").is_some_and(pyjson::truthy) {
+            if user.get("password").is_some_and(pc_common::pyvalue::truthy) {
                 let raw = user["password"].as_str().unwrap_or_default().to_string();
                 let name = user.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
                 user.insert("password".into(), json!(""));
@@ -361,7 +361,7 @@ impl MieruManager {
         let Value::Object(mut state) = serde_json::from_str(&text).map_err(|_| invalid())? else {
             return Err(invalid());
         };
-        let generation_ok = state.get("generation").and_then(pyjson::int_of).is_some_and(|g| g >= 0);
+        let generation_ok = state.get("generation").and_then(pc_common::pyvalue::strict_int).is_some_and(|g| g >= 0);
         if !STATE_KEYS.iter().all(|k| state.contains_key(*k))
             || state.keys().any(|k| !STATE_KEYS.contains(&k.as_str()) && !OPTIONAL_STATE_KEYS.contains(&k.as_str()))
             || !pyjson::eq_int(&state["version"], 2)
@@ -379,7 +379,7 @@ impl MieruManager {
                 lanes::is_lane_id(lane)
                     && entry.as_object().is_some_and(|e| {
                         e.len() == 3
-                            && e.get("slot").and_then(pyjson::int_of).is_some()
+                            && e.get("slot").and_then(pc_common::pyvalue::strict_int).is_some()
                             && e.get("users").is_some_and(Value::is_array)
                             && e.get("upstream")
                                 .and_then(Value::as_object)
@@ -460,7 +460,7 @@ impl MieruManager {
             self.recover()?;
         }
         let version = self.mita.version()?;
-        let Some(version) = mita_version(pyjson::strip(&version)) else {
+        let Some(version) = mita_version(pc_common::pytext::strip(&version)) else {
             return Err(Error::conflict("mita did not report its version"));
         };
         let observed = Value::Object(self.mita.observe()?);
@@ -472,7 +472,7 @@ impl MieruManager {
             }
             self.refresh_router_credential(&mut state, &observed)?;
             let state = self.read_state()?;
-            if state.get("lanes").is_some_and(pyjson::truthy) {
+            if state.get("lanes").is_some_and(pc_common::pyvalue::truthy) {
                 self.sync_slots(&state, &Value::Object(self.mita.observe()?))?;
             }
             state
@@ -688,8 +688,8 @@ impl MieruManager {
         {
             return Err(Error::conflict("user already exists"));
         }
-        let flagged = pyjson::truthy(allow_private_ip) || pyjson::truthy(allow_loopback_ip);
-        if flagged && !pyjson::truthy(elevated) {
+        let flagged = pc_common::pyvalue::truthy(allow_private_ip) || pc_common::pyvalue::truthy(allow_loopback_ip);
+        if flagged && !pc_common::pyvalue::truthy(elevated) {
             return Err(Error::validation("private/loopback SSRF flags require elevated approval"));
         }
         let raw = match password {
@@ -697,10 +697,10 @@ impl MieruManager {
             _ => (self.token)()?,
         };
         let mut user = json!({"name": username, "password": raw, "quotas": quotas});
-        if pyjson::truthy(allow_private_ip) {
+        if pc_common::pyvalue::truthy(allow_private_ip) {
             user["allowPrivateIP"] = json!(true);
         }
-        if pyjson::truthy(allow_loopback_ip) {
+        if pc_common::pyvalue::truthy(allow_loopback_ip) {
             user["allowLoopbackIP"] = json!(true);
         }
         Self::users_mut(&mut config)?.push(user);
@@ -904,7 +904,7 @@ impl MieruManager {
         }
         let desired_hash = hash_value(&expected);
         let generation = get(state, "generation")?.clone();
-        let next_generation = pyjson::int_of(&generation).ok_or_else(|| Error::internal("generation"))? + 1;
+        let next_generation = pc_common::pyvalue::strict_int(&generation).ok_or_else(|| Error::internal("generation"))? + 1;
         let revision = get_str(state, "revision")?.to_string();
         let next_revision = hash_value(&json!({
             "config": expected,
@@ -988,7 +988,7 @@ impl MieruManager {
         }
         self.write_state(state)?;
         self.remove_journal()?;
-        if state.get("lanes").is_some_and(pyjson::truthy) {
+        if state.get("lanes").is_some_and(pc_common::pyvalue::truthy) {
             // The lanes mirror the main daemon: the main change is committed; a slot that will
             // not follow is marked and brought back at the next lanes request or start.
             let synced = self.mita.observe().and_then(|config| self.sync_slots(state, &Value::Object(config)));
@@ -1025,8 +1025,8 @@ impl MieruManager {
         }
         let text = |field: &str| journal[field].as_str();
         let hex64 = |field: &str| text(field).is_some_and(util::is_hex64);
-        let state_generation = pyjson::int_of(&journal["state_generation"]);
-        let backup_size = pyjson::int_of(&journal["backup_size"]);
+        let state_generation = pc_common::pyvalue::strict_int(&journal["state_generation"]);
+        let backup_size = pc_common::pyvalue::strict_int(&journal["backup_size"]);
         let expected_name = format!(
             "g{}-{}.json",
             pyjson::py_str(&journal["state_generation"]),
@@ -1255,7 +1255,7 @@ impl MieruManager {
             warnings.push("router_credential_stale");
         }
         let entry_get = |entry: &Value, key: &str| entry.get(key).cloned().unwrap_or(Value::Null);
-        let managed = current.is_some_and(|c| pyjson::truthy(c) && !entry_get(c, "document").is_null());
+        let managed = current.is_some_and(|c| pc_common::pyvalue::truthy(c) && !entry_get(c, "document").is_null());
         Ok(json!({
             "revision": get(state, "revision")?,
             "mode": mode,
@@ -1294,7 +1294,7 @@ impl MieruManager {
             pyjson::dumps(value, true, Some(1)).split('\n').map(str::to_string).collect()
         };
         let before = lines(&egress::redact_section(section));
-        let planned = if pyjson::truthy(&target) { egress::redact_section(Some(&target)) } else { Value::Null };
+        let planned = if pc_common::pyvalue::truthy(&target) { egress::redact_section(Some(&target)) } else { Value::Null };
         let after = lines(&planned);
         let diff: Vec<String> = crate::difflib::changed_lines(&before, &after)
             .into_iter()
@@ -1365,7 +1365,7 @@ impl MieruManager {
         let document = previous.get("document").cloned().unwrap_or(Value::Null);
         let target = if document.is_null() {
             match previous.get("raw") {
-                Some(raw) if pyjson::truthy(raw) => raw.clone(),
+                Some(raw) if pc_common::pyvalue::truthy(raw) => raw.clone(),
                 _ => json!({}),
             }
         } else {
@@ -1415,7 +1415,7 @@ impl MieruManager {
         }
         let mut desired = observed.clone();
         if let Some(map) = desired.as_object_mut() {
-            if pyjson::truthy(&target) {
+            if pc_common::pyvalue::truthy(&target) {
                 map.insert("egress".into(), target);
             } else {
                 map.shift_remove("egress");
@@ -1499,7 +1499,7 @@ impl MieruManager {
         for slot in &self.lane_slots {
             let client = self.slot_client(slot);
             let desired = self.slot_desired(slot, state, config)?;
-            let wants_users = desired.get("users").is_some_and(pyjson::truthy);
+            let wants_users = desired.get("users").is_some_and(pc_common::pyvalue::truthy);
             let before = Value::Object(client.observe()?);
             let was_running = client.status()? == "RUNNING";
             let (before_hash, desired_hash) = (hash_value(&before), hash_value(&desired));
@@ -1622,7 +1622,7 @@ impl MieruManager {
     fn lanes_view(&self, state: &State, config: &Value) -> Result<Value> {
         let enabled: Vec<Value> =
             users_of(config).iter().map(|row| row.get("name").cloned().unwrap_or(Value::Null)).collect();
-        let stale = state.get("lanes_stale").is_some_and(pyjson::truthy);
+        let stale = state.get("lanes_stale").is_some_and(pc_common::pyvalue::truthy);
         let mtu = config.get("mtu").cloned().unwrap_or_else(|| json!(1400));
         let lanes_map = get(state, "lanes")?.as_object().cloned().unwrap_or_default();
         let mut view = Vec::new();

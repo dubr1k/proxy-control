@@ -60,7 +60,7 @@ fn prune_telemt_images(agent: &VersionAgent, keep: &[&str]) {
     else {
         return;
     };
-    for image in crate::py::split(&listing) {
+    for image in pc_common::pytext::split(&listing) {
         if image.starts_with(&format!("{TELEMT_LOCAL_REPOSITORY}:")) && !keep.contains(&image) {
             // An image still in use stays.
             let _ = run(agent, &argv(&["docker", "image", "rm", image]), 60);
@@ -72,7 +72,7 @@ fn prune_telemt_images(agent: &VersionAgent, keep: &[&str]) {
 fn inspect_telemt_image(agent: &VersionAgent) -> Step<String> {
     let container = agent.config.telemt_container.clone();
     let image = run(agent, &argv(&["docker", "inspect", "--format", "{{.Config.Image}}", &container]), 30)?;
-    let image = crate::py::strip(&image).to_string();
+    let image = pc_common::pytext::strip(&image).to_string();
     if image.is_empty() {
         return Err(refuse("Telemt image readback was empty"));
     }
@@ -90,7 +90,7 @@ fn verify_telemt_generation(updater: &HostUpdater, agent: &VersionAgent, expecte
     let container = agent.config.telemt_container.clone();
     let status = loop {
         let status = run(agent, &argv(&["docker", "inspect", "--format", "{{.State.Health.Status}}", &container]), 30)?;
-        let status = crate::py::strip(&status).to_string();
+        let status = pc_common::pytext::strip(&status).to_string();
         if status == "healthy" {
             return Ok(());
         }

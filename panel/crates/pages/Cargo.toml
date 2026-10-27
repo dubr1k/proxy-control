@@ -15,5 +15,6 @@ panel-core = { path = "../core" }
 panel-managers = { path = "../managers" }
 panel-model = { path = "../model" }
 panel-protocols = { path = "../protocols" }
+pc_common = { path = "../../../pc_common" }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 sha2 = "0.10"

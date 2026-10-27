@@ -1,9 +1,5 @@
-//! Python semantics the manager's behaviour rests on — whitespace, digits, `int()`, line
-//! splitting, truthiness — plus the host primitives of the Python version: `mkstemp`-style atomic
-//! files, UTC timestamps, randomness (`secrets`, `uuid4`), and its log line.
-//!
-//! Candidates for `pc_common`: `atomic_write` (unique temporary names: two threads may write the
-//! same file), `py_strip`/`py_int`, `Logger`.
+//! Host primitives plus the router's Unicode-decimal integer parser and numeric equality.
+//! Shared Python whitespace, line splitting, slicing and JSON-value primitives live in `pc_common`.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -15,16 +11,7 @@ use base64::Engine;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-/// `str.isspace()`: what `strip()`, `split()` and the regex `\s` treat as whitespace.
-pub fn py_isspace(c: char) -> bool {
-    matches!(c as u32, 0x09..=0x0d | 0x1c..=0x20 | 0x85 | 0xa0 | 0x1680 | 0x2000..=0x200a | 0x2028 | 0x2029 | 0x202f | 0x205f | 0x3000)
-}
-
-/// `str.strip()` without arguments.
-pub fn py_strip(text: &str) -> &str {
-    text.trim_matches(py_isspace)
-}
-
+use pc_common::pytext::strip as py_strip;
 /// The zero of every run of Unicode decimal digits (`str.isdecimal()`, the regex `\d`), Unicode
 /// 15.1 as in Python 3.13.
 const DECIMAL_ZEROS: [u32; 68] = [
@@ -75,65 +62,6 @@ pub fn py_int(text: &str, base: u32) -> Option<i128> {
     Some(if negative { -value } else { value })
 }
 
-/// `text[:n]` in characters.
-pub fn first_chars(text: &str, n: usize) -> &str {
-    match text.char_indices().nth(n) {
-        Some((index, _)) => &text[..index],
-        None => text,
-    }
-}
-
-/// `text[-n:]` in characters.
-pub fn last_chars(text: &str, n: usize) -> &str {
-    let count = text.chars().count();
-    if count <= n {
-        return text;
-    }
-    let (index, _) = text.char_indices().nth(count - n).expect("within bounds");
-    &text[index..]
-}
-
-/// `str.splitlines()`.
-pub fn py_splitlines(text: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let mut start = 0;
-    let mut chars = text.char_indices().peekable();
-    while let Some((index, c)) = chars.next() {
-        let boundary = matches!(
-            c,
-            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{1c}' | '\u{1d}' | '\u{1e}' | '\u{85}' | '\u{2028}' | '\u{2029}'
-        );
-        if !boundary {
-            continue;
-        }
-        lines.push(&text[start..index]);
-        let mut end = index + c.len_utf8();
-        if c == '\r' {
-            if let Some((next, '\n')) = chars.peek().copied() {
-                chars.next();
-                end = next + 1;
-            }
-        }
-        start = end;
-    }
-    if start < text.len() {
-        lines.push(&text[start..]);
-    }
-    lines
-}
-
-/// Python truthiness of a JSON value.
-pub fn py_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(flag) => *flag,
-        Value::Number(number) => number.as_f64().is_some_and(|n| n != 0.0),
-        Value::String(text) => !text.is_empty(),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-    }
-}
-
 /// `value == n` with Python's numeric equality (`True == 1`, `2.0 == 2`).
 pub fn py_eq_int(value: Option<&Value>, n: i64) -> bool {
     match value {
@@ -143,16 +71,6 @@ pub fn py_eq_int(value: Option<&Value>, n: i64) -> bool {
             None => number.as_f64() == Some(n as f64),
         },
         _ => false,
-    }
-}
-
-/// A JSON integer (not a bool, not a float), as `isinstance(v, int) and not isinstance(v, bool)`.
-pub fn json_int(value: &Value) -> Option<i128> {
-    match value {
-        Value::Number(number) if !number.is_f64() => {
-            number.as_i64().map(i128::from).or_else(|| number.as_u64().map(i128::from))
-        }
-        _ => None,
     }
 }
 
@@ -339,6 +257,7 @@ pub fn init_logger() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pc_common::pytext::{head_chars as first_chars, splitlines as py_splitlines, tail_chars as last_chars};
 
     #[test]
     fn python_strings_and_numbers() {

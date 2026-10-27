@@ -32,7 +32,8 @@ use crate::errors::Error;
 use crate::intent::{MTPROXY_SOCKET, PORTS};
 use crate::runner::SubprocessXrayRunner;
 use crate::service::{Options, XrayRouterManager};
-use crate::util::{py_int, py_strip};
+use crate::util::py_int;
+use pc_common::pytext::strip as py_strip;
 
 const WATCHDOG: Duration = Duration::from_secs(2);
 

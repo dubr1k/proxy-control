@@ -152,7 +152,7 @@ struct Number(String);
 
 impl Number {
     fn of(piece: &str) -> Number {
-        if crate::py::is_digits(piece) {
+        if pc_common::pytext::is_ascii_digits(piece) {
             let trimmed = piece.trim_start_matches('0');
             Number(if trimmed.is_empty() { "0".into() } else { trimmed.into() })
         } else {
@@ -218,10 +218,10 @@ fn is_hex64(text: &str) -> bool {
 
 /// `parse_dgst`: the `SHA2-256=` (or `SHA256=`) line of an Xray `.dgst` file.
 pub fn parse_dgst(text: &str) -> Result<String, UpstreamError> {
-    for line in crate::py::splitlines(text) {
+    for line in pc_common::pytext::splitlines(text) {
         let (key, value) = line.split_once('=').unwrap_or((line, ""));
-        let value = crate::py::strip(value).to_lowercase();
-        if matches!(crate::py::strip(key), "SHA2-256" | "SHA256") && is_hex64(&value) {
+        let value = pc_common::pytext::strip(value).to_lowercase();
+        if matches!(pc_common::pytext::strip(key), "SHA2-256" | "SHA256") && is_hex64(&value) {
             return Ok(value);
         }
     }
@@ -255,13 +255,13 @@ pub fn parse_sha256_txt(text: &str) -> Result<String, UpstreamError> {
 
 /// `parse_sha256sums`: the digest of `filename` from a `sha256sum` listing.
 pub fn parse_sha256sums(text: &str, filename: &str) -> Result<String, UpstreamError> {
-    for line in crate::py::splitlines(text) {
-        let line = crate::py::strip(line);
+    for line in pc_common::pytext::splitlines(text) {
+        let line = pc_common::pytext::strip(line);
         let (digest, name) = line.split_once(' ').unwrap_or((line, ""));
-        let name = crate::py::strip(name);
+        let name = pc_common::pytext::strip(name);
         let name = name.strip_prefix('*').unwrap_or(name);
         if name == filename {
-            let digest = crate::py::strip(digest).to_lowercase();
+            let digest = pc_common::pytext::strip(digest).to_lowercase();
             if is_hex64(&digest) {
                 return Ok(digest);
             }
@@ -305,7 +305,7 @@ fn published(item: &Map<String, Value>) -> Value {
 }
 
 fn get_truthy(item: &Map<String, Value>, key: &str) -> bool {
-    item.get(key).is_some_and(crate::py::truthy)
+    item.get(key).is_some_and(pc_common::pyvalue::truthy)
 }
 
 fn list_of(value: Option<&Value>) -> &[Value] {

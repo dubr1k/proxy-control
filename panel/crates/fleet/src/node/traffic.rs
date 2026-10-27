@@ -1,7 +1,6 @@
 //! Bytes per protocol for `GET /api/fleet/v2/status` (`node_routes.py:_traffic`), best effort:
 //! what each manager exposes, `None` where it exposes nothing (mita) or cannot answer right now.
 
-use panel_model::pyrepr;
 use serde_json::{json, Value};
 
 const MAX: i128 = i64::MAX as i128;
@@ -33,7 +32,7 @@ pub fn py_int(value: Option<&Value>) -> Result<i128, String> {
         Some(Value::Object(map)) if map.is_empty() => Ok(0),
         Some(other) => Err(format!(
             "int() argument must be a string, a bytes-like object or a real number, not '{}'",
-            pyrepr::type_name(other)
+            pc_common::pyvalue::type_name(other)
         )),
     }
 }

@@ -53,7 +53,7 @@ impl HostReader {
     /// Total and idle (+iowait) jiffies of the aggregate `cpu` line.
     fn cpu_times(&self) -> Option<(i64, i64)> {
         let text = self.read("stat")?;
-        let fields = py::split(text.split('\n').next().unwrap_or(""));
+        let fields = pc_common::pytext::split(text.split('\n').next().unwrap_or(""));
         if fields.len() < 6 || fields[0] != "cpu" {
             return None;
         }
@@ -70,7 +70,7 @@ impl HostReader {
 
     pub fn load_average(&self) -> Value {
         let Some(text) = self.read("loadavg") else { return Value::Null };
-        py::split(&text)
+        pc_common::pytext::split(&text)
             .into_iter()
             .take(3)
             .map(|v| v.parse::<f64>().ok().filter(|f| f.is_finite()).map(|f| py::round_json(f, 2)))
@@ -83,10 +83,10 @@ impl HostReader {
     fn meminfo(&self) -> Option<Vec<(String, i64)>> {
         let text = self.read("meminfo")?;
         let mut values: Vec<(String, i64)> = Vec::new();
-        for line in py::splitlines(&text) {
+        for line in pc_common::pytext::splitlines(&text) {
             let (key, rest) = line.split_once(':').unwrap_or((line, ""));
             if let Some(number) =
-                py::split(rest).first().filter(|f| py::is_digits(f)).and_then(|f| f.parse::<i64>().ok())
+                pc_common::pytext::split(rest).first().filter(|f| pc_common::pytext::is_ascii_digits(f)).and_then(|f| f.parse::<i64>().ok())
             {
                 values.retain(|(known, _)| known != key);
                 values.push((key.to_string(), number * 1024));

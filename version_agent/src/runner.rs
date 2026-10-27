@@ -144,7 +144,7 @@ impl CommandRunner for SystemRunner {
             Ok(output) => {
                 let stdout = output.stdout_text();
                 if output.success() {
-                    Ok(crate::py::strip(&stdout).to_string())
+                    Ok(pc_common::pytext::strip(&stdout).to_string())
                 } else {
                     use std::os::unix::process::ExitStatusExt;
                     let returncode = output.status.code().unwrap_or_else(|| -output.status.signal().unwrap_or(0));

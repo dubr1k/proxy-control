@@ -34,7 +34,7 @@ fn env(key: &str) -> Option<String> {
 
 /// `os.getenv(key, "").strip() or None`.
 fn env_optional(key: &str) -> Option<String> {
-    env(key).map(|v| pyjson::strip(&v).to_string()).filter(|v| !v.is_empty())
+    env(key).map(|v| pc_common::pytext::strip(&v).to_string()).filter(|v| !v.is_empty())
 }
 
 /// GET /v1/health with the token; healthy on any 200, as the Python probe was.
@@ -64,7 +64,7 @@ fn healthcheck() -> i32 {
 fn run() -> Result<(), String> {
     let token_file = env("MIERU_MANAGER_TOKEN_FILE").unwrap_or_else(|| "/etc/mieru-manager/token".into());
     let token = std::fs::read_to_string(&token_file).map_err(|err| format!("cannot read {token_file}: {err}"))?;
-    let token = pyjson::strip(&token).to_string();
+    let token = pc_common::pytext::strip(&token).to_string();
     let sha256 = env("MIERU_MITA_SHA256").ok_or("MIERU_MITA_SHA256 is required")?;
     let public_host = env("MIERU_PUBLIC_HOST").ok_or("MIERU_PUBLIC_HOST is required")?;
     let mita: Arc<dyn Mita> = Arc::new(MitaCli::new(MITA, Vec::new(), Some(sha256.clone())));

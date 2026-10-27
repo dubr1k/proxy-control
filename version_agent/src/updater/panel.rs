@@ -145,7 +145,7 @@ pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
             run(agent, &argv(&["systemctl", "show", "--property=LoadState", "--value", unit]), 30).map_err(|err| {
                 Failure::Update(UpdateError::new("could not determine installed Fleet v1 units").caused_by(err.cause()))
             })?;
-        match crate::py::strip(&state) {
+        match pc_common::pytext::strip(&state) {
             "not-found" => {}
             "loaded" | "masked" | "error" => {
                 return Err(refuse(format!(
@@ -183,8 +183,8 @@ pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
                     UpdateError::new("could not determine existing Compose services").caused_by(err.cause()),
                 )
             })?;
-        for service in crate::py::splitlines(&existing) {
-            let service = crate::py::strip(service);
+        for service in pc_common::pytext::splitlines(&existing) {
+            let service = pc_common::pytext::strip(service);
             if matches!(service, "fleet-agent" | "fleet-ingress") {
                 return Err(refuse(format!(
                     "Fleet v1 service {service} is still installed; migrate its state explicitly before updating the panel"
@@ -198,8 +198,8 @@ pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
             run(agent, &argv(&["docker", "ps", "--filter", &filter, "--format", format]), 30).map_err(|err| {
                 Failure::Update(UpdateError::new("could not determine running Compose services").caused_by(err.cause()))
             })?;
-        for service in crate::py::splitlines(&running) {
-            let service = crate::py::strip(service);
+        for service in pc_common::pytext::splitlines(&running) {
+            let service = pc_common::pytext::strip(service);
             if let Some(required) = optional_overlay(service) {
                 if !agent.config.compose_files.iter().any(|file| file == required) {
                     return Err(refuse(format!(
@@ -475,7 +475,7 @@ fn stop_panel_writers(agent: &VersionAgent) -> Step<()> {
     run_compose(agent, &compose_command(agent, &args, override_exists(agent), true)?, 180)?;
     let filter = format!("volume={}", agent.panel_volume());
     let active = run(agent, &argv(&["docker", "ps", "--filter", &filter, "--format", "{{.ID}}"]), 30)?;
-    if !crate::py::strip(&active).is_empty() {
+    if !pc_common::pytext::strip(&active).is_empty() {
         return Err(refuse("panel database volume still has active containers"));
     }
     Ok(())
@@ -485,7 +485,7 @@ fn stop_panel_writers(agent: &VersionAgent) -> Step<()> {
 fn panel_volume_dir(agent: &VersionAgent) -> Step<PathBuf> {
     let volume = agent.panel_volume();
     let mountpoint = run(agent, &argv(&["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", &volume]), 30)?;
-    let path = PathBuf::from(crate::py::strip(&mountpoint));
+    let path = PathBuf::from(pc_common::pytext::strip(&mountpoint));
     if !path.is_absolute() || !path.is_dir() {
         return Err(refuse("panel volume mountpoint is missing"));
     }
@@ -580,7 +580,7 @@ fn sync_and_restart_panel_locked(
     // changing files if its immutable identity is unavailable.
     let container = agent.config.panel_container.clone();
     let running_image = run(agent, &argv(&["docker", "inspect", "--format", "{{.Image}}", &container]), 30)?;
-    let running_image = crate::py::strip(&running_image).to_string();
+    let running_image = pc_common::pytext::strip(&running_image).to_string();
     if !super::is_image_id(&running_image) {
         return Err(refuse("running panel image identity is unavailable"));
     }

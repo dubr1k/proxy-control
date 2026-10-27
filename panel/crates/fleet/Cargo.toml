@@ -19,6 +19,7 @@ panel-metrics = { path = "../metrics" }
 panel-model = { path = "../model" }
 panel-protocols = { path = "../protocols" }
 panel-secrets = { path = "../secrets" }
+pc_common = { path = "../../../pc_common" }
 # The same features as panel-core: objects keep insertion order like Python dicts.
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }

@@ -14,7 +14,8 @@ use serde_json::{json, Value};
 use crate::https::{self, Failure};
 use crate::ipaddr;
 use crate::pyjson;
-use crate::util::{json_int, py_int, py_truthy};
+use crate::util::py_int;
+use pc_common::pyvalue::{strict_int as json_int, truthy as py_truthy};
 
 pub const API: &str = "https://api.cloudflareclient.com/v0a5641";
 pub const HEADERS: [(&str, &str); 3] = [

@@ -138,7 +138,7 @@ impl PanelClient {
                 map.get("detail").cloned().unwrap_or(Value::String(reason)),
                 map.get("code").cloned().unwrap_or(Value::Null),
             ),
-            other if py::truthy(other) => (other.clone(), Value::Null),
+            other if pc_common::pyvalue::truthy(other) => (other.clone(), Value::Null),
             _ => (Value::String(reason), Value::Null),
         };
         let detail = match detail {

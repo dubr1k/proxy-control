@@ -15,7 +15,7 @@ use panel_core::rusqlite::{self, params_from_iter, types::Value as SqlValue};
 use panel_core::serde_json::{self, Map, Value};
 
 use crate::audit::{self, Actor, Record};
-use crate::pyvalue::py_truthy;
+use pc_common::pyvalue::truthy as py_truthy;
 
 /// The event names.
 pub const NAMES: [&str; 5] =

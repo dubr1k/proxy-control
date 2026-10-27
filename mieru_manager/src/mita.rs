@@ -318,7 +318,7 @@ impl MitaCli {
     fn text(&self, args: &[&str]) -> Result<String> {
         let out = self.run(args, None, true)?;
         let text = String::from_utf8(out).map_err(|_| Error::mita("mita returned invalid output"))?;
-        Ok(pyjson::strip(&text).to_string())
+        Ok(pc_common::pytext::strip(&text).to_string())
     }
 }
 
@@ -387,7 +387,7 @@ pub fn parse_traffic(text: &str) -> Result<BTreeMap<String, (u64, u64)>> {
         let Value::Object(row) = row else { return Err(bad()) };
         let count = |key: &str| match row.get(key) {
             None => Some(0),
-            Some(v) => pyjson::int_of(v).filter(|n| *n >= 0).and_then(|n| u64::try_from(n).ok()),
+            Some(v) => pc_common::pyvalue::strict_int(v).filter(|n| *n >= 0).and_then(|n| u64::try_from(n).ok()),
         };
         let (Some(up), Some(down)) = (count("UploadBytes"), count("DownloadBytes")) else { return Err(bad()) };
         out.insert(name.clone(), (up, down));
