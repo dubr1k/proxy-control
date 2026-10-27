@@ -200,3 +200,30 @@ def test_shell_shims_dispatch_real_native_cli_in_private_tree(private_bundle, sc
     assert "usage:" in result.stdout.lower()
     if command:
         assert command in result.stdout
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_native_wizard_router_question_names_the_current_manifest_pin(private_bundle, language):
+    executable = os.environ.get("PROXY_CONTROL_TEST_INSTALLER")
+    assert executable and Path(executable).is_file(), "set PROXY_CONTROL_TEST_INSTALLER to the isolated Rust build"
+    tree = private_bundle / "tree"
+    target = tree / INSTALLER
+    target.parent.mkdir(parents=True)
+    shutil.copy2(executable, target)
+    manifest = json.loads((ROOT / "release/external-artifacts.json").read_text())
+    (tree / "release").mkdir()
+    (tree / "release/external-artifacts.json").write_text(json.dumps(manifest))
+    pin = next(item["version"] for item in manifest["artifacts"] if item["name"] == "xray")
+    root = private_bundle / "root"
+    root.mkdir()
+    output = private_bundle / "never-saved.toml"
+    answers = ["fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
+               "no", "yes", "gate.example.com", "quit"]
+    result = subprocess.run(
+        [str(target), "--root", str(root), "wizard", "--lang", language, "--config-output", str(output)],
+        input="\n".join(answers) + "\n", capture_output=True, text=True, timeout=20,
+        env={"PATH": os.environ["PATH"], "LANG": "C"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert f"Xray-core {pin}" in result.stdout, result.stdout
+    assert not output.exists()
