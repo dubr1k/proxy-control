@@ -17,6 +17,8 @@ import ssl
 import subprocess
 import tempfile
 
+import httpx
+
 from panel.tests.harness.memories.mieru import MemoryMieru
 from panel.tests.harness.memories.naive import MemoryNaive
 from panel.tests.harness.memories.telemt import MemoryTelemt
@@ -43,11 +45,12 @@ async def request(http, method, path, body=None, expected=200):
 
 
 async def delivery(directory, *, central_factory=start_panel, node_factory=start_panel,
-                   central_impl="rust", node_impl="rust"):
+                   central_impl="rust", node_impl="rust", extended_router_identity=False):
     directory.mkdir()
     node = node_factory(directory, name="node", hosts=("testserver", "127.0.0.1", "localhost"),
         naive=MemoryNaive(), mieru=MemoryMieru(), telemt=MemoryTelemt(public_host="runtime.node.example"),
-        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example")
+        naive_enabled=True, mieru_enabled=True, naive_public_host="public.node.example",
+        xray_router_enabled=extended_router_identity)
     central = central_factory(directory, name="central", naive=MemoryNaive(), mieru=MemoryMieru(),
         telemt=MemoryTelemt(), naive_enabled=True, mieru_enabled=True,
         naive_public_host="central.example")
@@ -90,6 +93,16 @@ async def delivery(directory, *, central_factory=start_panel, node_factory=start
         assert untrusted.status_code == 409 and len(seen) == before
         mismatch = await central.client.post("/api/nodes/test", json={**body, "pinned_sha256": "0" * 64})
         assert mismatch.status_code == 409 and len(seen) == before
+        if extended_router_identity:
+            trusted = ssl.create_default_context(cafile=directory / "cert.pem")
+            # The private proxy is reached by IP; trust its exact fixture certificate.
+            trusted.check_hostname = False
+            async with httpx.AsyncClient(verify=trusted) as https:
+                identity = await https.get(url + "/api/fleet/v2/identity",
+                                           headers={"Authorization": "Bearer " + key})
+            assert identity.status_code == 200, identity.text
+            router = identity.json()["router"]
+            assert router is not None and router["available"] is False and router["reason"]
         linked = await request(central.client, "POST", "/api/nodes/link", body, 201)
         node_id = linked["node_id"]
         client = await request(central.client, "POST", "/api/clients", {"display_name": "Mixed", "subscription": False}, 201)
@@ -117,6 +130,7 @@ async def delivery(directory, *, central_factory=start_panel, node_factory=start
         print(json.dumps({"central": central_impl, "node": node_impl, "tls_private_negatives": 3,
                           "central_version": central_identity["panel_version"],
                           "node_version": node_identity["panel_version"],
+                          "extended_router_identity_accepted": extended_router_identity,
                           "delivered_protocols": 3, "generation": desired["generation"], "digest": digest,
                           "http_requests": len(seen)}, sort_keys=True), flush=True)
     finally:
