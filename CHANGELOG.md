@@ -13,6 +13,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
   agent's exact release before submitting a panel update; restore code/unit/tmpfiles and journal
   on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
 - `update-host` retires the unused Fleet v1 overlays (`compose.agent.yaml`, `compose.fleet-central.yaml`) of a 3.x tree: after proving no Fleet v1 unit, container, volume, Compose reference or `FLEET_*` setting exists, it removes them from the installer journal and moves them to `/var/lib/proxy-control/retired/`. Hosts installed through the installer no longer read the missing files as drift.
+- Core repair and apply start the whole installed stack: `compose.yaml`, the overlay of every installed sibling (NaiveProxy, Mieru, Xray-router, AmneziaWG, TrustTunnel, MCP) with its env file, and the version overrides. The panel used to be recreated from `compose.yaml` alone, lost the manager mounts, and NaiveProxy/Mieru grants hung in `pending`.
+- Core acceptance takes the MTProxy secret in the form the panel reveals it (the key followed by the hex of the Fake-TLS domain) and hands the resPQ probe the key only; fresh installs and journal updates used to fail with `Core acceptance failed: resPQ`. The grant-less client created for the temporary user is deleted with it.
 - Fresh native installations no longer select or own a Python interpreter. Existing package
   journals keep their recorded ownership so repair and uninstall do not remove a pre-existing Python.
 - Native host commands decode systemd environment quoting, escapes and line continuations

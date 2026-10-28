@@ -277,6 +277,11 @@ fn source_install_does_not_deploy_local_cargo_artifacts() {
 }
 
 fn owned_core() -> (crate::testkit::TempDir, Arc<CoreAdapter>) {
+    let (root, adapter, _) = owned_core_recording();
+    (root, adapter)
+}
+
+fn owned_core_recording() -> (crate::testkit::TempDir, Arc<CoreAdapter>, Arc<pc_host::runner::RecordingRunner>) {
     use pc_host::runner::{RecordingRunner, Reply};
     use std::sync::Mutex;
     let root = crate::testkit::TempDir::new("core-lifecycle-safety");
@@ -301,11 +306,40 @@ fn owned_core() -> (crate::testkit::TempDir, Arc<CoreAdapter>) {
     let mut adapter = CoreAdapter::new(&AdapterContext {
         root: root.path().into(),
         tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
-        runner,
+        runner: runner.clone(),
     });
     adapter.test_acceptance =
         Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
-    (root, Arc::new(adapter))
+    (root, Arc::new(adapter), runner)
+}
+
+#[test]
+fn repair_recreates_the_panel_with_every_installed_overlay() {
+    let (root, adapter, runner) = owned_core_recording();
+    let action = core_action();
+    let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+    let project = root.path().join("opt/mtproxy-shared443");
+    // Core ships every overlay file; a sibling counts as installed only once its env exists.
+    assert!(project.join("compose.trusttunnel.yaml").is_file());
+    for sibling in ["naive", "mieru"] {
+        fs::write(project.join(format!(".env.{sibling}")), "X=1\n").unwrap();
+    }
+    fs::create_dir_all(project.join("version-overrides")).unwrap();
+    fs::write(project.join("version-overrides/compose.versions.yaml"), "services: {}\n").unwrap();
+    runner.clear();
+    adapter.repair(&action, applied).unwrap();
+    let up = runner.argvs().into_iter().find(|argv| argv.iter().any(|arg| arg == "up")).expect("repair starts Compose");
+    let values = |flag: &str| -> Vec<String> {
+        up.windows(2)
+            .filter(|pair| pair[0] == flag)
+            .map(|pair| pair[1].replace("/opt/mtproxy-shared443/", ""))
+            .collect()
+    };
+    assert_eq!(values("--env-file"), [".env", ".env.naive", ".env.mieru"]);
+    assert_eq!(
+        values("-f"),
+        ["compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "version-overrides/compose.versions.yaml"]
+    );
 }
 
 #[test]

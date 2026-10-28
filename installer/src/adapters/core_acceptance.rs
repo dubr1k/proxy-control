@@ -148,6 +148,39 @@ impl PanelSession {
             .and_then(Value::as_array)
             .is_some_and(|rows| rows.iter().any(|row| row.get("username").and_then(Value::as_str) == Some(name))))
     }
+    /// Deleting the MTProxy user removes only its grant: the client the panel created for it stays behind
+    /// with no grants. Archive and delete that client too, and only when it has no grants left.
+    fn delete_client(&mut self, name: &str) -> Result<(), Error> {
+        let page = self.request("GET", &format!("/api/clients?limit=200&query={name}"), None, false, true)?;
+        let ids: Vec<String> = page
+            .get("items")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|row| {
+                row.pointer("/client/display_name").and_then(Value::as_str) == Some(name)
+                    && row.get("grants").and_then(Value::as_array).is_some_and(Vec::is_empty)
+            })
+            .filter_map(|row| row.pointer("/client/id").and_then(Value::as_str).map(str::to_string))
+            .collect();
+        for id in ids {
+            if !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                return Err(acceptance("Core acceptance failed: temporary-client cleanup"));
+            }
+            self.request("POST", &format!("/api/clients/{id}/state"), Some(json!({"state": "archived"})), true, true)?;
+            self.request("DELETE", &format!("/api/clients/{id}"), None, true, true)?;
+        }
+        Ok(())
+    }
+}
+
+/// The 32-hex key the probe takes. The panel reveals the Fake-TLS secret without its `ee` prefix, so the
+/// key is followed by the hex of the proxy domain; a bare key is accepted as well.
+fn probe_key<'a>(secret: &'a str, proxy_domain: &str) -> Option<&'a str> {
+    let key = secret.get(..32).filter(|key| is_hex(key, 32))?;
+    let domain: String = proxy_domain.to_ascii_lowercase().bytes().map(|byte| format!("{byte:02x}")).collect();
+    let rest = &secret[32..];
+    (rest.is_empty() || rest == domain).then_some(key)
 }
 
 impl CoreAdapter {
@@ -177,7 +210,7 @@ impl CoreAdapter {
             if session.has_user(name)? {
                 session.request("DELETE", &format!("/api/users/{name}"), None, true, true)?;
             }
-            Ok(())
+            session.delete_client(name)
         })();
         let logout = session.logout();
         result.and(logout)
@@ -256,8 +289,8 @@ impl CoreAdapter {
             let secret = credential
                 .get("secret")
                 .and_then(Value::as_str)
-                .filter(|value| is_hex(value, 32))
-                .ok_or_else(|| acceptance("Core acceptance failed: resPQ"))?;
+                .and_then(|value| probe_key(value, &selected.proxy_domain))
+                .ok_or_else(|| acceptance("Core acceptance failed: resPQ: the revealed secret has an unknown form"))?;
             let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
             temporary_created = true;
             writeln!(file, "{name}={secret}")?;
@@ -276,7 +309,9 @@ impl CoreAdapter {
         })();
         let mut cleanup = Ok(());
         if created {
-            cleanup = session.request("DELETE", &format!("/api/users/{name}"), None, true, true).map(|_| ());
+            cleanup = session
+                .request("DELETE", &format!("/api/users/{name}"), None, true, true)
+                .and_then(|_| session.delete_client(name));
         }
         let logout = session.logout();
         let remove = if temporary_created {
@@ -424,6 +459,18 @@ mod tests {
         rows.push(rows[0].clone());
         assert!(healthy_services(&serde_json::to_string(&rows).unwrap()).is_err());
         assert!(healthy_services("[]").is_err());
+    }
+    #[test]
+    fn probe_key_takes_the_bare_key_or_the_fake_tls_form_of_this_domain_only() {
+        let key = "0123456789abcdef0123456789abcdef";
+        let domain = "Relay.Example.com";
+        let tail: String = "relay.example.com".bytes().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(probe_key(key, domain), Some(key));
+        assert_eq!(probe_key(&format!("{key}{tail}"), domain), Some(key));
+        let other: String = "other.example.com".bytes().map(|b| format!("{b:02x}")).collect();
+        for refused in [format!("{key}{other}"), format!("ee{key}{tail}"), key.to_uppercase(), key[..31].to_string()] {
+            assert_eq!(probe_key(&refused, domain), None, "{refused}");
+        }
     }
     #[test]
     fn acceptance_checks_every_fact() {

@@ -95,6 +95,7 @@ const ADJACENT_CREDENTIALS: &[&str] = &[
     "secrets/awg-manager-token",
     "secrets/trusttunnel-manager-token",
 ];
+const COMPOSE_SIBLINGS: &[&str] = &["naive", "mieru", "xray-router", "amneziawg", "trusttunnel", "mcp"];
 const ADJACENT_SERVICES: &[&str] = &[
     "naive-manager",
     "mieru-manager",
@@ -1181,16 +1182,29 @@ impl CoreAdapter {
         self.runner.capture_checked(argv, QUERY_TIMEOUT).map_err(|err| core(err.to_string()))
     }
 
+    /// The whole installed stack, not just `compose.yaml`: a repair that recreates the panel from the base file
+    /// alone drops the manager mounts the sibling overlays add to it. A sibling counts as installed when its
+    /// `.env.<name>` exists, as in the sibling adapters.
     fn compose_argv(&self, args: &[&str]) -> Result<Vec<String>, Error> {
         let mut argv = vec!["docker".into(), "compose".into(), "--project-directory".into(), PROJECT.into()];
-        let override_path = self.host(&format!("{PROJECT}/{VERSION_OVERRIDE}"))?;
-        if override_path.is_file() {
-            argv.extend([
-                "-f".into(),
-                format!("{PROJECT}/compose.yaml"),
-                "-f".into(),
-                format!("{PROJECT}/{VERSION_OVERRIDE}"),
-            ]);
+        let mut envs = vec![format!("{PROJECT}/.env")];
+        let mut files = vec![format!("{PROJECT}/compose.yaml")];
+        for sibling in COMPOSE_SIBLINGS {
+            let env = format!("{PROJECT}/.env.{sibling}");
+            let file = format!("{PROJECT}/compose.{sibling}.yaml");
+            if self.host(&env)?.is_file() && self.host(&file)?.is_file() {
+                envs.push(env);
+                files.push(file);
+            }
+        }
+        if self.host(&format!("{PROJECT}/{VERSION_OVERRIDE}"))?.is_file() {
+            files.push(format!("{PROJECT}/{VERSION_OVERRIDE}"));
+        }
+        for env in envs {
+            argv.extend(["--env-file".into(), env]);
+        }
+        for file in files {
+            argv.extend(["-f".into(), file]);
         }
         argv.extend(args.iter().map(|arg| (*arg).to_string()));
         Ok(argv)
