@@ -25,6 +25,7 @@ FROM ${BUILDER_IMAGE} AS builder
 ARG SOURCE_DATE_EPOCH=0
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
     CARGO_INCREMENTAL=0 \
+    CARGO_BUILD_JOBS=1 \
     CARGO_TERM_COLOR=never \
     CARGO_TARGET_DIR=/build/target \
     HOST_TARGET=x86_64-unknown-linux-musl \
@@ -34,6 +35,7 @@ COPY . /src/
 
 # Lint and test every listed crate that exists (CI's `quality` gate); never part of a release.
 FROM builder AS check
+RUN apk add --no-cache python3 openssl nginx nginx-mod-stream
 RUN set -eu; \
     rustup component add rustfmt clippy; \
     grep -Ev '^[[:space:]]*(#|$)' release/host-binaries.list | while read -r kind crate _rest; do \

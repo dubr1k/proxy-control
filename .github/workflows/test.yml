@@ -68,6 +68,8 @@ jobs:
           docker build -f panel/Dockerfile -t mtproxy-panel:latest .
           docker build -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest .
           sudo env PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
+            PATH="$PATH" HOME="$HOME" CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" \
+            PROXY_CONTROL_TEST_INSTALLER="$PWD/installer/bin/linux-amd64/proxy-control-installer" \
             PANEL_TEST_IMAGE=mtproxy-panel:latest .venv/bin/python - <<'PY'
           import sys
           import pytest
