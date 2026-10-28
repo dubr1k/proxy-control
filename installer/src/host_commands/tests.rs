@@ -7,7 +7,8 @@ use pc_host::fs::sha256_hex;
 use pc_host::runner::{CallKind, RecordingRunner, Reply};
 use serde_json::json;
 
-use super::{agent, compose, update, Host};
+use super::{agent, compose, fleet, update, Host};
+use crate::journal::OwnershipEntry;
 use crate::testkit::TempDir;
 
 use crate::tests::fakes;
@@ -398,4 +399,231 @@ fn native_doc_examples_parse_without_a_host_audit() {
         }
     }
     assert!(checked >= 35, "only {checked} marked native commands were parsed");
+}
+
+const PROJECT: &str = "opt/mtproxy-shared443";
+
+/// Adds the two Fleet v1 overlays to the project directory and, like a 3.x engine install, to the
+/// Core checkpoint's ownership.
+fn own_overlays(owned: &fakes::OwnedHost, root: &Path) {
+    let store = owned.engine.store();
+    let mut state = store.read_state().unwrap();
+    let mut core = state.checkpoint("core.runtime").unwrap().clone();
+    let mut declaration = core.data.get("ownership").and_then(serde_json::Value::as_object).unwrap().clone();
+    for name in fleet::OVERLAYS {
+        let bytes = format!("fleet v1 {name}\n").into_bytes();
+        let key = format!("/{PROJECT}/{name}");
+        fakes::write(&root.join(PROJECT).join(name), &bytes);
+        core.ownership.insert(
+            key.clone(),
+            OwnershipEntry {
+                action_id: core.action_id.clone(),
+                adapter: core.adapter.clone(),
+                kind: "file".into(),
+                mutable: Some(false),
+                preserve: false,
+                sha256: sha256_hex(&bytes),
+            },
+        );
+        declaration.insert(key, json!({"preserve": false, "sha256": sha256_hex(&bytes)}));
+    }
+    core.data.insert("ownership".into(), serde_json::Value::Object(declaration));
+    state.with_checkpoint(core);
+    crate::engine::persist(store, &state).unwrap();
+}
+
+fn unused_fleet_runner() -> RecordingRunner {
+    RecordingRunner::with_responder(|call| {
+        let line = call.argv.join(" ");
+        (line.starts_with("docker ps -a --filter") || line.starts_with("docker volume ls")).then(|| Reply::ok(""))
+    })
+}
+
+fn fleet_model(root: &Path) -> compose::Model {
+    if !root.join(PROJECT).join("compose.yaml").exists() {
+        fakes::write(&root.join(PROJECT).join("compose.yaml"), b"services: {}\n");
+    }
+    if !root.join(PROJECT).join(".env").exists() {
+        fakes::write(&root.join(PROJECT).join(".env"), b"COMPOSE_FILE=compose.yaml\n");
+    }
+    compose::Model::new(&root.join(PROJECT), &Default::default()).unwrap()
+}
+
+#[test]
+fn unused_fleet_overlays_leave_the_journal_consistent() {
+    let dir = TempDir::new("fleet-retire-journal");
+    let root = dir.path().join("root");
+    let owned = fakes::owned_host(&root, dir.path(), true);
+    own_overlays(&owned, &root);
+    let before = owned.engine.store().read_state().unwrap();
+    owned.engine.assert_all_owned(&before).unwrap();
+    let runner = unused_fleet_runner();
+    let report =
+        fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &fleet_model(&root))
+            .unwrap();
+    assert!(report.contains("compose.agent.yaml compose.fleet-central.yaml"), "{report}");
+    for name in fleet::OVERLAYS {
+        assert!(!root.join(PROJECT).join(name).exists());
+    }
+    let kept =
+        fs::read_dir(root.join(fleet::KEPT_DIR.trim_start_matches('/'))).unwrap().next().unwrap().unwrap().path();
+    assert_eq!(fs::read(kept.join("compose.agent.yaml")).unwrap(), b"fleet v1 compose.agent.yaml\n");
+    assert_eq!(fs::metadata(&kept).unwrap().permissions().mode() & 0o777, 0o700);
+    let after = owned.engine.store().read_state().unwrap();
+    assert_eq!(before.plan_digest, after.plan_digest);
+    assert!(!after
+        .ownership(true)
+        .unwrap()
+        .keys()
+        .any(|key| key.contains("compose.agent") || key.contains("fleet-central")));
+    assert_eq!(after.ownership(true).unwrap(), owned.engine.store().read_ownership().unwrap());
+    owned.engine.assert_all_owned(&after).unwrap();
+    owned.engine.repair().unwrap();
+    // The step is idempotent: nothing left to retire.
+    assert_eq!(
+        fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &fleet_model(&root))
+            .unwrap(),
+        ""
+    );
+}
+
+#[test]
+fn unused_fleet_overlays_without_a_journal_are_just_moved() {
+    let dir = TempDir::new("fleet-retire-plain");
+    let root = dir.path().join("root");
+    for name in fleet::OVERLAYS {
+        fakes::write(&root.join(PROJECT).join(name), b"leftover\n");
+    }
+    let runner = unused_fleet_runner();
+    let report =
+        fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &fleet_model(&root))
+            .unwrap();
+    assert!(report.starts_with("retired the unused Fleet v1 overlays"));
+    assert!(!root.join(PROJECT).join("compose.agent.yaml").exists());
+    assert!(!root.join("var/lib/proxy-control/installer/state.json").exists());
+}
+
+#[test]
+fn fleet_overlays_in_use_are_never_retired() {
+    type Setup = fn(&Path);
+    let cases: Vec<(&str, Setup, &str)> = vec![
+        (
+            "unit",
+            |root| fakes::write(&root.join("etc/systemd/system/mtproxy-agent.service"), b"[Unit]\n"),
+            "unit mtproxy-agent.service",
+        ),
+        (
+            "setting",
+            |root| fakes::write(&root.join(PROJECT).join(".env"), b"FLEET_CENTRAL_URL=x\n"),
+            "FLEET_CENTRAL_URL",
+        ),
+    ];
+    for (label, setup, expected) in cases {
+        let dir = TempDir::new("fleet-in-use");
+        let root = dir.path().join("root");
+        let owned = fakes::owned_host(&root, dir.path(), true);
+        own_overlays(&owned, &root);
+        let journal = fs::read(owned.engine.store().state_path()).unwrap();
+        let model = fleet_model(&root);
+        setup(&root);
+        let runner = unused_fleet_runner();
+        let error =
+            fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &model).unwrap_err();
+        assert!(error.contains(expected), "{label}: {error}");
+        assert!(root.join(PROJECT).join("compose.agent.yaml").exists(), "{label}");
+        assert_eq!(fs::read(owned.engine.store().state_path()).unwrap(), journal, "{label}");
+    }
+    for (label, reply) in [("container", "fleet-agent\n"), ("volume", "mtproxy_fleet-data\n")] {
+        let dir = TempDir::new("fleet-in-use-docker");
+        let root = dir.path().join("root");
+        fakes::write(&root.join(PROJECT).join("compose.agent.yaml"), b"x\n");
+        let model = fleet_model(&root);
+        let wanted = if label == "container" { "docker ps -a --filter" } else { "docker volume ls" };
+        let runner = RecordingRunner::with_responder(move |call| {
+            let line = call.argv.join(" ");
+            (line.starts_with("docker ps -a --filter") || line.starts_with("docker volume ls"))
+                .then(|| Reply::ok(if line.starts_with(wanted) { reply } else { "" }))
+        });
+        let error =
+            fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &model).unwrap_err();
+        assert!(error.contains("is in use"), "{label}: {error}");
+        assert!(root.join(PROJECT).join("compose.agent.yaml").exists(), "{label}");
+    }
+}
+
+#[test]
+fn a_modified_owned_overlay_is_refused_as_drift() {
+    let dir = TempDir::new("fleet-retire-drift");
+    let root = dir.path().join("root");
+    let owned = fakes::owned_host(&root, dir.path(), true);
+    own_overlays(&owned, &root);
+    fs::write(root.join(PROJECT).join("compose.agent.yaml"), b"edited by the operator\n").unwrap();
+    let journal = fs::read(owned.engine.store().state_path()).unwrap();
+    let runner = unused_fleet_runner();
+    let error =
+        fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &fleet_model(&root))
+            .unwrap_err();
+    assert!(error.contains("owned file drifted"), "{error}");
+    assert_eq!(fs::read(owned.engine.store().state_path()).unwrap(), journal);
+    assert_eq!(fs::read(root.join(PROJECT).join("compose.agent.yaml")).unwrap(), b"edited by the operator\n");
+}
+
+#[test]
+fn a_failed_move_restores_the_journal_and_the_files() {
+    let dir = TempDir::new("fleet-retire-rollback");
+    let root = dir.path().join("root");
+    let owned = fakes::owned_host(&root, dir.path(), true);
+    own_overlays(&owned, &root);
+    // `/var/lib/proxy-control/retired` is a regular file, so the keep directory cannot be created.
+    fakes::write(&root.join(fleet::KEPT_DIR.trim_start_matches('/')), b"not a directory\n");
+    let state = fs::read(owned.engine.store().state_path()).unwrap();
+    let ownership = fs::read(owned.engine.store().ownership_path()).unwrap();
+    let runner = unused_fleet_runner();
+    let error =
+        fleet::retire_unused_overlays(&host(&root, dir.path(), &runner), &root.join(PROJECT), &fleet_model(&root))
+            .unwrap_err();
+    assert!(error.contains("could not retire"), "{error}");
+    assert_eq!(fs::read(owned.engine.store().state_path()).unwrap(), state);
+    assert_eq!(fs::read(owned.engine.store().ownership_path()).unwrap(), ownership);
+    for name in fleet::OVERLAYS {
+        assert!(root.join(PROJECT).join(name).is_file());
+    }
+    owned.engine.assert_all_owned(&owned.engine.store().read_state().unwrap()).unwrap();
+}
+
+#[test]
+fn update_retires_unused_overlays_before_it_migrates_the_agent() {
+    let dir = TempDir::new("update-retires-fleet");
+    let root = dir.path().join("root");
+    old_host(&root);
+    let source = release(dir.path());
+    for name in fleet::OVERLAYS {
+        fakes::write(&root.join(PROJECT).join(name), b"leftover\n");
+    }
+    fakes::write(&root.join(PROJECT).join("compose.yaml"), b"services: {}\n");
+    let socket = root.join("run/proxy-control/version-agent.sock");
+    fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let _listener = std::os::unix::net::UnixListener::bind(socket).unwrap();
+    let runner = RecordingRunner::with_responder(move |call| {
+        let line = call.argv.join(" ");
+        if line.contains("/v1/versions") {
+            Some(Reply::ok("{\"components\":{\"panel\":{\"current\":\"3.3.0\"}}}"))
+        } else if line.contains("/v1/health") {
+            Some(Reply::ok(&json!({"status":"ok"}).to_string()))
+        } else if line.contains("docker inspect --format") {
+            Some(Reply::ok("proxy_panel_by_dubr1k\n"))
+        } else if line.starts_with("docker ps") || line.starts_with("docker volume ls") {
+            Some(Reply::ok(""))
+        } else {
+            None
+        }
+    });
+    // The agent never reports the native version here, so the migration fails and rolls back;
+    // by then the overlays must already be retired.
+    let error = update::update(&host(&root, &source, &runner), "4.0.0", &"a".repeat(64)).unwrap_err();
+    assert!(error.contains("previous generation restored and verified"), "{error}");
+    for name in fleet::OVERLAYS {
+        assert!(!root.join(PROJECT).join(name).exists());
+    }
+    assert!(root.join(fleet::KEPT_DIR.trim_start_matches('/')).is_dir());
 }

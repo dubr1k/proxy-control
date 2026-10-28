@@ -650,6 +650,10 @@ make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA2
 
 - Службы Fleet v1 выведены из эксплуатации. Существующее состояние требует явного
   переноса на Fleet v2 до нативного обновления; см. [совместимость](COMPATIBILITY.md).
+  Исключение — неиспользуемые `compose.agent.yaml` и `compose.fleet-central.yaml` от 3.x: если нет
+  ни юнита, ни контейнера, ни тома Fleet v1, ни ссылки в Compose, ни настроек `FLEET_*`,
+  `update-host` сначала убирает их из журнала установщика, затем переносит в
+  `/var/lib/proxy-control/retired/`.
 - Пер-пользовательский учёт Mieru намеренно сообщается как недоступный; квота —
   это скользящая проверка допуска, а не платёжный счётчик.
 - MSS clamp для Mieru — диагностическое изменение host firewall. Установщик

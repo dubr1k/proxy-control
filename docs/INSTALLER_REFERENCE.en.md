@@ -677,7 +677,10 @@ release report. Details: [tests/lab/README.md](../tests/lab/README.md).
 ## Limits
 
 - Fleet v1 services are retired. Existing state requires explicit migration to
-  Fleet v2 before a native update; see [compatibility](COMPATIBILITY.md).
+  Fleet v2 before a native update; see [compatibility](COMPATIBILITY.md). The unused
+  `compose.agent.yaml` and `compose.fleet-central.yaml` left by 3.x are the exception: when no
+  Fleet v1 unit, container, volume, Compose reference or `FLEET_*` setting exists, `update-host`
+  drops them from the installer journal, then moves them to `/var/lib/proxy-control/retired/`.
 - Per-user Mieru accounting is deliberately reported as unavailable; the quota
   is a rolling admission check, not a billing counter.
 - The Mieru MSS clamp is a diagnostic-only host firewall change. The installer

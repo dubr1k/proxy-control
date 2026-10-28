@@ -2,6 +2,7 @@
 //! Every process goes through HostRunner; tests use private roots and RecordingRunner.
 mod agent;
 mod compose;
+mod fleet;
 mod update;
 
 use std::collections::BTreeMap;

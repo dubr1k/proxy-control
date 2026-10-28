@@ -12,6 +12,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The supported 3.3.0 → 4.0 path is `install-release.sh --update`: replace and verify the Rust
   agent's exact release before submitting a panel update; restore code/unit/tmpfiles and journal
   on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
+- `update-host` retires the unused Fleet v1 overlays (`compose.agent.yaml`, `compose.fleet-central.yaml`) of a 3.x tree: after proving no Fleet v1 unit, container, volume, Compose reference or `FLEET_*` setting exists, it removes them from the installer journal and moves them to `/var/lib/proxy-control/retired/`. Hosts installed through the installer no longer read the missing files as drift.
 - Fresh native installations no longer select or own a Python interpreter. Existing package
   journals keep their recorded ownership so repair and uninstall do not remove a pre-existing Python.
 - Native host commands decode systemd environment quoting, escapes and line continuations

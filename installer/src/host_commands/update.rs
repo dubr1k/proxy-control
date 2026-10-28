@@ -190,6 +190,8 @@ pub(super) fn update(host: &Host<'_>, version: &str, expected: &str) -> Result<S
         _ => return Err("panel is not in the expected Compose project".into()),
     };
     scope(host, &model, project_name)?;
+    // Unused Fleet v1 overlays are inert leftovers the native agent refuses; the journal owns them.
+    let retired = super::fleet::retire_unused_overlays(host, &project, &model)?;
     // Mandatory boundary: a Python agent never receives a 4.0 update request.
     agent::migrate(host, version)?;
     agent::healthy(host, version)?;
@@ -308,5 +310,5 @@ pub(super) fn update(host: &Host<'_>, version: &str, expected: &str) -> Result<S
         return Err(format!("unhealthy: {}", bad.into_iter().collect::<Vec<_>>().join(" ")));
     }
     agent::healthy(host, version)?;
-    Ok(format!("{moved}done: Proxy Control {version}\n"))
+    Ok(format!("{retired}{moved}done: Proxy Control {version}\n"))
 }
