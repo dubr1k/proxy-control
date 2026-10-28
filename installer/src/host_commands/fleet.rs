@@ -98,15 +98,13 @@ fn move_files(project: &Path, names: &[&str], kept: &Path) -> Result<()> {
         }
         contents.push(data);
     }
-    let mut removed = 0;
-    for name in names {
+    for (removed, name) in names.iter().enumerate() {
         if let Err(error) = fs::remove_file(project.join(name)) {
             for (name, data) in names.iter().zip(&contents).take(removed) {
                 let _ = pc_host::fs::atomic_write(&project.join(name), data, 0o644, None);
             }
             return Err(format!("could not remove {name}: {error}"));
         }
-        removed += 1;
     }
     Ok(())
 }
