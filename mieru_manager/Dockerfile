@@ -3,6 +3,7 @@
 # read-only, and the manager refuses it unless its sha256 is MIERU_MITA_SHA256.
 FROM rust:1.99-slim-bookworm@sha256:86234e857a413004348b471d11a4ebe1aa92d2eae2b6b143cac68fd1ac3c48be AS build
 WORKDIR /src
+ENV CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
 COPY pc_common /src/pc_common
 COPY mieru_manager /src/mieru_manager
 RUN cd /src/mieru_manager \

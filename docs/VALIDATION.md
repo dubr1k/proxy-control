@@ -47,6 +47,13 @@ namespace.
 
 ## Static host build inputs
 
+Rust image build stages explicitly set `CARGO_BUILD_JOBS=1` and `CARGO_INCREMENTAL=0`;
+the caller's Cargo environment is not inherited by Docker builds. On small hosts also
+set `COMPOSE_PARALLEL_LIMIT=1` in each actual Compose caller (including the version-agent
+service and privileged installer). The image settings bound each Cargo invocation;
+they do not serialize separate image builds. Runtime stages do not inherit these
+compiler settings. This build-only change does not change installer CLI or host prerequisites.
+
 `release/build.py --build-binaries DIR` stages tracked files from the listed crates,
 VERSION and `release/host-binaries.list`, plus the explicitly declared embedded inputs.
 The installer's `include_str!` requires the tracked 3x-ui API contract at
