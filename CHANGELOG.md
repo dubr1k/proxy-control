@@ -35,6 +35,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
   archive/member checks, prompts and seeded agent state use the same reviewed pin.
 
 ### Fixed
+- Escape no longer discards the one-time access bundle behind its close confirmation;
+  cancelling the confirmation keeps the original secrets available.
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
 - Request JSON deeper than 128 containers is rejected before validation. Previously, a deeply nested login body could exhaust a panel worker's stack and stop the process.
 - Core installer lifecycle operations reject forged checkpoint ownership outside the planned

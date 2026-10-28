@@ -524,6 +524,15 @@ export function createAccessDialogs(context) {
       event.stopPropagation();
       void closeBundle(bundle);
     });
+    // Handle Escape before the native close watcher: repeated close requests can
+    // produce a non-cancelable `cancel`, which would discard one-time secrets even
+    // when the operator dismisses our confirmation. Other dialogs keep native Esc.
+    bundle?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || bundleTaken) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void closeBundle(bundle);
+    });
     bundle?.addEventListener("cancel", (event) => {
       if (bundleTaken) return;
       event.preventDefault();

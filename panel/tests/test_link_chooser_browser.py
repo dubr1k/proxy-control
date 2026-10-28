@@ -2,7 +2,7 @@
 bundle (isolated stand, Chrome over DevTools, a subscription domain configured)."""
 import json
 import secrets
-import time
+
 from urllib.parse import quote
 from pathlib import Path
 
@@ -41,20 +41,14 @@ def key(browser, kind, name, code):
     browser.dt.call("Input.dispatchKeyEvent", {"type": kind, "key": name, "code": name, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code})
 
 
-def press_escape_until(browser, expression, label):
+def press_escape(browser, expression, label):
     # A real click first: the browser lets a page cancel Esc only after a user gesture.
     x, y = browser.js("""(() => { const r = document.querySelector('#bundle-title').getBoundingClientRect(); return [r.left + 4, r.top + r.height / 2]; })()""")
     for kind in ("mousePressed", "mouseReleased"):
         browser.dt.call("Input.dispatchMouseEvent", {"type": kind, "x": x, "y": y, "button": "left", "clickCount": 1})
-    deadline = time.monotonic() + 20
-    while time.monotonic() < deadline:
-        key(browser, "rawKeyDown", "Escape", 27)
-        key(browser, "keyUp", "Escape", 27)
-        for _ in range(10):
-            if browser.js(expression):
-                return
-            time.sleep(0.05)
-    raise AssertionError(f"browser timed out: {label}")
+    key(browser, "rawKeyDown", "Escape", 27)
+    key(browser, "keyUp", "Escape", 27)
+    browser.wait(expression, label)
 
 
 def pick(browser, value):
@@ -141,13 +135,35 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     browser.click("#bundle-modal .modal-head-actions button.primary")
     browser.wait("document.querySelector('#confirm').open === true", "close confirm")
     assert chooser_text(browser, "#confirm-title") == "Закрыть, ничего не скопировав?"
-    browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
+    browser.js("""new Promise(resolve => {
+      const dialog = document.querySelector('#confirm');
+      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
+      dialog.querySelector('button[value="cancel"]').click();
+    })""")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed")
     browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
-    # Esc asks the same way: a real key press (the dialog's `close` event, which ends the first question,
-    # is a task behind `open`, so the press is repeated until the question appears).
-    press_escape_until(browser, "document.querySelector('#confirm').open === true", "confirm after Esc")
-    browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
+    # A keydown must be consumed before Chromium's close watcher can issue a
+    # non-cancelable second cancel while the previous confirmation is settling.
+    assert browser.js("""(() => { const event = new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true});
+      document.querySelector('#bundle-modal').dispatchEvent(event);
+      return event.defaultPrevented; })()""")
+    browser.wait("document.querySelector('#confirm').open === true", "keyboard close confirm")
+    assert browser.js("document.querySelector('#bundle-modal').open") is True
+    browser.js("""new Promise(resolve => {
+      const dialog = document.querySelector('#confirm');
+      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
+      dialog.querySelector('button[value="cancel"]').click();
+    })""")
+    browser.wait("document.querySelector('#confirm').open === false", "keyboard confirm dismissed")
+    # Close handlers and their Promise continuations have settled above. One real
+    # Escape must ask; retries would mask close-watcher races.
+    press_escape(browser, "document.querySelector('#confirm').open === true", "confirm after Esc")
+    browser.js("""new Promise(resolve => {
+      const dialog = document.querySelector('#confirm');
+      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
+      dialog.querySelector('button[value="cancel"]').click();
+    })""")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed again")
     browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
     # The folded data are all there, secrets in the open.
