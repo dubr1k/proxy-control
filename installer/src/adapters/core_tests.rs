@@ -604,6 +604,21 @@ fn recorded_legacy_core_journal_keeps_exact_retired_script_but_refuses_other_scr
     let action = core_action();
     CoreCheckpoint::read(&data, &action, true).unwrap().validate_paths(&selected()).unwrap();
 
+    // A panel update rebases ownership onto the newer release's files while the planned
+    // generation keeps the installed one: synced entries stay valid, foreign paths do not.
+    let template = data["ownership"][&retired].clone();
+    let mut rebased = data.clone();
+    for relative in ["panel/crates/new/src/lib.rs", "docs/NEW.md", "scripts/new.sh", "release/release.json"] {
+        rebased["ownership"].as_object_mut().unwrap().insert(format!("{PROJECT}/{relative}"), template.clone());
+    }
+    CoreCheckpoint::read(&rebased, &action, true).unwrap().validate_paths(&selected()).unwrap();
+    for foreign in ["operator-file", "secrets/operator-token", "notes/NEW.md", "docs/../operator-file"] {
+        let mut hostile = data.clone();
+        hostile["ownership"].as_object_mut().unwrap().insert(format!("{PROJECT}/{foreign}"), template.clone());
+        let checkpoint = CoreCheckpoint::read(&hostile, &action, true);
+        assert!(checkpoint.is_err() || checkpoint.unwrap().validate_paths(&selected()).is_err(), "{foreign}");
+    }
+
     let mut forged = data;
     let neighbor = format!("{PROJECT}/scripts/operator.py");
     let record = forged["planned_ownership"][&retired].clone();

@@ -351,6 +351,16 @@ fn validate_ownership(entries: &Map<String, Value>) -> Result<(), Error> {
     Ok(())
 }
 
+/// A path the panel ownership handoff may have rebased onto a newer release: below the project
+/// directory, in a synced entry (`PANEL_SYNC`). The journal's planned generation predates it.
+fn rebased_panel_path(absolute: &str) -> bool {
+    absolute.strip_prefix(PROJECT).and_then(|rest| rest.strip_prefix('/')).is_some_and(|relative| {
+        let mut parts = relative.split('/');
+        relative.split('/').all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains('\0'))
+            && parts.next().is_some_and(pc_host::archive::handoff_allows)
+    })
+}
+
 fn owned_path_in_scope(absolute: &str, selected: &Selection) -> bool {
     if absolute == PROBE || absolute == PANEL_VHOST {
         return true;
@@ -458,7 +468,8 @@ impl CoreCheckpoint {
                 .strip_prefix(PROJECT)
                 .and_then(|rest| rest.strip_prefix('/'))
                 .is_some_and(|relative| PRESERVED_CREDENTIALS.contains(&relative) || relative == BOOTSTRAP_MARKER);
-            if !self.planned_ownership.contains_key(path) && path != PROBE && !runtime_file {
+            if !self.planned_ownership.contains_key(path) && path != PROBE && !runtime_file && !rebased_panel_path(path)
+            {
                 return Err(core("Core checkpoint ownership does not match the planned generation"));
             }
         }
