@@ -247,6 +247,11 @@ use `bash install-release.sh --update`, not the 3.3.0 panel's Update button. Aud
 Fleet v1 first: an installed mTLS agent or ingress requires preserving its state and
 explicitly migrating it, not deleting its volume as part of an update.
 
+The archive contains installer binaries, container build sources, shared libraries,
+acceptance clients and user guides. Test suites, CI, labs and development tools stay
+in the source repository; [`release/runtime-files.json`](release/runtime-files.json)
+defines the distribution.
+
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
 
@@ -406,6 +411,10 @@ server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](docs/g
 </details>
 
 ## Installation by an AI agent
+
+Use the verified release archive: it includes `examples/installer/`, not development
+tests or labs. `pc_common` and `pc_host` are runtime libraries; `probe/` and
+`deploy/mieru-client/` are the installer's acceptance clients. Do not remove them.
 
 This section is an instruction for an AI agent (Claude Code, Codex and the like) that you
 gave SSH access to the server. The agent installs Proxy Control **without the wizard**: it

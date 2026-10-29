@@ -121,6 +121,11 @@ Proxy Control — что нужно для установки
   TCP-портов нет. В coexist сохранение IP требует настройки операторского PROXY bridge.
   • Публичный IPv4 без NAT; для домена MTProxy проксирование CDN выключено (DNS-only).
 
+Состав архива
+  • Установочные бинарники, исходники сборки контейнеров, общие библиотеки,
+    приёмочные клиенты и инструкции. Тесты, CI и лаборатории остаются в Git;
+    состав поставки — release/runtime-files.json.
+
 Домены и DNS
   • Домен панели и домен MTProxy — всегда; домен NaiveProxy — в профилях с Naive;
     домен Mieru — в профилях с Mieru (сертификат ему не нужен); необязательный
@@ -230,6 +235,11 @@ Server
   fresh preserves panel client IPs through private Nginx Unix sockets, with no new
   TCP ports. In coexist mode, preserving IPs requires an operator-configured PROXY bridge.
   • A public IPv4 without NAT; CDN proxying switched off for the MTProxy domain.
+
+Archive contents
+  • Installer binaries, container build sources, shared libraries, acceptance
+    clients and user guides. Tests, CI and labs stay in Git;
+    release/runtime-files.json defines the distribution.
 
 Domains and DNS
   • The panel domain and the MTProxy domain — always; a NaiveProxy domain in the

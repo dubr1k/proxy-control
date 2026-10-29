@@ -21,6 +21,10 @@ See the [ingress and migration reference](../INSTALLER_REFERENCE.en.md).
 ## The primary install path: a verified release
 
 The release includes static native host binaries; neither Python nor Cargo is needed.
+Its tracked deployment inputs are selected by `release/runtime-files.json`: container
+build sources, shared libraries, acceptance clients, examples and user guides remain;
+CI, development tools and external test fixtures do not. This does not change host
+requirements, wizard questions or TOML fields.
 Verification runs unprivileged in Bash/awk before a verified binary runs as root.
 For 3.3.0 → 4.0, use only `bash install-release.sh --update`: it migrates the agent,
 requires `status=ok`, `implementation=rust` and the target `version` before panel changes,

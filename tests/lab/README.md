@@ -36,7 +36,11 @@ The base cache is `${XDG_CACHE_HOME:-~/.cache}/mtproxy-installer-lab`. All mutab
 
 ## Release acceptance
 
-All three QEMU modes validate one exact release archive, not an interpreter from the checkout. The controller refuses to start a run without `--release-archive` and `--release-sha256`, or when the digest differs. The guest checks the archive again and executes `installer/bin/linux-amd64/proxy-control-installer` from that release. `release-amd64` and `full` select the complete release matrix; `smoke` selects the non-installing subset.
+All three QEMU modes validate one exact release archive, not an interpreter from the checkout.
+The tracked source snapshot supplies the harness and synthetic fixtures separately;
+`LAB_RELEASE_ROOT` selects the extracted payload (default
+`/tmp/proxy-control-release/proxy-control`). Tests and lab scripts are not user archive
+members. Only the verified payload supplies the installer being tested. The controller refuses to start a run without `--release-archive` and `--release-sha256`, or when the digest differs. The guest checks the archive again and executes `installer/bin/linux-amd64/proxy-control-installer` from that release. `release-amd64` and `full` select the complete release matrix; `smoke` selects the non-installing subset.
 
 Each architecture is pinned separately in `scripts/lab/image.json` (schema 2) with its official image URL, SHA-256, QEMU binary, machine, CPU, and minimum QEMU version. An architecture whose `sha256` is still `null` fails closed with a named error instead of trusting a download; record the official checksum from the `source_checksums` URL before using it. Both shipped architectures are pinned, and `test_an_unpinned_image_fails_closed` proves the refusal on a synthetic entry rather than by leaving a real one unpinned.
 
@@ -253,9 +257,12 @@ something that actually terminates TLS.
 `make lab-container` runs the part of the release matrix a disposable systemd
 container can prove, on any machine with Docker and no QEMU at all. The base
 image is pinned by digest, systemd is PID 1 so the installer drives real units,
-and the release archive is the only input: the controller verifies its checksum,
-extracts it inside the container, and runs the `guest-runner.sh` that ships
-*inside that release*, not the one in the working tree.
+and the verified release archive is the only installer input. The controller extracts
+it under `/tmp/proxy-control-release/` and independently stages current tracked source
+under `/tmp/mtproxy-source/`, excluding private state, caches, agents and the graph.
+It runs that source-side `guest-runner.sh` with `LAB_RELEASE_ROOT` pointing at the
+separate payload. Scenarios and synthetic fixtures never enter the user archive;
+the exact installer bytes and release identity still come only from that archive.
 
 It covers `environment-preflight`, `release-artifact-integrity`, `audit`,
 `plan`, `nginx-multi-map`, `coexist-existing-xui`, `uninstall-foreign-identity`,

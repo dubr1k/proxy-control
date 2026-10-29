@@ -6,10 +6,7 @@ MODE=${1:-smoke}
 EXPECTED_ARCHIVE_SHA=${2:-}
 shift 2 2>/dev/null || true
 SCENARIO_FILTER=("$@")
-ROOT=/tmp/mtproxy-source
-if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
-  ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-fi
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 PROXY=proxy.lab.test
 PANEL=panel.lab.test
 ROUTE=/etc/nginx/stream.d/routes.conf
@@ -20,11 +17,8 @@ RELEASE_SHA=/tmp/proxy-control-release.sha256
 # The archive carries a "proxy-control/" prefix, so the tree the installer runs
 # from is one level below where it is unpacked.
 RELEASE_STAGE=/tmp/proxy-control-release
-RELEASE_ROOT=$RELEASE_STAGE/proxy-control
+RELEASE_ROOT=${LAB_RELEASE_ROOT:-$RELEASE_STAGE/proxy-control}
 INSTALLER_STATE=/var/lib/proxy-control/installer/state.json
-if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
-  RELEASE_ROOT=$ROOT
-fi
 CONFIG=/tmp/lab-install.toml
 CREDENTIALS=/tmp/lab-credentials
 CLIENT_RESULTS=/tmp/lab-client-results
@@ -164,7 +158,7 @@ add_hosts() {
 archive_integrity() {
   [[ -n $EXPECTED_ARCHIVE_SHA ]]
   [[ $(sha256sum /tmp/mtproxy-source.tar | cut -d' ' -f1) == "$EXPECTED_ARCHIVE_SHA" ]]
-  [[ $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true) == "" ]] # archive is intentionally metadata-free
+  test ! -e "$RELEASE_ROOT/.git" # the release, not the harness, must be metadata-free
   test -f "$ROOT/scripts/lab/guest-runner.sh"
 }
 
@@ -582,6 +576,7 @@ release_artifact_integrity() {
   # The release archive is the only source of the installer under test.
   test -s "$RELEASE_SHA"
   [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
+  test ! -e "$RELEASE_ROOT/.git"
   test -f "$RELEASE_ROOT/install.sh"
   test -x "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer"
   python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['tag'] and d['commit'] and len(d['manifest_sha256'])==64" "$RELEASE_ROOT/release/release.json"

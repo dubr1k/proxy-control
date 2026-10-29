@@ -3,7 +3,7 @@
 #
 # `release/build.py` stages the build context from tracked files only (VERSION, the list,
 # every listed crate and its declared embedded inputs, including the installer's 3x-ui API
-# contract from tests/fixtures/three_xui/) and runs, with no layer cache:
+# contract from installer/assets/) and runs, with no layer cache:
 #
 #   docker buildx build --no-cache --platform linux/amd64 -f release/Dockerfile.host-binaries \
 #     --build-arg SOURCE_DATE_EPOCH=<commit epoch> --target binaries \

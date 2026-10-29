@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Build one reproducible Proxy Control release from tracked files only.
+"""Build one reproducible Proxy Control release from tracked deployment inputs.
 
+`release/runtime-files.json` selects the user payload, not the source/build tree.
+Shipped Markdown links to omitted tracked files point at the exact source commit.
 Two builds of the same commit produce byte-identical outputs: the archive is
-assembled from `git ls-files -z` in sorted order, every member is owned by
+assembled from selected `git ls-files -z` paths in sorted order, every member is owned by
 `root:root` with uid/gid zero, the mode comes from the Git executable bit
 alone, and every mtime is the release commit timestamp.  Untracked, ignored,
 private, and lab state never enters the archive.
@@ -16,11 +18,13 @@ and injected with mode 0755 the way `release/release.json` and the SBOM are inje
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import gzip
 import hashlib
 import io
 import json
 import os
+import posixpath
 import re
 import stat
 import subprocess
@@ -31,6 +35,7 @@ import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 RELEASE_SCHEMA = 1
 ARCHIVE_PREFIX = "proxy-control"
@@ -77,11 +82,12 @@ HOST_BINARY_DIGESTS = "host-binaries.sha256"
 HOST_BINARY_BUILDER = "host-binaries.builder"
 HOST_TARGET = "x86_64-unknown-linux-musl"
 HOST_PLATFORM_DIR = "bin/linux-amd64"
-# Literal include_str! inputs outside a crate must be staged too. They remain
-# tracked build inputs, never files recovered from the workstation or a cache.
+# Compile-time resources must be tracked, even when they live inside a crate.
+# Neither the workstation nor a cache may supply a missing declared input.
 HOST_BINARY_EMBEDDED_INPUTS = {
-    "installer": ("tests/fixtures/three_xui/api-contract-3.10.2.json",),
+    "installer": ("installer/assets/three-xui-api-contract-3.10.2.json",),
 }
+DISTRIBUTION_POLICY = "release/runtime-files.json"
 _CRATE_DIR_RE = re.compile(r"[a-z0-9_][a-z0-9_-]*(?:/[a-z0-9_][a-z0-9_-]*)*\Z")
 _BINARY_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
 _BUILDER_IMAGE_RE = re.compile(r"^ARG BUILDER_IMAGE=(\S+@sha256:[0-9a-f]{64})$", re.M)
@@ -163,13 +169,157 @@ def tracked_files(source: Path) -> tuple[str, ...]:
     names = tuple(sorted(name for name in raw.split("\0") if name and name.split("/", 1)[0] not in OMITTED_TOP_LEVEL))
     if not names:
         raise ReleaseBuildError("the source tree tracks no files")
+    root = source.resolve()
     for name in names:
         top = name.split("/", 1)[0]
         if top in FORBIDDEN_TOP_LEVEL:
             raise ReleaseBuildError(f"a release must not contain {top}")
         if name.endswith(FORBIDDEN_SUFFIXES):
             raise ReleaseBuildError(f"a release must not contain {name}")
+        path = source / name
+        if path.is_symlink() or path.resolve() != root / name:
+            raise ReleaseBuildError(f"a release must not read a symlinked source path: {name}")
     return names
+
+
+def _path_matches(name: str, pattern: str) -> bool:
+    """POSIX path globs: * stays in one component, ** spans zero or more."""
+    parts, rules = name.split("/"), pattern.split("/")
+
+    def match(i: int, j: int) -> bool:
+        if j == len(rules):
+            return i == len(parts)
+        if rules[j] == "**":
+            return match(i, j + 1) or (i < len(parts) and match(i + 1, j))
+        return i < len(parts) and fnmatch.fnmatchcase(parts[i], rules[j]) and match(i + 1, j + 1)
+
+    return match(0, 0)
+
+
+def distribution_files(source: Path, names: Sequence[str]) -> tuple[str, ...]:
+    """Select payload files, independently of the complete tracked build inputs."""
+    if DISTRIBUTION_POLICY not in names:
+        raise ReleaseBuildError(f"{DISTRIBUTION_POLICY} must be tracked")
+    try:
+        policy = json.loads((source / DISTRIBUTION_POLICY).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ReleaseBuildError(f"invalid {DISTRIBUTION_POLICY}") from exc
+    if (not isinstance(policy, dict) or set(policy) != {"schema", "include", "exclude"}
+            or type(policy.get("schema")) is not int or policy["schema"] != 1):
+        raise ReleaseBuildError(f"invalid {DISTRIBUTION_POLICY} schema")
+    for kind in ("include", "exclude"):
+        rules = policy[kind]
+        if not isinstance(rules, list) or (kind == "include" and not rules):
+            raise ReleaseBuildError(f"invalid {DISTRIBUTION_POLICY} {kind}")
+        for rule in rules:
+            if (not isinstance(rule, str) or not rule or rule.startswith("/")
+                    or "\\" in rule or any(ord(c) < 32 for c in rule)
+                    or any(part in {"", ".", ".."} for part in rule.split("/"))):
+                raise ReleaseBuildError(f"unsafe {DISTRIBUTION_POLICY} pattern")
+    selected = tuple(name for name in names
+                     if any(_path_matches(name, rule) for rule in policy["include"])
+                     and not any(_path_matches(name, rule) for rule in policy["exclude"]))
+    for required in ("VERSION", "install.sh", INSTALLER_SOURCE, "release/external-artifacts.json"):
+        if required not in selected:
+            raise ReleaseBuildError(f"{DISTRIBUTION_POLICY} omits required {required}")
+    return selected
+
+
+def distribution_document(name: str, data: bytes, *, selected: set[str], tracked: set[str], commit: str) -> bytes:
+    """Keep shipped Markdown usable without shipping its development link targets."""
+    if not name.endswith(".md"):
+        return data
+    directory = posixpath.dirname(name)
+
+    def target(raw: str) -> str:
+        parts = raw.split(maxsplit=1)
+        if not parts:
+            return raw
+        original = parts[0].strip("<>")
+        parsed = urlsplit(original)
+        if parsed.scheme or parsed.netloc or not parsed.path or original.startswith(("#", "/")):
+            return raw
+        path = posixpath.normpath(posixpath.join(directory, unquote(parsed.path)))
+        if path.startswith("../") or path == "..":
+            return raw
+        prefix = path.rstrip("/") + "/"
+        if path in selected or any(p.startswith(prefix) for p in selected):
+            return raw
+        is_file = path in tracked
+        if not is_file and not any(p.startswith(prefix) for p in tracked):
+            return raw
+        kind = "blob" if is_file else "tree"
+        url = f"https://github.com/dubr1k/proxy-control/{kind}/{commit}/{quote(path, safe='/')}"
+        result = urlunsplit((*urlsplit(url)[:3], parsed.query, parsed.fragment))
+        return result + (" " + parts[1] if len(parts) > 1 else "")
+
+    def links(text: str) -> str:
+        text = re.sub(r"\]\(([^)\n]+)\)", lambda m: "](" + target(m[1]) + ")", text)
+        return re.sub(r"^( {0,3}\[[^]\n]+\]:[ \t]*)(\S+)",
+                      lambda m: m[1] + target(m[2]), text, flags=re.M)
+
+    def prose(text: str) -> str:
+        # Exact-length backtick runs, including multiline/double-backtick spans.
+        spans = re.finditer(r"(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)|<code\b[^>]*>.*?</code\s*>", text, re.S | re.I)
+        pieces, offset = [], 0
+        for span in spans:
+            pieces.extend((links(text[offset:span.start()]), span[0]))
+            offset = span.end()
+        pieces.append(links(text[offset:]))
+        return "".join(pieces)
+
+    lines: list[str] = []
+    pending: list[str] = []
+    fence: tuple[str, int] | None = None
+    raw_end: str | None = None
+
+    def flush() -> None:
+        lines.append(prose("".join(pending)))
+        pending.clear()
+
+    for line in data.decode("utf-8").splitlines(keepends=True):
+        context, depth = line, 0
+        while prefix := re.match(r" {0,3}>[ \t]?", context):
+            context = context[prefix.end():]
+            depth += 1
+        if fence and depth < fence[1]:
+            fence = None  # A fenced block cannot escape its containing blockquote.
+        if raw_end:
+            lines.append(line)
+            if re.search(raw_end, context, re.I):
+                raw_end = None
+            continue
+        if fence:
+            lines.append(line)
+            token = fence[0]
+            if re.fullmatch(r" {0,3}" + re.escape(token[0]) + "{" + str(len(token)) + r",}[ \t]*\r?\n?", context):
+                fence = None  # A closing fence has no info string or trailing text.
+            continue
+        if re.match(r"(?: {4}|\t)", context):
+            flush()
+            lines.append(line)
+            continue
+        stripped = context.lstrip()
+        # Recognize fenced blocks in lists as well as at the top level/in quotes.
+        opening = re.sub(r"^(?:[-+*]|[0-9]+[.)])[ \t]+", "", stripped)
+        marker = re.match(r"(`{3,}|~{3,})", opening)
+        tag = re.match(r"<(pre|script|style|textarea)(?:\s|>)", stripped, re.I)
+        if marker:
+            flush()
+            fence = marker[1], depth
+            lines.append(line)
+        elif tag or stripped.startswith("<!--"):
+            flush()
+            end = rf"</{tag[1]}\s*>" if tag else "-->"
+            raw_end = None if re.search(end, stripped, re.I) else end
+            lines.append(line)
+        elif not line.strip():
+            flush()  # Inline code cannot span separate paragraphs or blocks.
+            lines.append(line)
+        else:
+            pending.append(line)
+    flush()
+    return "".join(lines).encode("utf-8")
 
 
 def assert_clean(source: Path) -> None:
@@ -532,6 +682,7 @@ def build_release(
             raise ReleaseBuildError("pc_common/RELEASE must match VERSION for the Rust panel build guard")
     timestamp = epoch if epoch is not None else commit_epoch(source, resolved)
     names = tracked_files(source)
+    shipped = distribution_files(source, names)
 
     crates = host_crates(source, names)
     host: HostBinaries | None = None
@@ -565,10 +716,13 @@ def build_release(
         from sbom import build_sbom  # type: ignore[no-redef]
 
     payloads: dict[str, bytes] = {}
-    for name in names:
+    selected, tracked = set(shipped), set(names)
+    for name in shipped:
         if name == IDENTITY_NAME:
             continue
-        payloads[name] = (source / name).read_bytes()
+        payloads[name] = distribution_document(
+            name, (source / name).read_bytes(), selected=selected, tracked=tracked, commit=resolved,
+        )
     payloads[IDENTITY_NAME] = identity
     # The host binaries join before the SBOM, so it lists each with its digest, and the
     # registry crates linked into them become packages of their own.

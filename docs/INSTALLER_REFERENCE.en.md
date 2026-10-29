@@ -6,11 +6,16 @@ This is the complete reference for the typed release installer: the release you
 verify, the wizard you answer, the configuration it writes, the plan it derives,
 the boundaries it owns, and the evidence it produces. Every command block marked
 `installer-check` is executed against the shipped argument parser and
-configuration loader by `tests/test_installer_docs.py`, so nothing here can
+configuration loader by `installer/tests/documented_cli.rs`, so nothing here can
 drift from the code.
 
 The installer never installs from a working tree. It installs from a built,
 checksummed release that carries its own identity at `release/release.json`.
+The archive is selected by `release/runtime-files.json`, not copied wholesale from Git.
+It retains Docker build sources, shared Rust libraries, acceptance clients and configuration
+examples. Development tests, CI and labs stay in Git; links to omitted development
+material in shipped guides point to the exact source commit. The embedded 3x-ui API
+contract lives in `installer/assets/`, not in the external test suite.
 
 ## Verifying a release
 

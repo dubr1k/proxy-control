@@ -11,7 +11,7 @@ use base64::Engine;
 use serde_json::{json, Map, Value};
 
 const LIMIT: usize = 4 * 1024 * 1024;
-const CONTRACT: &str = include_str!("../../tests/fixtures/three_xui/api-contract-3.10.2.json");
+const CONTRACT: &str = include_str!("../assets/three-xui-api-contract-3.10.2.json");
 fn failure(message: &str) -> Error {
     Error::other("ThreeXuiApiError", message)
 }

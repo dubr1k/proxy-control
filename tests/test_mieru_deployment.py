@@ -17,6 +17,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PANEL_IMAGE = os.environ.get("PANEL_TEST_IMAGE", "mtproxy-panel:latest")
+MIERU_IMAGE = os.environ.get("MIERU_TEST_IMAGE", "mtproxy-mieru-manager:latest")
 STATE_PREPARER = ROOT / "scripts" / "prepare-mieru-state.sh"
 TOKEN_PREPARER = ROOT / "scripts" / "prepare-mieru-token.sh"
 MITA_AMD64_PACKAGE_SHA256 = "cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342"
@@ -504,7 +505,7 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
     unreadable = subprocess.run(
         [
             "docker", "run", "--rm", "--entrypoint", "sh", "--mount", mount,
-            "mtproxy-mieru-manager:latest", "-c",
+            MIERU_IMAGE, "-c",
             "cat /run/secrets/mieru-manager-token > /dev/null",
         ],
         capture_output=True,
@@ -515,7 +516,7 @@ def test_combined_panel_runtime_has_only_mieru_group_and_private_staged_token(
     readable = subprocess.run(
         [
             "docker", "run", "--rm", "--entrypoint", "sh", "--mount", mount,
-            "mtproxy-mieru-manager:latest", "-c",
+            MIERU_IMAGE, "-c",
             # 4.0: the Rust image has no Python; the shell of its Debian base reads the token.
             'test "$(wc -c < /run/secrets/mieru-manager-token)" -eq 32',
         ],

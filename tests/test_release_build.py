@@ -67,6 +67,7 @@ def clean_checkout(tmp_path: Path, name: str = "source") -> Path:
     """A tiny committed tree that behaves like the real repository."""
     root = tmp_path / name
     (root / "release").mkdir(parents=True)
+    (root / release_build.DISTRIBUTION_POLICY).write_bytes((ROOT / release_build.DISTRIBUTION_POLICY).read_bytes())
     (root / "installer").mkdir()
     (root / "VERSION").write_text(f"{VERSION}\n")
     (root / "install.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
@@ -223,6 +224,186 @@ def test_release_excludes_untracked_ignored_private_and_lab_state(tmp_path):
         "lab-results",
     } & top_level_names(names)
     assert not any(name.endswith(".pyc") for name in names)
+
+
+def test_distribution_uses_an_explicit_runtime_allowlist(tmp_path):
+    source = clean_checkout(tmp_path)
+    keep = (
+        "pc_common/src/lib.rs", "pc_host/src/lib.rs",
+        "panel/crates/web/openapi/panel-openapi.json",
+        "panel/crates/subscriptions/src/assets/style.css",
+        "installer/assets/three-xui-api-contract-3.10.2.json",
+        "probe/src/index.cjs", "deploy/mieru-client/src/main.rs",
+        "scripts/update-host.sh", "release/three-xui-layout-amd64.json",
+    )
+    omit = (
+        "tests/test_example.py", "tests/fixtures/legacy.json",
+        "panel/tests/test_auth.py", "pc_host/tests/cross_python.rs",
+        "panel/crates/web/tests/probes.rs", "xray_router_manager/testdata/golden.json",
+        "scripts/dev/check.sh", "scripts/lab/runner.sh",
+        "release/build.py", "release/sbom.py", "release/Dockerfile.host-binaries",
+        ".github/workflows/test.yml", "AGENTS.md", "unknown-component/internal.txt",
+    )
+    for name in (*keep, *omit):
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture\n")
+    policy = {
+        "schema": 1,
+        "include": ["VERSION", "README.md", "install.sh", "scripts/install-release.sh",
+                    "release/external-artifacts.json", "release/runtime-files.json",
+                    *keep, "pc_host/**", "panel/crates/web/**", "xray_router_manager/**"],
+        "exclude": ["**/tests/**", "**/testdata/**"],
+    }
+    (source / "release/runtime-files.json").write_text(json.dumps(policy))
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "runtime policy fixture")
+    built = build(tmp_path, "runtime-dist", source, binaries=False)
+    names = set(tar_names(built.archive))
+    assert not {f"proxy-control/{name}" for name in omit} & names
+    assert {f"proxy-control/{name}" for name in keep} <= names
+    assert "tests/test_example.py" in tracked_files(source), "source tests must remain tracked"
+
+
+def test_release_refuses_a_tracked_symlink_instead_of_reading_private_bytes(tmp_path):
+    source = clean_checkout(tmp_path)
+    private = tmp_path / "private-not-a-build-input"
+    private.write_bytes(b"synthetic private bytes")
+    (source / "README.md").unlink()
+    (source / "README.md").symlink_to(private)
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "unsafe source symlink")
+    with pytest.raises(ReleaseBuildError, match="symlinked source path"):
+        build(tmp_path, "unsafe-symlink", source, binaries=False)
+
+
+@pytest.mark.parametrize("name,pattern,expected", [
+    ("panel/crates/web/Cargo.toml", "panel/crates/*/Cargo.toml", True),
+    ("panel/crates/web/tests/fixture/Cargo.toml", "panel/crates/*/Cargo.toml", False),
+    ("pc_host/src/archive/panel.rs", "pc_host/src/**", True),
+    ("pc_host/src/lib.rs", "pc_host/**/lib.rs", True),
+    ("pc_host/lib.rs", "pc_host/**/lib.rs", True),
+    ("pc_host/tests/lib.rs", "pc_host/src/**", False),
+])
+def test_distribution_globs_respect_path_components(name, pattern, expected):
+    assert release_build._path_matches(name, pattern) is expected
+
+
+def test_distribution_policy_must_be_tracked(tmp_path):
+    source = clean_checkout(tmp_path)
+    policy = source / "release/runtime-files.json"
+    policy.unlink(missing_ok=True)
+    git(source, "add", "-A")
+    git(source, "commit", "--allow-empty", "-qm", "missing runtime policy")
+    with pytest.raises(ReleaseBuildError, match="runtime-files.json.*tracked"):
+        build(tmp_path, "missing-policy", source, binaries=False)
+
+
+@pytest.mark.parametrize("bad", [
+    {"schema": 2, "include": ["**"], "exclude": []},
+    {"schema": True, "include": ["**"], "exclude": []},
+    {"schema": 1, "include": [], "exclude": []},
+    {"schema": 1, "include": "**", "exclude": []},
+    {"schema": 1, "include": ["../secrets/**"], "exclude": []},
+    {"schema": 1, "include": ["/etc/**"], "exclude": []},
+    {"schema": 1, "include": [1], "exclude": []},
+])
+def test_invalid_distribution_policy_is_refused(tmp_path, bad):
+    source = clean_checkout(tmp_path)
+    (source / release_build.DISTRIBUTION_POLICY).write_text(json.dumps(bad))
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "invalid runtime policy")
+    with pytest.raises(ReleaseBuildError, match="runtime-files.json"):
+        build(tmp_path, "bad-policy", source, binaries=False)
+
+
+def test_runtime_policy_keeps_production_inputs_but_not_development_tools():
+    names = tracked_files(ROOT)
+    shipped = set(release_build.distribution_files(ROOT, names))
+    required = {
+        ".dockerignore", "install.sh", "uninstall.sh", "install-bootstrap",
+        "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md", "pc_common/RELEASE",
+        "installer/assets/three-xui-api-contract-3.10.2.json",
+        "panel/crates/web/openapi/panel-openapi.json",
+        "panel/crates/subscriptions/src/assets/style.css",
+        "panel/crates/subscriptions/src/assets/script.js",
+        "probe/Dockerfile", "probe/install.sh", "probe/mtproxy-respq-probe",
+        "probe/package.json", "probe/package-lock.json", "probe/src/index.cjs",
+        "deploy/mieru-client/Dockerfile", "deploy/mieru-client/Cargo.toml",
+        "deploy/mieru-client/Cargo.lock", "deploy/mieru-client/src/main.rs",
+        "release/external-artifacts.json", "release/three-xui-layout-amd64.json",
+        "scripts/update-host.sh", "scripts/check-naive-caddy-build.sh",
+        "scripts/caddy-naive-adapt", "scripts/prepare-mieru-state.sh",
+        "scripts/prepare-xray-router-state.sh", "scripts/rotate-xray-router-ingress.sh",
+        "deploy/caddy-naive.service", "deploy/mita.service", "deploy/mita@.service",
+        "deploy/mita.tmpfiles.conf", "deploy/version-agent.service",
+        "deploy/proxy-control-version-agent.tmpfiles.conf", "deploy/version-agent.env.example",
+        "docker/Caddyfile", "docker/Dockerfile.caddy-naive", "docker/telemt-entrypoint.sh",
+        "xray_router_manager/mtproxy-bridge/go.mod", "xray_router_manager/mtproxy-bridge/main.go",
+    }
+    required.update(name for name in names if name.startswith("compose.") and name.endswith(".yaml"))
+    # Every current Rust package and its normal-build sources must survive. Test
+    # modules inside src are deliberately preserved; external integration suites aren't.
+    crates = ("pc_common", "pc_host", "installer", "installer_core", "version_agent",
+              "panel", "mcp_server", "naive_manager", "mieru_manager",
+              "xray_router_manager", "awg_manager", "trusttunnel_manager")
+    for name in names:
+        if name.split("/", 1)[0] in crates and (
+            name.endswith(("Cargo.toml", "Cargo.lock", "/Dockerfile")) or "/src/" in name
+        ) and "/tests/" not in name.split("/src/", 1)[0] and "/testdata/" not in name:
+            required.add(name)
+    assert not required - shipped
+    assert not any(name.startswith(("tests/", "scripts/dev/", "scripts/lab/", ".github/",
+                                    "graphify-out/", "docs/adr/", "docs/spikes/")) for name in shipped)
+    assert not {"AGENTS.md", "CONTRIBUTING.md", "release/build.py", "release/sbom.py",
+                "release/Dockerfile.host-binaries", "docs/VALIDATION.md"} & shipped
+    assert not any("/testdata/" in name or name.endswith("_test.go") for name in shipped)
+    assert not any(name.endswith(".py") for name in shipped), "Python utilities belong in the source tree"
+
+
+def test_distribution_docs_link_to_omitted_sources_without_rewriting_code(tmp_path):
+    source = clean_checkout(tmp_path)
+    (source / "tests/lab").mkdir(parents=True)
+    (source / "tests/lab/README.md").write_text("# lab\n")
+    (source / "AGENTS.md").write_text("# development\n")
+    original = (
+        '# fixture\n[protocol](tests/lab/README.md#checks "title")\n'
+        '[`agents`](AGENTS.md)\n[lab directory](tests/lab/)\n'
+        '[kept](VERSION)\n[external](https://example.com/guide)\n'
+        '[ref]: tests/lab/README.md\n'
+        '`[example](AGENTS.md)`\n```sh\necho "[example](AGENTS.md)"\n```\n'
+    )
+    code_examples = (
+        '    echo "[example](AGENTS.md)"\n',
+        '> ```sh\n> echo "[example](AGENTS.md)"\n> ```\n',
+        '- ```sh\n  echo "[example](AGENTS.md)"\n  ```\n',
+        '``inline `[example](AGENTS.md)` code``\n',
+        '``multiline\n[example](AGENTS.md)\n``\n',
+        '```\n```not-a-closing-fence\n[example](AGENTS.md)\n```\n',
+        '<pre>\n[example](AGENTS.md)\n</pre>\n',
+        '<script>\nconst example = "[example](AGENTS.md)";\n</script>\n',
+    )
+    original += "\n" + "\n".join(code_examples)
+    (source / "README.md").write_text(original)
+    git(source, "add", "-A")
+    git(source, "commit", "-qm", "development documentation links")
+    built = build(tmp_path, "linked-docs", source, binaries=False)
+    _, content = archive_member(built.archive, "README.md")
+    text = content.decode()
+    base = f"https://github.com/dubr1k/proxy-control/blob/{built.commit}"
+    assert f'[protocol]({base}/tests/lab/README.md#checks "title")' in text
+    assert f'[`agents`]({base}/AGENTS.md)' in text
+    assert f'https://github.com/dubr1k/proxy-control/tree/{built.commit}/tests/lab' in text
+    assert f'[ref]: {base}/tests/lab/README.md' in text
+    assert '[kept](VERSION)' in text and '[external](https://example.com/guide)' in text
+    assert '`[example](AGENTS.md)`\n```sh\necho "[example](AGENTS.md)"\n```' in text
+    for example in code_examples:
+        assert example in text, f"a Markdown code region was rewritten: {example!r}"
+    # Source Markdown is unchanged; SBOM must describe the transformed archive bytes.
+    assert (source / "README.md").read_text() == original
+    sbom = json.loads(built.sbom.read_bytes())
+    entry = next(file for file in sbom["files"] if file["fileName"] == "./README.md")
+    assert entry["checksums"] == [{"algorithm": "SHA256", "checksumValue": hashlib.sha256(content).hexdigest()}]
 
 
 def test_archive_members_are_root_owned_with_the_commit_timestamp(tmp_path):
@@ -558,7 +739,7 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions(language)
 
 PROBE = "installer/bin/linux-amd64/proxy-control-installer"
 LIBRARY_FILE = "pc_common/src/lib.rs"
-THREE_XUI_CONTRACT = "tests/fixtures/three_xui/api-contract-3.10.2.json"
+THREE_XUI_CONTRACT = "installer/assets/three-xui-api-contract-3.10.2.json"
 
 
 def checkout_with_host_crates(tmp_path: Path) -> Path:

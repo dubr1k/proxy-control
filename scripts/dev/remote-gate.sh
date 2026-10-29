@@ -141,8 +141,8 @@ case $LEVEL in
   lab-host)
     test "${LAB_RESET:-0}" = 1 || { echo "lab-host reinstalls $HOST entirely; rerun with LAB_RESET=1" >&2; exit 2; }
     sync_tree
-    # The runner must be the copy inside the extracted release (it derives its root from
-    # its own location and refuses a tree with `.git`), exactly as docker_lab.py stages it.
+    # Keep the source-side harness/fixtures in the synced tree; only the installer
+    # under test comes from the separately extracted, metadata-free release.
     remote "python3 release/build.py --source . --output dist --version \"\$(cat VERSION)\" --allow-dirty \
       && sha=\$(awk '/proxy-control-v.*\.tar\.gz\$/ {print \$1}' dist/SHA256SUMS) \
       && cp \"dist/proxy-control-v\$(cat VERSION).tar.gz\" /tmp/proxy-control-release.tar.gz \
@@ -155,7 +155,7 @@ case $LEVEL in
     # on the host and this side only follows the log until the exit marker appears.
     # LAB_KEEP_INSTALL=1 leaves the installed node running (uninstall/coexistence are
     # reported as skipped) so the `fleet` tier has a live node to link.
-    remote "rm -f /root/lab-host.log; setsid nohup bash -c 'LAB_RESET=1 LAB_KEEP_INSTALL=${LAB_KEEP_INSTALL:-0} bash /tmp/proxy-control-release/proxy-control/scripts/lab/guest-runner.sh host \"\$(cat /root/lab-host.sha)\"; echo LAB_HOST_EXIT=\$?' > /root/lab-host.log 2>&1 < /dev/null &"
+    remote "rm -f /root/lab-host.log; setsid nohup bash -c 'LAB_RESET=1 LAB_KEEP_INSTALL=${LAB_KEEP_INSTALL:-0} LAB_RELEASE_ROOT=/tmp/proxy-control-release/proxy-control bash scripts/lab/guest-runner.sh host \"\$(cat /root/lab-host.sha)\"; echo LAB_HOST_EXIT=\$?' > /root/lab-host.log 2>&1 < /dev/null &"
     shown=0
     while :; do
       sleep 30

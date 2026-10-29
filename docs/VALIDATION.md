@@ -35,6 +35,12 @@ python3 scripts/check-doc-links.py
 bash scripts/dev/check-js-syntax.sh
 ```
 
+The container permission probes accept `PANEL_TEST_IMAGE` and `MIERU_TEST_IMAGE`.
+Point them at isolated candidate tags built from the extracted archive; do not replace
+running-node image aliases just to satisfy the tests. The defaults remain the documented
+local test tags above. Run detached test controllers with SIGHUP restored to its default
+handler after `nohup`: POSIX shell fixtures cannot trap a signal inherited as ignored.
+
 CI renders every supported Compose overlay against synthetic inputs, including MCP, Xray-router, AmneziaWG and TrustTunnel; the retired Fleet v1 agent and mTLS ingress are not built or rendered. CI builds the Rust panel, Naive/Mieru managers, MCP and Xray-router images, checks the pinned Caddy+forward-proxy artifact and a negative fixture, verifies service units on the ephemeral runner, and enforces diff hygiene and third-party notices. The Python external black-box suite runs against a Rust panel executable (`test-hooks`) and fails the gate on any deselected or skipped test. The independent dependency gate installs `cargo-audit` version `0.22.2` from crates.io with `--locked` and audits **every** shipped native `Cargo.lock` against RustSec; no Python panel or MCP runtime requirements are audited.
 
 The installer unit suite's deliberately ignored real-agent smoke is a separate CI step:
@@ -57,10 +63,18 @@ compiler settings. This build-only change does not change installer CLI or host 
 `release/build.py --build-binaries DIR` stages tracked files from the listed crates,
 VERSION and `release/host-binaries.list`, plus the explicitly declared embedded inputs.
 The installer's `include_str!` requires the tracked 3x-ui API contract at
-`tests/fixtures/three_xui/api-contract-3.10.2.json` in that build context. A missing
+`installer/assets/three-xui-api-contract-3.10.2.json` in that build context. A missing
 or untracked declared input is refused before Docker runs; local cache files do
 not supply it. The contract is embedded in the binary, so the installed host does
-not need the fixture to run the installer.
+not need the JSON file to run the installer.
+
+Source build inputs and the user archive are separate: `release/runtime-files.json`
+selects the tracked deployment files; the host builder still stages the full tracked
+crate sources. CI, lab tooling, integration fixtures and development guides stay in Git,
+not in the user archive. Operational guides, examples, licenses, Docker build sources,
+shared libraries and installation acceptance clients remain. Shipped Markdown links to
+omitted tracked material point to the exact source commit on GitHub. Archive and SBOM
+hashes describe the resulting bytes, including those adjusted documentation links.
 
 ## Lab tiers on the disposable host
 
@@ -78,7 +92,7 @@ environment/secret fixtures below the test directories are retained.
 | `full` | native prerequisites, complete external pytest suite, image builds, doc links, JS syntax, shellcheck, unit files | same |
 | `compose` | every supported Compose model renders; native images build | same |
 | `lab-container` | the release archive installs into a fresh Ubuntu 24.04 container (audit → plan → coexistence) | `scripts/lab/docker_lab.py` |
-| `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on the bare host: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | `scripts/lab/guest-runner.sh host` from the extracted archive |
+| `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on the bare host: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | source-side `scripts/lab/guest-runner.sh host`, with `LAB_RELEASE_ROOT` pointing at the extracted archive |
 | `fleet` | Fleet v2 end-to-end scenarios against the installed node, a native Rust central and a second independently hosted native panel (Node B) | `scripts/lab/fleet-acceptance.py` |
 
 The `fleet` scenario starts a separate native central from `--panel-bin PATH` or copies

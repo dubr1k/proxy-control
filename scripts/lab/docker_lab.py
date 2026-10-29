@@ -2,7 +2,8 @@
 """Container-hosted release acceptance for the Proxy Control installer.
 
 This is the part of the release matrix that a disposable systemd container can
-prove honestly: the exact release archive is the only input, systemd is PID 1 so
+prove honestly: the exact release archive is the only installer input, while the
+source-side harness supplies scenarios and fixtures. Systemd is PID 1 so
 the installer drives real units, and the foreign topology and identity fixtures
 are materialized inside the container and hashed before and after.
 
@@ -18,9 +19,11 @@ import argparse
 import importlib.util
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -29,7 +32,8 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 IMAGE = "proxy-control-acceptance:ubuntu-24.04"
 CONTAINER = "proxy-control-acceptance"
-REMOTE_ROOT = "/opt/acceptance"
+REMOTE_ROOT = "/tmp/proxy-control-release"
+SOURCE_ROOT = "/tmp/mtproxy-source"
 
 _spec = importlib.util.spec_from_file_location("qemu_lab", HERE / "qemu_lab.py")
 if _spec is None or _spec.loader is None:
@@ -136,8 +140,45 @@ def stop_container() -> None:
     )
 
 
+def source_archive(destination: Path) -> None:
+    """Snapshot current tracked harness/source bytes, never local state or Git metadata."""
+    tracked = subprocess.run(
+        ("git", "ls-files", "-z"), cwd=REPO, check=True, capture_output=True,
+    ).stdout.decode().split("\0")
+    private_roots = {
+        "secrets", ".lab-state", ".worktrees", ".superpowers", ".claude", ".hermes",
+        ".pi", ".agents", ".codex", "AGENTS.md", "AGENTS.local.md", "CLAUDE.md",
+        "graphify-out", "dist", "dist-again", "lab-results", "lab-results-container",
+    }
+    caches = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules", "target"}
+    with tarfile.open(destination, "w:gz") as package:
+        for name in sorted(set(tracked) - {""}):
+            relative = Path(name)
+            first = relative.parts[0]
+            if (first in private_roots or caches.intersection(relative.parts)
+                    or first.startswith(".graphify_")
+                    or (first.startswith(".env") and not first.endswith(".example"))):
+                continue
+            path = REPO / relative
+            # No recursion or dereferencing: a modified tracked path must not
+            # smuggle private files through a directory or symlink.
+            if path.is_symlink() or path.resolve() != REPO.resolve() / relative:
+                raise DockerLabError(f"unsafe source path: {name}")
+            if not path.exists():
+                continue  # A tracked deletion is part of the current working tree.
+            if not path.is_file():
+                raise DockerLabError(f"source path is not a file: {name}")
+            package.add(path, arcname=name, recursive=False)
+
+
 def copy_inputs(archive: Path, digest: str, staging: Path) -> str:
-    """Place the release and its digest inside the container and extract it."""
+    """Stage the source harness separately from the unchanged release and digest."""
+    source = staging / "source.tar.gz"
+    source_archive(source)
+    run(
+        ("docker", "cp", str(source), f"{CONTAINER}:{SOURCE_ROOT}.tar.gz"),
+        capture_output=True,
+    )
     run(
         ("docker", "cp", str(archive), f"{CONTAINER}:/tmp/proxy-control-release.tar.gz"),
         capture_output=True,
@@ -161,7 +202,9 @@ def copy_inputs(archive: Path, digest: str, staging: Path) -> str:
             "bash",
             "-lc",
             f"set -eu; rm -rf {REMOTE_ROOT}; mkdir -p {REMOTE_ROOT}; "
-            f"tar -xzf /tmp/proxy-control-release.tar.gz -C {REMOTE_ROOT}",
+            f"tar -xzf /tmp/proxy-control-release.tar.gz -C {REMOTE_ROOT}; "
+            f"rm -rf {SOURCE_ROOT}; mkdir -p {SOURCE_ROOT}; "
+            f"tar -xzf {SOURCE_ROOT}.tar.gz -C {SOURCE_ROOT}",
         ),
         capture_output=True,
     )
@@ -173,7 +216,8 @@ def guest_command(root: str, digest: str, only: Sequence[str]) -> tuple[str, ...
         if not re.fullmatch(r"[a-z0-9-]{1,64}", name):
             raise DockerLabError(f"unknown scenario filter: {name}")
     script = (
-        f"set -eu; bash {root}/scripts/lab/guest-runner.sh {MODE} "
+        f"set -eu; LAB_RELEASE_ROOT={shlex.quote(root)} "
+        f"bash {SOURCE_ROOT}/scripts/lab/guest-runner.sh {MODE} "
         f"{digest} {' '.join(only)}"
     ).rstrip()
     return ("docker", "exec", CONTAINER, "bash", "-lc", script)
