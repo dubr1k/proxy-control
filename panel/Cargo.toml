@@ -1,5 +1,5 @@
-# The panel's Rust workspace (the Python panel in this directory stays the specification until the
-# cutover). One crate per work package under crates/; the binary is built from crates/web.
+# The native panel's Rust workspace. Domain crates live under crates/;
+# crates/web builds the panel server and administrative CLI.
 [workspace]
 members = ["crates/*"]
 resolver = "2"

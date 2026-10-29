@@ -373,8 +373,8 @@ fn native_doc_examples_parse_without_a_host_audit() {
     for file in [
         "README.md",
         "README.en.md",
-        "INSTALL.en.md",
-        "INSTALL.ru.md",
+        "docs/guides/INSTALL.en.md",
+        "docs/guides/INSTALL.ru.md",
         "docs/INSTALLER_REFERENCE.en.md",
         "docs/INSTALLER_REFERENCE.ru.md",
     ] {

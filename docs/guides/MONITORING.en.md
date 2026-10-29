@@ -267,7 +267,7 @@ The `live`, `history` and `summary` routes become MCP tools automatically (`get_
 a tool call waits for a finished answer and the stream never finishes. The `overview` tool has a
 compact `metrics` section: per node the status, CPU, RAM and disk percent, network rates, per-protocol
 ↑/↓ rates and session counts, and alerts (`null` when monitoring is unavailable). See
-[MCP.en.md](docs/MCP.en.md).
+[MCP.en.md](../MCP.en.md).
 
 ## When something is unavailable
 

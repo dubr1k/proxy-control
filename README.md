@@ -30,6 +30,9 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 
 ## Содержание
 
+<details>
+<summary>Навигация по README</summary>
+
 - [Что это такое](#что-это-такое)
 - [Интерфейс](#интерфейс)
 - [Как устроен общий порт 443](#как-устроен-общий-порт-443)
@@ -47,6 +50,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 - [Безопасность](#безопасность)
 - [Разработка](#разработка)
 - [Лицензия и благодарности](#лицензия-и-благодарности)
+
+</details>
 
 ## Что это такое
 
@@ -90,6 +95,9 @@ Proxy Control — отдельная панель управления прок�
 
 ## Как устроен общий порт 443
 
+<details>
+<summary>Схема подключения и таблица портов</summary>
+
 Публичный порт 443 остаётся у Nginx. Nginx смотрит только на имя домена в
 TLS-приветствии (SNI) и передаёт соединение нужной службе. Proxy Control не забирает
 443 себе: установщик добавляет в карту SNI только свои строки и никогда не переписывает
@@ -124,6 +132,8 @@ TLS-приветствии (SNI) и передаёт соединение нуж
 протоколу PROXY — порядок описан в [справочнике установщика](docs/INSTALLER_REFERENCE.ru.md).
 
 Контейнеры называются `proxy-control-*`, проект Compose — `proxy_panel_by_dubr1k`.
+
+</details>
 
 ## Требования
 
@@ -162,6 +172,9 @@ TLS-приветствии (SNI) и передаёт соединение нуж
 режиме `managed-new`, домен подписки клиентов, MCP-сервер и TrustTunnel — требует **12 разных доменов**.
 Сертификат нужен не всем:
 
+<details>
+<summary>Все домены и правила выпуска сертификатов</summary>
+
 | Домен | Когда нужен | Сертификат |
 |---|---|---|
 | `panel` — панель | Всегда | Да |
@@ -194,6 +207,8 @@ Mieru и VLESS Reality не нужен сертификат Let's Encrypt: Mieru
 MTProxy одним сертификатом, `naive`, `three-xui-panel`, `three-xui-hysteria`,
 `three-xui-subscription`. Сразу после выпуска выполняется `certbot renew --dry-run`, чтобы
 продление было проверено в момент установки, а не через три месяца.
+
+</details>
 
 ## Установка человеком
 
@@ -239,6 +254,9 @@ bash install-release.sh
 Мастер говорит по-русски или по-английски, перед каждым выбором коротко объясняет варианты
 и сохраняет ответы в файл TOML, который можно прочитать и поправить вручную. В квадратных
 скобках — ответ по умолчанию, клавиша ввода его принимает.
+
+<details>
+<summary>Профили, параметры и вопросы мастера</summary>
 
 **Режим сервера.** `fresh` (по умолчанию) — установщик сам ставит и настраивает Nginx.
 `coexist` — Nginx уже держит порт 443, установщик только дописывает свои маршруты.
@@ -316,6 +334,8 @@ A-запись на сервер, только DNS (без проксирова�
 конфигурацию или продолжить. Готовые конфигурации для каждого профиля и режима 3x-ui —
 в [`examples/installer/`](examples/installer).
 
+</details>
+
 ### Шаг 3. Проверьте план и подтвердите его
 
 План — полный список того, что произойдёт: пакеты, файлы, маршруты Nginx, сертификаты,
@@ -353,17 +373,20 @@ sudo bash install.sh install --config examples/installer/full-three-xui.toml --a
 
 ### Ручная установка из архива
 
+<details>
+<summary>Проверка и запуск архива вручную</summary>
+
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 3.3.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0): архив,
+[выпуска 4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.3.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.3.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он
@@ -373,15 +396,20 @@ chmod 700 install-bootstrap &&
 создаётся при сборке выпуска.
 
 Если Nginx, сертификаты и окружение вы ведёте сами, базовый контур можно поднять
-напрямую через Compose: [DOCKER_DEPLOYMENT.ru.md](DOCKER_DEPLOYMENT.ru.md); ручная
-установка NaiveProxy и Mieru — в [PANEL.ru.md](PANEL.ru.md) и [MIERU.ru.md](MIERU.ru.md); TrustTunnel на таком
-сервере включает `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)).
+напрямую через Compose: [DOCKER_DEPLOYMENT.ru.md](docs/guides/DOCKER_DEPLOYMENT.ru.md); ручная
+установка NaiveProxy и Mieru — в [PANEL.ru.md](docs/guides/PANEL.ru.md) и [MIERU.ru.md](docs/guides/MIERU.ru.md); TrustTunnel на таком
+сервере включает `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.ru.md](docs/guides/TRUSTTUNNEL.ru.md)).
+
+</details>
 
 ## Установка ИИ-агентом
 
 Этот раздел — инструкция для ИИ-агента (Claude Code, Codex и подобных), которому вы дали
 SSH-доступ к серверу. Агент ставит Proxy Control **без мастера**: пишет конфигурацию TOML,
 получает план и устанавливает ровно его после вашего подтверждения.
+
+<details>
+<summary>Полная инструкция для ИИ-агента</summary>
 
 ### Что сказать агенту
 
@@ -498,6 +526,8 @@ systemctl is-active nginx docker
 выдача доступов, маршрутизация, обновления и диагностика описаны в [навыках](skills/) для
 типовых задач.
 
+</details>
+
 ## После установки
 
 **Панель Proxy Control.** Откройте `https://<домен панели>/login` и войдите как `owner`.
@@ -518,7 +548,7 @@ sudo cat /var/lib/proxy-control/three-xui/panel-access
 
 **TrustTunnel** (если включён). Убедитесь, что A-запись домена ведёт на сервер без проксирования CDN, и выдайте первый
 доступ из карточки клиента (ссылка `tt://`, QR и конфиг TOML в окне доступа); подробности — в
-[TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md).
+[TRUSTTUNNEL.ru.md](docs/guides/TRUSTTUNNEL.ru.md).
 
 Не копируйте эти файлы в Git, сообщения об ошибках, журналы и общие резервные копии.
 Файл `<имя-конфигурации>.credentials`, если мастер его создавал, удалите.
@@ -548,6 +578,9 @@ bash install-release.sh --update
 восстанавливаются и проверяются. До обновления 4.0 переведите узлы Fleet v1 на v2.
 Python и Cargo на хосте не нужны: Bash/awk проверяет оба готовых бинарника до запуска.
 
+<details>
+<summary>Что обновляется и как работают обновления компонентов</summary>
+
 Сценарий проверяет выпуск так же, как при установке, и просит `version-agent` сервера
 обновить панель ровно до проверенного архива — с резервной копией файлов, образа и базы и
 откатом при неудаче; затем пересобирает изменившиеся службы управления. Telemt,
@@ -568,7 +601,12 @@ Python и Cargo на хосте не нужны: Bash/awk проверяет о�
 
 Полный порядок и откат — в [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md).
 
+</details>
+
 ## Повседневная работа
+
+<details>
+<summary>Проверки состояния, резервная копия, восстановление и удаление</summary>
 
 ### Проверка состояния
 
@@ -635,7 +673,12 @@ sudo bash install.sh uninstall --json
 > пакетов — `/var/lib/docker` целиком и `/etc/letsencrypt` с сертификатами. Перед ним сделайте
 > [резервную копию](docs/BACKUP_RESTORE.ru.md) и унесите её с сервера.
 
+</details>
+
 ## Возможности подробнее
+
+<details>
+<summary>Клиенты, протоколы, Fleet, маршрутизация, MCP и мониторинг</summary>
 
 ### Клиенты, доступы и подписки
 
@@ -646,7 +689,7 @@ sudo bash install.sh uninstall --json
 `https://<домен подписки>/s/<token>` на все его доступы в форматах `raw`, `singbox`
 (Karing и sing-box), `clash` (mihomo), `manifest` и `html`. Ключ ссылки показывается один раз,
 в базе хранится только его контрольная сумма, отзыв действует мгновенно, запросы подписки
-не пишутся в журналы. Подробно — [PANEL.ru.md](PANEL.ru.md).
+не пишутся в журналы. Подробно — [PANEL.ru.md](docs/guides/PANEL.ru.md).
 
 Имена подключений в подписке начинаются с имени узла: `AMS · Naive`,
 `AMS · Mieru · TCP 8443`. Имя берётся из экрана «Узлы», в том числе для локального
@@ -661,24 +704,24 @@ sudo bash install.sh uninstall --json
 ### Протоколы
 
 - **MTProxy / Telemt.** Источник истины после первого запуска — том `telemt-config`; квота и
-  счётчик процесса — разные величины. [DOCKER_DEPLOYMENT.ru.md](DOCKER_DEPLOYMENT.ru.md)
+  счётчик процесса — разные величины. [DOCKER_DEPLOYMENT.ru.md](docs/guides/DOCKER_DEPLOYMENT.ru.md)
 - **NaiveProxy.** Без пароля домен показывает страницу-прикрытие, а не «407». Один URL
   `https://<user>:<pass>@<домен>` работает и как HTTPS, и как HTTP/2. Через прокси идёт только
   TCP; HTTP/3 наружу не публикуется. Проверенные клиенты — `naive`, Karing и sing-box.
-  [PANEL.ru.md](PANEL.ru.md)
+  [PANEL.ru.md](docs/guides/PANEL.ru.md)
 - **Mieru.** Свои TCP-порты, порт 443 не занимает. Проект проверяет и обещает только TCP:
   UDP-профили в реальных сетях у клиентов не работают. Квота — приблизительная проверка, не
-  платёжный счётчик. [MIERU.ru.md](MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md)
+  платёжный счётчик. [MIERU.ru.md](docs/guides/MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md)
 - **AmneziaWG.** Необязательный VPN поверх UDP. Три несовместимые версии — 1.5, 2.0 и 3.1 — работают
   одновременно, каждая на своём интерфейсе и UDP-порту; доступ всегда одной версии. Закрытый ключ
   клиента хранит панель, узел знает только открытый. Конфиг выдаётся файлом и QR, в подписки он не
   входит. Нужно DNS-имя, доходящее до сервера напрямую по UDP; новый домен не нужен.
-  [AMNEZIAWG.ru.md](AMNEZIAWG.ru.md)
+  [AMNEZIAWG.ru.md](docs/guides/AMNEZIAWG.ru.md)
 - **TrustTunnel.** Необязательный VPN от AdGuard: HTTP/2 поверх TLS, только TCP (QUIC и UDP не используются), на
   общем 443 через SNI; нужен свой домен без проксирования CDN. Доступ — ссылка `tt://` с QR и конфиг TOML (в
   официальных приложениях AdGuard для iOS и Android и в клиенте командной строки), запись `trusttunnel` в ленте
   Clash/mihomo; в ленте sing-box его нет. Каждое изменение доступа ненадолго перезапускает endpoint. Маршрутизация —
-  только для всей службы, без полос для клиентов. [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)
+  только для всей службы, без полос для клиентов. [TRUSTTUNNEL.ru.md](docs/guides/TRUSTTUNNEL.ru.md)
 - **3x-ui.** Остаётся отдельной панелью со своим интерфейсом; Proxy Control следит, чтобы оба
   жили на одном 443. В `managed-new` входящие подключения слушают `127.0.0.1:8449` (VLESS
   Reality TCP), `127.0.0.1:8450` (XHTTP) и `0.0.0.0:443/UDP` (Hysteria2); подписка 3x-ui
@@ -691,7 +734,7 @@ sudo bash install.sh uninstall --json
 ключ, затем «Импортировать» забирает существующих пользователей. На серверах не появляется
 ничего, кроме образа панели. Доверие — WebPKI или закреплённый отпечаток сертификата;
 желаемое состояние узла — нумерованные поколения с контрольной суммой; узел без связи
-догоняет при возвращении. Подробно — [FLEET.ru.md](FLEET.ru.md).
+догоняет при возвращении. Подробно — [FLEET.ru.md](docs/guides/FLEET.ru.md).
 
 ### Маршрутизация и WARP
 
@@ -729,13 +772,15 @@ Model Context Protocol по `https://<домен mcp>/mcp`. Каждый выз�
 400 суток. Байты по протоколам считает собственная таблица nftables, которая только считает и ничего не
 блокирует; направление — с точки зрения клиента, байты сетевого уровня с заголовками. Центральная
 панель показывает и связанные узлы. Что измеряется, API, пороги оповещений и диагностика —
-[MONITORING.ru.md](MONITORING.ru.md).
+[MONITORING.ru.md](docs/guides/MONITORING.ru.md).
 
 ### Пока не поддерживается
 
 Управление доступами 3x-ui из Proxy Control, постепенное применение правил к части узлов,
 UDP через Xray-router и обновление панели узла из центра. Для клиентов
 Mieru заявлен только TCP. Учёт трафика не предназначен для расчёта платежей.
+
+</details>
 
 ## Если что-то не работает
 
@@ -748,7 +793,7 @@ Mieru заявлен только TCP. Учёт трафика не предна
   GID сокета. Не применяйте рекурсивный `chown` вслепую.
 - **TrustTunnel не подключается.** В профиле должен быть именно домен TrustTunnel (по IP-адресу endpoint отказывает), без
   проксирования CDN; менеджер `degraded` с `certificate_missing` — нет сертификата домена. Подробнее —
-  [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md).
+  [TRUSTTUNNEL.ru.md](docs/guides/TRUSTTUNNEL.ru.md).
 - **Нет QR старого пользователя Mieru.** «Конфигурация» показывает сохранённый ключ; если
   ключ не сохранён, один раз нажмите «Новый ключ».
 
@@ -756,6 +801,9 @@ Mieru заявлен только TCP. Учёт трафика не предна
 [руководство по эксплуатации](docs/OPERATIONS.ru.md).
 
 ## Что внутри
+
+<details>
+<summary>Пакеты, версии компонентов, образы и зависимости</summary>
 
 ### Пакеты сервера
 
@@ -811,20 +859,22 @@ Telemt и сверх образа — из бинарника релиза `tele
 Python используется инструментами сборки, разработки и лабораторного стенда, а не процессом
 панели. Зависимости стенда закреплены в `panel/requirements-dev.txt`.
 
+</details>
+
 ## Документация
 
 | Тема | Документ |
 |---|---|
 | Карта всей документации | [docs/README.md](docs/README.md) |
-| Установка на Ubuntu 24.04 | [INSTALL.ru.md](INSTALL.ru.md) |
+| Установка на Ubuntu 24.04 | [INSTALL.ru.md](docs/guides/INSTALL.ru.md) |
 | Все команды и поля установщика | [docs/INSTALLER_REFERENCE.ru.md](docs/INSTALLER_REFERENCE.ru.md) |
-| Панель, роли, API-ключи, NaiveProxy | [PANEL.ru.md](PANEL.ru.md) |
-| MTProto за Nginx | [DOCKER_DEPLOYMENT.ru.md](DOCKER_DEPLOYMENT.ru.md) |
-| Mieru | [MIERU.ru.md](MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md) |
-| AmneziaWG | [AMNEZIAWG.ru.md](AMNEZIAWG.ru.md) |
-| TrustTunnel | [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md) |
-| Мониторинг | [MONITORING.ru.md](MONITORING.ru.md) |
-| Связанные панели | [FLEET.ru.md](FLEET.ru.md) |
+| Панель, роли, API-ключи, NaiveProxy | [PANEL.ru.md](docs/guides/PANEL.ru.md) |
+| MTProto за Nginx | [DOCKER_DEPLOYMENT.ru.md](docs/guides/DOCKER_DEPLOYMENT.ru.md) |
+| Mieru | [MIERU.ru.md](docs/guides/MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md) |
+| AmneziaWG | [AMNEZIAWG.ru.md](docs/guides/AMNEZIAWG.ru.md) |
+| TrustTunnel | [TRUSTTUNNEL.ru.md](docs/guides/TRUSTTUNNEL.ru.md) |
+| Мониторинг | [MONITORING.ru.md](docs/guides/MONITORING.ru.md) |
+| Связанные панели | [FLEET.ru.md](docs/guides/FLEET.ru.md) |
 | Маршрутизация и Xray-router | [docs/ROUTING.ru.md](docs/ROUTING.ru.md), [docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md) |
 | MCP-сервер | [docs/MCP.ru.md](docs/MCP.ru.md) |
 | Эксплуатация | [docs/OPERATIONS.ru.md](docs/OPERATIONS.ru.md) |
@@ -862,6 +912,9 @@ Rust-процессом. Подготовка бинарников, образо
 
 Proxy Control опирается на работу авторов и сопровождающих этих проектов:
 
+<details>
+<summary>Проекты и библиотеки</summary>
+
 | Компонент | За что благодарим | Ссылка |
 |---|---|---|
 | Telemt | Служба MTProto/MTProxy на Rust | [telemt/telemt](https://github.com/telemt/telemt) |
@@ -875,5 +928,7 @@ Proxy Control опирается на работу авторов и сопро�
 | Certbot и Let's Encrypt | Выпуск и продление сертификатов | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
 | Docker и Compose | Изолированное выполнение служб | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
 | Библиотеки Rust | Tokio, Hyper, Axum, rusqlite, rustls, Argon2, AES-GCM, qrcode | [зависимости панели](panel/Cargo.lock) |
+
+</details>
 
 Спасибо всем разработчикам, сопровождающим и участникам этих проектов.

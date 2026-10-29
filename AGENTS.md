@@ -268,7 +268,7 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 настраивает маршрутизацию — неинтерактивно, с доказательством каждого шага и без единого
 секрета в выводе. Человеческое описание тех же операций с примерами —
 [docs/INSTALLER_REFERENCE.ru.md](docs/INSTALLER_REFERENCE.ru.md) (мастер установки и поля TOML, примеры — в
-`examples/installer/`), [FLEET.ru.md](FLEET.ru.md) (привязка панелей и узлов, ключи node-sync, импорт),
+`examples/installer/`), [FLEET.ru.md](docs/guides/FLEET.ru.md) (привязка панелей и узлов, ключи node-sync, импорт),
 [docs/ROUTING.ru.md](docs/ROUTING.ru.md) (политики маршрутизации, коды отказов, цепи и полосы),
 [docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md) (подключение и отключение Xray-router),
 [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md) (version-agent и обновления),
@@ -587,7 +587,7 @@ and linking nodes, issuing grants, routing, upgrades, the gate additions and the
 refusal-code table) is in the Russian part above, «Эксплуатационный протокол для
 ИИ-агентов»; the human-facing documents are
 [docs/INSTALLER_REFERENCE.en.md](docs/INSTALLER_REFERENCE.en.md) (the installer wizard and TOML),
-[FLEET.en.md](FLEET.en.md) (linked panels), [docs/ROUTING.en.md](docs/ROUTING.en.md) (routing, chains and
+[FLEET.en.md](docs/guides/FLEET.en.md) (linked panels), [docs/ROUTING.en.md](docs/ROUTING.en.md) (routing, chains and
 lanes), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md), [docs/UPGRADING.md](docs/UPGRADING.md) (updates),
 [docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md) and [docs/MCP.en.md](docs/MCP.en.md).
 

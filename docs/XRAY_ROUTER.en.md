@@ -274,4 +274,4 @@ Rules ≤ 128 per policy, ≤ 64 selectors of each kind, ≤ 32 ports, the compi
 ≤ 16 KiB per service (schema 2: 64 KiB); the manager token 64 hex. Deferred: a static
 bridge into 3x-ui's Xray, canary rollouts, UDP relay, regular expressions; routing for a single
 grant is done with lanes. Compatibility between nodes and centrals of different releases is in
-[COMPATIBILITY](COMPATIBILITY.md) and [FLEET](../FLEET.en.md).
+[COMPATIBILITY](COMPATIBILITY.md) and [FLEET](guides/FLEET.en.md).

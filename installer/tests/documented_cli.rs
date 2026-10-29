@@ -15,8 +15,8 @@ fn every_checked_command_parses_against_the_shipped_cli_and_loads_its_configurat
             r#"
 import json, pathlib, re, shlex, sys
 root = pathlib.Path(sys.argv[1])
-files = ['docs/INSTALLER_REFERENCE.ru.md', 'docs/INSTALLER_REFERENCE.en.md', 'INSTALL.ru.md', 'INSTALL.en.md',
-         'README.md', 'README.en.md', 'MIERU.ru.md', 'MIERU.en.md', 'PANEL.ru.md', 'PANEL.en.md',
+files = ['docs/INSTALLER_REFERENCE.ru.md', 'docs/INSTALLER_REFERENCE.en.md', 'docs/guides/INSTALL.ru.md', 'docs/guides/INSTALL.en.md',
+         'README.md', 'README.en.md', 'docs/guides/MIERU.ru.md', 'docs/guides/MIERU.en.md', 'docs/guides/PANEL.ru.md', 'docs/guides/PANEL.en.md',
          'docs/UPGRADING.md', 'docs/VALIDATION.md']
 commands = []
 for name in files:

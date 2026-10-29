@@ -165,4 +165,4 @@ Rollback оправдан, если новая generation не проходит 
 `nft` отсутствует или отказывает: протоколы переходят на менеджеры, NaiveProxy не «живой», у Mieru нет
 данных); порт протокола есть в `sudo nft list counters table inet proxy_control_metrics` (иначе задайте
 `/etc/proxy-control/metrics-ports.json`). Узел `unsupported` старее 2.0. Полная таблица —
-[MONITORING.ru.md](../MONITORING.ru.md).
+[MONITORING.ru.md](guides/MONITORING.ru.md).

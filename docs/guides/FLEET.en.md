@@ -6,7 +6,7 @@
 
 One panel — the **central** — manages other panels — the **nodes** — over
 each node's own HTTPS panel domain, authenticated with a scoped Bearer API key
-([ADR 008](docs/adr/008-panel-to-panel-transport.md)). Linking a panel is three actions
+([ADR 008](../adr/008-panel-to-panel-transport.md)). Linking a panel is three actions
 in the web UI; nothing is installed on any host beyond the panel image — no ingress, no
 agent, no CA, no CSR.
 
@@ -130,7 +130,7 @@ smaller number (409 `stale_generation`) and the same number with a different dig
 **Egress.** A generation may carry an optional `egress` section — per protocol
 (`naive`, `mieru`) an `EgressDocument {backend, policy_id, policy_revision, document,
 digest}`: the routing policy of that node compiled for the node's backend
-([docs/ROUTING.en.md](docs/ROUTING.en.md)). The central includes it only for a node
+([docs/ROUTING.en.md](../ROUTING.en.md)). The central includes it only for a node
 whose `identity.capabilities` lists `egress.v1` (the strict model of a node without that
 capability would refuse the whole document), and only the policies the operator applied (or
 rolled back): a draft is never published. The field is left out of the wire form and of the
@@ -159,7 +159,7 @@ router section through its router, then the companion through the native manager
 the reverse on detach), and reports `egress[p].router = {revision, digest}` beside the
 native result; the central marks a pass-through with an empty policy as `applied` and
 with rules as a draft to review. A central refuses a router policy for a node without
-the capability (`node_lacks_router`) — [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md).
+the capability (`node_lacks_router`) — [docs/XRAY_ROUTER.en.md](../XRAY_ROUTER.en.md).
 
 **TrustTunnel (v1.6).** A node that serves it declares `protocol.trusttunnel.v1` in `identity.capabilities` and reports
 `identity.protocols.trusttunnel` (`enabled`, `public_host`, `public_port`, `daemon`). The central never sends a TrustTunnel
@@ -398,7 +398,7 @@ generation it publishes would be accepted and make it master again (imported use
 re-adopted, provisioned ones failing as collisions).
 
 **Rolling a node back** to a previous panel image follows the general rule of
-[UPGRADING](docs/UPGRADING.md): restore the complete previous generation, database
+[UPGRADING](../UPGRADING.md): restore the complete previous generation, database
 included. A previous image refuses to start on a database the new version migrated to a
 newer schema («database schema N is newer than this code»), so the previous image alone is
 not a rollback. Nothing on the node's runtime was touched by the upgrade itself:
@@ -443,6 +443,6 @@ link first.
   references and names only. `last_error` records the failure class and code, never a
   body.
 
-See also [operations](docs/OPERATIONS.en.md), [upgrading](docs/UPGRADING.md),
-[backup](docs/BACKUP_RESTORE.en.md), [security](SECURITY.md) and
-[troubleshooting](docs/TROUBLESHOOTING.en.md).
+See also [operations](../OPERATIONS.en.md), [upgrading](../UPGRADING.md),
+[backup](../BACKUP_RESTORE.en.md), [security](../../SECURITY.md) and
+[troubleshooting](../TROUBLESHOOTING.en.md).

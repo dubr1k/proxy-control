@@ -10,8 +10,8 @@ The deployment renderer creates `secrets/telemt-api-token` with mode `0600`; it 
 
 ```sh
 read -rsp 'New password: ' PANEL_INITIAL_PASSWORD; echo
-# exec, not run: the image entrypoint ignores the container command and always
-# starts uvicorn, so `run` would simply bring up a second server.
+# exec, not run: the image entrypoint always starts the native panel binary;
+# use exec to run the CLI inside the existing container.
 docker compose up -d panel
 printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose exec -T panel \
   panel cli create-admin --username owner --role owner --password-stdin
@@ -19,7 +19,7 @@ unset PANEL_INITIAL_PASSWORD
 docker compose up -d
 ```
 
-Passwords require at least 12 characters and are stored with Argon2id. SQLite stores administrators, opaque-session SHA-256 digests, login throttling, and audit records only. Proxy secrets are never persisted by the panel: Telemt owns them, while a reveal lives in memory for at most 120 seconds and can be consumed once.
+Passwords require at least 12 characters and are stored with Argon2id. SQLite also holds sessions as SHA-256 digests, login throttling, audit, clients, grants, linked-panel metadata and monitoring rollups. Credentials retained for links, subscriptions and Fleet are encrypted with AES-256-GCM under the separate master key; preserve that key together with the database. One-time reveal tokens are short-lived, live in memory for at most 120 seconds and can be consumed once. See [backup and restore](../BACKUP_RESTORE.en.md).
 
 ## Settings and roles
 
@@ -166,33 +166,23 @@ Tabs without a QR (Native, Shadowrocket) drop the QR pane entirely instead of re
 
 Karing's current source accepts `karing://install-config?url=...` and imports sing-box configuration content; its current protocol editor includes Naive. See the [Karing URL-scheme contract](https://karing.app/en/cooperation/scheme), [Karing import guide](https://karing.app/en/quickstart), and [sing-box Naive outbound schema](https://sing-box.sagernet.org/configuration/outbound/naive/). All variants contain the same credential and remain subject to the one-time reveal and `Cache-Control: no-store` rules.
 
-## Switching the writer: `PANEL_VNEXT_WRITER`
+## Clients, grants and ownership
 
-The protocol endpoints have two writers, selected by
-`PANEL_VNEXT_WRITER`:
+The Rust clients domain is the only writer. Protocol pages and the client API use
+the same ownership model and encrypted credential store; no environment-variable
+switch or writer cutover is needed. The obsolete `PANEL_VNEXT_WRITER` variable is ignored.
 
-- `legacy` (default) — the panel calls the managers directly, bypassing clients and grants;
-- `domain` — the same requests go through clients and grants, so the panel **owns the
-  credential** and can render a subscription.
+For users that already exist in a protocol runtime:
 
-From outside the two are indistinguishable: same status codes, same response shapes,
-same audit actions. That is enforced by running the whole API test suite in both modes.
+1. Import them on the Clients screen. Import is read-only and does not capture a secret.
+2. Adopt each grant explicitly if its credential must appear in links or subscriptions.
+   Mieru adoption requires a confirmed password rotation and a new client link.
+3. Verify create, enable and rotate on a test user of each enabled protocol.
 
-Cut over in this order:
-
-1. Import the existing users on the Clients screen.
-2. Adopt the grants with the "Adopt" button (for Mieru, with a deliberate rotation).
-3. Set `PANEL_VNEXT_WRITER=domain` and restart the panel.
-4. Verify create/enable/rotate on one user of each protocol.
-
-If step 3 finds users the panel does not know, that is fine: the first operation on
-such a user records it as `imported`, without recreating it and without merging it with
-a same-named account of another protocol. No credential appears for that row — the
-panel does not have one; adopt it explicitly.
-
-Elevated Mieru flags (`allow_private_ip`, `allow_loopback_ip`) stay on the direct
-manager call even in `domain` mode: that path is deliberately manual, and smuggling it
-through a generic intent would change what it means.
+Matching usernames across protocols do not establish that the users are the same person.
+A grant managed by a central panel must be changed on that central, not locally.
+See [the ownership contract](../adr/003-one-writer-per-resource.md) and
+[linked panels](FLEET.en.md).
 
 ## Subscriptions: `PANEL_SUBSCRIPTION_URL` and `/s/{token}`
 
@@ -229,7 +219,7 @@ is added, disabled, rotated or expires — not when the page is fetched),
 `Cache-Control: private, no-cache`, `Profile-Update-Interval: 12` and
 `X-Robots-Tag: noindex`; `If-None-Match` gets a 304. Fetches are limited to 60 per
 minute per client address, across all tokens. The token is stored as a hash, never
-logged (uvicorn runs without an access log, the Nginx block has `access_log off`) and
+logged (the native panel emits no request access log, and the subscription Nginx block has `access_log off`) and
 never written to the audit trail.
 
 The `html` format is a page for the client themselves, not for an administrator. It opens with
@@ -393,9 +383,9 @@ card's badge reads «применено (rev N)», «есть неприменё
 keeps the pen with the central. The node
 card on «Узлы» carries the line «Маршрутизация: naive → WARP, 2 блокир.; mieru →
 напрямую». Every role may read and preview; the owner applies. What each backend can
-enforce, the API (`/api/routing/*`) and the audit events: [docs/ROUTING.en.md](docs/ROUTING.en.md).
+enforce, the API (`/api/routing/*`) and the audit events: [docs/ROUTING.en.md](../ROUTING.en.md).
 
-The card also shows the node's **Xray-router** ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)):
+The card also shows the node's **Xray-router** ([docs/XRAY_ROUTER.en.md](../XRAY_ROUTER.en.md)):
 the backend badge reads Caddy, mita or Xray-router, and the router line says
 «Xray-router: не установлен / сервис не подключён / сервис подключён» with the Xray version and
 the owner-only buttons **«Подключить к Xray-router»** / **«Отключить от Xray-router»** (confirmed:
@@ -421,7 +411,7 @@ a compromised panel process, which holds the key while it runs.
   exist and the key is gone, it refuses to start instead of serving empty
   subscriptions.
 - Back the key up separately from the database ([backup and
-  restore](docs/BACKUP_RESTORE.en.md)).
+  restore](../BACKUP_RESTORE.en.md)).
 
 ```sh
 # check that a key and a database belong together (prints counts, never values)

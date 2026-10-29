@@ -2,7 +2,7 @@
 
 **English** · [Русский](OPERATIONS.ru.md)
 
-Use this guide for an already deployed node. It does not replace the [installation guide](../INSTALL.en.md), [backup contract](BACKUP_RESTORE.en.md), or protocol-specific acceptance tests.
+Use this guide for an already deployed node. It does not replace the [installation guide](guides/INSTALL.en.md), [backup contract](BACKUP_RESTORE.en.md), or protocol-specific acceptance tests.
 
 ## 1. Start of change window
 
@@ -213,7 +213,7 @@ See [Troubleshooting](TROUBLESHOOTING.en.md).
 ## 11. Central panel and linked panels (Fleet v2)
 
 A panel can manage other panels over HTTPS with a `node-sync` API key; the
-model is in [FLEET.en.md](../FLEET.en.md). What the runbook adds is the order of
+model is in [FLEET.en.md](guides/FLEET.en.md). What the runbook adds is the order of
 operations on a fleet of hosts.
 
 ### Rollout order
@@ -357,7 +357,7 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
 ## 14. Monitoring
 
 The «Мониторинг» screen and `GET /api/metrics/*` need no set-up. What to know in operation
-([MONITORING.en.md](../MONITORING.en.md) has the details):
+([MONITORING.en.md](guides/MONITORING.en.md) has the details):
 
 - The sampler lives in the `version-agent` (`sudo systemctl status version-agent`). After an update the
   agent restarts and picks up the sampler; the first sample takes a few seconds (`503 metrics_warming_up`

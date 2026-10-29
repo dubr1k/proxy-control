@@ -143,7 +143,7 @@ panels (the nodes) over their own HTTPS panel domains with scoped Bearer API key
 decision is [ADR 008](adr/008-panel-to-panel-transport.md), which supersedes the
 transport direction of ADR 001 (pull-only mTLS) while keeping its typed-payload rule and
 applying ADR 002 (immutable generations) and ADR 003 (one writer per resource) unchanged.
-Operator documentation: [FLEET.en.md](../FLEET.en.md).
+Operator documentation: [FLEET.en.md](guides/FLEET.en.md).
 
 What it adds, and what it deliberately does not:
 

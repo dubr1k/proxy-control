@@ -6,7 +6,7 @@
 
 Одна панель — **центр** — управляет другими панелями — **узлами** — по HTTPS-домену
 самой панели узла, аутентифицируясь scoped Bearer API-ключом
-([ADR 008](docs/adr/008-panel-to-panel-transport.md)). Подключение панели — три действия
+([ADR 008](../adr/008-panel-to-panel-transport.md)). Подключение панели — три действия
 в web-интерфейсе; на хостах не появляется ничего, кроме образа панели: ни ingress, ни
 агента, ни CA, ни CSR.
 
@@ -128,7 +128,7 @@ tls_verify, pinned_sha256?, allow_private_address}` (201 `{node_id}`);
 **Egress.** Поколение может нести необязательную секцию `egress` — по протоколам
 (`naive`, `mieru`) `EgressDocument {backend, policy_id, policy_revision, document,
 digest}`: политика маршрутизации этого узла, скомпилированная под его backend
-([docs/ROUTING.ru.md](docs/ROUTING.ru.md)). Центр кладёт её только для узла, чей
+([docs/ROUTING.ru.md](../ROUTING.ru.md)). Центр кладёт её только для узла, чей
 `identity.capabilities` содержит `egress.v1` (строгая модель узла без этой возможности
 отвергла бы весь документ), и только для политик, которые оператор применил (или откатил):
 черновик не публикуется. Поле опускается в проводной форме и в digest, когда сказать нечего, —
@@ -157,7 +157,7 @@ digest при отсутствии, поэтому узел без `egress.route
 и отчитывается `egress[p].router = {revision, digest}` рядом с нативным результатом; центр
 помечает pass-through с пустой политикой как `applied`, а с правилами — черновиком на просмотр. Центр
 отказывает политике роутера для узла без возможности (`node_lacks_router`) —
-[docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md).
+[docs/XRAY_ROUTER.ru.md](../XRAY_ROUTER.ru.md).
 
 **TrustTunnel (v1.6).** Узел, который его обслуживает, объявляет `protocol.trusttunnel.v1` в `identity.capabilities` и
 отдаёт `identity.protocols.trusttunnel` (`enabled`, `public_host`, `public_port`, `daemon`). Центр никогда не отправляет
@@ -390,7 +390,7 @@ inventory узла и принимает всех, кого узел ведёт 
 пользователи присвоятся заново, выданные упадут как коллизии).
 
 **Откат узла** на предыдущий образ панели подчиняется общему правилу
-[UPGRADING](docs/UPGRADING.ru.md): восстанавливается полная предыдущая генерация, включая
+[UPGRADING](../UPGRADING.ru.md): восстанавливается полная предыдущая генерация, включая
 базу. Предыдущий образ отказывается стартовать на базе, которую новая версия мигрировала до
 более новой схемы («database schema N is newer than this code»), поэтому один предыдущий
 образ — это ещё не откат. В
@@ -434,6 +434,6 @@ fleet-состояния на узле, который никто не подк�
   карточка узла, `GET /api/nodes/{id}/generations` и строки аудита несут только ссылки и
   имена. `last_error` фиксирует класс и код сбоя, никогда — тело.
 
-См. также [operations](docs/OPERATIONS.ru.md), [upgrading](docs/UPGRADING.ru.md),
-[backup](docs/BACKUP_RESTORE.ru.md), [security](SECURITY.md) и
-[troubleshooting](docs/TROUBLESHOOTING.ru.md).
+См. также [operations](../OPERATIONS.ru.md), [upgrading](../UPGRADING.ru.md),
+[backup](../BACKUP_RESTORE.ru.md), [security](../../SECURITY.md) и
+[troubleshooting](../TROUBLESHOOTING.ru.md).

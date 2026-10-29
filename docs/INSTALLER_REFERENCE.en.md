@@ -544,7 +544,7 @@ yourself; the plan and the report say so.
 and the manager token; `--purge-data` removes both. Updating the host (`install-release.sh --update`)
 rebuilds `awg-manager` when `awg_manager/` changed: the tunnels drop for a few seconds and the
 peers reconnect by themselves; the state directory is never touched. How AmneziaWG is used from
-the panel is in [AMNEZIAWG.en.md](../AMNEZIAWG.en.md).
+the panel is in [AMNEZIAWG.en.md](guides/AMNEZIAWG.en.md).
 
 ### TrustTunnel
 
@@ -570,7 +570,7 @@ accesses' passwords and counters) and the manager token; `--purge-data` removes 
 (`install-release.sh --update`) rebuilds `trusttunnel-manager` when `trusttunnel_manager/` changed: sessions drop for a
 few seconds and the apps reconnect by themselves; the state directory is never touched. For a host the installer did not
 set up there is `scripts/enable-trusttunnel.sh`. How TrustTunnel is used from the panel is in
-[TRUSTTUNNEL.en.md](../TRUSTTUNNEL.en.md).
+[TRUSTTUNNEL.en.md](guides/TRUSTTUNNEL.en.md).
 
 ## Hard stops
 

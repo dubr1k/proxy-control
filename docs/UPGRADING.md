@@ -727,7 +727,7 @@ docker inspect --format '{{.State.Health.Status}}' proxy-control-xray-router-ing
 TrustTunnel (AdGuard's HTTP/2-over-TLS VPN, TCP only) is optional and is **not** switched on by an update. On a host the
 installer set up, add the `[trusttunnel]` section and `domains.trusttunnel` to its TOML and run the installer again
 (`plan`, then `install --accept-plan`); on a hand-installed host run `scripts/enable-trusttunnel.sh --host <name>` from
-the unpacked release ([TRUSTTUNNEL](../TRUSTTUNNEL.en.md)). Either way the name needs an A record to the server (DNS only,
+the unpacked release ([TRUSTTUNNEL](guides/TRUSTTUNNEL.en.md)). Either way the name needs an A record to the server (DNS only,
 no CDN proxy) and a certificate; no firewall rule or UDP port is added.
 
 - The one-command update rebuilds `trusttunnel-manager` when it is installed and `trusttunnel_manager/` changed: the
@@ -741,7 +741,7 @@ no CDN proxy) and a certificate; no firewall rule or UDP port is added.
 
 ## Upgrading to 2.0
 
-2.0 adds live monitoring ([MONITORING.en.md](../MONITORING.en.md)). The update is the usual `--update`; nothing has to be
+2.0 adds live monitoring ([MONITORING.en.md](guides/MONITORING.en.md)). The update is the usual `--update`; nothing has to be
 configured, and the API, the configuration and the installer TOML have no breaking changes.
 
 - **Migration 25** creates the table `metric_rollups` (resolutions 60 s, 15 min and 1 h). It only adds a table; a 1.x image

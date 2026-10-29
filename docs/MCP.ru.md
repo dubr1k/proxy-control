@@ -120,7 +120,7 @@ approval_mode = "approve"
 `/healthz`, `/login`, `/api/auth/*`, `/api/reveal/{token}` (его используют curated-инструменты),
 `/s/*`, узловой API `/api/fleet/*` и `/api/metrics/stream` (бесконечный ответ SSE: вызов инструмента ждёт готового
 ответа). Маршруты мониторинга `GET /api/metrics/live`, `/history` и `/summary` — обычные инструменты
-(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.ru.md](../MONITORING.ru.md)).
+(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.ru.md](guides/MONITORING.ru.md)).
 
 **Curated** — с человеческими описаниями, по одному вызову на привычное действие:
 

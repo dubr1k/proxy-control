@@ -16,7 +16,7 @@ panels (Fleet v2) are set up from the panel's UI after the install —
 In `fresh` mode, the owned Nginx router preserves panel client IPs through private
 Unix sockets, without new TCP ports. In `coexist`, an operator-owned PROXY bridge
 is needed to preserve IPs; the installer does not change foreign frontend behavior.
-See the [ingress and migration reference](docs/INSTALLER_REFERENCE.en.md).
+See the [ingress and migration reference](../INSTALLER_REFERENCE.en.md).
 
 ## The primary install path: a verified release
 
@@ -26,7 +26,7 @@ For 3.3.0 → 4.0, use only `bash install-release.sh --update`: it migrates the 
 requires `status=ok`, `implementation=rust` and the target `version` before panel changes,
 then updates managers, ingress and Compose and repairs owned host helpers.
 Failure restores the previous agent and active ownership journal while preserving operator
-env, unit directives and drop-ins. See [transition and rollback](docs/UPGRADING.md).
+env, unit directives and drop-ins. See [transition and rollback](../UPGRADING.md).
 
 This is the supported way to install Proxy Control. Obsolete `proxyctl`, `mtproxy-deploy`
 and `check-deployment.sh` entry points are retired; use the native transaction CLI.
@@ -77,7 +77,7 @@ It performs the same `SHA256SUMS` and manifest checks, extracts the archive and 
 wizard `sudo bash install.sh wizard` from the extracted `proxy-control/` directory.
 
 The repository copy of the script —
-[`scripts/install-release.sh`](scripts/install-release.sh) — takes `--version X.Y.Z` and
+[`scripts/install-release.sh`](../../scripts/install-release.sh) — takes `--version X.Y.Z` and
 optionally `--sha256 <lab-sha256>` from the tag annotation or the release note: it fetches
 the four files, verifies them unprivileged, extracts and starts the wizard through one
 `sudo`; `--requirements` prints what the host needs and what gets installed.
@@ -86,7 +86,7 @@ With no further arguments the installer starts a bilingual wizard that writes a
 configuration file, shows a plan, and applies nothing until you confirm the plan
 digest. The complete surface - profiles, every configuration field, ownership
 boundaries, per-protocol acceptance, WARP and egress, recovery, and reports -
-is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
+is in the [installer reference](../INSTALLER_REFERENCE.en.md).
 
 The pinned upstream artifacts — `mita_3.38.1_<arch>.deb` (the server) and
 `mieru_3.38.1_<arch>.deb` (the official client the acceptance runs) for a profile
@@ -96,7 +96,7 @@ fetches them from their pinned HTTPS URLs into `/var/lib/proxy-control/` and ref
 to continue unless each digest matches its pin (a mismatching file is discarded).
 An offline host stages them there in advance: a file staged by hand is used as it
 is and never replaced. The URLs and digests are in
-[`release/external-artifacts.json`](release/external-artifacts.json).
+[`release/external-artifacts.json`](../../release/external-artifacts.json).
 
 ## Requirements
 
@@ -258,4 +258,4 @@ re-run the installation.
 - [TrustTunnel](TRUSTTUNNEL.en.md)
 - [Fleet mTLS](FLEET.en.md)
 
-See [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md), [operations](docs/OPERATIONS.en.md), [backup](docs/BACKUP_RESTORE.en.md), and [validation](docs/VALIDATION.md).
+See [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md), [operations](../OPERATIONS.en.md), [backup](../BACKUP_RESTORE.en.md), and [validation](../VALIDATION.md).

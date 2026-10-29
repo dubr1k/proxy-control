@@ -81,4 +81,4 @@ Client tabs scroll horizontally, while QR, payload, import command, unsupported-
 - **Traffic unavailable:** this is an honest adapter limitation, not a credential problem.
 - **Viewer sees no QR:** expected RBAC behavior.
 
-See [Mieru deployment](../MIERU.en.md), [operations](OPERATIONS.en.md), and [troubleshooting](TROUBLESHOOTING.en.md).
+See [Mieru deployment](guides/MIERU.en.md), [operations](OPERATIONS.en.md), and [troubleshooting](TROUBLESHOOTING.en.md).

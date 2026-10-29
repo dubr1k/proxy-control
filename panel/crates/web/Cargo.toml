@@ -1,6 +1,6 @@
 [package]
 name = "panel-web"
-description = "The Proxy Control panel's HTTP shell and its binary `panel`: the Starlette/FastAPI-compatible server (middleware, routing, validation, static files), the auth gates, the lifespan supervisor, the auth/admin/audit/API-key/OpenAPI/readiness routes, and the `healthcheck`, `cli` and `stage-secret` subcommands."
+description = "The native Proxy Control HTTP server and its panel binary: middleware, routing, validation, static files, authorization, background supervision, API routes, and the healthcheck, cli and stage-secret subcommands."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

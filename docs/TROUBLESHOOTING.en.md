@@ -146,4 +146,4 @@ of it is at fault; the stream needs no buffering and falls back to 3-second poll
 (otherwise `nft` is missing or refuses: protocols fall back to the managers, NaiveProxy is not live, Mieru has no
 data); the protocol's port is in `sudo nft list counters table inet proxy_control_metrics` (otherwise set
 `/etc/proxy-control/metrics-ports.json`). A node with `unsupported` is older than 2.0. The full table is in
-[MONITORING.en.md](../MONITORING.en.md).
+[MONITORING.en.md](guides/MONITORING.en.md).

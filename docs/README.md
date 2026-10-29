@@ -4,26 +4,51 @@
 
 This index separates **installation**, **protocols and the panel**, **operations**, and
 **development**. Start with the README in your language, then follow the document for the
-boundary you are changing.
+boundary you are changing. The current release is **[v4.0.0](releases/v4.0.0.md)**:
+the application runtime is Rust; Python is used only by external development and acceptance tools.
+
+## Repository layout / Структура репозитория
+
+| Path / Путь | Purpose / Назначение |
+|---|---|
+| `README.md`, `README.en.md` | Start here: overview, requirements and verified installation / обзор, требования и проверенная установка |
+| `docs/guides/` | [User guides by protocol and task](guides/README.md) / руководства по установке, панели и протоколам |
+| `docs/` | Architecture, API contracts, operations and validation / архитектура, контракты, эксплуатация и проверки |
+| `docs/adr/`, `docs/spikes/` | Decisions and design investigations; check their status against the current architecture / решения и исследования, не пошаговые инструкции установки |
+| `docs/releases/`, `CHANGELOG*.md` | Release history, not current deployment instructions / история выпусков, не инструкция для текущего сервера |
+| `panel/crates/` | Native Rust panel: web, clients, protocols, Fleet, routing, metrics and subscriptions / нативная панель |
+| `*_manager/` | Rust managers supervising external protocol runtimes / службы управления протоколами |
+| `installer/`, `installer_core/` | Native host lifecycle, wizard, configuration and planning / установщик, мастер, конфигурация и план |
+| `version_agent/`, `pc_host/`, `pc_common/` | Host agent and shared Rust primitives / хостовый агент и общие библиотеки |
+| `compose*.yaml`, `deploy/`, `docker/` | Container models, host units and build inputs / контейнеры, службы хоста и входы сборки |
+| `release/`, `install-bootstrap`, `scripts/install-release.sh` | Reproducible packaging and verified installation / воспроизводимый выпуск и проверенная установка |
+| `tests/`, `panel/tests/`, `scripts/lab/`, `scripts/dev/` | Native and external acceptance, including compatibility fixtures / проверки и эталоны совместимости |
+| `skills/` | Instructions for routine panel tasks through MCP / навыки для работы с панелью через MCP |
+| `graphify-out/` | Generated relationship graph; not shipped in installation archives / генерируемый граф, не часть установленного runtime |
+
+Private configuration, credentials, build caches and local agent workspaces are not
+application source and must not be copied into a release or issue report.
+Локальные конфигурации, секреты, кэши сборки и рабочие каталоги агентов не входят в
+исходники продукта; не переносите их в выпуск или публичный отчёт.
 
 ## Русский
 
 ### Установка
 
 1. [Обзор и установка: человеком и ИИ-агентом](../README.md)
-2. [Установка на Ubuntu 24.04](../INSTALL.ru.md)
+2. [Установка на Ubuntu 24.04](guides/INSTALL.ru.md)
 3. [Справочник установщика: команды, поля конфигурации, границы владения](INSTALLER_REFERENCE.ru.md)
-4. [Установщик и проверка сервера](../INSTALLER_AUDITOR.ru.md)
+4. [Установщик и проверка сервера](guides/INSTALLER_AUDITOR.ru.md)
 
 ### Протоколы и панель
 
-- [Панель, роли, API-ключи, Telemt и NaiveProxy](../PANEL.ru.md)
-- [MTProto за Nginx SNI](../DOCKER_DEPLOYMENT.ru.md)
-- [Mieru/mita](../MIERU.ru.md) и [выдача ссылок, QR и конфигураций Mieru](MIERU_SHARING.ru.md)
-- [AmneziaWG: версии 1.5, 2.0 и 3.1, конфиг и QR](../AMNEZIAWG.ru.md)
-- [TrustTunnel: VPN поверх HTTP/2 и TLS, ссылка `tt://`, QR и конфиг](../TRUSTTUNNEL.ru.md)
-- [Мониторинг: ресурсы и трафик по протоколам в прямом эфире, история, оповещения, API](../MONITORING.ru.md)
-- [Связанные панели (Fleet v2, HTTPS и API-ключ `node-sync`)](../FLEET.ru.md)
+- [Панель, роли, API-ключи, Telemt и NaiveProxy](guides/PANEL.ru.md)
+- [MTProto за Nginx SNI](guides/DOCKER_DEPLOYMENT.ru.md)
+- [Mieru/mita](guides/MIERU.ru.md) и [выдача ссылок, QR и конфигураций Mieru](MIERU_SHARING.ru.md)
+- [AmneziaWG: версии 1.5, 2.0 и 3.1, конфиг и QR](guides/AMNEZIAWG.ru.md)
+- [TrustTunnel: VPN поверх HTTP/2 и TLS, ссылка `tt://`, QR и конфиг](guides/TRUSTTUNNEL.ru.md)
+- [Мониторинг: ресурсы и трафик по протоколам в прямом эфире, история, оповещения, API](guides/MONITORING.ru.md)
+- [Связанные панели (Fleet v2, HTTPS и API-ключ `node-sync`)](guides/FLEET.ru.md)
 - [Маршрутизация: политики исходящего трафика, выходы, цепи и полосы](ROUTING.ru.md)
 - [Xray-router](XRAY_ROUTER.ru.md)
 - [MCP-сервер: панель как инструменты Claude Code и Claude Desktop](MCP.ru.md) и [навыки для ИИ](../skills/README.md)
@@ -60,6 +85,11 @@ boundary you are changing.
 
 ### Выпуски
 
+- **[v4.0.0](releases/v4.0.0.md)** — нативный Rust runtime, готовые хостовые бинарники, переход с 3.3.0 и исправления установщика
+
+<details>
+<summary>Предыдущие выпуски</summary>
+
 - [v3.3.0](releases/v3.3.0.md) — удобство работы: удаление архивных клиентов, новая страница подписки, выбор приложения, обновлённый установщик
 - [v3.2.1](releases/v3.2.1.md) — выбор узла и пустые состояния AmneziaWG/TrustTunnel, подписка NekoBox, обновление certifi
 - [v3.2.0](releases/v3.2.0.md) — версии AmneziaWG и TrustTunnel с экрана «Версии»
@@ -91,6 +121,8 @@ boundary you are changing.
 - [v1.0.2](releases/v1.0.2.md) — окно доступа, поиск и фильтры клиентов
 - [v1.0.1](releases/v1.0.1.md) — версии компонентов и региональные geodata
 - [v1.0.0](releases/v1.0.0.md) — первый стабильный выпуск
+</details>
+
 - [Журнал изменений](../CHANGELOG.ru.md)
 
 ## English
@@ -98,19 +130,19 @@ boundary you are changing.
 ### Installation
 
 1. [Overview and installation: by a human and by an AI agent](../README.en.md)
-2. [Installing on Ubuntu 24.04](../INSTALL.en.md)
+2. [Installing on Ubuntu 24.04](guides/INSTALL.en.md)
 3. [Installer reference: commands, configuration fields, ownership boundaries](INSTALLER_REFERENCE.en.md)
-4. [The installer and the host audit](../INSTALLER_AUDITOR.md)
+4. [The installer and the host audit](guides/INSTALLER_AUDITOR.md)
 
 ### Protocols and the panel
 
-- [Panel, roles, API keys, Telemt and NaiveProxy](../PANEL.en.md)
-- [MTProto behind Nginx SNI](../DOCKER_DEPLOYMENT.md)
-- [Mieru/mita](../MIERU.en.md) and [sharing Mieru links, QR codes and configurations](MIERU_SHARING.en.md)
-- [AmneziaWG: versions 1.5, 2.0 and 3.1, config and QR](../AMNEZIAWG.en.md)
-- [TrustTunnel: a VPN over HTTP/2 and TLS, the `tt://` link, QR and config](../TRUSTTUNNEL.en.md)
-- [Monitoring: live resources and per-protocol traffic, history, alerts, API](../MONITORING.en.md)
-- [Linked panels (Fleet v2, HTTPS and a `node-sync` API key)](../FLEET.en.md)
+- [Panel, roles, API keys, Telemt and NaiveProxy](guides/PANEL.en.md)
+- [MTProto behind Nginx SNI](guides/DOCKER_DEPLOYMENT.md)
+- [Mieru/mita](guides/MIERU.en.md) and [sharing Mieru links, QR codes and configurations](MIERU_SHARING.en.md)
+- [AmneziaWG: versions 1.5, 2.0 and 3.1, config and QR](guides/AMNEZIAWG.en.md)
+- [TrustTunnel: a VPN over HTTP/2 and TLS, the `tt://` link, QR and config](guides/TRUSTTUNNEL.en.md)
+- [Monitoring: live resources and per-protocol traffic, history, alerts, API](guides/MONITORING.en.md)
+- [Linked panels (Fleet v2, HTTPS and a `node-sync` API key)](guides/FLEET.en.md)
 - [Routing: outbound policies, exits, chains and lanes](ROUTING.en.md)
 - [The Xray-router](XRAY_ROUTER.en.md)
 - [The MCP server: the panel as tools for Claude Code and Claude Desktop](MCP.en.md) and [AI skills](../skills/README.md)
@@ -147,6 +179,11 @@ boundary you are changing.
 
 ### Releases
 
+- **[v4.0.0](releases/v4.0.0.md)** — native Rust runtime, prebuilt host executables, the 3.3.0 transition and installer fixes
+
+<details>
+<summary>Previous releases</summary>
+
 - [v3.3.0](releases/v3.3.0.md) — usability: deleting archived clients, a new subscription page, app chooser, updated installer
 - [v3.2.1](releases/v3.2.1.md) — AmneziaWG/TrustTunnel node selection and empty states, NekoBox subscription, certifi update
 - [v3.2.0](releases/v3.2.0.md) — AmneziaWG and TrustTunnel versions from the «Versions» screen
@@ -178,6 +215,8 @@ boundary you are changing.
 - [v1.0.2](releases/v1.0.2.md) — access windows, client search and filters
 - [v1.0.1](releases/v1.0.1.md) — component versions and regional geodata
 - [v1.0.0](releases/v1.0.0.md) — the first stable release
+</details>
+
 - [Changelog](../CHANGELOG.md)
 
 ## Common rules

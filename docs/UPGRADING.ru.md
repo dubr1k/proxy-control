@@ -727,7 +727,7 @@ docker inspect --format '{{.State.Health.Status}}' proxy-control-xray-router-ing
 TrustTunnel (VPN от AdGuard, HTTP/2 поверх TLS, только TCP) необязателен и обновлением **не** включается. На хосте,
 установленном установщиком, добавьте в его TOML секцию `[trusttunnel]` и `domains.trusttunnel` и запустите установщик
 снова (`plan`, затем `install --accept-plan`); на хосте, установленном вручную, запустите
-`scripts/enable-trusttunnel.sh --host <имя>` из распакованного выпуска ([TRUSTTUNNEL](../TRUSTTUNNEL.ru.md)). В обоих
+`scripts/enable-trusttunnel.sh --host <имя>` из распакованного выпуска ([TRUSTTUNNEL](guides/TRUSTTUNNEL.ru.md)). В обоих
 случаях имени нужны A-запись на сервер (только DNS, без CDN-proxy) и сертификат; правила брандмауэра и UDP-порты не
 добавляются.
 
@@ -742,7 +742,7 @@ TrustTunnel (VPN от AdGuard, HTTP/2 поверх TLS, только TCP) нео
 
 ## Обновление до 2.0
 
-В 2.0 появился мониторинг в прямом эфире ([MONITORING.ru.md](../MONITORING.ru.md)). Обновление — обычный `--update`;
+В 2.0 появился мониторинг в прямом эфире ([MONITORING.ru.md](guides/MONITORING.ru.md)). Обновление — обычный `--update`;
 настраивать ничего не нужно, ломающих изменений API, конфигурации и TOML установщика нет.
 
 - **Миграция 25** создаёт таблицу `metric_rollups` (разрешения 60 с, 15 мин и 1 ч). Она только добавляет таблицу; образ

@@ -11,12 +11,12 @@ inside `plan`) and no `--proxy-domain` / `--panel-domain` flags.
 The installer has no separate manual here. The accurate and complete
 description lives in one place:
 
-- **[Installer reference](docs/INSTALLER_REFERENCE.en.md)** — every command,
+- **[Installer reference](../INSTALLER_REFERENCE.en.md)** — every command,
   every configuration field, profiles, ownership boundaries, per-protocol
   acceptance, WARP, hard stops, recovery, reports, and limits.
-- **[README](README.en.md)** — what the project is, how it shares port 443,
+- **[README](../../README.en.md)** — what the project is, how it shares port 443,
   domains and certificates, and the install path end to end.
 - **[INSTALL.en.md](INSTALL.en.md)** — the installation walkthrough.
 
 The installer's behaviour is verified against a real release archive in two
-labs, described in [tests/lab/README.md](tests/lab/README.md).
+labs, described in [tests/lab/README.md](../../tests/lab/README.md).

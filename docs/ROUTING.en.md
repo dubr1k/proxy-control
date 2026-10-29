@@ -137,7 +137,7 @@ node was rotated while the manager was down; it re-renders its block at its next
 - **linked panel** — the policy's compiled document becomes the `egress` section of the
   node's next Fleet v2 generation (`state = applying`); the node applies it after the
   resources and reports `converged | failed | unsupported` per protocol, and the central
-  moves the policy to `applied` or `failed` from that report (see [FLEET](../FLEET.en.md)).
+  moves the policy to `applied` or `failed` from that report (see [FLEET](guides/FLEET.en.md)).
   A router policy travels the same way with `backend: xray_router`; the node applies it
   through its router and reports the router's revision beside the native one.
 

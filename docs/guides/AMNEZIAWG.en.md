@@ -56,7 +56,7 @@ be behind a proxying CDN — and an Ubuntu 24.04 host with `/dev/net/tun`. No ne
 the panel's own name works if it points straight at the server.
 
 In the installer wizard answer «Enable AmneziaWG» and pick the versions, or add a section to the
-TOML (see the [installer reference](docs/INSTALLER_REFERENCE.en.md) for every key):
+TOML (see the [installer reference](../INSTALLER_REFERENCE.en.md) for every key):
 
 ```toml
 [amneziawg]

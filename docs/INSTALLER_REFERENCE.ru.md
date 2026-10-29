@@ -517,7 +517,7 @@ coexist или `manage_ufw = false`), откройте UDP-порты и раз�
 токен менеджера; `--purge-data` удаляет и их. Обновление хоста (`install-release.sh --update`)
 пересобирает `awg-manager`, когда изменился `awg_manager/`: туннели на несколько секунд рвутся, пиры
 переподключаются сами; каталог состояния не трогается. Как пользоваться AmneziaWG из панели — в
-[AMNEZIAWG.ru.md](../AMNEZIAWG.ru.md).
+[AMNEZIAWG.ru.md](guides/AMNEZIAWG.ru.md).
 
 ### TrustTunnel
 
@@ -543,7 +543,7 @@ TrustTunnel не добавляет: используется уже откры�
 (`install-release.sh --update`) пересобирает `trusttunnel-manager`, когда изменился `trusttunnel_manager/`: сессии на
 несколько секунд обрываются, приложения переподключаются сами; каталог состояния не трогается. Для хоста, который
 установщик не ставил, есть `scripts/enable-trusttunnel.sh`. Как пользоваться TrustTunnel из панели — в
-[TRUSTTUNNEL.ru.md](../TRUSTTUNNEL.ru.md).
+[TRUSTTUNNEL.ru.md](guides/TRUSTTUNNEL.ru.md).
 
 ## Жёсткие остановки
 

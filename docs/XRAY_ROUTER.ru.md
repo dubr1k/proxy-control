@@ -271,4 +271,4 @@ exit_invalid | exit_test_failed | exit_unreachable}`; рабочий роуте�
 токен менеджера — 64 hex. WireGuard как выход не поддерживается намеренно (решение владельца,
 2026-09-18). Отложено: статический мост в Xray 3x-ui, canary-раскатка, ретрансляция UDP,
 регулярные выражения; маршрутизация отдельного доступа сделана полосами. Совместимость узлов и
-центров разных выпусков — в [COMPATIBILITY](COMPATIBILITY.md) и [FLEET](../FLEET.ru.md).
+центров разных выпусков — в [COMPATIBILITY](COMPATIBILITY.md) и [FLEET](guides/FLEET.ru.md).

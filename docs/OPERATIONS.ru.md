@@ -2,7 +2,7 @@
 
 [English](OPERATIONS.en.md) · **Русский**
 
-Это руководство — для уже развёрнутого узла. Оно не заменяет [installation guide](../INSTALL.ru.md), [backup contract](BACKUP_RESTORE.ru.md) или protocol-specific acceptance tests.
+Это руководство — для уже развёрнутого узла. Оно не заменяет [installation guide](guides/INSTALL.ru.md), [backup contract](BACKUP_RESTORE.ru.md) или protocol-specific acceptance tests.
 
 ## 1. Перед началом смены
 
@@ -203,7 +203,7 @@ sudo bash /opt/mtproxy-shared443/install.sh repair
 ## 11. Центральная панель и связанные панели (Fleet v2)
 
 Панель может управлять другими панелями по HTTPS с API-ключом `node-sync`; модель
-описана в [FLEET.ru.md](../FLEET.ru.md). Runbook добавляет к ней порядок действий на парке
+описана в [FLEET.ru.md](guides/FLEET.ru.md). Runbook добавляет к ней порядок действий на парке
 хостов.
 
 ### Порядок раскатки
@@ -348,7 +348,7 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, влад
 ## 14. Мониторинг
 
 Экран «Мониторинг» и `GET /api/metrics/*` настройки не требуют. Что нужно знать в эксплуатации
-(подробности — [MONITORING.ru.md](../MONITORING.ru.md)):
+(подробности — [MONITORING.ru.md](guides/MONITORING.ru.md)):
 
 - Сэмплер живёт в `version-agent` (`sudo systemctl status version-agent`). После обновления агент
   перезапускается и подхватывает сэмплер; первый снимок появляется через несколько секунд

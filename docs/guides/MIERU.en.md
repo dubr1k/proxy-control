@@ -2,7 +2,7 @@
 
 **English** · [Русский](MIERU.ru.md)
 
-See also the product [architecture](docs/ARCHITECTURE.md), [accounting contract](docs/ACCOUNTING.md), and [upgrade procedure](docs/UPGRADING.md).
+See also the product [architecture](../ARCHITECTURE.md), [accounting contract](../ACCOUNTING.md), and [upgrade procedure](../UPGRADING.md).
 
 Proxy Control manages mita through a local, authenticated Unix-socket manager. Since v1.0.1 there is no list of «verified» mita versions: the installer puts the pinned version below in place, and after that any published mita release (newer or older) can be picked on the Versions screen — the version-agent checks its SHA-256 and rolls a failed install back. The manager writes the configuration as a whole (`mita replace config` where the binary offers it — 3.38 on; before that `mita apply config`, which up to 3.37 stored the configuration as a whole) and reads it back after every write: a mismatch rolls the transaction back instead of going unnoticed. Mita remains a separate GPLv3+ process; this adapter is MIT and contains no copied upstream source or generated stubs.
 

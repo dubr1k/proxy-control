@@ -126,7 +126,7 @@ Additive; `schema_version` and `api_version` do not change.
   `/api/fleet/v2/metrics/history` and `/api/fleet/v2/metrics/summary` (the `node-sync` key, `no-store`). A central panel pulls them
   only while a person watches; a node without the capability is `unsupported` on the monitoring screen and nothing else changes.
 - **Panel API** `GET /api/metrics/live | stream | history | summary` (any signed-in role; the series ids, ranges and statuses are in
-  `MONITORING.en.md`). `/api/metrics/stream` is an endless SSE response and is not exposed as an MCP tool; the other three are.
+  `docs/guides/MONITORING.en.md`). `/api/metrics/stream` is an endless SSE response and is not exposed as an MCP tool; the other three are.
 - **Agent API** `GET /v1/metrics` on the version-agent socket (`503 metrics_warming_up` until the first sample).
 - **Database** migration 25, table `metric_rollups`; a 1.x image refuses a schema-25 database.
 - **Host** one nftables table, `inet proxy_control_metrics`, owned by the agent (counters only, removable with

@@ -22,4 +22,4 @@ sudo nginx -t
 
 Add only the selected SNI entry to the established host map and route it to `127.0.0.1:8445`. Never replace an existing map from an example. Validate before reload and regression-test every adjacent route.
 
-An open port, HTTPS response or healthy container does not prove MTProto. For each user, perform Fake-TLS → Obfuscated2 → `req_pq_multi` → validated Telegram `resPQ`, then test a real client from the target network. See [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md), [SECURITY.md](SECURITY.md), and [VALIDATION.md](docs/VALIDATION.md).
+An open port, HTTPS response or healthy container does not prove MTProto. For each user, perform Fake-TLS → Obfuscated2 → `req_pq_multi` → validated Telegram `resPQ`, then test a real client from the target network. See [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md), [SECURITY.md](../../SECURITY.md), and [VALIDATION.md](../VALIDATION.md).

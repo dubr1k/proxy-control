@@ -41,7 +41,7 @@ off), different from every other domain of the installation. Its Let's Encrypt c
 installer's `certificates` step (HTTP-01, port 80); the manager reads it from `/etc/letsencrypt` read-only.
 
 In the installer's wizard answer «Install TrustTunnel» and enter the domain, or add the section and the domain
-key to the TOML (example: [`examples/installer/core-trusttunnel.toml`](examples/installer/core-trusttunnel.toml)):
+key to the TOML (example: [`examples/installer/core-trusttunnel.toml`](../../examples/installer/core-trusttunnel.toml)):
 
 ```toml
 [domains]
@@ -56,7 +56,7 @@ The installer creates `/var/lib/trusttunnel-manager`, the manager token `secrets
 `.env.trusttunnel`, adds a line to the Nginx SNI map, builds the manager image (GitHub must be reachable
 during the build: the endpoint archive is downloaded and checked against its SHA-256) and verifies that the
 manager answers. No firewall rule is added. All keys and behaviour are in the
-[installer reference](docs/INSTALLER_REFERENCE.en.md).
+[installer reference](../INSTALLER_REFERENCE.en.md).
 
 ### A server the installer did not set up
 
@@ -173,7 +173,7 @@ subscription import, so their cells in the compatibility matrix are `unproven`. 
 the subscription, the fallback is the «Details for manual setup» card and a profile created by hand.**
 
 Compatibility per subscription client (`supported` / `unproven` / `unsupported`) is in
-[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): for `trusttunnel` mihomo is `supported` (verified on core v1.19.32);
+[`docs/COMPATIBILITY.md`](../COMPATIBILITY.md): for `trusttunnel` mihomo is `supported` (verified on core v1.19.32);
 Karing, Shadowrocket, NekoBox, Throne, v2rayN and Hiddify (its core was run only as built from source) are
 `unproven`; sing-box, Mieru CLI and Telegram are `unsupported`.
 
@@ -195,7 +195,7 @@ through other nodes). A rule applies to **the whole service**: all TrustTunnel c
   `node_lacks_trusttunnel_egress` (a node without the `egress.trusttunnel.v1` capability — update the node),
   `lanes_unsupported`.
 
-Details: [`docs/ROUTING.en.md`](docs/ROUTING.en.md).
+Details: [`docs/ROUTING.en.md`](../ROUTING.en.md).
 
 ## What it does not do
 

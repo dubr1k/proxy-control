@@ -16,7 +16,7 @@ core. Связанные панели (Fleet v2) настраиваются из
 В режиме `fresh` свой Nginx сохраняет IP клиентов панели через приватные Unix-сокеты
 без новых TCP-портов. Для `coexist` нужен операторский PROXY bridge: установщик
 не меняет поведение чужого frontend. Подробнее — в
-[справочнике ingress и миграции](docs/INSTALLER_REFERENCE.ru.md).
+[справочнике ingress и миграции](../INSTALLER_REFERENCE.ru.md).
 
 ## Основной путь установки: проверенный релиз
 
@@ -26,7 +26,7 @@ core. Связанные панели (Fleet v2) настраиваются из
 агента, `status=ok`, `implementation=rust` и точная целевая `version`, затем панель,
 менеджеры, ingress и Compose и repair хостовых обёрток. При отказе восстанавливаются
 прежний агент и активный журнал владения, env, директивы unit и drop-in сохраняются.
-См. [переход и откат](docs/UPGRADING.ru.md).
+См. [переход и откат](../UPGRADING.ru.md).
 
 Это поддерживаемый способ установки Proxy Control. Старые точки входа `proxyctl`,
 `mtproxy-deploy` и `check-deployment.sh` сняты; используйте нативный транзакционный CLI.
@@ -77,7 +77,7 @@ chmod 700 install-bootstrap
 ту же сверку `SHA256SUMS` и манифеста, распаковывает архив и запускает мастер
 `sudo bash install.sh wizard` из распакованного каталога `proxy-control/`.
 
-Копия сценария в репозитории — [`scripts/install-release.sh`](scripts/install-release.sh) —
+Копия сценария в репозитории — [`scripts/install-release.sh`](../../scripts/install-release.sh) —
 принимает `--version X.Y.Z` и при желании `--sha256 <lab-sha256>` из аннотации тега или
 заметки о выпуске: скачивает четыре файла, проверяет их без привилегий, распаковывает и
 одним `sudo` запускает мастер; `--requirements` печатает, что нужно хосту и что
@@ -87,7 +87,7 @@ chmod 700 install-bootstrap
 конфигурации, показывает план и ничего не применяет, пока вы не подтвердите
 digest плана. Полная поверхность — профили, все поля конфигурации, границы
 владения, приёмка по протоколам, WARP и egress, восстановление и отчёты — в
-[справочнике установщика](docs/INSTALLER_REFERENCE.ru.md).
+[справочнике установщика](../INSTALLER_REFERENCE.ru.md).
 
 Пинованные upstream-артефакты — `mita_3.38.1_<arch>.deb` (сервер) и
 `mieru_3.38.1_<arch>.deb` (официальный клиент, который запускает приёмка) для
@@ -97,7 +97,7 @@ digest плана. Полная поверхность — профили, вс�
 продолжать, если digest не совпадает с пином (несовпавший файл выбрасывается).
 Хост без интернета кладёт их туда заранее: положенный вручную файл используется
 как есть и никогда не заменяется. URL и digest — в
-[`release/external-artifacts.json`](release/external-artifacts.json).
+[`release/external-artifacts.json`](../../release/external-artifacts.json).
 
 ## Требования
 
@@ -256,4 +256,4 @@ sudo bash install.sh uninstall --purge-data --json
 - [TrustTunnel](TRUSTTUNNEL.ru.md)
 - [Fleet mTLS](FLEET.ru.md)
 
-Подробности transactions и hard stops: [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md). Эксплуатация: [docs/OPERATIONS.ru.md](docs/OPERATIONS.ru.md), [backup](docs/BACKUP_RESTORE.ru.md), [validation](docs/VALIDATION.md).
+Подробности transactions и hard stops: [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md). Эксплуатация: [docs/OPERATIONS.ru.md](../OPERATIONS.ru.md), [backup](../BACKUP_RESTORE.ru.md), [validation](../VALIDATION.md).

@@ -42,7 +42,7 @@ Nginx, поэтому на сервере не открывается ни од�
 только для чтения.
 
 В мастере установки ответьте «Установить TrustTunnel» и введите домен либо добавьте раздел и ключ домена в
-TOML (пример — [`examples/installer/core-trusttunnel.toml`](examples/installer/core-trusttunnel.toml)):
+TOML (пример — [`examples/installer/core-trusttunnel.toml`](../../examples/installer/core-trusttunnel.toml)):
 
 ```toml
 [domains]
@@ -56,7 +56,7 @@ enabled = true
 Установщик создаёт `/var/lib/trusttunnel-manager`, токен менеджера `secrets/trusttunnel-manager-token` и
 `.env.trusttunnel`, добавляет строку в карту SNI Nginx, собирает образ менеджера (на время сборки нужен доступ к
 GitHub: архив endpoint скачивается и сверяется по SHA-256) и проверяет, что менеджер отвечает. Правила
-брандмауэра не добавляются. Все ключи и поведение — в [справочнике установщика](docs/INSTALLER_REFERENCE.ru.md).
+брандмауэра не добавляются. Все ключи и поведение — в [справочнике установщика](../INSTALLER_REFERENCE.ru.md).
 
 ### Сервер, который установщик не ставил
 
@@ -170,7 +170,7 @@ NekoBox и Throne: ядро в них содержит исходящее, но 
 «Данные для ручной настройки» и профиль, созданный вручную.**
 
 Совместимость по клиентам подписок (`supported` / `unproven` / `unsupported`) — в
-[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): `trusttunnel` — mihomo `supported` (проверено на ядре v1.19.32);
+[`docs/COMPATIBILITY.md`](../COMPATIBILITY.md): `trusttunnel` — mihomo `supported` (проверено на ядре v1.19.32);
 Karing, Shadowrocket, NekoBox, Throne, v2rayN и Hiddify (ядро проверено только собранным из исходников) — `unproven`; sing-box,
 Mieru CLI и Telegram — `unsupported`.
 
@@ -190,7 +190,7 @@ TrustTunnel — полноценная служба в разделе «Марш
 - Отказы: `router_lacks_trusttunnel` (Xray-router старше 1.6 — пересоберите его), `node_lacks_trusttunnel_egress`
   (узел без возможности `egress.trusttunnel.v1` — обновите узел), `lanes_unsupported`.
 
-Подробности — [`docs/ROUTING.ru.md`](docs/ROUTING.ru.md).
+Подробности — [`docs/ROUTING.ru.md`](../ROUTING.ru.md).
 
 ## Чего он не умеет
 

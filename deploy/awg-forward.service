@@ -1,6 +1,6 @@
 [Unit]
 Description=Proxy Control AmneziaWG: allow forwarding of the tunnel interfaces past Docker's FORWARD DROP
-Documentation=https://github.com/dubr1k/proxy-control/blob/main/AMNEZIAWG.en.md
+Documentation=https://github.com/dubr1k/proxy-control/blob/main/docs/guides/AMNEZIAWG.en.md
 # Only for a host whose firewall the installer does not manage (no ufw): ufw hosts get the
 # equivalent `route allow in on awgNN` rules from the installer.
 After=docker.service network-online.target

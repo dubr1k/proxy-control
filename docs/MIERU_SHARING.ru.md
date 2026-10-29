@@ -81,4 +81,4 @@ Client tabs прокручиваются горизонтально, а QR, payl
 - **Traffic unavailable:** это честная limitation typed adapter, а не проблема credential.
 - **Viewer не видит QR:** ожидаемое RBAC поведение.
 
-См. [Mieru deployment](../MIERU.ru.md), [operations](OPERATIONS.ru.md) и [troubleshooting](TROUBLESHOOTING.ru.md).
+См. [Mieru deployment](guides/MIERU.ru.md), [operations](OPERATIONS.ru.md) и [troubleshooting](TROUBLESHOOTING.ru.md).

@@ -123,7 +123,7 @@ fields. Not exposed: `/api/openapi.json`, `/healthz`, `/login`, `/api/auth/*`,
 `/api/reveal/{token}` (the curated tools consume it), `/s/*`, the node API `/api/fleet/*` and
 `/api/metrics/stream` (an endless SSE response: a tool call waits for a finished answer). The monitoring
 routes `GET /api/metrics/live`, `/history` and `/summary` are tools like any other
-(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.en.md](../MONITORING.en.md)).
+(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.en.md](guides/MONITORING.en.md)).
 
 **Curated** — with hand-written descriptions, one call per everyday move:
 

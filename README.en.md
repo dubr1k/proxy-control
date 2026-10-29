@@ -30,6 +30,9 @@ either finishes the installation or returns the server to the state it was in.
 
 ## Contents
 
+<details>
+<summary>Navigate this README</summary>
+
 - [What it is](#what-it-is)
 - [Interface](#interface)
 - [How the shared port 443 works](#how-the-shared-port-443-works)
@@ -47,6 +50,8 @@ either finishes the installation or returns the server to the state it was in.
 - [Security](#security)
 - [Development](#development)
 - [License and acknowledgements](#license-and-acknowledgements)
+
+</details>
 
 ## What it is
 
@@ -90,6 +95,9 @@ Live monitoring: [Now](docs/releases/assets/v2.2.1/monitoring-now.png) · [Traff
 
 ## How the shared port 443 works
 
+<details>
+<summary>Connection diagram and port table</summary>
+
 Public port 443 stays with Nginx. Nginx looks only at the domain name in the TLS hello
 (SNI) and hands the connection to the right service. Proxy Control does not take 443 for
 itself: the installer adds only its own lines to the SNI map and never rewrites it as a
@@ -124,6 +132,8 @@ your own Nginx configuration owns incoming connections, pass the address with th
 protocol — see the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
 Containers are named `proxy-control-*`; the Compose project is `proxy_panel_by_dubr1k`.
+
+</details>
 
 ## Requirements
 
@@ -162,6 +172,9 @@ This is where installations stop most often. The complete set — profile `full`
 `managed-new` mode, a client subscription domain, the MCP server and TrustTunnel — needs **12 different
 domains**. Not all of them need a certificate:
 
+<details>
+<summary>All domains and certificate checks</summary>
+
 | Domain | When it is needed | Certificate |
 |---|---|---|
 | `panel` — the panel | Always | Yes |
@@ -195,6 +208,8 @@ no registrar API. Names are grouped into lines (`--cert-name`): `proxy-control` 
 and MTProxy in one certificate, `naive`, `three-xui-panel`, `three-xui-hysteria`,
 `three-xui-subscription`. Right after issuance the installer runs `certbot renew --dry-run`,
 so renewal is proved at installation time rather than three months later.
+
+</details>
 
 ## Installation by a human
 
@@ -240,6 +255,9 @@ verified first, read next, and only then run.
 The wizard speaks Russian or English, briefly explains the options before every choice
 and saves the answers to a TOML file you can read and edit by hand. The default is in
 square brackets; Enter accepts it.
+
+<details>
+<summary>Profiles, settings and wizard questions</summary>
 
 **Server mode.** `fresh` (the default) — the installer installs and configures Nginx
 itself. `coexist` — Nginx already holds port 443 and the installer only adds its routes.
@@ -317,6 +335,8 @@ At the end the wizard shows every answer under plain names (not file keys) and o
 configuration or continue. Ready configurations for every profile and 3x-ui mode are in
 [`examples/installer/`](examples/installer).
 
+</details>
+
 ### Step 3. Review the plan and confirm it
 
 The plan is the complete list of what will happen: packages, files, Nginx routes,
@@ -355,8 +375,11 @@ previous state.
 
 ### Manual installation from the archive
 
+<details>
+<summary>Verify and launch an archive manually</summary>
+
 The same path without the script. Download the four files under Assets of the
-[3.3.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0): the archive,
+[4.0.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -364,9 +387,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.3.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.3.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file
@@ -376,9 +399,11 @@ checkout: it needs `release/release.json`, which is generated when the release a
 built.
 
 If you run Nginx, certificates and the environment yourself, the base stack can be brought
-up directly with Compose: [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md); manual installation of
-NaiveProxy and Mieru is in [PANEL.en.md](PANEL.en.md) and [MIERU.en.md](MIERU.en.md); TrustTunnel on such a
-server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)).
+up directly with Compose: [DOCKER_DEPLOYMENT.md](docs/guides/DOCKER_DEPLOYMENT.md); manual installation of
+NaiveProxy and Mieru is in [PANEL.en.md](docs/guides/PANEL.en.md) and [MIERU.en.md](docs/guides/MIERU.en.md); TrustTunnel on such a
+server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](docs/guides/TRUSTTUNNEL.en.md)).
+
+</details>
 
 ## Installation by an AI agent
 
@@ -386,6 +411,9 @@ This section is an instruction for an AI agent (Claude Code, Codex and the like)
 gave SSH access to the server. The agent installs Proxy Control **without the wizard**: it
 writes the TOML configuration, gets the plan and installs exactly that plan after your
 confirmation.
+
+<details>
+<summary>Full instructions for an AI agent</summary>
 
 ### What to tell the agent
 
@@ -507,6 +535,8 @@ After installation an agent works with the panel through the [MCP server](docs/M
 rather than SSH: granting access, routing, updates and diagnostics are described in the
 [skills](skills/) for everyday tasks.
 
+</details>
+
 ## After installation
 
 **The Proxy Control panel.** Open `https://<panel domain>/login` and sign in as `owner`. If
@@ -528,7 +558,7 @@ the access key are written to `credentials/handoff.json` next to the installatio
 
 **TrustTunnel** (when enabled). Make sure the domain's A record leads to the server without CDN proxying, and issue the
 first access from a client's card (the `tt://` link, QR and TOML config are in the access window); details are in
-[TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md).
+[TRUSTTUNNEL.en.md](docs/guides/TRUSTTUNNEL.en.md).
 
 Do not copy these files into Git, bug reports, logs or shared backups. Delete the
 `<configuration-name>.credentials` file if the wizard created it.
@@ -558,6 +588,9 @@ operator env/unit directives/drop-ins, and requires health `status=ok`,
 agent and ownership journal. Move Fleet v1 nodes to v2 before the 4.0 update. Neither
 Python nor Cargo is a host prerequisite; Bash/awk verifies both prebuilt binaries before use.
 
+<details>
+<summary>What gets updated and how component updates work</summary>
+
 The script verifies the release exactly as during installation and asks the server's
 `version-agent` to update the panel to exactly the verified archive — with a backup of the
 files, image and database and a rollback on failure; then it rebuilds the changed managers.
@@ -577,7 +610,12 @@ version. An installed 3x-ui is updated with its own tools.
 
 The full procedure and rollback: [docs/UPGRADING.md](docs/UPGRADING.md).
 
+</details>
+
 ## Day-to-day operation
+
+<details>
+<summary>Health checks, backups, recovery and uninstalling</summary>
 
 ### Health check
 
@@ -645,7 +683,12 @@ public listeners and adjacent SNI routes.
 > `apt-get purge` of the same packages — all of `/var/lib/docker` and `/etc/letsencrypt` with the
 > certificates. Make a [backup](docs/BACKUP_RESTORE.en.md) and copy it off the server first.
 
+</details>
+
 ## Features in detail
+
+<details>
+<summary>Clients, protocols, Fleet, routing, MCP and monitoring</summary>
 
 ### Clients, grants and subscriptions
 
@@ -656,7 +699,7 @@ users, and a grant issued as one journalled operation with an honest outcome —
 `https://<subscription domain>/s/<token>` to all their grants in the `raw`, `singbox` (Karing
 and sing-box), `clash` (mihomo), `manifest` and `html` formats. The link key is shown once,
 the database stores only its hash, revocation is immediate, and subscription requests are
-not logged. Details: [PANEL.en.md](PANEL.en.md).
+not logged. Details: [PANEL.en.md](docs/guides/PANEL.en.md).
 
 Subscription connection names start with the node name: `AMS · Naive`,
 `AMS · Mieru · TCP 8443`. Rename nodes on the Nodes screen, including the local
@@ -672,25 +715,25 @@ in the Naive label and Mieru `profile`; Telegram MTProxy links stay unchanged.
 
 - **MTProxy / Telemt.** After the first start the `telemt-config` volume is the source of
   truth; quota and the process counter are different values.
-  [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+  [DOCKER_DEPLOYMENT.md](docs/guides/DOCKER_DEPLOYMENT.md)
 - **NaiveProxy.** Without a password the domain shows a cover page, not a «407». One URL
   `https://<user>:<pass>@<domain>` works as both HTTPS and HTTP/2. Only TCP goes through the
   proxy; HTTP/3 is not published. Verified clients are `naive`, Karing and sing-box.
-  [PANEL.en.md](PANEL.en.md)
+  [PANEL.en.md](docs/guides/PANEL.en.md)
 - **Mieru.** Its own TCP ports; port 443 is not used. The project verifies and promises TCP
   only: UDP profiles do not work for clients on real networks. The quota is an approximate
-  admission check, not a billing counter. [MIERU.en.md](MIERU.en.md),
+  admission check, not a billing counter. [MIERU.en.md](docs/guides/MIERU.en.md),
   [sharing access](docs/MIERU_SHARING.en.md)
 - **AmneziaWG.** An optional VPN over UDP. Three incompatible versions — 1.5, 2.0 and 3.1 — run at the
   same time, each on its own interface and UDP port; an access is always one version. The panel keeps
   the client's private key, the node knows only the public one. The config is given as a file and a
   QR and is not part of subscriptions. It needs a DNS name that reaches the server directly over UDP;
-  no new domain is required. [AMNEZIAWG.en.md](AMNEZIAWG.en.md)
+  no new domain is required. [AMNEZIAWG.en.md](docs/guides/AMNEZIAWG.en.md)
 - **TrustTunnel.** An optional AdGuard VPN: HTTP/2 over TLS, TCP only (QUIC and UDP are not used), on the shared
   443 through SNI; it needs a domain of its own with no CDN proxying. An access is a `tt://` link with a QR and a
   TOML config (for the official AdGuard apps for iOS and Android and the command-line client) and a `trusttunnel`
   entry in the Clash/mihomo feed; the sing-box feed does not carry it. Every access change briefly restarts the
-  endpoint. Routing is for the whole service only, with no per-client lanes. [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)
+  endpoint. Routing is for the whole service only, with no per-client lanes. [TRUSTTUNNEL.en.md](docs/guides/TRUSTTUNNEL.en.md)
 - **3x-ui.** Stays a separate panel with its own interface; Proxy Control makes sure both
   live on one 443. In `managed-new` the inbounds listen on `127.0.0.1:8449` (VLESS Reality
   TCP), `127.0.0.1:8450` (XHTTP) and `0.0.0.0:443/UDP` (Hysteria2); the 3x-ui subscription is
@@ -703,7 +746,7 @@ node the owner creates a `node-sync` API key, on the central «Nodes → Add nod
 and the key, then «Import» adopts the existing users. Nothing appears on the servers except
 the panel image. Trust is WebPKI or a pinned certificate fingerprint; a node's desired state
 is a numbered generation with a digest; a node that was offline catches up when it returns.
-Details: [FLEET.en.md](FLEET.en.md).
+Details: [FLEET.en.md](docs/guides/FLEET.en.md).
 
 ### Routing and WARP
 
@@ -743,13 +786,15 @@ points for 3 days, 15-minute points for 35 days and hourly points for 400 days. 
 counted by a nftables table of its own that only counts and never blocks; direction is the client's
 point of view, and the bytes are network-layer bytes with headers. The central panel shows the linked
 nodes too. What is measured, the API, alert thresholds and troubleshooting:
-[MONITORING.en.md](MONITORING.en.md).
+[MONITORING.en.md](docs/guides/MONITORING.en.md).
 
 ### Not supported yet
 
 Managing 3x-ui grants from Proxy Control, gradual policy rollout to a part of the nodes, UDP
 through the Xray-router and updating a node's panel from the central panel.
 Only TCP is supported for Mieru clients. Traffic accounting is not intended for billing.
+
+</details>
 
 ## When something does not work
 
@@ -762,7 +807,7 @@ Only TCP is supported for Mieru clients. Traffic accounting is not intended for 
   the socket GID. Never run a recursive `chown` blindly.
 - **TrustTunnel does not connect.** The profile must carry the TrustTunnel domain itself (the endpoint refuses an IP
   address) and no CDN proxying; a manager that is `degraded` with `certificate_missing` has no certificate for the
-  domain. More: [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md).
+  domain. More: [TRUSTTUNNEL.en.md](docs/guides/TRUSTTUNNEL.en.md).
 - **No QR for an older Mieru user.** «Configuration» shows the kept key; if the key was not
   kept, press «New key» once.
 
@@ -770,6 +815,9 @@ More cases: [troubleshooting](docs/TROUBLESHOOTING.en.md) and the
 [operations runbook](docs/OPERATIONS.en.md).
 
 ## What is inside
+
+<details>
+<summary>Packages, component versions, images and dependencies</summary>
 
 ### Host packages
 
@@ -825,20 +873,22 @@ no Python interpreter. Administrative commands run through the `panel cli` binar
 Python is used by release, development and lab tools, not by the panel process. Lab dependencies
 are pinned in `panel/requirements-dev.txt`.
 
+</details>
+
 ## Documentation
 
 | Topic | Document |
 |---|---|
 | Map of all documentation | [docs/README.md](docs/README.md) |
-| Installing on Ubuntu 24.04 | [INSTALL.en.md](INSTALL.en.md) |
+| Installing on Ubuntu 24.04 | [INSTALL.en.md](docs/guides/INSTALL.en.md) |
 | Every installer command and field | [docs/INSTALLER_REFERENCE.en.md](docs/INSTALLER_REFERENCE.en.md) |
-| Panel, roles, API keys, NaiveProxy | [PANEL.en.md](PANEL.en.md) |
-| MTProto behind Nginx | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) |
-| Mieru | [MIERU.en.md](MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
-| AmneziaWG | [AMNEZIAWG.en.md](AMNEZIAWG.en.md) |
-| TrustTunnel | [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md) |
-| Monitoring | [MONITORING.en.md](MONITORING.en.md) |
-| Linked panels | [FLEET.en.md](FLEET.en.md) |
+| Panel, roles, API keys, NaiveProxy | [PANEL.en.md](docs/guides/PANEL.en.md) |
+| MTProto behind Nginx | [DOCKER_DEPLOYMENT.md](docs/guides/DOCKER_DEPLOYMENT.md) |
+| Mieru | [MIERU.en.md](docs/guides/MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
+| AmneziaWG | [AMNEZIAWG.en.md](docs/guides/AMNEZIAWG.en.md) |
+| TrustTunnel | [TRUSTTUNNEL.en.md](docs/guides/TRUSTTUNNEL.en.md) |
+| Monitoring | [MONITORING.en.md](docs/guides/MONITORING.en.md) |
+| Linked panels | [FLEET.en.md](docs/guides/FLEET.en.md) |
 | Routing and the Xray-router | [docs/ROUTING.en.md](docs/ROUTING.en.md), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md) |
 | The MCP server | [docs/MCP.en.md](docs/MCP.en.md) |
 | Operations | [docs/OPERATIONS.en.md](docs/OPERATIONS.en.md) |
@@ -877,6 +927,9 @@ licenses; their list, provenance and copyright notices are in
 
 Proxy Control builds on the work of the authors and maintainers of these projects:
 
+<details>
+<summary>Projects and libraries</summary>
+
 | Component | What we thank it for | Link |
 |---|---|---|
 | Telemt | The MTProto/MTProxy service in Rust | [telemt/telemt](https://github.com/telemt/telemt) |
@@ -890,5 +943,7 @@ Proxy Control builds on the work of the authors and maintainers of these project
 | Certbot and Let's Encrypt | Issuing and renewing certificates | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
 | Docker and Compose | Isolated service execution | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
 | Rust libraries | Tokio, Hyper, Axum, rusqlite, rustls, Argon2, AES-GCM, qrcode | [panel dependencies](panel/Cargo.lock) |
+
+</details>
 
 Thanks to all developers, maintainers and contributors of these projects.

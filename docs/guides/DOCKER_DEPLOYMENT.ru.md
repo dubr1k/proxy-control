@@ -2,7 +2,7 @@
 
 [English](DOCKER_DEPLOYMENT.md) · **Русский**
 
-Это руководство относится только к Telemt/MTProto data plane. Панель, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (своё SNI-имя, направленное на его loopback-порт, — [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)) и fleet описаны отдельно в [карте документации](docs/README.md).
+Это руководство относится только к Telemt/MTProto data plane. Панель, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (своё SNI-имя, направленное на его loopback-порт, — [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)) и fleet описаны отдельно в [карте документации](../README.md).
 
 ```text
 Internet TCP/443 → host Nginx stream/SNI → 127.0.0.1:8445 → Telemt
@@ -63,4 +63,4 @@ Healthy container, HTTP response или open port недостаточны. Дл
 
 Перед изменением сохраните `telemt-config`, secret files, exact image digest, Compose model, Nginx route и ownership/modes. При отказе восстановите полную generation, выполните `nginx -t`, protocol probe и adjacent SNI regression.
 
-См. [installer/auditor](INSTALLER_AUDITOR.md), [operations](docs/OPERATIONS.ru.md), [security](SECURITY.md) и [validation](docs/VALIDATION.md).
+См. [installer/auditor](INSTALLER_AUDITOR.md), [operations](../OPERATIONS.ru.md), [security](../../SECURITY.md) и [validation](../VALIDATION.md).
