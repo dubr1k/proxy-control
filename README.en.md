@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v3.3.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0)
+> **Current release: [v4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]

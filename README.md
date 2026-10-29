@@ -19,8 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v3.3.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0)
+> **Текущий выпуск — [v4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]

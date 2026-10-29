@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-29
+
 ### Host installer
 - Replace host Python entry points with verified static binaries. Release/bootstrap verification
   uses Bash/awk and rejects unsafe archive members and mismatched executable digests/modes.
