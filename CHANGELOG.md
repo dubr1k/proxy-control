@@ -4,7 +4,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-## [4.0.1] - 2026-10-30
+## [4.0.1] - 2026-10-31
 
 ### Interface
 - Compact node/client cards open a separate detail pane. Client subscriptions and accesses have separate tabs; grant technical fields are collapsed.

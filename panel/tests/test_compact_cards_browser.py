@@ -41,6 +41,12 @@ def test_client_overview_hides_accounts_but_details_keep_access_and_technical_fa
         assert browser.js("!!document.querySelector('.client-card [data-client-action=" + '"subscription"' + "]')")
         browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
         browser.wait("!!document.querySelector('#subscription-grants [data-grant-open]')", 'client accesses')
+        assert browser.js("""(() => {
+            const grant = document.querySelector('#subscription-grants .grant-row');
+            const box = grant.getBoundingClientRect();
+            return parseFloat(getComputedStyle(grant).borderTopLeftRadius) <= 12
+                && grant.scrollWidth <= grant.clientWidth + 1 && box.right <= innerWidth + 1;
+        })()""")
         browser.click('#subscription-grants [data-grant-open]')
         browser.wait("document.querySelector('#grant-window').open", 'grant details')
         assert browser.js("document.querySelectorAll('#grant-facts > div').length <= 5")

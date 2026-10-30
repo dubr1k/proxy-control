@@ -50,7 +50,7 @@ def _cards_from_real_renderers(tmp_path: Path) -> str:
 
 
 def test_mobile_cards_have_semantic_icons_and_quick_settings_align(tmp_path: Path) -> None:
-    """Client/node icons, grant corners, and routing presets remain usable at 390px."""
+    """Compact client/node icons and routing presets remain usable at 390px."""
     css = (ROOT / "static" / "style.css").read_text()
     cards = _cards_from_real_renderers(tmp_path)
     presets = '''<div class="routing-layout"><form class="routing-editor">
@@ -75,14 +75,7 @@ def test_mobile_cards_have_semantic_icons_and_quick_settings_align(tmp_path: Pat
             if (!box || box.width < 32 || box.height < 32) errors.push(`${selector}: icon badge too small`);
           }
         }
-        const grant = document.querySelector('.client-card .grant-item[data-grant-id="g1"] .grant-row');
-        if (!grant) errors.push('grant card missing');
-        else {
-          const box = grant.getBoundingClientRect();
-          const radius = parseFloat(getComputedStyle(grant).borderTopLeftRadius);
-          if (radius > 12) errors.push(`grant card has pill/oval corners: ${radius}px`);
-          if (grant.scrollWidth > grant.clientWidth + 1 || box.right > innerWidth + 1) errors.push('grant content escapes card');
-        }
+        if (document.querySelector('.client-card .grant-item')) errors.push('overview must keep grants in client details');
         const group = document.querySelector('.routing-presets');
         const title = group.querySelector('b').getBoundingClientRect();
         const labels = [...group.querySelectorAll('.routing-preset')];
