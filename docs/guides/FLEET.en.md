@@ -40,7 +40,7 @@ Three actions.
 
 ### 1. On the panel that will become a node: create a `node-sync` key
 
-Quick way: on the «Узлы» screen, in the «Этот сервер» card, press **«Создать ключ для центра»**
+Quick way: on the «Узлы» screen, open «Этот сервер» → «Открыть» → «Обслуживание» → **«Создать ключ для центра»**
 (owner only) — the panel creates a `node-sync` key and shows the address and the key once, with
 «Скопировать» buttons. By hand: «Администраторы» → section **«API-ключи»** → **«Создать ключ»**: a name,
 scope `node-sync`, an optional expiry. The key is shown **once**, in the form
@@ -222,7 +222,7 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 
 Pushing the same generation again is idempotent: the reconcile passes over what already
 converged and the response has the same shape. The node's owner has one session route
-of their own, `POST /api/nodes/local/unlink` («Отвязать» on the card «Этот сервер»).
+of their own, `POST /api/nodes/local/unlink` («Отвязать» under «Этот сервер → Открыть → Обслуживание»).
 
 ### Central API
 
@@ -282,7 +282,7 @@ never interleave:
    unreachable node simply waits for the next heartbeat; the periodic retry lives on
    the central, the node retries only at its own start.
 
-The node card («Обзор») separates **transport health** (online/offline, latency, last
+The node details («Обзор») separate **transport health** (online/offline, latency, last
 heartbeat, `last_error`) from **daemon health** (`ok | down | off` per protocol, from
 the node's own health checks), and shows the versions the node's version-agent
 reports, users per protocol (central vs local), best-effort traffic, and `desired` vs
@@ -301,8 +301,8 @@ carries `auto: true` and the system actor. Untick the box to import by hand as d
 below.
 
 Import makes users a node already runs the central's — **without touching them**.
-From the link dialog (after «Проверить») or later from the node card's tab
-«Пользователи» → «Импортировать выбранных»:
+From the link dialog (after «Проверить») or later from the node details
+«Открыть → Доступы» → «Импортировать выбранных»:
 
 1. The central reads `GET /api/fleet/v2/inventory`; users already linked to a grant
    here are marked and skipped (`already_linked`). A user another central already owns
@@ -388,7 +388,7 @@ the audit row `node.unlink` records `node_released: true|false`), and removes th
 grant history, the encrypted key and the `fleet_nodes` row with its link, desired and
 observed generations.
 
-**Unlink on the node** («Отвязать» on the card «Этот сервер», owner session
+**Unlink on the node** («Отвязать» under «Этот сервер → Открыть → Обслуживание», owner session
 `POST /api/nodes/local/unlink`, or the central's `POST /api/fleet/v2/unlink`) releases
 ownership: `managed_resources` and `managed_generations` are cleared and
 `fleet_master_guid` is removed. Nothing on the runtime changes — every user, imported or

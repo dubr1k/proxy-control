@@ -301,12 +301,17 @@
     </form>
   </dialog>
 
-  <dialog id="subscription-modal" class="access-dialog matrix-wide">
+  <dialog id="subscription-modal" class="access-dialog matrix-wide detail-pane">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2 id="subscription-title">Клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <div class="client-tabs" role="tablist" aria-label="Раздел клиента">
+        <button type="button" data-client-panel="subscription" role="tab" aria-selected="true">Подписка</button>
+        <button type="button" data-client-panel="accesses" role="tab" aria-selected="false">Доступы</button>
+      </div>
+      <div id="client-subscription-panel">
       <div id="subscription-box">
-        <p class="modal-copy">Одна ссылка на все доступы клиента на всех узлах. Выберите, на чём клиент, — панель даст ссылку под это приложение. Доступ без сохранённого секрета в ссылку не попадёт.</p>
-        <p class="form-hint" id="subscription-status"></p>
+        <p class="modal-copy">Одна ссылка объединяет доступы клиента. После показа выберите устройство и приложение.</p>
+        <details id="subscription-status-details" class="subscription-status-details"><summary>Состояние подписки</summary><p class="form-hint" id="subscription-status"></p></details>
         <div class="client-actions" id="subscription-actions"></div>
         <div id="subscription-reveal" class="subscription-reveal" hidden>
           <div id="subscription-chooser"></div>
@@ -332,6 +337,7 @@
         <div class="client-actions" id="links-actions"></div>
         <div id="links-body"></div>
       </fieldset>
+      </div>
       <fieldset class="placement-box">
         <legend>Узлы и протоколы</legend>
         <label id="placement-username-row" hidden>Имя учётной записи<input id="placement-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop"><small>Одно имя для новых доступов; латиница, цифры, точка, дефис, подчёркивание</small></label>
@@ -346,7 +352,7 @@
     </form>
   </dialog>
 
-  <dialog id="grant-window" class="access-dialog grant-dialog">
+  <dialog id="grant-window" class="access-dialog grant-dialog detail-pane">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">ДОСТУП</span><h2 id="grant-title">Доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <fieldset class="grant-link" id="grant-link" hidden>
@@ -357,6 +363,11 @@
       </fieldset>
       <dl class="grant-facts" id="grant-facts"></dl>
       <div class="grant-actions" id="grant-actions"></div>
+      <details id="grant-technical" class="technical-details">
+        <summary>Технические сведения</summary>
+        <dl class="grant-facts" id="grant-technical-facts"></dl>
+        <div class="grant-actions" id="grant-technical-actions"></div>
+      </details>
       <div class="form-error" id="grant-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Закрыть</button></footer>
     </form>
@@ -375,6 +386,14 @@
       </div>
       <div class="form-error" id="client-import-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="confirm-client-import" type="button">Импортировать отмеченные</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="node-window" class="access-dialog detail-pane node-detail-pane" aria-labelledby="node-window-title">
+    <form method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2 id="node-window-title">Узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <div id="node-window-body"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Назад</button></footer>
     </form>
   </dialog>
 

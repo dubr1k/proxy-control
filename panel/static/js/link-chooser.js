@@ -75,7 +75,7 @@ function downloads(app) {
 function steps(app, href) {
   return `<ol class="chooser-steps">
       <li>Установите <b>${esc(app.name)}</b> на устройство клиента.</li>
-      <li>${href ? "Нажмите «Открыть в приложении» на самом устройстве клиента или скопируйте" : "Скопируйте"} ссылку и добавьте её в приложении как подписку.</li>
+      <li>${href ? "Нажмите «Добавить в приложение» на самом устройстве клиента или скопируйте" : "Скопируйте"} ссылку и добавьте её в приложении как подписку.</li>
       <li>Включите соединение в приложении.</li>
     </ol>`;
 }
@@ -86,16 +86,16 @@ function result(state, app) {
   const href = deepLink(app, variant.url, state.name);
   const gets = whatItGets(app, state.protocols).map((line) => `<span>${esc(line)}</span>`).join("");
   return `<div class="chooser-result">
-      <h4>${esc(app.name)}</h4>
+      <div class="chooser-result-head"><span class="chooser-app-mark" aria-hidden="true">${esc(app.name.slice(0, 1))}</span><div><small>Подключение</small><h4>${esc(app.name)}</h4></div></div>
       <p class="chooser-gets">${gets}</p>
-      <label><span>Ссылка для <b>${esc(app.name)}</b></span>
-        <span class="copy-field"><input readonly value="${esc(variant.url)}" data-chooser-url><button type="button" class="copy" data-copy="${esc(variant.url)}">Копировать</button></span>
-      </label>
-      ${href ? `<span class="chooser-open"><a class="primary button" href="${esc(href)}" data-chooser-open>Открыть в приложении</a>
-        <small>Кнопка работает на устройстве, где установлено приложение.</small></span>` : ""}
-      <img class="subscription-qr" src="${esc(variant.qr)}" alt="QR-код ссылки для ${esc(app.name)}">
-      ${steps(app, href)}
-      ${downloads(app)}
+      <div class="chooser-main-actions">
+        ${href ? `<a class="primary button" href="${esc(href)}" data-chooser-open>Добавить в приложение</a>` : ""}
+        <button type="button" class="secondary copy" data-copy="${esc(variant.url)}">Копировать ссылку</button>
+      </div>
+      ${href ? '<p class="form-hint">Добавляйте подписку на устройстве, где установлено приложение.</p>' : ""}
+      <details class="chooser-qr"><summary>Показать QR</summary><img class="subscription-qr" src="${esc(variant.qr)}" alt="QR-код ссылки для ${esc(app.name)}"></details>
+      <details class="chooser-link-details"><summary>Посмотреть ссылку</summary><label><span>Ссылка для <b>${esc(app.name)}</b></span><input readonly value="${esc(variant.url)}" data-chooser-url></label></details>
+      <details class="chooser-instructions"><summary>Как подключиться</summary>${steps(app, href)}${downloads(app)}</details>
     </div>`;
 }
 

@@ -49,6 +49,8 @@ async def _node(server, tmp_path: Path, body: str) -> dict:
         api: async (path) => ({{ items: path.startsWith('/api/clients') ? clients : nodes }}) }};
       const pick = (filter) => clients.filter((entry) => matchesClient(context, entry, {{ ...state.clientFilter, ...filter }})).map((entry) => entry.client.id);
       {body}
+      // The renderer's background delivery polling belongs to the mounted view, not this completed capture.
+      state.navigationGeneration += 1;
     """
     result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=tmp_path, capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
@@ -126,15 +128,16 @@ async def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons
     assert 'data-client-action="show-all"' in result["empty"]
 
 
-async def test_the_card_lists_clickable_grant_rows_and_escapes_names(server, tmp_path: Path) -> None:
+async def test_the_card_summarizes_accesses_and_escapes_names(server, tmp_path: Path) -> None:
     rendered = (await _node(server, tmp_path, """
       await renderClients(context, 1);
       console.log(JSON.stringify({ html: view.innerHTML }));
     """))["html"]
-    # every live grant is a row that opens its own window; the deleted one is not listed
-    for grant_id in ("g1", "g2", "g3"):
-        assert f'data-grant-open="{grant_id}"' in rendered
-    assert 'data-grant-open="g4"' not in rendered
+    # Access rows moved into the client's detail window; the overview remains bounded.
+    assert 'data-grant-open=' not in rendered
+    assert 'class="client-grants"' not in rendered
+    assert 'data-client-action="subscription"' in rendered
+    assert 'Требуют внимания: 1' in rendered
     # the per-row buttons moved into the grant window
     assert 'data-client-action="grant-' not in rendered
     # the toolbar: search, state pills with counts, the three selects, the counter

@@ -498,9 +498,8 @@ export function createAccessDialogs(context) {
       const button = event.target.closest("button[data-copy]");
       if (!button) return;
       const input = button.parentElement?.querySelector("input");
-      if (input) await ui.copyText(input);
-      else await navigator.clipboard?.writeText(button.dataset.copy);
-      ui.toast("Скопировано");
+      const copied = await ui.copyText(input || { value: button.dataset.copy }, button.closest("dialog") || root.body);
+      ui.toast(copied ? "Скопировано" : "Не удалось скопировать", copied ? "ok" : "error");
     });
     query("#access-modal", root)?.addEventListener("close", () => {
       query("#access-link", root).value = "";

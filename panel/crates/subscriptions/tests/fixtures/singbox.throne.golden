@@ -36,7 +36,7 @@
     },
     {
       "type": "trusttunnel",
-      "tag": "Phone",
+      "tag": "Phone · TrustTunnel",
       "server": "gate.example.com",
       "server_port": 443,
       "username": "selfsigned",

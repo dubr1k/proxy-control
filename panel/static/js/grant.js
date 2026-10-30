@@ -38,10 +38,13 @@ const LISTS_BEHIND = new Set(["clients", "amneziawg", "trusttunnel"]);
 // What a grant is in one phrase, for its row: the node's report when it is not yet what was
 // asked, the ask otherwise; a missing secret is a second, independent fact.
 export function grantTone(grant) {
-  return ["failed", "pending"].includes(grant.observed_state) ? grant.observed_state : grant.desired_state;
+  if (["failed", "pending"].includes(grant.observed_state)) return grant.observed_state;
+  if (grant.desired_state === "enabled" && (grant.observed_state === "unknown" || !Object.hasOwn(OBSERVED, grant.observed_state))) return "unknown";
+  return grant.desired_state;
 }
 
 export function grantStatus(grant) {
+  if (grantTone(grant) === "unknown") return OBSERVED.unknown;
   if (grant.observed_state === "failed") return grant.last_error ? `ошибка: ${grant.last_error}` : "ошибка";
   if (["pending", "drifted", "missing"].includes(grant.observed_state) && grant.desired_state !== "deleted") {
     return OBSERVED[grant.observed_state];
@@ -175,16 +178,19 @@ export function createGrantDialog(context) {
   }
 
   function renderFacts(client, grant) {
-    const observed = OBSERVED[grant.observed_state] || grant.observed_state;
+    const observed = OBSERVED[grant.observed_state] || OBSERVED.unknown;
     const error = grant.observed_state === "failed" && grant.last_error ? `: ${grant.last_error}` : "";
     const rows = [
       fact("Клиент", `${client.display_name} · ${CLIENT_STATE[client.state] || client.state}`, { wide: true }),
       fact("Протокол", protocolTitle(grant)),
-      fact("Учётная запись", `<code>${esc(grant.runtime_username)}</code>`, { html: true }),
       fact("Узел", nodeName(context.state.nodes, grant.node_id)),
-      fact("Состояние", `<span class="grant-state-word" data-grant-state="${esc(grantTone(grant))}">${esc(DESIRED[grant.desired_state] || grant.desired_state)}</span>`, { html: true }),
-      fact("Узел сообщает", `${observed}${error}`),
+      fact("Состояние", `<span class="grant-state-word" data-grant-state="${esc(grantTone(grant))}">${esc(grantStatus(grant))}</span>`, { html: true }),
     ];
+    if (["failed", "pending", "drifted", "missing"].includes(grant.observed_state) || grantTone(grant) === "unknown") rows.push(fact("Требует внимания", `${observed}${error}`, { wide: true }));
+    const primary = [...rows];
+    rows.length = 0;
+    rows.push(fact("Учётная запись", `<code>${esc(grant.runtime_username)}</code>`, { html: true }));
+    rows.push(fact("Узел сообщает", `${observed}${error}`));
     if (LANE_PROTOCOLS.has(grant.protocol)) {
       rows.push(fact("Маршрут", grant.routing_lane === "own" ? "своя полоса (правила — на «Маршрутизации»)" : "как у сервиса"));
     }
@@ -202,14 +208,20 @@ export function createGrantDialog(context) {
     if (period) rows.push(fact("Срок действия", period));
     rows.push(subscriptionFact(grant));
     if (!["mtproxy", "amneziawg"].includes(grant.protocol)) {
-      rows.push(fact("Название в подписке", grant.label ? esc(grant.label) : `по умолчанию: ${esc(nodeName(context.state.nodes, grant.node_id))} · ${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}`, { html: true }));
+      // Match the subscription renderer's protocol titles, including its short «Naive».
+      const suffix = ` · ${grant.protocol === "naive" ? "Naive" : (PROTOCOL_NAMES[grant.protocol] || grant.protocol)}`;
+      const name = grant.label
+        ? (grant.label.endsWith(suffix) ? grant.label : `${grant.label}${suffix}`)
+        : `${nodeName(context.state.nodes, grant.node_id)}${suffix}`;
+      rows.push(fact("Название в подписке", `${grant.label ? "" : "по умолчанию: "}${esc(name)}`, { html: true }));
     }
     rows.push(fact("Секрет", grant.secret_ref === null ? "панель его не хранит" : "хранится в панели"));
     rows.push(fact("Происхождение", grant.origin === "imported" ? "импортирован из менеджера" : "выдан панелью"));
     rows.push(fact("Выдан", formatDate(grant.created_at)));
     rows.push(fact("Изменён", formatDate(grant.updated_at)));
     rows.push(fact("ID доступа", `<code>${esc(grant.id)}</code>`, { html: true }));
-    query("#grant-facts", root).innerHTML = rows.join("");
+    query("#grant-facts", root).innerHTML = primary.join("");
+    query("#grant-technical-facts", root).innerHTML = rows.join("");
   }
 
   function renderLink(client, grant) {
@@ -284,6 +296,7 @@ export function createGrantDialog(context) {
     const box = query("#grant-actions", root);
     if (!canWrite(client) || grant.desired_state === "deleted") {
       box.innerHTML = "";
+      query("#grant-technical-actions", root).innerHTML = "";
       return;
     }
     const toggle = grant.desired_state === "enabled"
@@ -294,7 +307,8 @@ export function createGrantDialog(context) {
       ? `<button type="button" class="secondary" data-grant-action="lane" data-lane-mode="${grant.routing_lane === "own" ? "service" : "own"}">${grant.routing_lane === "own" ? "Вернуть общий маршрут" : "Выделить полосу"}</button>`
       : "";
     const label = ["mtproxy", "amneziawg"].includes(grant.protocol) ? "" : '<button type="button" class="secondary" data-grant-action="label">Название в подписке</button>';
-    box.innerHTML = `${toggle}${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
+    box.innerHTML = toggle;
+    query("#grant-technical-actions", root).innerHTML = `${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
   }
 
   function render() {
@@ -327,6 +341,7 @@ export function createGrantDialog(context) {
     state.grantId = grantId;
     state.fallback = fallback;
     state.link = null;
+    query("#grant-technical", root).open = false;
     query("#grant-error", root).textContent = "";
     if (!render()) return;
     const dialog = query("#grant-window", root);
@@ -481,7 +496,7 @@ export function createGrantDialog(context) {
     const found = current();
     if (!found) return;
     const { grant } = found;
-    const name = await ui.askText("Название в подписке", "Так подключение называется в приложении клиента. Учётная запись и секрет не меняются; пустое название вернёт «узел · протокол».", {
+    const name = await ui.askText("Название в подписке", "Протокол добавится к названию автоматически. Учётная запись и секрет не меняются; пустое название вернёт «узел · протокол».", {
       label: "Название", value: grant.label || "", maxLength: 64, required: false,
     });
     if (name === null) return;
@@ -544,6 +559,9 @@ export function createGrantDialog(context) {
       state.link = null;
       query("#grant-link-body", root).innerHTML = "";
       query("#grant-facts", root).innerHTML = "";
+      query("#grant-technical-facts", root).innerHTML = "";
+      query("#grant-technical-actions", root).innerHTML = "";
+      query("#grant-technical", root).open = false;
     });
   }
 

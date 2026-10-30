@@ -222,7 +222,7 @@ class Browser:
         return False
 
     def click(self, selector: str) -> bool:
-        return bool(self.js(f"(() => {{ const e = document.querySelector({json.dumps(selector)}); if (!e) return false; e.click(); return true; }})()"))
+        return bool(self.js(f"(() => {{ const e = document.querySelector({json.dumps(selector)}); if (!e) return false; if (e.tagName === 'BUTTON') for (let d = e.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true; e.click(); return true; }})()"))
 
     def type(self, selector: str, value: str) -> bool:
         return bool(self.js(f"(() => {{ const i = document.querySelector({json.dumps(selector)}); if (!i) return false;"
@@ -416,7 +416,7 @@ class Acceptance:
                       f"document.querySelector('#profile-name')?.textContent === {json.dumps(username)}", 30)
 
     def goto_view(self, view: str, ready: str = "!!document.querySelector('#view')", seconds: float = 20) -> bool:
-        self.browser.js(f"document.querySelector('.nav-item[data-view={view}]').click(); true")
+        self.browser.js(f"document.querySelectorAll('dialog[open]').forEach(d => d.close('cancel')); document.querySelector('.nav-item[data-view={view}]').click(); true")
         return self.browser.wait(ready, seconds)
 
     def open_add(self, dialog: str) -> bool:
@@ -445,7 +445,9 @@ class Acceptance:
         """v1.0.2: a grant's row opens its own window (details, link, actions). The list behind
         is re-rendered after every change, so the row is looked up again on each attempt."""
         b = self.browser
-        row = f"{card} .grant-item[data-grant-protocol={protocol}] .grant-row"
+        if not self.open_client_window(card, timeout):
+            return False
+        row = f"#subscription-grants .grant-item[data-grant-protocol={protocol}] .grant-row"
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if b.wait(f"!!document.querySelector({json.dumps(row)})", 5):
@@ -457,7 +459,7 @@ class Acceptance:
 
     def grant_action(self, action: str) -> bool:
         """A button of the open grant window, once it is there."""
-        selector = f"#grant-actions [data-grant-action={action}]"
+        selector = f"#grant-window [data-grant-action={action}]"
         return self.browser.wait(f"!!document.querySelector({json.dumps(selector)})", 30) and self.browser.click(selector)
 
     def poll_matrix_cell(self, card: str, node: str, protocol: str, keyword: str, timeout: float = 30) -> bool:
@@ -762,18 +764,18 @@ class Acceptance:
         self.check("clients.bundle_names_three_protocols", all(word in bundle for word in ("mtproxy", "naive", "mieru")), bundle[:200])
         b.close_dialog("#bundle-modal")
         b.close_dialog("#subscription-modal")
-        self.check("clients.three_grant_rows", b.wait(f"document.querySelectorAll('{card} .grant-item[data-grant-id] .grant-row').length === 3", 30))
+        self.check("clients.three_grant_rows", self.open_client_window(card) and b.wait("document.querySelectorAll('#subscription-grants .grant-item[data-grant-id] .grant-row').length === 3", 30))
         for protocol in ("mtproxy", "naive", "mieru"):
             self.created[{"mtproxy": "users", "naive": "naive", "mieru": "mieru"}[protocol]].append(grant_user)
         # v1.0.2: a row opens the grant window; its actions and its own link live there.
-        row = f"{card} .grant-item[data-grant-protocol=naive] .grant-row"
+        row = "#subscription-grants .grant-item[data-grant-protocol=naive] .grant-row"
         self.check("clients.grant_window_opens_from_the_row", self.open_grant(card, "naive"))
         self.grant_action("disable")
-        self.check("clients.grant_disable_marks_row", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'disabled' && !!document.querySelector('#grant-actions [data-grant-action=enable]')", 30))
+        self.check("clients.grant_disable_marks_row", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'disabled' && !!document.querySelector('#grant-window [data-grant-action=enable]')", 30))
         self.grant_action("enable")
-        self.check("clients.grant_enable_restores", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'enabled' && !!document.querySelector('#grant-actions [data-grant-action=disable]')", 30))
+        self.check("clients.grant_enable_restores", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'enabled' && !!document.querySelector('#grant-window [data-grant-action=disable]')", 30))
         self.grant_action("rotate")
-        self.check("clients.grant_rotate_asks", b.confirm() and b.wait("!!document.querySelector('#grant-actions [data-grant-action=rotate]') && !document.querySelector('#grant-error')?.textContent", 30),
+        self.check("clients.grant_rotate_asks", b.confirm() and b.wait("!!document.querySelector('#grant-window [data-grant-action=rotate]') && !document.querySelector('#grant-error')?.textContent", 30),
                    b.text("#grant-error"))
         b.close_dialog("#grant-window")
         # One grant's own link with a QR — checked by its shape, never shown in a frame.
@@ -857,12 +859,15 @@ class Acceptance:
         self.check("clients.import_dialog_lists_runtime_users", b.wait(f"document.querySelector('#client-import-modal')?.open === true && !!document.querySelector('#client-import-rows tr[data-import-username={json.dumps(imported_user)}]')", 30))
         b.js(f"[...document.querySelectorAll('#client-import-rows tr')].forEach(r => {{ const p = r.querySelector('.import-pick'); if (p && !p.disabled) p.checked = r.dataset.importUsername === {json.dumps(imported_user)}; }}); true")
         b.click("#confirm-client-import")
-        self.check("clients.import_creates_a_client_without_a_secret", b.wait(f"document.querySelector('#client-import-modal')?.open !== true && [...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(imported_user)} && !!c.querySelector('[data-client-action=adopt]'))", 30))
+        self.check("clients.import_creates_a_client_without_a_secret", b.wait(f"document.querySelector('#client-import-modal')?.open !== true && [...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(imported_user)} && !!c.querySelector('.card-warning'))", 30))
         imported = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == imported_user)
         self.created["clients"].append(imported["client"]["id"])
         icard = f"[data-client-id={json.dumps(imported['client']['id'])}]"
-        b.click(f"{icard} [data-client-action=adopt]")
-        self.check("clients.adopt_captures_the_credential", b.wait(f"!document.querySelector('{icard} [data-client-action=adopt]') && !!document.querySelector('{icard} .grant-item[data-grant-id]')", 30))
+        self.open_grant(icard, "naive")
+        self.grant_action("adopt")
+        self.check("clients.adopt_captures_the_credential", b.wait("!document.querySelector('#grant-window [data-grant-action=adopt]') && !!document.querySelector('#grant-window [data-grant-action=show]')", 30))
+        b.close_dialog("#grant-window")
+        b.close_dialog("#subscription-modal")
         b.click(f"{card} [data-client-action=suspend]")
         self.check("clients.suspend_marks_card", b.wait(f"!!document.querySelector('{card} [data-client-action=resume]')", 30))
         b.click(f"{card} [data-client-action=resume]")
@@ -948,8 +953,13 @@ class Acceptance:
     def view_fleet(self) -> None:
         b = self.browser
         self.check("fleet.rendered", self.goto_view("fleet", "!!document.querySelector('.local-node')"))
-        card = b.text(".local-node")
-        self.check("fleet.local_card_has_manager_health_and_routing_line", "Маршрутизация" in card and any(word in card for word in ("Telemt", "MTProxy", "NaiveProxy", "Mieru")), card[:200])
+        b.click('.local-node [data-node-action=open]')
+        b.wait("document.querySelector('#node-window')?.open === true", 20)
+        card = b.text("#node-window")
+        self.check("fleet.local_card_has_manager_health", any(word in card for word in ("Telemt", "MTProxy", "NaiveProxy", "Mieru")), card[:200])
+        b.click('#node-window [data-node-action=tab-routing]')
+        self.check("fleet.local_details_have_routing_line", b.wait("(document.querySelector('#node-window-body')?.textContent || '').includes('Маршрутизация')", 20))
+        b.close_dialog("#node-window")
         self.check("fleet.link_dialog_opens", self.open_add("#link-modal") and b.exists("#link-url") and b.exists("#link-key"))
         b.close_dialog("#link-modal")
         self.frame_is_secret_free("fleet")
@@ -1051,7 +1061,9 @@ class Acceptance:
         b.shot("routing-naive-router-applied.png")
         self.routing_lanes(loaded)
         self.goto_view("fleet", "!!document.querySelector('.local-node')")
-        self.check("routing.node_card_names_the_router", b.wait("(document.querySelector('.local-node')?.textContent || '').includes('[Xray-router]')", 20))
+        b.click('.local-node [data-node-action=open]')
+        b.click('#node-window [data-node-action=tab-routing]')
+        self.check("routing.node_card_names_the_router", b.wait("(document.querySelector('#node-window-body')?.textContent || '').includes('[Xray-router]')", 20))
         self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено') && !document.querySelector('[data-routing-action=rollback]').disabled && {loaded}", 30)
         b.click("[data-routing-action=rollback]")
@@ -1174,10 +1186,11 @@ class Acceptance:
         # «Клиенты»: the grant says it has its own lane; the toggle brings it back to the service.
         self.goto_view("clients", "!!document.querySelector('.client-list')")
         lane_card = f"[data-client-id={json.dumps(client_id)}]"
-        row = f"{lane_card} .grant-item[data-grant-protocol=naive] .grant-row"
+        self.open_client_window(lane_card)
+        row = "#subscription-grants .grant-item[data-grant-protocol=naive] .grant-row"
         self.check("clients.lane_flag_on_the_row", b.wait(f"(document.querySelector('{row} .grant-route-label')?.textContent || '').includes('своя полоса')", 20))
         self.open_grant(lane_card, "naive")
-        b.click("#grant-actions [data-grant-action=lane]")
+        b.click("#grant-window [data-grant-action=lane]")
         self.check("clients.lane_toggle_asks", b.wait("document.querySelector('#confirm')?.open === true && (document.querySelector('#confirm')?.textContent || '').includes('Вернуть к маршруту сервиса')"))
         b.click("#confirm-ok")
         self.check("clients.lane_toggle_returns_to_service", b.wait(f"(document.querySelector('{row} .grant-route-label')?.textContent || '').includes('маршрут сервиса')", 40))
@@ -1332,21 +1345,24 @@ class Acceptance:
             self.check("central.link_created_and_online", b.wait(f"(document.querySelector('{card} .status-pill')?.textContent || '').includes('На связи')", 20))
             imported = next((e for e in central.json("/api/clients")["items"] if e["client"]["display_name"] == imported_user), None)
             self.check("central.import_at_link_created_a_client", imported is not None and any(g["origin"] == "imported" for g in imported["grants"]), json.dumps(imported)[:200] if imported else "no client")
-            b.click(f"{card} [data-node-action=tab-users]")
-            self.check("central.users_tab_lists_node_accounts", b.wait(f"!!document.querySelector('{card} tr[data-import-username={json.dumps(imported_user)}]') && (document.querySelector('{card} tr[data-import-username={json.dumps(imported_user)}]')?.textContent || '').includes('привязан')", 30))
-            b.click(f"{card} [data-node-action=tab-updates]")
-            self.check("central.updates_tab_lists_node_components", b.wait(f"document.querySelectorAll('{card} .node-component').length >= 3 || (document.querySelector('{card} .node-tab-body')?.textContent || '').includes('недоступен')", 20))
+            b.click(f"{card} [data-node-action=open]")
+            b.wait("document.querySelector('#node-window')?.open === true", 20)
+            b.click("#node-window [data-node-action=tab-users]")
+            self.check("central.users_tab_lists_node_accounts", b.wait(f"!!document.querySelector('#node-window tr[data-import-username={json.dumps(imported_user)}]') && (document.querySelector('#node-window tr[data-import-username={json.dumps(imported_user)}]')?.textContent || '').includes('привязан')", 30))
+            b.click("#node-window [data-node-action=tab-updates]")
+            self.check("central.updates_tab_lists_node_components", b.wait("document.querySelectorAll('#node-window .node-component').length >= 3 || (document.querySelector('#node-window .node-tab-body')?.textContent || '').includes('недоступен')", 20))
+            b.close_dialog("#node-window")
             b.wait(f"!!document.querySelector('{card} [data-node-action=probe]')", 20)
             b.click(f"{card} [data-node-action=probe]")
             self.check("central.probe_answers", b.wait("[...document.querySelectorAll('#toast-region *')].some(t => t.textContent.includes('Узел опрошен'))", 20))
             time.sleep(1.5)  # the view reloads after the action; click the card that is back
             b.wait(f"!!document.querySelector('{card} [data-node-action=pause]')", 20)
             b.click(f"{card} [data-node-action=pause]")
-            self.check("central.pause_marks_the_card", b.wait(f"(document.querySelector('{card} .node-identity small')?.textContent || '').includes('пауза') && !!document.querySelector('{card} [data-node-action=resume]')", 30))
+            self.check("central.pause_marks_the_card", b.wait(f"(document.querySelector('{card} .status-pill')?.textContent || '').includes('Пауза') && !!document.querySelector('{card} [data-node-action=resume]')", 30))
             time.sleep(1.5)
             b.wait(f"!!document.querySelector('{card} [data-node-action=resume]')", 20)
             b.click(f"{card} [data-node-action=resume]")
-            self.check("central.resume_restores", b.wait(f"!!document.querySelector('{card} [data-node-action=pause]') && !(document.querySelector('{card} .node-identity small')?.textContent || '').includes('пауза')", 30))
+            self.check("central.resume_restores", b.wait(f"!!document.querySelector('{card} [data-node-action=pause]') && !(document.querySelector('{card} .status-pill')?.textContent || '').includes('Пауза')", 30))
             time.sleep(1.5)
             b.wait(f"!!document.querySelector('{card} [data-node-action=edit]')", 20)
             b.click(f"{card} [data-node-action=edit]")
@@ -1395,7 +1411,7 @@ class Acceptance:
             self.check("central.grant_reaches_the_node", delivered)
             self.created["naive"].append(remote_user)
             self.goto_view("clients", "!!document.querySelector('.client-list')")
-            self.check("central.row_says_delivered", b.wait(f"(document.querySelector('{ccard} .grant-row')?.textContent || '').includes('включён')", 60))
+            self.check("central.row_says_delivered", self.open_client_window(ccard) and b.wait("(document.querySelector('#subscription-grants .grant-row')?.textContent || '').includes('включён')", 60))
             self.open_grant(ccard, "naive")
             self.grant_action("delete")
             b.confirm()
@@ -1412,7 +1428,9 @@ class Acceptance:
             # The node's own screen while linked: the local card says who manages it.
             self.check("central.node_owner_login_again", self.login("owner", self.password))
             self.goto_view("fleet", "!!document.querySelector('.local-node')")
-            self.check("central.node_card_says_managed", b.wait("(document.querySelector('.local-node')?.textContent || '').includes('управляется центром')", 20))
+            b.click('.local-node [data-node-action=open]')
+            b.click('#node-window [data-node-action=tab-updates]')
+            self.check("central.node_card_says_managed", b.wait("(document.querySelector('#node-window')?.textContent || '').includes('управляется центром')", 20))
             self.goto_view("routing", "!!document.querySelector('#routing-form')")
             self.check("central.node_routing_refuses_local_changes", "маршрутизацией управляет центральная панель" in b.page_text() or b.js("document.querySelector('#routing-save')?.disabled === true"))
             b.shot("node-managed.png")

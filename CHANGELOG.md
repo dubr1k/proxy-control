@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-10-30
+
+### Interface
+- Compact node/client cards open a separate detail pane. Client subscriptions and accesses have separate tabs; grant technical fields are collapsed.
+- Subscription delivery highlights the selected app, import and copy actions, with QR, URL and help disclosed separately. Subscription URLs, formats and import schemes are preserved.
+- Group secondary protocol/routing actions into menus; browser Back closes the top dialog. Fix the linked-node version-check button route.
+- Keep the protocol in custom subscription access names and display it in the access window.
+- Centre client and node glyphs on phones. Remove missing legacy inventory versions and the local-protocol explanation from the local node card; component versions remain visible.
+
 ### Documentation
 - Refresh the native runtime architecture, ownership and credential-storage guides, dependency notices and Rust installer source references. Add a repository map and the current release to the documentation index.
 - Collapse detailed README sections in both languages while keeping installation, update and security entry points visible; use the current release in manual archive examples.

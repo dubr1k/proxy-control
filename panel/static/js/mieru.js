@@ -1,4 +1,4 @@
-import { bytes, esc, initials, number, query } from "./common.js";
+import { actionMenu, bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
@@ -31,10 +31,10 @@ function mieruRow(context, user) {
   const actions = context.state.me.role === "viewer"
     ? "Только просмотр"
     : `${access}
-       <button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
+       ${actionMenu(`<button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
        <button class="action-button" data-mieru-action="${enabled ? "disable" : "enable"}" data-user="${esc(user.username)}">${enabled ? "Отключить" : "Включить"}</button>
        <button class="action-button" data-mieru-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>
-       <button class="action-button danger-text" data-mieru-action="delete" data-user="${esc(user.username)}">Удалить</button>`;
+       <button class="action-button danger-text" data-mieru-action="delete" data-user="${esc(user.username)}">Удалить</button>`)}`;
   return `<div class="data-row naive-grid">
     <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>Mieru · native AEAD</small></span></div>
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${enabled ? "Активен" : "Отключён"}</span><small>${esc(quotaSummary(user.quotas))}</small></div>

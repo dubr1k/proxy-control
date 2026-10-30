@@ -19,8 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0)
+> **Текущий выпуск — [v4.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -382,16 +382,16 @@ sudo bash install.sh install --config examples/installer/full-three-xui.toml --a
 <summary>Проверка и запуск архива вручную</summary>
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0): архив,
+[выпуска 4.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v4.0.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v4.0.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он
@@ -691,6 +691,9 @@ sudo bash install.sh uninstall --json
 
 ### Клиенты, доступы и подписки
 
+Карточки клиентов и узлов показывают краткое состояние; подробности открываются кнопкой
+«Открыть». Подписка доступна отдельной кнопкой, QR и инструкция раскрываются по запросу.
+
 Экран «Клиенты» держит человека и все его доступы к MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel вместе:
 поиск и фильтры по всему списку, импорт существующих пользователей служб только чтением,
 выдача доступа одной журналируемой операцией с честным исходом — `succeeded`,
@@ -704,7 +707,9 @@ sudo bash install.sh uninstall --json
 `AMS · Mieru · TCP 8443`. Имя берётся из экрана «Узлы», в том числе для локального
 сервера. При совпадении имён добавляется стабильный короткий суффикс доступа. Клиента можно
 переименовать кнопкой «Переименовать» на его карточке, а любому доступу задать своё название
-в подписке: окно доступа → «Название в подписке» (пустое название возвращает «узел · протокол»).
+в подписке: окно доступа → «Название в подписке». Протокол добавляется автоматически:
+например, `Ams-server · Naive` или `Ams-server · Mieru`. Пустое название возвращает
+«узел · протокол».
 Переименование меняет только отображение: учётные записи, адреса и секреты остаются прежними.
 После любого переименования обновите подписку в приложении — URL, логины и пароли
 не меняются. Throne использует формат `singbox` (вариант Karing). В `raw` имя

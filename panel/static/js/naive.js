@@ -1,4 +1,4 @@
-import { bytes, date, esc, icon, initials, number, query, sumNaiveTraffic } from "./common.js";
+import { actionMenu, bytes, date, esc, icon, initials, number, query, sumNaiveTraffic } from "./common.js";
 import { isCurrent } from "./state.js";
 import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
@@ -33,11 +33,11 @@ function naiveRow(context, user) {
   const actions = context.state.me.role === "viewer"
     ? '<span class="cell">Только просмотр</span>'
     : `<button class="action-button share" data-naive-action="access" data-user="${esc(user.username)}">Конфигурация</button>
-       <button class="action-button" data-naive-action="quota" data-user="${esc(user.username)}">Квота</button>
+       ${actionMenu(`<button class="action-button" data-naive-action="quota" data-user="${esc(user.username)}">Квота</button>
        <button class="action-button" data-naive-action="reset-traffic" data-user="${esc(user.username)}">Сбросить трафик</button>
        ${enabled ? `<button class="action-button" data-naive-action="disable" data-user="${esc(user.username)}">Отключить</button>` : exhausted ? '<span class="action-note">Сбросьте трафик или увеличьте квоту</span>' : `<button class="action-button" data-naive-action="enable" data-user="${esc(user.username)}">Включить</button>`}
        <button class="action-button" data-naive-action="rotate" data-user="${esc(user.username)}">Новый пароль</button>
-       <button class="action-button danger-text" data-naive-action="delete" data-user="${esc(user.username)}">Удалить</button>`;
+       <button class="action-button danger-text" data-naive-action="delete" data-user="${esc(user.username)}">Удалить</button>`)}`;
   return `<div class="data-row naive-grid" data-naive-name="${esc(user.username)}">
     <div class="identity"><span class="user-glyph naive-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>HTTPS · HTTP/2 CONNECT</small></span></div>
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${status}</span></div>

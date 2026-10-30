@@ -1700,7 +1700,7 @@
    ],
    [
     "content-length",
-    "107072"
+    "114042"
    ],
    [
     "content-security-policy",
@@ -1739,8 +1739,8 @@
     "<request-id>"
    ]
   ],
-  "body_sha256": "f91d38f44ba4abdbb7c2bcd5ef22a18f5ebc929e4c757a56b1482174ae6c5540",
-  "body_length": 107072
+  "body_sha256": "fd311726b7e51f60ab7a4702320e5ddd98c4e8573d26a1244e8945225636b055",
+  "body_length": 114042
  },
  {
   "name": "static_html",
@@ -1867,7 +1867,7 @@
    ],
    [
     "content-length",
-    "201229"
+    "203643"
    ],
    [
     "content-security-policy",
@@ -1906,8 +1906,8 @@
     "<request-id>"
    ]
   ],
-  "body_sha256": "5c63e5cd15a0313ba0f0388d9c7cb528da7468868ee39db465c16812b85a94f3",
-  "body_length": 201229
+  "body_sha256": "7f91a00af9596d285d7860226589d34951fc1fd1cf22fc9905e4a13239ab0484",
+  "body_length": 203643
  },
  {
   "name": "static_post_405",

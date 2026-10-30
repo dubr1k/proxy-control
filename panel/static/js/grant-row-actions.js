@@ -1,7 +1,7 @@
 // Row actions on the AmneziaWG and TrustTunnel screens (v3.0.0): disable/enable, a new key or password
 // and delete, right in the list — like the Mieru and NaiveProxy rows — through the same grant API the
 // access window uses. An account the panel does not hold (no grant) has no actions here.
-import { esc } from "./common.js";
+import { actionMenu, esc } from "./common.js";
 
 const ROTATE_LABEL = { amneziawg: "Новый ключ", trusttunnel: "Новый пароль" };
 const CONFIRM = {
@@ -20,9 +20,9 @@ export function grantRowActions(row, protocol) {
   if (!row.grant_id) return "";
   const id = esc(row.grant_id);
   const toggle = row.enabled ? "disable" : "enable";
-  return `<button class="action-button" data-grant-row-action="${toggle}" data-grant="${id}" data-protocol="${esc(protocol)}" data-user="${esc(row.username)}">${row.enabled ? "Отключить" : "Включить"}</button>`
+  return actionMenu(`<button class="action-button" data-grant-row-action="${toggle}" data-grant="${id}" data-protocol="${esc(protocol)}" data-user="${esc(row.username)}">${row.enabled ? "Отключить" : "Включить"}</button>`
     + `<button class="action-button" data-grant-row-action="rotate" data-grant="${id}" data-protocol="${esc(protocol)}" data-user="${esc(row.username)}">${ROTATE_LABEL[protocol] || "Новый секрет"}</button>`
-    + `<button class="action-button danger-text" data-grant-row-action="delete" data-grant="${id}" data-protocol="${esc(protocol)}" data-user="${esc(row.username)}">Удалить</button>`;
+    + `<button class="action-button danger-text" data-grant-row-action="delete" data-grant="${id}" data-protocol="${esc(protocol)}" data-user="${esc(row.username)}">Удалить</button>`);
 }
 
 export function handleGrantRowAction(context, button) {

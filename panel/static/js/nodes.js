@@ -43,7 +43,7 @@ const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru"
 const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint" };
 // Те же компоненты одним словом: строка «Компоненты» в обзоре узла должна помещаться.
 export const COMPONENT_SHORT = { telemt: "Telemt", naive: "Caddy", mita: "mita", xray: "Xray", panel: "панель", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
-const TABS = [["overview", "Обзор"], ["users", "Пользователи"], ["updates", "Обновления"]];
+const TABS = [["overview", "Обзор"], ["users", "Доступы"], ["routing", "Маршруты"], ["updates", "Обслуживание"]];
 const SHA256 = /^[0-9a-f]{64}$/;
 
 function servicesBlock(node) {
@@ -52,8 +52,7 @@ function servicesBlock(node) {
     const [tone, word] = SERVICE_STATE[services[key]] || ["muted", "неизвестно"];
     return `<li><span class="status-pill ${tone}"><i></i>${esc(label)} · ${esc(word)}</span></li>`;
   }).join("");
-  return `<div class="node-services"><ul>${items}</ul>
-    <p class="form-hint">Локальные протоколы управляются напрямую: у этого узла нет ни очереди команд, ни сертификатов.</p></div>`;
+  return `<div class="node-services"><ul>${items}</ul></div>`;
 }
 
 // What the owner types into a central to link this panel, and — once a central has done
@@ -107,13 +106,14 @@ function routingLine(context, node) {
   return ["Маршрутизация", routingSummary(items)];
 }
 
-function nodeCard(context, node) {
-  if (node.transport === "panel" && node.link) return linkedCard(context, node, context.state.nodeTab[node.node_id] || "overview");
+function legacyNodeDetails(context, node) {
   const [tone, label] = ENROLLMENT[node.enrollment_state] || ["blocked", node.enrollment_state];
   const inventory = node.inventory || {};
   const summary = [
     ["Транспорт", `${CONNECTIVITY[node.connectivity_state] || node.connectivity_state}${node.last_seen_at ? ` · ${date(node.last_seen_at)}` : ""}`],
-    ["Демон", `${inventory.telemt_version ? `Telemt ${inventory.telemt_version}` : "Telemt не определён"} · ${inventory.agent_version ? `агент ${inventory.agent_version}` : "агент не определён"}`],
+    ...(node.kind === "local" ? [] : [
+      ["Демон", `${inventory.telemt_version ? `Telemt ${inventory.telemt_version}` : "Telemt не определён"} · ${inventory.agent_version ? `агент ${inventory.agent_version}` : "агент не определён"}`],
+    ]),
     ["Команды в очереди", number(node.pending_commands)],
     // Своя версия — рядом с версиями узлов, одной меркой: «эта панель такая-то, на узлах такие».
     ...(node.kind === "local"
@@ -201,12 +201,10 @@ function overviewTab(context, node) {
   const latency = link.latency_ms === null || link.latency_ms === undefined ? "" : ` · ${number(link.latency_ms)} мс`;
   const summary = [
     ["Связь", `${status}${latency} · ${heartbeat}`],
-    ["Панель", `${link.panel_version || link.identity?.panel_version || "версия не определена"} · GUID ${node.node_id}`],
-    componentsLine(link.status_json?.versions),
+
     ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${generationNote(link)}`],
     ["Пользователи", `${usersSummary(link)} · ${link.auto_import === false ? "импорт вручную" : "подхватываются автоматически"}`],
     ["Трафик", trafficTotal(link)],
-    routingLine(context, node),
   ];
   return `${facts(summary)}
     ${daemonsBlock(link)}
@@ -282,34 +280,85 @@ function linkedActions(context, node) {
   </div>`;
 }
 
-function linkedCard(context, node, tab) {
-  const link = node.link;
-  const [tone, label] = LINK_STATUS[link.status] || ["muted", link.status];
-  const body = tab === "users" ? usersTab(context, node) : tab === "updates" ? updatesTab(context, node) : overviewTab(context, node);
-  const tabs = TABS.map(([key, name]) => `<button class="${key === tab ? "active" : ""}" role="tab" aria-selected="${key === tab ? "true" : "false"}" data-node-action="tab-${key}">${name}</button>`).join("");
-  return `<article class="data-row node-card linked-node" data-node-id="${esc(node.node_id)}">
+function nodeHealth(node) {
+  const values = node.link
+    ? DAEMONS.map(([key]) => {
+      const entry = (node.link.status_json?.protocols || {})[key];
+      if (!entry) return "unknown";
+      return entry.enabled === false ? "off" : entry.daemon;
+    })
+    : SERVICES.map(([key]) => ({ ok: "ok", unavailable: "down", disabled: "off" }[node.services?.[key]] || "unknown"));
+  const down = values.filter((state) => state === "down").length;
+  const ok = values.filter((state) => state === "ok").length;
+  const unknown = values.filter((state) => !["ok", "off", "down"].includes(state)).length;
+  const warning = [];
+  if (node.link?.enabled === false || node.disabled) warning.push("Пауза");
+  if (node.link?.status === "offline") warning.push("Нет связи с узлом");
+  if (down) warning.push(`Недоступно служб: ${down}`);
+  if (node.link?.config_dirty) warning.push("Есть недоставленные изменения");
+  if (node.link?.last_error) warning.push("Узел сообщил ошибку");
+  if (node.link?.observed_state === "failed") warning.push("Ошибка применения изменений");
+  const summary = unknown ? "Состояние служб известно не полностью"
+    : ok ? `Работает протоколов: ${ok}` : down ? `Недоступно служб: ${down}` : "Протоколы выключены";
+  const tone = down ? "blocked" : unknown || !ok ? "muted" : "active";
+  const label = down ? "Есть проблемы" : unknown ? "Состояние неизвестно" : ok ? "Работает" : "Выключен";
+  return { summary, warning, tone, label };
+}
+
+function nodeCard(context, node) {
+  const linked = node.transport === "panel" && node.link;
+  const health = nodeHealth(node);
+  let [tone, label] = linked
+    ? (LINK_STATUS[node.link.status] || ["muted", "Состояние неизвестно"])
+    : (ENROLLMENT[node.enrollment_state] || ["muted", "Состояние неизвестно"]);
+  if (node.kind === "local") [tone, label] = [health.tone, health.label];
+  if (node.disabled || node.link?.enabled === false) [tone, label] = ["muted", "Пауза"];
+  const management = linked ? linkedActions(context, node) : actions(context, node);
+  return `<article class="data-row node-card compact-node${node.kind === "local" ? " local-node" : ""}${linked ? " linked-node" : ""}" data-node-id="${esc(node.node_id)}">
     <span class="user-glyph" aria-hidden="true">${icon("server")}</span>
-    <div class="node-identity">
-      <b>${esc(node.display_name)}</b>
-      <small>${esc(link.panel_url)} · панель ${esc(link.panel_version || "?")}${link.enabled ? "" : " · пауза"}</small>
-    </div>
+    <div class="node-identity"><b>${esc(node.display_name)}</b><small>${esc(health.summary)}</small></div>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
-    <div class="node-tabs" role="tablist">${tabs}</div>
-    <div class="node-tab-body">${body}</div>
-    ${linkedActions(context, node)}
+    ${health.warning.length ? `<button class="card-warning" data-node-action="open">${esc(health.warning.join(" · "))}</button>` : ""}
+    <div class="node-card-actions"><button class="secondary" data-node-action="open">Открыть</button>
+    ${management ? `<details class="actions-menu"><summary aria-label="Ещё действия">⋯</summary><div class="actions-menu-body">${management}</div></details>` : ""}</div>
   </article>`;
 }
 
-async function loadInventories(context) {
-  const open = context.state.nodes.filter((node) => node.transport === "panel" && context.state.nodeTab[node.node_id] === "users");
-  const entries = await Promise.all(open.map(async (node) => {
-    try {
-      return [node.node_id, await context.api(`/api/nodes/${encodeURIComponent(node.node_id)}/inventory`)];
-    } catch (error) {
-      return [node.node_id, { error: error.message }];
-    }
-  }));
-  return Object.fromEntries(entries);
+function detailTabs(tab) {
+  return `<div class="node-tabs" role="tablist" aria-label="Раздел узла">${TABS.map(([key, name]) => `<button type="button" class="${key === tab ? "active" : ""}" role="tab" aria-selected="${key === tab}" data-node-action="tab-${key}">${name}</button>`).join("")}</div>`;
+}
+
+function detailContent(context, node, tab) {
+  const linked = node.transport === "panel" && node.link;
+  if (tab === "routing") return `${facts([routingLine(context, node)])}<button class="secondary" data-node-action="routing">Настроить маршруты</button>`;
+  if (tab === "users") return linked ? usersTab(context, node)
+    : '<p class="form-hint">Доступы этого сервера находятся в списке клиентов.</p><button class="secondary" data-node-action="clients">Открыть клиентов узла</button>';
+  if (tab === "updates") {
+    if (linked) return `${updatesTab(context, node)}<details class="technical-details"><summary>Технические сведения</summary>${facts([["Адрес панели", node.link.panel_url], ["GUID", node.node_id], ["Панель", node.link.panel_version || "—"]])}</details>`;
+    return `${facts([componentsLine(context.state.versions)])}<button class="secondary" data-node-action="versions">Открыть версии</button>${node.kind === "local" ? localLinkBlock(context, node) : ""}`;
+  }
+  if (linked) return overviewTab(context, node);
+  if (node.kind === "local") return `${servicesBlock(node)}<details class="technical-details"><summary>Технические сведения</summary>${facts([["Панель", context.state.me?.panel_version || "—"], ["GUID", node.identity?.guid || node.node_id]])}</details>`;
+  return legacyNodeDetails(context, node);
+}
+
+async function renderNodeDetails(context) {
+  const id = context.state.nodeDetailId;
+  const dialog = query("#node-window", context.root);
+  const node = context.state.nodes.find((item) => item.node_id === id);
+  if (!dialog?.open || !node) return;
+  const tab = context.state.nodeTab[id] || "overview";
+  const sequence = context.state.nodeDetailSequence = (context.state.nodeDetailSequence || 0) + 1;
+  query("#node-window-title", context.root).textContent = node.display_name;
+  const body = query("#node-window-body", context.root);
+  body.dataset.nodeId = id;
+  const paint = () => { body.innerHTML = `${detailTabs(tab)}<div class="node-tab-body">${detailContent(context, node, tab)}</div>`; };
+  paint();
+  if (tab === "users" && node.link) {
+    try { context.state.nodeInventory[id] = await context.api(`/api/nodes/${encodeURIComponent(id)}/inventory`); }
+    catch (error) { context.state.nodeInventory[id] = { error: error.message }; }
+    if (dialog.open && context.state.nodeDetailId === id && context.state.nodeDetailSequence === sequence && context.state.view === "fleet") paint();
+  }
 }
 
 export async function renderNodes(context, generation) {
@@ -326,14 +375,14 @@ export async function renderNodes(context, generation) {
   context.state.routingTargets = routing.items || [];
   const count = query("#fleet-count", context.root);
   if (count) count.textContent = context.state.nodes.length;
-  // A linked panel's users are read only for an open «Пользователи» tab (spec §7).
-  const inventories = await loadInventories(context);
-  if (!isCurrent(context.state, generation, "fleet")) return;
-  context.state.nodeInventory = inventories;
-  context.ui.view.innerHTML = `<div class="security-note">Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.</div>
+  context.ui.view.innerHTML = `<details class="page-help"><summary>Как это работает</summary><p>Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.</p></details>
     <section class="node-list">${context.state.nodes.length
       ? context.state.nodes.map((node) => nodeCard(context, node)).join("")
       : '<div class="empty-state"><span>◇</span><h3>Узлов пока нет</h3><p>Нажмите «Добавить узел» и введите адрес панели узла и её ключ. Ключ узел создаёт у себя в разделе «Узлы».</p></div>'}</section>`;
+  if (context.state.nodeDetailId) {
+    if (context.state.nodes.some((node) => node.node_id === context.state.nodeDetailId)) void renderNodeDetails(context);
+    else query("#node-window", context.root)?.close();
+  }
 }
 
 
@@ -549,6 +598,19 @@ function bindLinkDialog(context) {
 
 export function bindNodes(context) {
   const { api, root, ui } = context;
+  const detail = query("#node-window", root);
+  detail?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-node-action]");
+    if (button) { event.preventDefault(); handleNodesClick(context, button); }
+  });
+  detail?.addEventListener("close", () => {
+    if (detail.open) return;
+    const id = context.state.nodeDetailId;
+    context.state.nodeDetailId = null;
+    context.state.nodeDetailSequence = (context.state.nodeDetailSequence || 0) + 1;
+    query("#node-window-body", root).replaceChildren();
+    query(`[data-node-id="${cssEscape(id)}"] [data-node-action="open"]`, ui.view)?.focus({ preventScroll: true });
+  });
   query("#copy-center-url", root)?.addEventListener("click", async () => {
     await ui.copyText(query("#center-url", root));
     ui.toast("Адрес скопирован");
@@ -725,7 +787,7 @@ const LINK_ROUTES = {
   resume: ["/resume", "Узел возобновлён"],
   probe: ["/probe", "Узел опрошен"],
 };
-const LINK_ACTIONS = new Set([...Object.keys(LINK_ROUTES), "edit", "remove", "import", "update-component"]);
+const LINK_ACTIONS = new Set([...Object.keys(LINK_ROUTES), "edit", "remove", "import", "update-component", "check-versions"]);
 
 export function handleNodesClick(context, button) {
   const action = button.dataset.nodeAction;
@@ -737,11 +799,25 @@ export function handleNodesClick(context, button) {
   const card = button.closest("[data-node-id]");
   if (!card) return false;
   const nodeId = card.dataset.nodeId;
+  if (action === "open") {
+    context.state.nodeDetailId = nodeId;
+    button.focus({ preventScroll: true });
+    context.ui.openModal("#node-window");
+    void renderNodeDetails(context);
+    return true;
+  }
+  if (["routing", "clients", "versions"].includes(action)) {
+    if (action === "routing") context.state.routingNode = nodeId;
+    if (action === "clients") context.state.clientFilter = { ...context.state.clientFilter, node: nodeId };
+    query("#node-window", context.root).close();
+    void context.navigate(action === "versions" ? "versions" : action);
+    return true;
+  }
   if (action.startsWith("tab-")) {
     const tab = action.slice(4);
     if (TABS.some(([key]) => key === tab)) {
       context.state.nodeTab[nodeId] = tab;
-      void context.navigate("fleet");
+      void renderNodeDetails(context);
     }
     return true;
   }

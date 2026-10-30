@@ -1,5 +1,5 @@
-import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, plural, query, queryAll } from "./common.js";
-import { grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
+import { cssEscape, esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, plural, query, queryAll } from "./common.js";
+import { grantTone, grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
 import { awgAccount, placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { isCurrent } from "./state.js";
 
@@ -54,7 +54,7 @@ function actions(context, client) {
     : '<button type="button" role="menuitem" data-client-action="suspend">Приостановить</button>';
   // The same window, opened on its node × protocol matrix: add a node with a tick, take one
   // away with the cross — without hunting for it below the subscription block (v0.11).
-  const placement = '<button class="secondary" data-client-action="placement">Узлы и доступы</button>';
+  const placement = '<button class="secondary" data-client-action="subscription">Подписка</button>';
   return `<div class="client-actions">
     ${open}
     ${placement}
@@ -109,13 +109,18 @@ function summary(context, grants) {
   return `${grants.length} ${plural(grants.length, "доступ", "доступа", "доступов")} · ${where}`;
 }
 
+function clientWarning(grants) {
+  const issues = grants.filter((grant) => ["failed", "pending", "drifted", "missing"].includes(grant.observed_state) || grant.secret_ref === null || grantTone(grant) === "unknown");
+  const expired = grants.some((grant) => grant.valid_until && grant.valid_until <= Date.now() / 1000);
+  if (!issues.length && !expired) return "";
+  const label = expired ? "Срок доступа истёк" : `Требуют внимания: ${issues.length}`;
+  return `<button type="button" class="card-warning" data-client-action="open">${esc(label)}</button>`;
+}
+
 function clientCard(context, entry) {
   const { client } = entry;
   const grants = liveGrants(entry);
   const [tone, label] = CLIENT_STATE[client.state] || ["blocked", client.state];
-  const empty = client.state === "archived"
-    ? "Доступов нет — клиент в архиве"
-    : "Доступов пока нет — выдайте их в «Узлы и доступы» или импортируйте существующие";
   return `<article class="client-card" data-client-id="${esc(client.id)}" data-client-state="${esc(client.state)}">
     <span class="user-glyph" aria-hidden="true">${icon("client")}</span>
     <button type="button" class="client-identity" data-client-action="open">
@@ -124,10 +129,7 @@ function clientCard(context, entry) {
     </button>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
     ${actions(context, client)}
-    ${grants.length
-      ? `<ul class="client-grants">${[...grants].sort(byProtocol).map((grant) => grantRowHtml(grant, { nodes: context.state.nodes })).join("")}</ul>`
-      : `<p class="client-empty">${esc(empty)}</p>`}
-    ${adoptNote(context, grants)}
+    ${clientWarning(grants)}
   </article>`;
 }
 
@@ -908,10 +910,13 @@ export function handleClientsClick(context, button) {
     void adopt(context, button);
     return true;
   }
-  if (action === "open" || action === "placement") {
+  if (["open", "placement", "subscription"].includes(action)) {
     const card = button.closest("[data-client-id]");
     const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
-    if (entry) void context.subscriptions.open(entry.client.id, entry.client.display_name, null, { focus: action === "placement" ? "placement" : null });
+    if (entry) {
+      button.focus({ preventScroll: true });
+      void context.subscriptions.open(entry.client.id, entry.client.display_name, null, { focus: action === "subscription" ? "subscription" : "placement" });
+    }
     return true;
   }
   const card = button.closest("[data-client-id]");
@@ -922,4 +927,16 @@ export function handleClientsClick(context, button) {
   }
   void lifecycle(context, card.dataset.clientId, action);
   return true;
+}
+
+export async function reloadClientList(context) {
+  const y = window.scrollY;
+  const generation = context.state.navigationGeneration;
+  const active = context.root.activeElement;
+  const clientId = active?.closest?.("[data-client-id]")?.dataset.clientId;
+  const action = active?.dataset.clientAction;
+  await loadPage(context, context.state.clientPageCursor || null, context.state.clientPageHistory || []);
+  if (!isCurrent(context.state, generation, "clients")) return;
+  if (clientId && action) query(`[data-client-id="${cssEscape(clientId)}"] [data-client-action="${cssEscape(action)}"]`, context.ui.view)?.focus({ preventScroll: true });
+  window.scrollTo(0, y);
 }

@@ -1,4 +1,4 @@
-import { bytes, date, esc, initials, localDateTime, number, query } from "./common.js";
+import { actionMenu, bytes, date, esc, initials, localDateTime, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
@@ -33,11 +33,12 @@ function userRow(context, user) {
   const connections = user.current_connections ?? user.active_connections ?? 0;
   const actions = context.state.me.role === "viewer"
     ? "Только просмотр"
-    : `<button class="action-button" data-user-action="limits" data-user="${esc(user.username)}">Лимиты</button>
-       <button class="action-button share" data-user-action="share" data-user="${esc(user.username)}">Ссылка</button>
+    : `<button class="action-button share" data-user-action="share" data-user="${esc(user.username)}">Ссылка</button>
+       ${actionMenu(`<button class="action-button" data-user-action="limits" data-user="${esc(user.username)}">Лимиты</button>
        <button class="action-button" data-user-action="${enabled ? "disable" : "enable"}" data-user="${esc(user.username)}">${enabled ? "Заблокировать" : "Включить"}</button>
        <button class="action-button" data-user-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>
-       <button class="action-button danger-text" data-user-action="delete" data-user="${esc(user.username)}">Удалить</button>`;
+       <button class="action-button danger-text" data-user-action="delete" data-user="${esc(user.username)}">Удалить</button>`)}`;
+
   return `<div class="data-row" data-name="${esc(user.username)}">
     <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>MTProto · FakeTLS</small></span></div>
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${enabled ? "Активен" : "Заблокирован"}</span></div>

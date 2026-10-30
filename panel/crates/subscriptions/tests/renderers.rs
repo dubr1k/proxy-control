@@ -391,16 +391,16 @@ fn a_hostile_uri_artifact_gets_no_link_only_copyable_text() {
 }
 
 #[test]
-fn labels_override_display_names_without_becoming_manifest_fields_or_changing_secrets() {
+fn labels_keep_the_protocol_without_becoming_manifest_fields_or_changing_secrets() {
     let (mut manifest, artifacts) = fixture();
     manifest.grants = vec![manifest.grants[1].clone()];
     manifest.grants[0].label = "My phone".into();
     let options = RenderOptions::default();
     let outbound = outbounds(&manifest, &artifacts, "nekobox");
-    assert_eq!(outbound[0]["tag"], "My phone");
+    assert_eq!(outbound[0]["tag"], "My phone · Naive");
     assert_eq!(outbound[0]["password"], "naive-pass-01");
     let raw = text(Format::Raw, &manifest, &artifacts, &options);
-    assert!(raw.contains("#My%20phone"));
+    assert!(raw.contains("#My%20phone%20%C2%B7%20Naive"));
     let json: Value =
         serde_json::from_slice(&renderers::render(Format::Manifest, &manifest, &artifacts, &options).unwrap()).unwrap();
     assert!(json["grants"][0].get("label").is_none());
@@ -425,7 +425,7 @@ fn duplicate_access_labels_get_order_independent_suffixes() {
     };
     let before = names(&manifest);
     assert_eq!(before.len(), 2);
-    assert!(before.iter().all(|name| name.starts_with("Phone [")));
+    assert!(before.iter().all(|name| name.starts_with("Phone · Naive [")));
     manifest.grants.reverse();
     assert_eq!(names(&manifest), before);
 }
@@ -452,4 +452,18 @@ fn trusttunnel_variants_preserve_credentials_and_only_relax_tls_for_untrusted_ce
     let untrusted = proxies.split("username: 'selfsigned'").nth(1).unwrap().split("  - name:").next().unwrap();
     assert!(!trusted.contains("skip-cert-verify"));
     assert!(untrusted.contains("skip-cert-verify: true"));
+}
+
+#[test]
+fn custom_labels_identify_each_protocol_and_do_not_repeat_an_existing_suffix() {
+    let (mut manifest, _) = fixture();
+    manifest.grants.truncate(1);
+    for (protocol, expected) in [("naive", "Naive"), ("mieru", "Mieru"), ("trusttunnel", "TrustTunnel")] {
+        manifest.grants[0].protocol = protocol.into();
+        for label in ["Ams-server".to_string(), format!("Ams-server · {expected}")] {
+            manifest.grants[0].label = label;
+            let names = panel_subscriptions::names::grant_names(&manifest).unwrap();
+            assert_eq!(names[&manifest.grants[0].grant_id], format!("Ams-server · {expected}"));
+        }
+    }
 }

@@ -46,14 +46,20 @@ impl std::error::Error for NameCollision {}
 pub fn grant_names(manifest: &Manifest) -> Result<BTreeMap<String, String>, NameCollision> {
     let mut bases: BTreeMap<String, String> = BTreeMap::new();
     for grant in &manifest.grants {
-        // A name the operator gave this access wins over «node · protocol».
+        // A custom base still identifies the protocol in every subscription format.
         let custom = display_text(&grant.label);
         let node = [display_text(&grant.node_name), display_text(&grant.node_id)]
             .into_iter()
             .find(|text| !text.is_empty())
             .unwrap_or_else(|| "Local".to_string());
-        let base =
-            if custom.is_empty() { format!("{node} \u{b7} {}", protocol_title(&grant.protocol)) } else { custom };
+        let suffix = format!(" \u{b7} {}", protocol_title(&grant.protocol));
+        let base = if custom.is_empty() {
+            format!("{node}{suffix}")
+        } else if custom.ends_with(&suffix) {
+            custom
+        } else {
+            format!("{custom}{suffix}")
+        };
         bases.insert(grant.grant_id.clone(), base);
     }
     let mut counts: HashMap<&str, usize> = HashMap::new();

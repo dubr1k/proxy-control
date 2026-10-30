@@ -5,5 +5,5 @@ mierus://carol:mieru-pass-01@mieru.example.com?profile=FRA%20%C2%B7%20Mieru%20%5
 # disabled naive erin
 mierus://frank:mieru-pass-03@mieru.example.com?profile=FRA%20%C2%B7%20Mieru%20%5Bc3c19aa6%5D&port=8000-8010&protocol=TCP
 tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUHdHJ1c3RlZAYRdHQtcGFzcy1DQU5BUlktMDEJAQEMHFRUIMK3IFRydXN0VHVubmVsIFthZmJjZGI1Nl0
-tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUKc2VsZnNpZ25lZAYRdHQtcGFzcy1DQU5BUlktMDEIBTADAgEFCQEBDAVQaG9uZQ
+tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUKc2VsZnNpZ25lZAYRdHQtcGFzcy1DQU5BUlktMDEIBTADAgEFCQEBDBRQaG9uZSDCtyBUcnVzdFR1bm5lbA
 # disabled trusttunnel paused

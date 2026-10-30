@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v4.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0)
+> **Current release: [v4.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -384,7 +384,7 @@ previous state.
 <summary>Verify and launch an archive manually</summary>
 
 The same path without the script. Download the four files under Assets of the
-[4.0.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.0): the archive,
+[4.0.1 release](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.1): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -392,9 +392,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v4.0.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v4.0.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file
@@ -701,6 +701,9 @@ public listeners and adjacent SNI routes.
 
 ### Clients, grants and subscriptions
 
+Client and node cards show a short status summary; Open displays details. Subscription
+delivery has its own button, with QR and instructions expanded on request.
+
 The «Clients» screen keeps a person and all their grants to MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel
 together: search and filters over the whole list, a read-only import of existing service
 users, and a grant issued as one journalled operation with an honest outcome — `succeeded`,
@@ -714,7 +717,9 @@ Subscription connection names start with the node name: `AMS · Naive`,
 `AMS · Mieru · TCP 8443`. Rename nodes on the Nodes screen, including the local
 server. Duplicate names receive a stable short grant suffix. A client is renamed with the
 «Rename» button on its card, and any access can carry its own name in the subscription:
-access window → «Name in the subscription» (an empty name puts «node · protocol» back).
+access window → «Name in the subscription». The protocol is appended automatically:
+for example, `Ams-server · Naive` or `Ams-server · Mieru`. An empty name restores
+«node · protocol».
 Renaming changes only what is displayed: accounts, addresses and secrets stay as they were.
 Refresh the subscription in your client after renaming; its URL, usernames and passwords do not change.
 Throne uses the `singbox` format (Karing variant). The `raw` feed carries the name

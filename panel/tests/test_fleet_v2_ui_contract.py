@@ -94,3 +94,50 @@ async def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(s
     html = (await server.client.get("/")).text
     for needle in ('id="center-key-modal"', 'id="copy-center-key"', 'id="copy-center-url"'):
         assert needle in html
+
+
+async def test_linked_node_version_check_uses_the_node_versions_route(server, tmp_path):
+    await _served_modules(server, tmp_path)
+    script = """
+      import { handleNodesClick } from './js/nodes.js';
+      const calls = [], navigated = [];
+      const node = { node_id: 'node-example', link: {} };
+      const context = { state: { nodes: [node] },
+        api: async (path, options) => { calls.push([path, options.method]); return {}; },
+        ui: { setBusy() {}, toast() {} }, navigate: async view => navigated.push(view) };
+      const handled = handleNodesClick(context, {
+        dataset: { nodeAction: 'check-versions' },
+        closest: () => ({ dataset: { nodeId: 'node-example' } }),
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      console.log(JSON.stringify({ calls, handled, navigated }));
+    """
+    result = subprocess.run(['node', '--input-type=module', '-e', script], cwd=tmp_path,
+                            capture_output=True, text=True, check=True)
+    actual = json.loads(result.stdout)
+    assert actual == {'calls': [['/api/nodes/node-example/versions/check', 'POST']],
+                      'handled': True, 'navigated': ['fleet']}
+
+
+async def test_local_node_summary_does_not_mark_missing_or_failed_health_as_active(server, tmp_path):
+    await _served_modules(server, tmp_path)
+    script = """
+      import { renderNodes } from './js/nodes.js';
+      const results = [];
+      for (const services of [{}, {telemt:'unavailable', naive:'disabled', mieru:'disabled', amneziawg:'disabled', trusttunnel:'disabled'},
+                              {telemt:'ok', naive:'disabled', mieru:'disabled', amneziawg:'disabled', trusttunnel:'disabled'}]) {
+        const view = {innerHTML:''};
+        const node = {node_id:'local', kind:'local', enrollment_state:'local', display_name:'Local', services};
+        const state = {view:'fleet', navigationGeneration:1, nodes:[], nodeTab:{}, nodeInventory:{}, me:{role:'viewer'}};
+        await renderNodes({state, ui:{view}, root:{querySelector:()=>null},
+          api:async path => path === '/api/nodes' ? {items:[node]} : {items:[],enabled:false}}, 1);
+        results.push(view.innerHTML);
+      }
+      console.log(JSON.stringify(results));
+    """
+    result = subprocess.run(['node', '--input-type=module', '-e', script], cwd=tmp_path,
+                            capture_output=True, text=True, check=True)
+    unknown, failed, healthy = json.loads(result.stdout)
+    assert 'status-pill active' not in unknown and 'status-pill muted' in unknown
+    assert 'status-pill blocked' in failed and 'card-warning' in failed
+    assert 'status-pill active' in healthy

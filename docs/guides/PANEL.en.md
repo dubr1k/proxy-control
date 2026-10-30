@@ -242,20 +242,27 @@ header (hidden from viewers) opens Clients and straight away the new-client wind
 
 ## The Clients screen
 
-A client is a person or a device; a grant is their account in one protocol on one
-node. The card shows the client's name, its state (active / suspended / archived) and
-one chip per grant: "protocol · runtime account · state".
+A client is a person or device; a grant is its account in one protocol on one node.
+Compact cards show the name, state, access count and nodes. Issues and expired accesses
+remain visible as warnings. “Subscription” opens link delivery; “Open” opens the Accesses
+tab with accounts and the node matrix. Less frequent actions are in the “⋯” menu.
+Search, filters and list position are retained.
+
+Details open in a side pane on desktop and fill the screen on phones. Back, Escape and
+browser Back close the top window. Grant details keep the protocol, node, status and
+link delivery visible; other fields and secret operations are under “Technical details”.
 
 An archived client with no grants left can be deleted permanently: "Delete permanently"
 in the card's "⋯" menu (`DELETE /api/clients/{client_id}`, owner and admin, audited as
 `client.delete`). The client's subscription link stops resolving; the panel refuses (409)
 a client that is not archived or still has undeleted grants.
 
-In the client window the subscription block starts with the "На чём клиент?" ("What is the
-client on?") chooser: a platform, then an app, and the panel shows the one fitting link, its
-QR code and an "open in the app" button. "Выпустить новую ссылку" ("Issue a new link"), after a
-confirmation, rotates the token: the old link stops resolving at once and the new one has to be
-sent to the client again; the chosen platform and app are kept.
+On the Subscription tab, press Show, then choose the device and app. The panel shows
+compatibility, “Add to app” and “Copy link”. QR, the full URL and instructions expand on
+request. App selection survives token rotation. The “⋯” menu contains rotation and
+revocation; rotation still requires confirmation and immediately invalidates the old URL.
+Presentation and app selection do not change the issued token, subscription formats or
+profiles already imported into clients.
 
 "Import existing" lists what the managers already run. The panel only **reads** them:
 passwords, quotas and enabled flags are untouched, and no `create`, `rotate`, `enable`
@@ -339,27 +346,23 @@ The screen lists this server and **linked panels**. The reserved "this server" n
 exists in every installation — a database migration creates it, not the operator —
 and is always listed first.
 
-**This server.** The card shows the health of the three
-managers — Telemt, NaiveProxy, Mieru: "ok", "unavailable", or "disabled" for a protocol
-this installation does not run — plus what a central needs to link this panel: its GUID
-and the URL to enter there, with a hint to create a `node-sync` key. Once a central has
-pushed a generation, the card shows «управляется центром <GUID>» and, for the owner,
-**«Отвязать»**: the panel forgets its master, the accounts the central owned become local
-again and nothing on the runtime changes. It can be renamed, but not disabled;
-the `node_id` `local` is reserved.
+Cards show the name, connectivity, a short protocol summary and warnings for service
+failures, pauses or undelivered changes. Open reveals Overview, Accesses, Routes and
+Maintenance tabs.
 
-**Linked panels.** The header button **«Добавить узел»** opens the dialog «Добавить узел»
-(name, `https://` URL, API key, TLS `verify` or `pin` with «Получить отпечаток»,
-«Разрешить приватный адрес», **«Проверить»**, an import list). A linked card shows
-online/offline with latency and the last heartbeat, the node's panel version, daemon
-health per protocol, users (central vs local), best-effort traffic, `desired` vs
-`applied` generation and the last error, in three tabs — **Обзор**, **Пользователи**
-(the node's accounts with **«Импортировать выбранных»**) and **Обновления** (component
-versions from the node's version-agent with an update button). Owner actions:
-**Пауза / Возобновить** (the heartbeat and delivery skip a paused link; "disable" on such a
-node means the same), **Проверить** (heartbeat and delivery now), **Изменить** (name,
-URL, key, TLS) and **Удалить**, which is refused while the panel still carries provisioned
-grants, unconfirmed deletions included. The API key is never displayed again (`has_api_key`).
+**This server.** Overview shows Telemt, NaiveProxy, Mieru, AmneziaWG and TrustTunnel states;
+disabled protocols are not failures. The GUID is under technical details. Component
+versions, the address for a central, `node-sync` key creation and unlinking live under
+Maintenance. Keys are revealed only on a separate request. Owner-only unlinking returns
+accounts to local management without changing running protocols. The reserved node id
+is `local`.
+
+**Linked panels.** Add node keeps the HTTPS/TLS link and import dialog. Overview contains
+connectivity, daemons, users, traffic and delivery status; Accesses loads accounts and
+import controls; Routes opens routing for the selected node; Maintenance contains versions
+and updates. Inventory is fetched only when Accesses opens. Pause/resume, probe, edit and
+remove are in the owner-only “⋯” menu. Removal is still refused while provisioned accesses
+remain, including unconfirmed deletions. Stored API keys are never shown again.
 
 Linked-panel lifecycle and security: [FLEET.en.md](FLEET.en.md).
 

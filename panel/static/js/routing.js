@@ -3,7 +3,7 @@
 // compiler's honest answer: an unsupported rule is named, not silently dropped, and
 // «Применить» is enabled only for a saved, supported policy.
 import { registerReasons } from "./api.js";
-import { date, esc, locale, number, query, queryAll } from "./common.js";
+import { actionMenu, date, esc, locale, number, query, queryAll } from "./common.js";
 import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
@@ -416,9 +416,9 @@ function cardActions(context, policy, compiled, dirty, editable) {
   const canRollback = owner && editable && policy && policy.applied_revision !== null && policy.applied_revision !== undefined;
   return `<div class="routing-actions">
     <button class="primary" data-routing-action="apply"${canApply ? "" : " disabled"}>Применить</button>
-    <button class="secondary" data-routing-action="rollback"${canRollback ? "" : " disabled"}>Откатить</button>
     <button class="secondary" data-routing-action="history">История</button>
-    <button class="danger ghost" data-routing-action="delete"${owner && policy ? "" : " disabled"}>Удалить политику</button>
+    ${actionMenu(`<button class="secondary" data-routing-action="rollback"${canRollback ? "" : " disabled"}>Откатить</button>
+    <button class="danger ghost" data-routing-action="delete"${owner && policy ? "" : " disabled"}>Удалить политику</button>`)}
   </div>`;
 }
 

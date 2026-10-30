@@ -23,7 +23,7 @@ proxies:
     password: 'tt-pass-CANARY-01'
     udp: false
     quic: false
-  - name: 'Phone'
+  - name: 'Phone · TrustTunnel'
     type: 'trusttunnel'
     server: 'gate.example.com'
     port: 443
@@ -39,7 +39,7 @@ proxy-groups:
       - 'FRA · Mieru [6ba65fd8] · TCP 8443'
       - 'FRA · Mieru [c3c19aa6] · TCP 8000-8010'
       - 'TT · TrustTunnel [afbcdb56]'
-      - 'Phone'
+      - 'Phone · TrustTunnel'
 proxy-control:
   generation: 3
   unsupported:

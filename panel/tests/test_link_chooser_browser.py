@@ -63,7 +63,7 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     browser = chooser_browser
     client_id = client_with_trusttunnel(browser)
     open_clients(browser)
-    browser.click(f'[data-client-id="{client_id}"] [data-client-action="open"]')
+    browser.click(f'[data-client-id="{client_id}"] [data-client-action="subscription"]')
     browser.wait("!!document.querySelector('#subscription-actions [data-subscription-action=\"show\"]')", "show button")
     # Nothing of the link is on the screen before «Показать».
     assert browser.js("document.querySelector('#subscription-reveal').hidden")

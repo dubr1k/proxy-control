@@ -192,3 +192,8 @@ export function cssEscape(value) {
   if (globalThis.CSS?.escape) return globalThis.CSS.escape(value);
   return String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&");
 }
+
+// Native disclosure keeps secondary controls reachable by keyboard without portal positioning.
+export function actionMenu(controls) {
+  return `<details class="actions-menu"><summary aria-label="Ещё действия">⋯</summary><div class="actions-menu-body">${controls}</div></details>`;
+}

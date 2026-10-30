@@ -59,7 +59,7 @@ export async function renderVersions(context, generation) {
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
     return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}</article>`;
   }).join("");
-  context.ui.view.innerHTML = `<div class="security-note">Перед заменой проверяется контрольная сумма, а прежняя версия сохраняется для отката. «Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+  context.ui.view.innerHTML = `<details class="page-help"><summary>Как обновлять</summary><p>Перед заменой проверяется контрольная сумма, а прежняя версия сохраняется для отката. «Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.</p></details>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
   if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
   // A manager rebuild runs in the agent's background: look again until it is over.
   window.clearTimeout(rebuildTimer);

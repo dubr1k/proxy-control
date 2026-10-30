@@ -1,6 +1,6 @@
-import { esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from "./common.js";
+import { actionMenu, esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
-import { proposeUsername } from "./clients.js";
+import { proposeUsername, reloadClientList } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
 import { AUTO_REFRESH, grantRowHtml } from "./grant.js";
 import { renderChooser, resetChooser } from "./link-chooser.js";
@@ -120,6 +120,8 @@ export function createSubscriptionDialog(context) {
     const current = overview.subscription;
     const status = query("#subscription-status", root);
     const actions = query("#subscription-actions", root);
+    query("#subscription-status-details", root).open = !overview.configured || !current;
+    query(".subscription-warning", root).hidden = !liveGrants().some((grant) => ["mtproxy", "amneziawg"].includes(grant.protocol));
     // Подписка показывается, только если клиенту есть что по ней отдавать. У клиента с
     // одним MTProxy её нечем наполнить — вместо блока объяснение и ссылки ниже.
     // Уже выданная подписка остаётся на экране в любом случае: её нужно уметь отозвать.
@@ -165,9 +167,9 @@ export function createSubscriptionDialog(context) {
     } else if (!overview.escrowed) {
       show = '<small class="form-hint">Ссылка выдана до включения хранилища — выпустите новую, она будет доступна для показа.</small>';
     }
-    actions.innerHTML = `${show}
+    actions.innerHTML = `${show}${actionMenu(`
       <button type="button" class="secondary" data-subscription-action="rotate">Выпустить новую ссылку</button>
-      <button type="button" class="danger ghost" data-subscription-action="revoke">Отозвать</button>`;
+      <button type="button" class="danger ghost" data-subscription-action="revoke">Отозвать</button>`)}`;
   }
 
   function renderPlacementBox() {
@@ -337,6 +339,16 @@ export function createSubscriptionDialog(context) {
   // `reveal` may be a payload already in hand (the client was just created): shown at once.
   // `focus: "placement"` (the card's «Узлы и доступы», v0.11) lands the operator on the
   // node × protocol matrix instead of the subscription block at the top.
+  function selectPanel(name) {
+    const subscription = name === "subscription";
+    query("#client-subscription-panel", root).hidden = !subscription;
+    query(".placement-box", root).hidden = subscription;
+    queryAll("[data-client-panel]", root).forEach((button) => {
+      button.classList.toggle("active", button.dataset.clientPanel === name);
+      button.setAttribute("aria-selected", String(button.dataset.clientPanel === name));
+    });
+  }
+
   async function open(clientId, name, reveal = null, { focus = null } = {}) {
     state.generation += 1;
     const generation = state.generation;
@@ -346,6 +358,7 @@ export function createSubscriptionDialog(context) {
     state.reveal = reveal;
     query("#subscription-error", root).textContent = "";
     query("#placement-username", root).dataset.typed = "";
+    selectPanel(focus === "placement" ? "accesses" : "subscription");
     ui.openModal("#subscription-modal");
     try {
       await load();
@@ -517,6 +530,8 @@ export function createSubscriptionDialog(context) {
     const dialog = query("#subscription-modal", root);
     if (!dialog) return;
     dialog.addEventListener("click", (event) => {
+      const panel = event.target.closest("button[data-client-panel]");
+      if (panel) return selectPanel(panel.dataset.clientPanel);
       const subscription = event.target.closest("button[data-subscription-action]");
       if (subscription) return void act(subscription);
       const links = event.target.closest("button[data-links-action]");
@@ -556,7 +571,7 @@ export function createSubscriptionDialog(context) {
       // Nothing of the URL survives the window; the list behind it shows what changed.
       state.generation += 1;
       reset();
-      if (context.state.view === "clients") await context.navigate("clients");
+      if (context.state.view === "clients") await reloadClientList(context);
     });
   }
 
