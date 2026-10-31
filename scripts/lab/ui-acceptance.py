@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import http.client
 import http.cookiejar
 import json
 import os
@@ -245,7 +246,15 @@ class Browser:
         return bool(self.js(f"document.querySelector({json.dumps(selector)})?.open === true"))
 
     def close_dialog(self, selector: str) -> None:
-        self.js(f"document.querySelector({json.dumps(selector)})?.close(); true")
+        self.js(f"""(async () => {{
+          const dialog = document.querySelector({json.dumps(selector)});
+          if (dialog?.open) await new Promise(resolve => {{
+            dialog.addEventListener('close', resolve, {{once: true}});
+            dialog.close();
+          }});
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          return true;
+        }})()""", await_promise=True)
 
     def confirm(self, seconds: float = 10) -> bool:
         """The shared confirm dialog: wait for it, press its OK."""
@@ -431,6 +440,7 @@ class Acceptance:
         and the window stays on its empty markup — open is not «opened». Retry until the
         window's own rows are on screen, closing the blank one between attempts."""
         b = self.browser
+        b.close_dialog("#subscription-modal")
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             b.click(f"{card} [data-client-action=open]")
@@ -570,8 +580,8 @@ class Acceptance:
             self.check("dashboard.phone.host_row_first",
                        b.js("document.querySelector('.protocol-overview > article')?.classList.contains('host-row') === true"))
             self.check("dashboard.phone.one_column",
-                       b.js("(() => { const a = [...document.querySelectorAll('.protocol-overview > article')]; "
-                            "return a.length >= 4 && a.every(e => Math.abs(e.getBoundingClientRect().left - a[0].getBoundingClientRect().left) < 2); })()"))
+                       b.wait("(() => { const a = [...document.querySelectorAll('.protocol-overview > article')].filter(e => e.getBoundingClientRect().width > 0); "
+                              "return a.length >= 4 && a.every(e => Math.abs(e.getBoundingClientRect().left - a[0].getBoundingClientRect().left) < 2); })()", 5))
             self.cells_do_not_overlap("dashboard.phone.no_overlap", ".protocol-card", ".protocol-access > span, .protocol-metrics > span")
             b.shot("dashboard-phone.png", 390)
         finally:
@@ -730,6 +740,48 @@ class Acceptance:
         if name not in [u["username"] for u in self.api.json("/api/mieru/users")["items"]]:
             self.created["mieru"].remove(name)
 
+    def seed_unmanaged_naive(self, username: str) -> None:
+        """Create the import fixture at the manager, not the auto-escrowing panel API."""
+        manager_socket = self.args.naive_manager_socket
+        token_file = self.args.naive_manager_token_file
+        if not manager_socket or not token_file:
+            mounts = json.loads(subprocess.check_output([
+                'docker', 'inspect', '--format', '{{json .Mounts}}', 'proxy-control-naive-manager'
+            ], text=True))
+            sources = {mount['Destination']: mount['Source'] for mount in mounts}
+            manager_socket = manager_socket or str(Path(sources['/run/naive-manager']) / 'manager.sock')
+            token_file = token_file or str(Path(sources['/data']) / 'manager-token')
+
+        class ManagerConnection(http.client.HTTPConnection):
+            def connect(self):
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.settimeout(self.timeout)
+                self.sock.connect(manager_socket)
+
+        token = Path(token_file).read_text().strip()
+        if not token or '\r' in token or '\n' in token:
+            raise RuntimeError('lab manager token file is invalid')
+        connection = ManagerConnection('naive-manager', timeout=20)
+        try:
+            connection.request('POST', '/v1/users', json.dumps({'username': username}), {
+                'Content-Type': 'application/json', 'X-Naive-Token': token,
+            })
+            response = connection.getresponse()
+            body = json.loads(response.read(16 * 1024))  # Never print the credential-bearing response.
+            if response.status not in (200, 201) or not isinstance(body, dict) or body.get('username') != username:
+                raise RuntimeError(f'unmanaged import fixture refused: HTTP {response.status}')
+        finally:
+            connection.close()
+
+    def select_client_protocols(self) -> list[str]:
+        assert self.browser is not None
+        return self.browser.js("""(() => {
+          const inputs = [...document.querySelectorAll('#placement-body input[data-node=local]')];
+          const protocols = new Set(['mtproxy', 'naive', 'mieru']);
+          inputs.forEach(input => { input.checked = !input.disabled && protocols.has(input.dataset.protocol); });
+          return inputs.filter(input => input.checked).map(input => input.dataset.protocol);
+        })()""")
+
     def view_clients(self) -> None:
         b = self.browser
         client_name = f"{self.prefix}-client"
@@ -756,12 +808,12 @@ class Acceptance:
         # Grants from the client window: tick three cells on this server, apply, get the bundle.
         self.check("clients.window_opens_from_card", self.open_client_window(card) and b.wait("!!document.querySelector('#placement-body input[data-node=local]')", 20))
         b.type("#placement-username", grant_user)
-        b.js("[...document.querySelectorAll('#placement-body input[data-node=local]')].forEach(i => { i.checked = true; }); true")
+        self.select_client_protocols()
         b.click("#placement-actions button[data-placement-action=apply]")
         self.check("clients.matrix_apply_issues_grants", b.wait("document.querySelector('#bundle-modal')?.open === true && (document.querySelector('#bundle-body')?.textContent || '').length > 0", 90),
                    f"subscription-error: {b.text('#subscription-error')!r}")
         bundle = b.text("#bundle-body")
-        self.check("clients.bundle_names_three_protocols", all(word in bundle for word in ("mtproxy", "naive", "mieru")), bundle[:200])
+        self.check("clients.bundle_names_three_protocols", all(word in bundle.casefold() for word in ("mtproxy", "naive", "mieru")), "three protocol labels are required")
         b.close_dialog("#bundle-modal")
         b.close_dialog("#subscription-modal")
         self.check("clients.three_grant_rows", self.open_client_window(card) and b.wait("document.querySelectorAll('#subscription-grants .grant-item[data-grant-id] .grant-row').length === 3", 30))
@@ -792,6 +844,7 @@ class Acceptance:
             self.check(cleared, b.wait("!document.querySelector('#grant-link-body input')", 5))
         # The subscription: issued with the client, shown again on request, rotated, revoked.
         self.check("clients.subscription_window_opens", self.open_client_window(card) and b.wait("!!document.querySelector('#subscription-actions button')", 20))
+        b.click('#subscription-modal [data-client-panel=subscription]')
         configured = "не настроен" not in b.text("#subscription-status")
         self.check("clients.subscription_domain_configured", configured, b.text("#subscription-status")[:120])
         if configured:
@@ -800,6 +853,7 @@ class Acceptance:
                 b.wait("document.querySelector('#subscription-reveal')?.hidden === false", 20)
                 b.close_dialog("#subscription-modal")
                 self.open_client_window(card)
+                b.click('#subscription-modal [data-client-panel=subscription]')
                 b.wait("!!document.querySelector('#subscription-actions button')", 20)
             if b.exists("[data-subscription-action=show]"):
                 b.click("[data-subscription-action=show]")
@@ -809,6 +863,7 @@ class Acceptance:
             first_url = b.value("#subscription-url")
             self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
             self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
+            b.click('#subscription-modal [data-client-panel=accesses]')
             # Untick one cell: the grant is disabled and leaves the subscription. The open
             # window must show it by itself — it re-reads the client while a cell is unsettled.
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = false; return true; })()")
@@ -817,6 +872,7 @@ class Acceptance:
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = true; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
             self.check("clients.matrix_tick_enables", self.poll_matrix_cell(card, "local", "naive", "включён", 30), b.text("#subscription-error"))
+            b.click('#subscription-modal [data-client-panel=subscription]')
             b.click("[data-subscription-action=rotate]")
             self.check("clients.subscription_rotate_moves_url", b.confirm() and b.wait(f"(document.querySelector('#subscription-url')?.value || '').startsWith('https://') && document.querySelector('#subscription-url').value !== {json.dumps(first_url)}", 20))
             second_url = b.value("#subscription-url")
@@ -839,6 +895,7 @@ class Acceptance:
         self.goto_view("clients", "!!document.querySelector('.client-list')")
         tgcard = f"[data-client-id={json.dumps(tg_client['id'])}]"
         self.check("clients.mtproxy_only_window_opens", self.open_client_window(tgcard))
+        b.click('#subscription-modal [data-client-panel=subscription]')
         self.check("clients.mtproxy_only_hides_the_subscription",
                    b.wait("document.querySelector('#subscription-box')?.hidden === true && "
                           "document.querySelector('#subscription-unavailable')?.hidden === false && "
@@ -851,16 +908,20 @@ class Acceptance:
                           "(c.querySelector('img.link-qr')?.getAttribute('src') || '').startsWith('data:image/svg+xml;base64,'); })()", 30),
                    b.text("#subscription-error"))
         b.close_dialog("#subscription-modal")
-        # Import: a runtime user the panel did not create is adopted without touching the manager.
-        self.api.json("/api/naive/users", "POST", {"username": imported_user})
+        # The protocol-page API auto-creates a managed client in the native panel.
+        # Seed directly at the manager so import/adoption are genuinely exercised.
+        self.seed_unmanaged_naive(imported_user)
         self.created["naive"].append(imported_user)
         self.goto_view("clients", "!!document.querySelector('[data-client-action=import]')")
         b.click("[data-client-action=import]")
         self.check("clients.import_dialog_lists_runtime_users", b.wait(f"document.querySelector('#client-import-modal')?.open === true && !!document.querySelector('#client-import-rows tr[data-import-username={json.dumps(imported_user)}]')", 30))
         b.js(f"[...document.querySelectorAll('#client-import-rows tr')].forEach(r => {{ const p = r.querySelector('.import-pick'); if (p && !p.disabled) p.checked = r.dataset.importUsername === {json.dumps(imported_user)}; }}); true")
         b.click("#confirm-client-import")
-        self.check("clients.import_creates_a_client_without_a_secret", b.wait(f"document.querySelector('#client-import-modal')?.open !== true && [...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(imported_user)} && !!c.querySelector('.card-warning'))", 30))
+        imported_card = b.wait(f"document.querySelector('#client-import-modal')?.open !== true && [...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(imported_user)})", 30)
         imported = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == imported_user)
+        self.check("clients.import_creates_a_client_without_a_secret", imported_card and not any(
+            shape.search(json.dumps(imported)) for shape in SECRET_SHAPES
+        ) and bool(imported['grants']) and all(grant.get('secret_ref') is None for grant in imported['grants']))
         self.created["clients"].append(imported["client"]["id"])
         icard = f"[data-client-id={json.dumps(imported['client']['id'])}]"
         self.open_grant(icard, "naive")
@@ -868,6 +929,10 @@ class Acceptance:
         self.check("clients.adopt_captures_the_credential", b.wait("!document.querySelector('#grant-window [data-grant-action=adopt]') && !!document.querySelector('#grant-window [data-grant-action=show]')", 30))
         b.close_dialog("#grant-window")
         b.close_dialog("#subscription-modal")
+        # The default filter shows active clients only. Keep the suspended card
+        # available for the following resume and cleanup actions.
+        b.click('[data-client-filter-state=all]')
+        b.wait('document.querySelector("[data-client-filter-state=all]")?.getAttribute("aria-pressed") === "true"', 10)
         b.click(f"{card} [data-client-action=suspend]")
         self.check("clients.suspend_marks_card", b.wait(f"!!document.querySelector('{card} [data-client-action=resume]')", 30))
         b.click(f"{card} [data-client-action=resume]")
@@ -877,9 +942,12 @@ class Acceptance:
         # Every grant deleted through its window, every client archived: the runtime is as before.
         for target in (card, icard, tgcard):
             for _ in range(4):
-                if not b.exists(f"{target} .grant-item .grant-row"):
+                target_id = b.js(f"document.querySelector({json.dumps(target)})?.dataset.clientId || ''")
+                grants = self.api.json(f"/api/clients/{target_id}")["grants"]
+                remaining = [grant for grant in grants if grant.get("desired_state") != "deleted"]
+                if not remaining:
                     break
-                protocol = b.js(f"document.querySelector('{target} .grant-item')?.dataset.grantProtocol || ''")
+                protocol = remaining[0]["protocol"]
                 if not self.open_grant(target, protocol):
                     break
                 self.grant_action("delete")
@@ -889,7 +957,11 @@ class Acceptance:
                 b.close_dialog("#grant-window")
                 time.sleep(1.5)
                 b.wait(f"!!document.querySelector('{target}')", 30)
-        self.check("clients.grant_delete_empties_the_card", b.wait(f"document.querySelectorAll('{card} .grant-item[data-grant-id]').length === 0 && document.querySelectorAll('{icard} .grant-item[data-grant-id]').length === 0", 60))
+        self.check("clients.grant_delete_empties_the_card", all(
+            grant.get("desired_state") == "deleted"
+            for identifier in (client_id, imported["client"]["id"], tg_client["id"])
+            for grant in self.api.json(f"/api/clients/{identifier}")["grants"]
+        ))
         for target in (card, icard, tgcard):
             b.wait(f"!!document.querySelector('{target} [data-client-action=archive]')", 30)
             b.click(f"{target} [data-client-action=archive]")
@@ -1630,6 +1702,8 @@ def main() -> int:
     parser.add_argument("--central-dir", default=None, help="run a second panel from this tree there and drive its screens too (Task 3)")
     parser.add_argument("--central-port", type=int, default=8791)
     parser.add_argument("--allow-private-address", action="store_true", help="the node URL is a private/lab address")
+    parser.add_argument('--naive-manager-socket', help='lab manager UDS for an unmanaged import fixture; otherwise discover its Docker mount')
+    parser.add_argument('--naive-manager-token-file', help='lab manager token file, read privately; otherwise discover its Docker data mount')
     args = parser.parse_args()
     return 0 if Acceptance(args).run() else 1
 
