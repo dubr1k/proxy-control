@@ -22,6 +22,7 @@ use panel_model::seams::{CaptureItem, CapturePurpose, NodeClient, NodeError, Sea
 use panel_secrets::keyring::Keyring;
 use panel_secrets::secrets_store::{Identity, SecretError, SecretStore};
 use serde_json::{json, Map, Value};
+use tokio::sync::Semaphore;
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -64,6 +65,7 @@ struct NodeState {
 
 struct FakeNode {
     state: Mutex<NodeState>,
+    gate: Option<Arc<Semaphore>>,
 }
 
 impl FakeNode {
@@ -88,11 +90,17 @@ impl FakeNode {
                 calls: 0,
                 timeouts: Vec::new(),
             }),
+            gate: None,
         }
     }
 
     fn delayed(mut self, delay: Duration) -> Self {
         self.state.get_mut().unwrap_or_else(|poisoned| poisoned.into_inner()).delay = delay;
+        self
+    }
+
+    fn gated(mut self, gate: Arc<Semaphore>) -> Self {
+        self.gate = Some(gate);
         self
     }
 
@@ -157,6 +165,9 @@ impl FakeClient {
             state.delay
         };
         let _active = self.counters.start();
+        if let Some(gate) = &self.node.gate {
+            gate.acquire().await.expect("test gate remains open").forget();
+        }
         if !delay.is_zero() {
             tokio::time::sleep(delay).await;
         }
@@ -547,16 +558,42 @@ async fn cancelling_one_caller_does_not_cancel_the_shared_request() {
 
 #[tokio::test]
 async fn live_fan_out_caps_node_calls_at_eight() {
-    let nodes = (0..20)
-        .map(|index| (format!("n{index}"), FakeNode::new().delayed(Duration::from_millis(30))))
-        .collect::<Vec<_>>();
-    let harness = Harness::new(nodes);
+    assert_eq!(CONCURRENCY, 8, "the production metrics concurrency contract is eight");
+    // Hold calls until all slots are occupied; elapsed time cannot prove saturation
+    // when SQLite metadata/client setup runs on the blocking pool before each call.
+    let gate = Arc::new(Semaphore::new(0));
+    let nodes = (0..20).map(|index| (format!("n{index}"), FakeNode::new().gated(gate.clone()))).collect::<Vec<_>>();
+    let harness = Harness::with(
+        nodes,
+        true,
+        &["metrics.v1"],
+        SourceOptions { call_timeout: Duration::from_secs(30), ..SourceOptions::default() },
+    );
     let node_ids = harness.nodes.keys().map(String::as_str).collect::<Vec<_>>();
+    let items = metrics_nodes(&node_ids);
+    let source = harness.source.clone();
+    let request = tokio::spawn(async move { source.live_many(&items, Duration::from_secs(30)).await });
 
-    let got = live_many(&harness, &node_ids, Duration::from_secs(5)).await;
-    assert_eq!(got.len(), 20);
-    assert!(got.iter().all(|entry| entry["status"] == "ok"));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while harness.counters.active.load(Ordering::SeqCst) < 8 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("all eight metrics slots must become active");
+    assert_eq!(harness.counters.active.load(Ordering::SeqCst), 8);
     assert_eq!(harness.counters.peak.load(Ordering::SeqCst), 8);
+    gate.add_permits(20);
+
+    let got = tokio::time::timeout(Duration::from_secs(10), request)
+        .await
+        .expect("all node calls must finish after opening the gate")
+        .expect("fan-out task completes");
+    assert_eq!(got.len(), 20);
+    assert!(got.iter().all(|entry| entry.as_ref().expect("live entry")["status"] == "ok"));
+    assert_eq!(harness.counters.peak.load(Ordering::SeqCst), 8);
+    assert_eq!(harness.nodes.values().map(|node| node.calls()).sum::<usize>(), 20);
+    assert_eq!(harness.counters.active.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
