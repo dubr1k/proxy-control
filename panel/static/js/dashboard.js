@@ -105,7 +105,7 @@ function hostCard(host, when = new Date()) {
   const strained = strainedBy(host);
   return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}" ${stamp} data-host-shape="${hostShape(host)}">
     <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}" data-host-pill><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
-    <p class="protocol-note"><span data-host-load>${esc(loadLine(cpu))}</span> · ${freshness(host, when)} · <a class="mon-link" href="#monitoring">Подробнее в мониторинге</a></p>
+    <p class="protocol-note host-status-line"><span data-host-load>${esc(loadLine(cpu))}</span><span class="host-status-freshness">${freshness(host, when)}</span><span><a class="mon-link" href="#monitoring">Подробнее в мониторинге</a></span></p>
     <div class="protocol-metrics host-metrics">
       ${hostRow("cpu", "Загрузка CPU", cpu, cpuDetail(host))}
       ${hostRow("memory", "Оперативная память", memory, memoryDetail(memory), swapLine(swap))}

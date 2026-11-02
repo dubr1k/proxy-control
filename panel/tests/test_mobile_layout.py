@@ -997,6 +997,46 @@ def test_native_versions_panel_first_and_agent_manager_versions(native_ui):
     browser.shot("native-versions-panel-first-1440.png")
 
 
+@pytest.mark.parametrize("monitoring", [True, False])
+def test_native_host_status_line_aligns_text_indicator_and_monitor_link(native_ui, monitoring):
+    browser = native_ui(monitoring=monitoring)
+    browser.open_view("dashboard", "!!document.querySelector('.host-card [data-host-load]')")
+    if monitoring:
+        browser.wait("!!document.querySelector('.host-card .live-badge')", "live status")
+    for width in (1440, 960, 390, 320):
+        browser.dt.call("Emulation.setDeviceMetricsOverride", {
+            "width": width, "height": 900, "deviceScaleFactor": 1, "mobile": width < 600,
+        })
+        assert browser.js("""(() => {
+          const line = document.querySelector('.host-card [data-host-load]').parentElement;
+          const textBox = node => {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            return range.getBoundingClientRect();
+          };
+          const load = textBox(line.querySelector('[data-host-load]'));
+          const fresh = line.querySelector('[data-host-fresh]');
+          const freshText = textBox(fresh.lastChild);
+          const link = textBox(line.querySelector('.mon-link'));
+          const center = box => (box.top + box.bottom) / 2;
+          const boxes = [load, freshText, link];
+          for (let i = 0; i < boxes.length; i++) {
+            for (let j = i + 1; j < boxes.length; j++) {
+              if (Math.abs(boxes[i].top - boxes[j].top) < 8 &&
+                  Math.abs(center(boxes[i]) - center(boxes[j])) > 1) return false;
+            }
+          }
+          const dot = fresh.querySelector('i');
+          if (dot && Math.abs(center(dot.getBoundingClientRect()) - center(freshText)) > 1) return false;
+          const outer = line.getBoundingClientRect();
+          return boxes.every(box => box.left >= outer.left - 1 && box.right <= outer.right + 1) &&
+            document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1;
+        })()"""), f"host status alignment at {width}px, monitoring={monitoring}"
+        if width in (1440, 390):
+            browser.shot(f"native-host-status-aligned-{'live' if monitoring else 'poll'}-{width}.png")
+    browser.healthy()
+
+
 def test_native_overview_every_stream_snapshot_repaints_in_place_without_host_poll(native_ui):
     browser = native_ui()
     browser.open_view("dashboard", "!!document.querySelector('.host-card [data-host-value=cpu]')")

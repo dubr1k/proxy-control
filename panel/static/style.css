@@ -717,6 +717,10 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 .host-card .usage-bar>i{transition:width .8s ease}
 .host-card .live-badge{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:inherit;font-size:inherit;white-space:nowrap}
 .host-card .live-badge>i{width:6px;height:6px;border-radius:50%;background:var(--green);animation:live-pulse 1.8s ease-out infinite}
+.host-card .host-status-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;line-height:18px}
+.host-status-line>span{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.host-status-line>span+span::before{content:"·";color:var(--quiet)}
+@media(max-width:640px){.host-status-line>span+span::before{display:none}}
 @media(prefers-reduced-motion:reduce){.host-card .usage-bar>i{transition:none}}
 /* 3.2 Versions: a long component name («AmneziaWG / amneziawg-go») wraps instead of running under the pill */
 .version-card .panel-head{gap:10px}
