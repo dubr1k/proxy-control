@@ -507,7 +507,7 @@ function paintProtocols(context, protocols, ring, single) {
         { values: ring.v[`${proto}.up_bps`] || [], cls: `ser-${proto}`, dash: true, noArea: true, label: "↑" },
       ],
     });
-    setText(card, "[data-foot]", `Источник: ${entry.partial ? "ядро и менеджер" : entry.source === "manager" ? "менеджер" : "ядро"}${entry.partial ? " · часть узлов без счётчиков ядра" : ""}`);
+    setText(card, "[data-foot]", `Источник: ${entry.partial ? "ядро и менеджер" : entry.source === "manager" ? "менеджер" : "ядро"}${entry.partial ? " · часть узлов без счётчиков ядра" : ""}${proto === "naive" && (entry.partial || ["kernel", "ядро"].includes(entry.source)) ? " · включая служебные проверки" : ""}`);
   }
 }
 

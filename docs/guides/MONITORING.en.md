@@ -97,6 +97,9 @@ and the card falls back to «Сессий». History keeps it as `<protocol>.con
   (polled every 15 seconds, even while the kernel counts the port): Caddy's log is written when a
   tunnel closes, so a client's row is a 60-second average over finished connections, with
   `live: false` and the mark «from finished». These are real volumes, not a running meter.
+  The port counter includes service HTTPS traffic: the Naive healthcheck requests the cover site
+  every 20 seconds. Small spikes are therefore possible without client tunnels; the graph retains
+  previous samples while the rate number shows the current sample.
 - **Mieru** — the total rate from the kernel (UDP too). The **per-client** rates are live from mita's
   counters (`mita get metrics`, served by the manager on `/v1/traffic`; with lanes the running slots
   are added up), polled every 5 seconds, split into ↑ and ↓. Mieru has no per-client sessions. mita's

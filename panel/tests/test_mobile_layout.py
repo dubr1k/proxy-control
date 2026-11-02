@@ -1309,3 +1309,43 @@ def test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, l
     browser.wait("""!document.querySelector('#grant-link-body input, #grant-link-body textarea, #grant-link-body img')""",
                  "grant close clears credential artifacts")
     browser.healthy()
+
+
+def test_native_naive_kernel_card_explains_background_traffic(native_ui):
+    browser = native_ui()
+    browser.fixture.agent.set_protocol("naive", 0, 0)
+    browser.fixture.sample(12.5, 40, 30)
+    browser.open_view("monitoring", "!!document.querySelector('[data-proto=naive] [data-foot]')", width=320)
+    browser.wait("document.querySelector('[data-proto=naive] [data-foot]').textContent.includes('служебные проверки')",
+                 "kernel traffic explanation")
+    assert browser.js("!document.querySelector('[data-proto=naive] [data-spark]').hidden")
+    browser.healthy()
+
+
+@pytest.mark.parametrize("width", [320, 390])
+def test_native_monitoring_node_names_and_access_heading_fit_phone(native_ui, width):
+    browser = native_ui()
+    browser.open_view("monitoring", "!!document.querySelector('[data-live-content]')", width=width)
+    # Isolate CSS stress cases using the same markup as the monitor's node strip
+    # with a stale badge; no user data or credentials enter the browser.
+    result = browser.js("""(() => {
+      const root = document.querySelector('[data-live-content]');
+      const probe = document.createElement('section');
+      probe.innerHTML = `<article class="mon-strip-node"><header><b>${'node-'.repeat(20)}</b>
+        <em class="mon-pill warn">данные устарели · 15 мин</em></header></article>`;
+      root.append(probe);
+      const fits = el => {const r = el.getBoundingClientRect();
+        return r.left >= -1 && r.right <= innerWidth + 1 && el.scrollWidth <= el.clientWidth + 1;};
+      const namesFit = [...probe.querySelectorAll('header,header>b')].every(fits);
+      probe.remove();
+      const dialog = document.querySelector('#bundle-modal');
+      dialog.showModal();
+      const heading = dialog.querySelector('.modal-head');
+      const title = heading.querySelector('h2').getBoundingClientRect();
+      const actions = heading.querySelector('.modal-head-actions').getBoundingClientRect();
+      const headingFits = fits(heading) && (title.bottom <= actions.top + 1 || title.right <= actions.left + 1);
+      dialog.close();
+      return {namesFit, headingFits};
+    })()""")
+    assert result == {"namesFit": True, "headingFits": True}, result
+    browser.healthy()
