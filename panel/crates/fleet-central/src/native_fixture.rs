@@ -286,7 +286,10 @@ impl NodeClient for Session {
                 };
                 if observed != ObservedState::Missing && !failed {
                     if let Some(value) = request.secrets.get(&resource.credential_ref) {
-                        let value = if resource.protocol == Protocol::Mtproxy && !value.starts_with("ee") {
+                        let value = if resource.protocol == Protocol::Mtproxy
+                            && value.len() == 32
+                            && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                        {
                             format!("ee{value}")
                         } else {
                             value.clone()

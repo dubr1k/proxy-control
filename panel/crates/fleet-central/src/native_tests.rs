@@ -550,6 +550,30 @@ async fn lost_push_reply_replays_generation_and_escrows_reframed_credential_afte
 }
 
 #[tokio::test]
+async fn node_fixture_distinguishes_raw_ee_secret_from_fake_tls_prefix() {
+    let rig = Rig::new();
+    rig.link(false).await;
+    rig.provision(Protocol::Mtproxy, "alice").await;
+    rig.pusher.tick().await.unwrap();
+    let mut request = rig.node.state.lock().unwrap().pushes[0].clone();
+    let reference = request.generation.resources[0].credential_ref.clone();
+    let client = rig.links.client_for(EDGE).unwrap();
+    // A raw 16-byte secret may itself start with 0xee. Only its full
+    // representation distinguishes that byte from the Fake-TLS prefix.
+    for (input, expected) in [
+        ("00112233445566778899aabbccddeeff", "ee00112233445566778899aabbccddeeff"),
+        ("ee112233445566778899aabbccddeeff", "eeee112233445566778899aabbccddeeff"),
+        ("ee00112233445566778899aabbccddeeff", "ee00112233445566778899aabbccddeeff"),
+        ("eeee112233445566778899aabbccddeeff", "eeee112233445566778899aabbccddeeff"),
+    ] {
+        request.secrets.insert(reference.clone(), input.into());
+        let (_, response) = client.push(&request).await.unwrap();
+        assert_eq!(response.credentials[&reference], expected);
+        assert_eq!(rig.node.state.lock().unwrap().credentials["mtproxy:alice"], expected);
+    }
+}
+
+#[tokio::test]
 async fn failed_capture_timeout_or_500_keeps_manager_version_pending_and_node_online() {
     for error in [NodeError::Unreachable("ReadTimeout".into()), rejected(500, "sensitive manager response")] {
         let rig = Rig::new();

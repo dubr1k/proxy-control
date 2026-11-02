@@ -4,6 +4,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Tests
+- Make the Fleet test node distinguish raw MTProxy secrets from the Fake-TLS prefix by their complete format, including raw secrets starting with `ee`. Add a deterministic regression for credential capture and replay.
+
 ### Interface
 - Redesign the browser subscription page with a personal header, connection steps, compact app and access cards, light/dark themes and mobile layouts. Copy, import and QR actions keep their existing URLs and formats; only the HTML cache version changes.
 
