@@ -1,8 +1,9 @@
 name: Release
 
-# Acceptance is on the disposable lab host (`scripts/dev/remote-gate.sh full|compose|
-# lab-container|lab-host` on ams-test): the release is installed and probed with real
-# protocol clients there. CI independently checks release packaging and native host crates,
+# Acceptance uses the targeted checks selected in AGENTS.md on ams-test, with
+# isolated candidate state and real protocol probes for the affected boundary.
+# Destructive lab-host scenarios require an explicitly disposable guest; never
+# reset the live ams-test host. CI independently checks packaging and native crates,
 # rebuilds the tagged commit twice, and refuses any archive digest other than the one
 # accepted by the lab (`expected_sha256`). Provenance is attested before publication.
 # The project targets x86-64 VPS hosts, the only architecture the installer accepts.

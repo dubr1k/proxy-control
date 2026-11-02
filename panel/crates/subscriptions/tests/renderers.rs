@@ -189,6 +189,47 @@ fn html_escapes_values_and_has_only_inline_assets() {
 }
 
 #[test]
+fn landing_page_counts_only_usable_accesses_and_keeps_details_closed() {
+    let (manifest, artifacts) = fixture();
+    let options = RenderOptions { url: "https://sub.example.com/s/TOKEN".into(), ..RenderOptions::default() };
+    let page = text(Format::Html, &manifest, &artifacts, &options);
+    // The fixture has six usable grants, two disabled grants and one without a credential.
+    let available = 6;
+    assert!(page.contains("<h1>Sergey &lt;b&gt;&amp;&lt;/b&gt;</h1>"));
+    assert!(page.contains(&format!("data-available-count=\"{available}\"")));
+    assert!(page.contains("href=\"#connect\"") && page.contains("id=\"connect\""));
+    assert!(page.contains("href=\"#accesses\"") && page.contains("id=\"accesses\""));
+    assert!(page.contains("<details class=\"app\"><summary>"));
+    assert!(page.contains("class=\"access-state off\">Отключён</span>"));
+    assert!(page.contains("class=\"access-state unavailable\">Недоступен</span>"));
+    assert!(!page.contains("<details class=\"app\" open") && !page.contains("<details class=\"card\" open"));
+    assert!(!page.contains("no stored credential"), "internal credential state needs a readable explanation");
+}
+
+#[test]
+fn landing_page_empty_state_is_localized_and_has_no_connect_action() {
+    let (mut manifest, _) = fixture();
+    manifest.grants.clear();
+    for (lang, message) in [("ru", "Доступов пока нет"), ("en", "No accesses yet")] {
+        let options = RenderOptions { lang: lang.into(), ..RenderOptions::default() };
+        let page = text(Format::Html, &manifest, &Artifacts::new(), &options);
+        assert!(page.contains(message));
+        assert!(page.contains("data-available-count=\"0\""));
+        assert!(!page.contains("href=\"#connect\"") && !page.contains("id=\"connect\""));
+        assert!(!page.contains("data-copy="));
+    }
+}
+
+#[test]
+fn landing_page_refreshes_html_cache_without_changing_machine_feed_versions() {
+    assert_eq!(Format::Html.version(), 6);
+    assert_eq!(Format::Manifest.version(), 3);
+    assert_eq!(Format::Singbox.version(), 4);
+    assert_eq!(Format::Clash.version(), 2);
+    assert_eq!(Format::Raw.version(), 2);
+}
+
+#[test]
 fn a_body_over_the_size_limit_is_refused_not_truncated() {
     let (manifest, artifacts) = fixture();
     let options = RenderOptions { max_bytes: 64, ..RenderOptions::default() };

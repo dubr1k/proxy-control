@@ -222,12 +222,15 @@ minute per client address, across all tokens. The token is stored as a hash, nev
 logged (the native panel emits no request access log, and the subscription Nginx block has `access_log off`) and
 never written to the audit trail.
 
-The `html` format is a page for the client themselves, not for an administrator. It opens with
-a choice of app: each has an "Add to …" button (only where the app's own documentation confirms
-the open scheme) or a link to paste and the address to get the app from, and it says what the app
-will and will not receive. Links copy with one button, the QR code is shown on demand, and each
-access is a collapsed "protocol · domain/login" section without a node name. The language is
-`?lang=en` (Russian by default). AmneziaWG is not part of the subscription or this page.
+The `html` page is for the client themselves. It opens with their name and the
+number of available connections. App cards start collapsed: expand the chosen app
+to copy its subscription link, import it (where the app's open scheme is confirmed)
+or display a QR code. Each card lists compatible connections and links to the app.
+Individual accesses are also collapsed "protocol · domain/login" sections without
+a node name. The page adapts to phones and supports light and dark themes; its
+language is `?lang=en` (Russian by default). Presentation does not change the token,
+subscription formats or app compatibility. AmneziaWG is not part of the subscription
+or this page.
 
 ## The Overview screen
 

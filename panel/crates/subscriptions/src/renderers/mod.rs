@@ -62,7 +62,7 @@ impl Format {
             Format::Singbox => 4,
             Format::Clash => 2,
             Format::Raw => 2,
-            Format::Html => 5,
+            Format::Html => 6,
         }
     }
 }

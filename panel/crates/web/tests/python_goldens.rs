@@ -56,7 +56,8 @@ fn file_response_stat_headers_match_python() {
 }
 
 #[test]
-fn subscription_csp_is_pythons() {
+fn subscription_csp_matches_the_page_assets_and_recorded_contract() {
+    assert_eq!(panel_web::server::SUBSCRIPTION_CSP, panel_subscriptions::page_assets::csp());
     assert_eq!(
         fixture("python_constants.json")["subscription_csp"].as_str().unwrap(),
         panel_web::server::SUBSCRIPTION_CSP

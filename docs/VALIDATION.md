@@ -2,9 +2,20 @@
 
 ## Required repository gates
 
-Run native builds and runtime checks on the disposable Ubuntu host, not a production node.
-The commands below assume its root shell: the installer ownership tests intentionally
-require real root permissions. Python is the external controller only.
+Run native builds and selected checks on the Ubuntu test host `ams-test`, not a
+production node. `ams-test` is a live test host with installed services and data,
+not a disposable machine. Use an isolated working copy, candidate image tags and
+test-owned state; commands needing real root permissions still require review of
+their host effects. Python is the external controller only. The commands below
+are the repository suite reference, not a direction to run every tier before a
+release.
+
+The release gate is selected for the actual change under the current
+[agent protocol](../AGENTS.md): targeted native tests and scenarios on `ams-test`,
+with commands, revision, results and limitations recorded. The full external
+suite and destructive `lab-host` are not mandatory pre-release gates. QEMU runs
+only on an explicit assignment. Destructive installation/removal scenarios belong
+only on an explicitly disposable guest, never directly on `ams-test`.
 
 ```sh
 set -Eeuo pipefail
@@ -76,10 +87,16 @@ shared libraries and installation acceptance clients remain. Shipped Markdown li
 omitted tracked material point to the exact source commit on GitHub. Archive and SBOM
 hashes describe the resulting bytes, including those adjusted documentation links.
 
-## Lab tiers on the disposable host
+## Available tiers and host boundaries
 
-`scripts/dev/remote-gate.sh <tier>` syncs the working tree to the lab host (`ams-test` by
-default; production hosts are refused) and runs one tier there.
+`scripts/dev/remote-gate.sh <tier>` syncs the working tree to `LAB_HOST` (`ams-test`
+by default; known production aliases are refused) and runs one tier there. That
+alias refusal does not establish that a host is disposable. In particular,
+`lab-host` destroys the selected host's installation; `LAB_RESET=1` is consent to
+that reset, not isolation. Never invoke that tier with its default host. Choose
+it only for an explicitly disposable guest via `LAB_HOST`, after verifying the
+actual target. The available harness tiers below are not a mandatory release
+sequence.
 
 Sync uses checksums without preserving workstation timestamps. Changed source receives
 the stand's write time instead of an older workstation time, avoiding stale Cargo output
@@ -92,7 +109,7 @@ environment/secret fixtures below the test directories are retained.
 | `full` | native prerequisites, complete external pytest suite, image builds, doc links, JS syntax, shellcheck, unit files | same |
 | `compose` | every supported Compose model renders; native images build | same |
 | `lab-container` | the release archive installs into a fresh Ubuntu 24.04 container (audit → plan → coexistence) | `scripts/lab/docker_lab.py` |
-| `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on the bare host: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | source-side `scripts/lab/guest-runner.sh host`, with `LAB_RELEASE_ROOT` pointing at the extracted archive |
+| `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on an explicitly disposable guest: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | source-side `scripts/lab/guest-runner.sh host`, with `LAB_RELEASE_ROOT` pointing at the extracted archive |
 | `fleet` | Fleet v2 end-to-end scenarios against the installed node, a native Rust central and a second independently hosted native panel (Node B) | `scripts/lab/fleet-acceptance.py` |
 
 The `fleet` scenario starts a separate native central from `--panel-bin PATH` or copies
@@ -105,15 +122,16 @@ and unlink. Inside `lab-host` the fleet case runs from the release bytes. A prev
 Python-central result is not evidence for this native boundary: require a fresh
 successful native run and retain the report without exposing credentials or links.
 
-```sh
-LAB_RESET=1 LAB_KEEP_INSTALL=1 scripts/dev/remote-gate.sh lab-host   # REMOTE_GATE_LAB_HOST_OK
-scripts/dev/remote-gate.sh fleet                                     # FLEET_ACCEPTANCE_OK, REMOTE_GATE_FLEET_OK
-```
+A targeted Fleet run on an approved installed test node uses
+`scripts/dev/remote-gate.sh fleet`; it mutates test-owned resources, so select and
+review its scenarios for the change. For a separately authorised destructive
+host-lab run, `LAB_HOST` must name an explicitly disposable guest; do not copy
+`LAB_RESET=1` commands onto the live `ams-test` host.
 
 Both `quick` and `full` prepare the test-hooks Rust panel and native installer and
 version-agent using the same Cargo commands and canonical binary locations as CI.
 `PANEL_RUST_BIN`, `PC_INSTALLER_BIN` and `PC_VERSION_AGENT_BIN` may identify already
-built **Linux** binaries on the disposable host; they do not select a Python runtime.
+built **Linux** binaries on the selected test host; they do not select a Python runtime.
 Quick accepts positional test files, but `-k`/`-m` deselection and any collection or
 runtime skip fail the gate. Python runs only as the external test/lab controller.
 
@@ -123,8 +141,6 @@ Focused native browser and sampler proofs (run on ams-test with its external ven
 PANEL_RUST_BIN=/path/to/test-hooks/panel .venv/bin/python scripts/lab/ui_awg_check.py
 PANEL_RUST_BIN=/path/to/test-hooks/panel .venv/bin/python scripts/lab/ui_protocol_dialog_check.py
 PC_VERSION_AGENT_BIN=/path/to/proxy-control-version-agent .venv/bin/python scripts/lab/agent-metrics-check.py --perf 5
-PC_MANAGED_XUI_LIVE=ams-test PC_INSTALLER_BIN=/path/to/proxy-control-installer \
-  bash scripts/lab/managed-xui-acceptance.sh
 ```
 
 `ui_awg_check.py` uses fresh SQLite/key/profile files, a native panel process and
@@ -139,15 +155,20 @@ The sampler proof uses real native-agent HTTP and nft counters in private mount
 and network namespaces. The managed 3x-ui proof is an explicitly destructive native
 integration test (`real_managed_three_xui_native_provision`), not a Python adapter
 import: it stages the pinned upstream bytes and verifies the database, TLS HTTP
-API, effective Xray config and actual inbound listeners. It needs a clean test host
-and Cargo unless `PC_MANAGED_XUI_TEST_BIN` points at its prebuilt test executable.
+API, effective Xray config and actual inbound listeners. Run
+`scripts/lab/managed-xui-acceptance.sh` only inside an explicitly disposable clean
+guest, with Cargo unless `PC_MANAGED_XUI_TEST_BIN` names its prebuilt executable.
+Its legacy acknowledgement `PC_MANAGED_XUI_LIVE=ams-test` is a literal guard value,
+not target selection or permission to run it on the live host named `ams-test`.
 An unavailable pinned upstream archive is a blocker, not evidence from a fixture.
 
 `LAB_KEEP_INSTALL=1` leaves the installed node running for the `fleet` tier, but
 reports `uninstall` and `coexistence` as `skipped`. This is **not** a full `lab-host`
-gate: run `LAB_RESET=1 scripts/dev/remote-gate.sh lab-host` separately without
-`LAB_KEEP_INSTALL` and require both checks to pass. The lab certificates are valid
-for two days; a kept install older than that needs a fresh `LAB_RESET=1 … lab-host`.
+result: if full host-lab acceptance was explicitly requested, run it separately
+without `LAB_KEEP_INSTALL` on the same explicitly disposable guest and require
+both checks to pass. The lab certificates are valid for two days; a kept lab
+installation older than that needs fresh certificates or a new run on its
+disposable guest. This is not permission to reset a live test host.
 Runtime usernames the scenario creates carry a per-run suffix because the Naive
 and Mieru managers retire deleted names for good.
 
@@ -159,4 +180,13 @@ Validate Nginx before reload, public listener ownership, all adjacent SNI routes
 
 Telemt/MTProto, NaiveProxy/Caddy and Mieru/mita have each passed live end-to-end protocol probes on an operator-controlled deployment, including manager health and panel integration. This evidence does not make host-specific credentials, names, addresses or logs public and does not replace validation on a new target host.
 
-Installer, deployment and installed-component changes require a fresh `lab-host` run against the archive under review. The existence of the QEMU/container/host harness is not evidence that a particular revision passed. Keep a per-revision record of commands, archive digest, exits, skips and the tested host class; an earlier release's results do not satisfy this gate. An installed Fleet v1 service requires a separate explicit migration with backups, not a skipped or silent replacement during a panel update.
+Installer, deployment and installed-component changes require targeted scenarios
+covering the changed boundary against the candidate bytes on the approved test
+stand, with backups and rollback for any live-host mutation. They do not
+implicitly require a full or destructive host-lab cycle. Run destructive
+fresh-install, uninstall or reset scenarios only in an explicitly disposable
+guest, and QEMU only by explicit assignment. The existence of the harness is not
+evidence that a revision passed. Record commands, revision, archive digest where
+applicable, exits, skips and host class; earlier results do not prove the current
+candidate. An installed Fleet v1 service requires a separate explicit migration
+with backups, not a skipped or silent replacement during a panel update.

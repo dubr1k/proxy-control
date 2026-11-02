@@ -38,6 +38,8 @@ fn success(name: &str) -> Value {
 struct Rig {
     dir: TempDir,
     runner: Arc<RecordingRunner>,
+    caddy_version: Arc<Mutex<String>>,
+    caddy_modules: Arc<Mutex<String>>,
     context: AdapterContext,
     fail: Arc<Mutex<Option<String>>>,
     lane_status: Arc<Mutex<Option<String>>>,
@@ -51,6 +53,10 @@ impl Rig {
     fn new() -> Self {
         let dir = TempDir::new("proxy-adapters");
         let root = dir.path().to_path_buf();
+        let caddy_version = Arc::new(Mutex::new(super::naive::CADDY_VERSION.to_string()));
+        let reported_version = caddy_version.clone();
+        let caddy_modules = Arc::new(Mutex::new("http.handlers.forward_proxy\n".to_string()));
+        let reported_modules = caddy_modules.clone();
         let fail = Arc::new(Mutex::new(None::<String>));
         let flags = fail.clone();
         let lane_status = Arc::new(Mutex::new(None::<String>));
@@ -107,14 +113,15 @@ impl Rig {
                 return Some(Reply::ok(&format!("LISTEN 0 128 127.0.0.1:{port} 0.0.0.0:*\n")));
             }
             if argv.last().is_some_and(|s| s == "version") {
-                return Some(Reply::ok(if argv[0].ends_with("caddy") {
-                    super::naive::CADDY_VERSION
+                let version = if argv[0].ends_with("caddy") {
+                    reported_version.lock().unwrap().clone()
                 } else {
-                    "mita 3.38.1"
-                }));
+                    "mita 3.38.1".to_string()
+                };
+                return Some(Reply::ok(&version));
             }
             if argv.last().is_some_and(|s| s == "list-modules") {
-                return Some(Reply::ok("http.handlers.forward_proxy\n"));
+                return Some(Reply::ok(&reported_modules.lock().unwrap()));
             }
             if argv.last().is_some_and(|s| s == "status") {
                 if joined.contains("MITA_UDS_PATH=/run/mita/lane-") {
@@ -143,6 +150,8 @@ impl Rig {
         let rig = Self {
             dir,
             runner,
+            caddy_version,
+            caddy_modules,
             context,
             fail,
             lane_status,
@@ -1380,6 +1389,185 @@ fn interrupted_mieru_apply_removes_proven_partial_license_and_environment() {
         assert!(!rig.host(path).exists(), "{path} leaked");
     }
     assert!(rig.host("/etc/mieru-manager/token").exists());
+}
+
+// Historical accepted-plan value reported by the 4.0.0 -> 4.0.1 rollout.
+// All other action fields and host files are synthetic; no live plan is loaded.
+const HISTORICAL_CADDY_BUILD: &str = "v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=";
+
+#[test]
+fn naive_historical_plan_selection_survives_a_release_default_change() {
+    let rig = Rig::new();
+    let mut historical = rig.action("naive");
+    set(&mut historical, "caddy-build", HISTORICAL_CADDY_BUILD);
+    let original = historical.clone();
+    let selected = rig.naive().selection(&historical);
+    assert!(selected.is_ok(), "historical accepted action must remain readable: {selected:?}");
+    assert_eq!(historical.mutations, original.mutations);
+}
+
+#[test]
+fn naive_historical_plan_cannot_be_used_for_a_fresh_install() {
+    let rig = Rig::new();
+    let mut historical = rig.action("naive");
+    set(&mut historical, "caddy-build", HISTORICAL_CADDY_BUILD);
+    assert!(rig.naive().prepare(&historical).is_err());
+    assert!(rig.runner.calls().iter().all(|call| call.kind != CallKind::Run));
+}
+
+fn historical_naive_fixture(rig: &Rig) -> (Action, crate::journal::CheckpointData) {
+    // Construct a prior installed generation entirely inside the synthetic root.
+    let mut action = rig.action("naive");
+    let mut data = apply(&rig.naive(), &action);
+    set(&mut action, "caddy-build", HISTORICAL_CADDY_BUILD);
+    let pin = format!("{HISTORICAL_CADDY_BUILD}\n");
+    rig.put("/etc/proxy-control/caddy-naive.pin", pin.as_bytes(), 0o644);
+    for key in ["ownership", "planned_ownership"] {
+        data[key]["/etc/proxy-control/caddy-naive.pin"]["sha256"] = sha256_hex(pin.as_bytes()).into();
+    }
+    *rig.caddy_version.lock().unwrap() = HISTORICAL_CADDY_BUILD.into();
+    rig.runner.clear();
+    (action, data)
+}
+
+#[test]
+fn naive_historical_repair_preserves_runtime_pin_and_operator_state_twice() {
+    let rig = Rig::new();
+    let (action, mut data) = historical_naive_fixture(&rig);
+    let paths = [
+        super::naive::CADDY_BINARY,
+        "/etc/proxy-control/caddy-naive.pin",
+        "/etc/proxy-control/naive-owned",
+        "/var/lib/naive-manager/Caddyfile",
+        "/var/lib/naive-manager/manager-token",
+        "/opt/mtproxy-shared443/secrets/naive-manager-token",
+        "/opt/mtproxy-shared443/.env.naive",
+    ];
+    let before: Vec<_> = paths.iter().map(|p| fs::read(rig.host(p)).unwrap()).collect();
+    for _ in 0..2 {
+        data = rig.naive().repair(&action, data).unwrap();
+        rig.naive().verify(&action).unwrap();
+    }
+    for (path, bytes) in paths.iter().zip(before) {
+        assert_eq!(fs::read(rig.host(path)).unwrap(), bytes, "changed {path}");
+    }
+    for call in rig.runner.calls() {
+        assert!(
+            !call.argv.iter().any(|arg| ["build", "--build", "cp", "create", "curl", "wget"].contains(&arg.as_str())),
+            "unexpected runtime installation: {:?}",
+            call.argv
+        );
+    }
+}
+
+#[test]
+fn naive_historical_engine_repair_keeps_accepted_plan_and_digest() {
+    use crate::journal::{Checkpoint, Phase, Status, TransactionState};
+    let rig = Rig::new();
+    let (action, data) = historical_naive_fixture(&rig);
+    let plan = plan_with(vec![action.clone()], serde_json::Map::new());
+    let store = crate::store::TransactionStore::new(rig.dir.path()).unwrap();
+    store.initialize().unwrap();
+    let mut state = TransactionState::new(&"a".repeat(32), Status::Active, &plan.digest());
+    state.with_checkpoint(Checkpoint::new(&action.id, "naive", Phase::Verified, data));
+    store.write_plan(&plan).unwrap();
+    store.write_state(&state).unwrap();
+    let original = fs::read(store.plan_path()).unwrap();
+    let engine = engine_for(rig.dir.path(), vec![Arc::new(rig.naive())]);
+    for _ in 0..2 {
+        let repaired = engine.repair().unwrap();
+        assert_eq!(repaired.status, Status::Active);
+        assert_eq!(repaired.accepted_digest, plan.digest());
+        assert_eq!(fs::read(store.plan_path()).unwrap(), original);
+    }
+    // A mismatching accepted digest must still stop before adapter mutations.
+    let mut tampered = plan.clone();
+    set(&mut tampered.actions[0], "caddy-build", super::naive::CADDY_VERSION);
+    store.write_plan(&tampered).unwrap();
+    rig.runner.clear();
+    assert!(engine.repair().is_err());
+    assert!(rig.runner.calls().is_empty());
+}
+
+#[test]
+fn naive_historical_repair_keeps_agent_selected_runtime_and_refuses_failed_rollback() {
+    for failed in [false, true] {
+        let rig = Rig::new();
+        let (action, data) = historical_naive_fixture(&rig);
+        let version = "v2.12.0 h1:agent=";
+        let binary = b"agent-built-caddy";
+        rig.put(super::naive::CADDY_BINARY, binary, 0o755);
+        rig.put("/etc/proxy-control/caddy-naive.pin", format!("{version}\n").as_bytes(), 0o644);
+        *rig.caddy_version.lock().unwrap() = version.into();
+        rig.put("/var/lib/proxy-control/version-agent/state.json",
+            json!({"schema":2,"components":{"naive":{"runtime_version":version,"sha256":sha256_hex(binary),"status":if failed {"rollback_failed"} else {"updated"}}}}).to_string().as_bytes(), 0o600);
+        let result = rig.naive().repair(&action, data);
+        if failed {
+            assert!(result.is_err());
+            assert!(rig.runner.calls().iter().all(|call| call.kind != CallKind::Run));
+        } else {
+            result.unwrap();
+            assert_eq!(fs::read(rig.host(super::naive::CADDY_BINARY)).unwrap(), binary);
+            assert_eq!(
+                fs::read_to_string(rig.host("/etc/proxy-control/caddy-naive.pin")).unwrap(),
+                format!("{version}\n")
+            );
+        }
+    }
+}
+
+#[test]
+fn naive_historical_apply_render_and_reconcile_never_retarget_runtime() {
+    let rig = Rig::new();
+    let (action, data) = historical_naive_fixture(&rig);
+    assert!(rig.naive().render(&action).is_err());
+    assert!(rig.naive().apply(&action, data.clone()).is_err());
+    assert!(rig.naive().reconcile_apply(&action, data).is_err());
+    assert!(rig.runner.calls().is_empty());
+}
+
+#[test]
+fn naive_historical_repair_rejects_unproven_or_drifted_runtime_before_mutation() {
+    for case in [
+        "unknown",
+        "missing-binary-proof",
+        "missing-pin-proof",
+        "missing-marker-proof",
+        "mutable-proof",
+        "binary-drift",
+        "pin-drift",
+        "version-mismatch",
+        "missing-module",
+        "foreign-owner",
+        "malformed-proof",
+    ] {
+        let rig = Rig::new();
+        let (mut action, mut data) = historical_naive_fixture(&rig);
+        match case {
+            "unknown" => set(&mut action, "caddy-build", "v9.9.9 h1:unknown="),
+            "missing-binary-proof" => {
+                data["ownership"].as_object_mut().unwrap().remove(super::naive::CADDY_BINARY);
+            }
+            "missing-pin-proof" => {
+                data["ownership"].as_object_mut().unwrap().remove("/etc/proxy-control/caddy-naive.pin");
+            }
+            "missing-marker-proof" => {
+                data["ownership"].as_object_mut().unwrap().remove("/etc/proxy-control/naive-owned");
+            }
+            "mutable-proof" => data["ownership"][super::naive::CADDY_BINARY]["mutable"] = true.into(),
+            "binary-drift" => rig.put(super::naive::CADDY_BINARY, b"foreign", 0o755),
+            "pin-drift" => rig.put("/etc/proxy-control/caddy-naive.pin", b"foreign\n", 0o644),
+            "version-mismatch" => *rig.caddy_version.lock().unwrap() = super::naive::CADDY_VERSION.into(),
+            "missing-module" => *rig.caddy_modules.lock().unwrap() = String::new(),
+            "foreign-owner" => {
+                data.insert("owner".into(), "foreign".into());
+            }
+            "malformed-proof" => data["ownership"][super::naive::CADDY_BINARY]["sha256"] = "invalid".into(),
+            _ => unreachable!(),
+        }
+        assert!(rig.naive().repair(&action, data).is_err(), "accepted {case}");
+        assert!(rig.runner.calls().iter().all(|call| call.kind != CallKind::Run), "mutated {case}");
+    }
 }
 
 #[test]

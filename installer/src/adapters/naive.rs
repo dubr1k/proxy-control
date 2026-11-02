@@ -14,6 +14,8 @@ pub const DATA_DIR: &str = "/var/lib/naive-manager";
 pub const LOG_DIR: &str = "/var/log/naive-proxy";
 pub const CADDY_BINARY: &str = "/usr/local/bin/caddy";
 pub const CADDY_VERSION: &str = "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=";
+// Released build identities remain readable for recovery, never for a new install.
+const RECOVERABLE_CADDY_BUILDS: &[&str] = &[CADDY_VERSION, "v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0="];
 const IMAGE: &str = "proxy-control-caddy-naive:v2.11.7";
 const PIN: &str = "/etc/proxy-control/caddy-naive.pin";
 const UNIT: &str = "/etc/systemd/system/caddy-naive.service";
@@ -63,6 +65,7 @@ const KEYS: &[&str] = &[
 ];
 #[derive(Debug, Clone)]
 pub struct NaiveSelection {
+    pub caddy_build: String,
     pub domain: String,
     pub panel: String,
     pub adjacent: Vec<(String, String)>,
@@ -120,7 +123,6 @@ impl NaiveAdapter {
             ("data-dir", DATA_DIR),
             ("log-dir", LOG_DIR),
             ("caddy-binary", CADDY_BINARY),
-            ("caddy-build", CADDY_VERSION),
             ("unit", UNIT),
             ("private-port", "4443"),
             ("caddy-uid", "10003"),
@@ -129,6 +131,7 @@ impl NaiveAdapter {
             ("manager-gid", "101"),
         ];
         if expected.iter().any(|(key, value)| values[*key] != *value)
+            || !RECOVERABLE_CADDY_BUILDS.contains(&values["caddy-build"].as_str())
             || !domain(&values["naive-domain"])
             || !domain(&values["panel-domain"])
             || values["naive-domain"] == values["panel-domain"]
@@ -139,6 +142,7 @@ impl NaiveAdapter {
         let (warp_port, warp_provider, router_provider) = providers(&values, 45101, &self.host)?;
         let adjacent = decode_adjacent(&values["adjacent-sni"])?;
         Ok(NaiveSelection {
+            caddy_build: values["caddy-build"].clone(),
             domain: values["naive-domain"].to_lowercase(),
             panel: values["panel-domain"].to_lowercase(),
             adjacent,
@@ -152,6 +156,7 @@ impl NaiveAdapter {
         self.render_selection(&self.selection(action)?)
     }
     fn render_selection(&self, selected: &NaiveSelection) -> Result<RenderedNaive, Error> {
+        self.require_current_build(selected)?;
         let upstream = match selected.egress.as_str() {
             "proxy" => format!("            upstream socks5://127.0.0.1:{}\n", selected.warp_port),
             "router" => format!("            upstream socks5://{ROUTER_CREDENTIAL}@127.0.0.1:45101\n"),
@@ -196,7 +201,18 @@ impl NaiveAdapter {
         }
         Ok(())
     }
+    fn require_current_build(&self, selected: &NaiveSelection) -> Result<(), Error> {
+        if selected.caddy_build != CADDY_VERSION {
+            return Err(self
+                .host
+                .error("historical Caddy action supports repair only; fresh installation requires a current plan"));
+        }
+        Ok(())
+    }
     fn pinned_caddy(&self) -> Result<(), Error> {
+        self.check_caddy_version(CADDY_VERSION, true)
+    }
+    fn check_caddy_version(&self, expected: &str, allow_agent: bool) -> Result<(), Error> {
         let binary = self.host.host(CADDY_BINARY)?;
         let info = fs::symlink_metadata(&binary)?;
         if !info.is_file() {
@@ -205,13 +221,39 @@ impl NaiveAdapter {
         let binary = binary.to_string_lossy();
         let version = self.host.checked(&[&binary, "version"])?;
         let modules = self.host.checked(&[&binary, "list-modules"])?;
-        if version.trim() != CADDY_VERSION
-            && self.host.agent_value("naive", "runtime_version").as_deref() != Some(version.trim())
+        if version.trim() != expected
+            && !(allow_agent && self.host.agent_value("naive", "runtime_version").as_deref() == Some(version.trim()))
             || !modules.lines().any(|line| line.trim() == "http.handlers.forward_proxy")
         {
             return Err(self.host.error("refusing an unpinned Caddy build"));
         }
         Ok(())
+    }
+    fn recovery_caddy(&self, selected: &NaiveSelection, checkpoint: &CheckpointData) -> Result<(), Error> {
+        if selected.caddy_build == CADDY_VERSION {
+            return self.pinned_caddy();
+        }
+        // A plan string alone is not runtime provenance. Require immutable applied
+        // ownership for the historical binary, pin and generation marker before
+        // executing the binary. assert_ownership also recognizes agent-owned updates.
+        for path in [CADDY_BINARY, PIN, &self.host.marker()] {
+            let entry = checkpoint["ownership"]
+                .get(path)
+                .ok_or_else(|| self.host.error("historical Caddy recovery requires complete runtime ownership"))?;
+            if entry.get("mutable") == Some(&Value::Bool(true)) {
+                return Err(self.host.error("historical Caddy runtime ownership must be immutable"));
+            }
+        }
+        let pin_path = self.host.host(PIN)?;
+        if !fs::symlink_metadata(&pin_path)?.is_file() {
+            return Err(self.host.error("refusing an unpinned Caddy build"));
+        }
+        let pin = fs::read_to_string(pin_path)?;
+        let pin = pin.trim();
+        if pin != selected.caddy_build && self.host.agent_value("naive", "runtime_version").as_deref() != Some(pin) {
+            return Err(self.host.error("historical Caddy pin does not match the accepted runtime"));
+        }
+        self.check_caddy_version(pin, false)
     }
     fn install_caddy(&self, checkpoint: &CheckpointData) -> Result<(), Error> {
         if checkpoint["caddy_preexisting"] == true {
@@ -408,7 +450,7 @@ impl Adapter for NaiveAdapter {
         }])
     }
     fn prepare(&self, action: &Action) -> Result<CheckpointData, Error> {
-        self.selection(action)?;
+        self.require_current_build(&self.selection(action)?)?;
         self.live_identities()?;
         let recovery = self.host.exists(&self.host.marker())?;
         if !recovery && (self.host.exists(UNIT)? || self.host.service_present()) {
@@ -429,6 +471,7 @@ impl Adapter for NaiveAdapter {
     }
     fn apply(&self, action: &Action, mut checkpoint: CheckpointData) -> Result<CheckpointData, Error> {
         let selected = self.selection(action)?;
+        self.require_current_build(&selected)?;
         self.checkpoint(&checkpoint, action, false)?;
         self.install_caddy(&checkpoint)?;
         let identities = self.ensure_identities()?;
@@ -492,11 +535,11 @@ impl Adapter for NaiveAdapter {
         ))
     }
     fn repair(&self, action: &Action, mut checkpoint: CheckpointData) -> Result<CheckpointData, Error> {
-        self.selection(action)?;
+        let selected = self.selection(action)?;
         self.checkpoint(&checkpoint, action, true)?;
         self.host.assert_ownership(&checkpoint)?;
         self.live_identities()?;
-        self.pinned_caddy()?;
+        self.recovery_caddy(&selected, &checkpoint)?;
         // Validate the old checkpoint bytes before replacing its Python helper during 3.x → 4.0.
         self.host.install_helpers(&[("prepare-naive-state", PREPARER, 0o755)])?;
         self.host.run(&[PREPARER, "verify", "--state-dir", DATA_DIR, "--log-dir", LOG_DIR])?;

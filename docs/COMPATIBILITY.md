@@ -12,6 +12,28 @@ Historical changelog entries are not rewritten.
 
 A migration must provide discovery, read-only planning, backups, ownership checks, explicit cutover, rollback, and tests from an actual prior installation. Never silently move databases, volumes, certificates, units, routes, markers, or fleet identities.
 
+## Naive runtime recovery
+
+An accepted plan is not rewritten when the installer's default Caddy build changes.
+Repair recognizes the released `v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=`
+identity in addition to the current default. For this historical identity it requires
+validated, immutable applied ownership of the Caddy binary, pin and Naive generation marker;
+the existing pin must agree with the accepted build or the version agent's recorded update,
+and the executable must match the SHA-256 pin and recorded version and provide
+`http.handlers.forward_proxy`.
+Existing ownership/digest checks and refusal of failed agent-update rollback remain in force.
+Repair does not build, download or replace Caddy, rewrite its pin, or retarget the accepted
+plan. It still verifies state, refreshes the owned state helper and restarts the existing
+runtime/manager through the normal repair path; it is not a read-only operation.
+
+The historical allowlist permits recovery of an already-owned runtime through
+repair, verification and rollback only; it does not widen accepted build identities.
+Historical actions cannot authorize fresh installation, apply/reconcile-apply or rendering
+of the current default. An unknown build, incomplete runtime ownership or drift is a refusal,
+not permission to edit the accepted plan or pin. Resolving such a refusal requires an explicit
+operator-approved recovery/update path. This compatibility rule does not make a source patch
+an installed or published release.
+
 ## Panel-to-panel contract (frozen)
 
 Two panels of different releases talk to each other only through the identifiers below; they are frozen the same way the runtime paths above are, and a change to any of them is a new `api_version` / `schema_version`, never an edit in place.

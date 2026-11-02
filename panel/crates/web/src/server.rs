@@ -38,10 +38,9 @@ use crate::http::response::{self, UnhandledError};
 use crate::http::router::{self, Dispatcher};
 use crate::state::AppState;
 
-/// The CSP of the subscription page (`subscriptions/page_assets.py` `CSP`): sha256 of its inline
-/// style and script. Recorded from Python; the subscription package (WP9) must keep its page
-/// byte-identical to these hashes (`tests/python_constants.rs` checks the value).
-pub const SUBSCRIPTION_CSP: &str = "default-src 'none'; style-src 'sha256-7zrdh6FLXrs4+7ooaZeyFT55YBE79eotFOMQmu4tyvQ='; script-src 'sha256-prNdb/NLfe2hab7XNPF7XOM4DZuWYWGhoq4UthMMFQ0='; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+/// The subscription page admits only its exact inline assets by SHA-256.
+/// Kept in sync with `panel_subscriptions::page_assets::csp` and checked end to end.
+pub const SUBSCRIPTION_CSP: &str = "default-src 'none'; style-src 'sha256-1FowHbtXacpoU+atsvB/kHBga3uUhMjZGR5tGC4UXL4='; script-src 'sha256-prNdb/NLfe2hab7XNPF7XOM4DZuWYWGhoq4UthMMFQ0='; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 const PANEL_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 

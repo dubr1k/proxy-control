@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Interface
+- Redesign the browser subscription page with a personal header, connection steps, compact app and access cards, light/dark themes and mobile layouts. Copy, import and QR actions keep their existing URLs and formats; only the HTML cache version changes.
+
+### Host installer
+- Accept the exact historical Naive/Caddy plan during recovery of an already owned installation. Verify binary ownership, pin, version and forward-proxy module; preserve agent-selected runtime updates. Historical plans remain forbidden for fresh installation.
+
+### Documentation
+- Align the agent protocol, capability matrix and validation guide with the native Rust runtime and targeted release checks.
+
 ## [4.0.1] - 2026-10-31
 
 ### Interface

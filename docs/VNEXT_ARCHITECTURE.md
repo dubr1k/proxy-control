@@ -9,11 +9,11 @@ built on top of it.
 
 ## Goal
 
-Turn "a panel that calls three protocol managers" into a control plane that owns
-subscribers:
+The control plane owns clients and their accesses across MTProxy, NaiveProxy,
+Mieru, AmneziaWG and TrustTunnel:
 
 - the central host becomes an ordinary, reserved node with `node_id = local`, so
-  every existing MTProxy/Naive/Mieru resource has a real node instead of `NULL`;
+  every managed protocol resource has a real node instead of `NULL`;
 - a person is a `Client`; each concrete access is an `AccessGrant`;
 - credentials are stored encrypted and referenced, never copied into state, logs
   or audit;
@@ -36,7 +36,7 @@ Client
 AccessGrant
   id: UUID
   client_id
-  protocol: mtproxy | naive | mieru
+  protocol: mtproxy | naive | mieru | amneziawg | trusttunnel
   node_id
   endpoint_id
   runtime_username
@@ -113,25 +113,24 @@ Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 
 One stable URL can always return the current bundle, but consumers differ, so
 every cell of the matrix is explicit (`supported | unsupported | unproven`) and
-lives in `panel/crates/subscriptions/src/compatibility.rs`. The summary below covers:
+lives in `panel/crates/subscriptions/src/compatibility.rs`. The full current
+[capability matrix](VNEXT_CAPABILITIES.md#subscription-clients) includes TrustTunnel,
+Throne and the other client applications. AmneziaWG accesses are separate
+version-specific configuration files and QR codes, never mixed-feed entries.
 
-| Client | MTProxy | Naive | Mieru |
-| --- | --- | --- | --- |
-| Karing | unsupported | supported | supported |
-| sing-box ≥ 1.13 | unsupported | supported | unsupported |
-| mihomo / Clash.Meta | unsupported | unsupported | supported |
-| Official mieru client | unsupported | unsupported | unsupported (no subscriptions at all) |
-| Telegram | unsupported | — | — |
+"Supported" means the client can consume and refresh the rendered feed on its
+own schedule. A verified fork core does not by itself prove that an application
+release imports and refreshes that feed. TrustTunnel in Hiddify, NekoBox and
+Throne remains `unproven`, even where the panel emits a fork-specific outbound.
 
-"Supported" means the renderer emits a format that client parses and refreshes
-on its own schedule. It never means the panel pushes an update: the subscription
-is a pull projection, and operator-visible events are a separate feature.
-
-Renderers: `manifest` (canonical JSON), `singbox` (JSON with `naive` and `mieru`
-outbounds), `clash` (YAML with `mieru` proxies), `raw` (one URI per line, plain
-text, no base64) and `html` (a page with links, QR codes and this matrix). A
-protocol a renderer cannot express is emitted as an explicit `unsupported` entry
-with a reason — never as a plausible-looking link.
+Renderers: `manifest` (canonical JSON), `singbox` (client-specific JSON), `clash`
+(YAML including Mieru and TrustTunnel), `raw` (one URI per line, plain text, no
+base64) and `html` (links, QR codes and compatibility). Official sing-box gets
+Naive, while Karing/Throne variants can include Mieru. TrustTunnel is emitted
+only for selected sing-box fork clients, selected by User-Agent or explicit
+`client=`; it is omitted for official sing-box, Karing and unrecognised clients.
+A protocol a renderer cannot express is an explicit `unsupported` entry with a
+reason. See [TrustTunnel clients](guides/TRUSTTUNNEL.en.md#clients).
 
 The public endpoint lives on its own domain (`PANEL_SUBSCRIPTION_HOST`), not on
 the panel domain, and that vhost logs no access lines.
@@ -160,8 +159,10 @@ What it adds, and what it deliberately does not:
 - Routing is capability-limited native egress policies (`docs/ROUTING.en.md`, ADR 006,
   ADR 007 for the native backends) plus the optional dedicated Xray-router
   (`docs/XRAY_ROUTER.en.md`, ADR 007 for the router: a separate pinned runtime with
-  its own generations, authenticated per-service ingresses, attach/detach as explicit
-  actions, `companion` documents in a generation).
+  its own generations, per-service ingresses, attach/detach as explicit
+  actions, `companion` documents in a generation). NaiveProxy and Mieru support
+  per-grant lanes on that router; native backends and MTProxy, AmneziaWG and
+  TrustTunnel do not provide client lanes (ADR 009).
 
 Native components (paths relative to `panel/crates/`):
 
@@ -181,16 +182,18 @@ Native components (paths relative to `panel/crates/`):
 
 ## Release train
 
-- Every gate runs on the disposable lab host `ams-test`: repository suite,
-  Compose/image checks, the container lab, the destructive host lab and a real
-  installation with live protocol probes. Local macOS is not an authoritative
-  host.
-- GitHub Actions runs native tests, the full external Rust-panel suite, dependency
-  auditing and repeat release builds. A CI result does not replace a fresh lab-host
-  run or an observed Fleet v2 native-central scenario against the release archive.
-- Tags are `vX.Y.Z`; while 3.3.0 hosts still exist, do not publish public 4.0
-  pre-releases. Test candidates privately from local archives on `ams-test`.
-- Graphify is rerun after each architecture-scale change and before final review.
+- Run the gate selected for the actual change on `ams-test`, following the
+  current [agent protocol](../AGENTS.md). Record the commands, commit and results;
+  local macOS checks do not establish native Ubuntu runtime acceptance.
+- GitHub Actions checks native tests, the external Rust-panel suite, dependency
+  auditing and reproducible release builds. Report CI and stand evidence
+  separately; an executable proof binding is not a fresh acceptance run.
+- A full destructive `lab-host` cycle is not required before every release.
+  QEMU runs only on an explicit assignment. The chosen gate must cover the
+  changed boundary and preserve any unverified checks in the report.
+- Release tags are `vX.Y.Z`. Documentation-only corrections do not require a
+  runtime release; publish one only when the intended delivery calls for it.
+- Graphify is rerun after architecture-scale changes and before final review.
 
 ## Decision records
 

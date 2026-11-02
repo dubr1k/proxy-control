@@ -1,5 +1,5 @@
 {
- "subscription_csp": "default-src 'none'; style-src 'sha256-7zrdh6FLXrs4+7ooaZeyFT55YBE79eotFOMQmu4tyvQ='; script-src 'sha256-prNdb/NLfe2hab7XNPF7XOM4DZuWYWGhoq4UthMMFQ0='; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+ "subscription_csp": "default-src 'none'; style-src 'sha256-1FowHbtXacpoU+atsvB/kHBga3uUhMjZGR5tGC4UXL4='; script-src 'sha256-prNdb/NLfe2hab7XNPF7XOM4DZuWYWGhoq4UthMMFQ0='; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
  "types_map": {
   ".3g2": "audio/3gpp2",
   ".3gp": "audio/3gpp",

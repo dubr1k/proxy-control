@@ -1,9 +1,6 @@
 //! `html`: the page a person opens — the apps that take the link, the link itself and each access
-//! (`subscriptions/renderers/html.py`).
-//!
-//! Built by string concatenation exactly as Python does; every value goes through
-//! [`escape`] (`html.escape`); the stylesheet and the copy script are the byte-exact constants of
-//! [`crate::page_assets`] (admitted by hash). Russian by default, English with `lang = "en"`.
+//! All values are escaped; inline assets are admitted by the hash-based CSP.
+//! Russian by default, English with `lang = "en"`.
 
 use std::collections::HashMap;
 
@@ -279,18 +276,31 @@ fn grant_section(
     name: &str,
     title: &str,
 ) -> Result<String, RenderError> {
-    let heading = escape(title);
+    let available = grant.enabled && credential_reason(grant, artifacts).is_none();
+    let (state, label) = if !grant.enabled {
+        ("off", page.t("Отключён", "Off"))
+    } else if available {
+        ("available", page.t("Доступен", "Available"))
+    } else {
+        ("unavailable", page.t("Недоступен", "Unavailable"))
+    };
+    let heading = format!(
+        "<span class=\"access-summary\"><span class=\"access-name\">{}</span>\
+         <span class=\"access-meta\">{}<span class=\"access-state {state}\">{label}</span></span></span>",
+        escape(title),
+        escape(protocol_title(&grant.protocol)),
+    );
     if !grant.enabled {
         return Ok(format!(
             "<details class=\"card\"><summary>{heading}</summary><p class=\"muted\">{}</p></details>",
             page.t("Доступ отключён.", "This access is turned off.")
         ));
     }
-    if let Some(reason) = credential_reason(grant, artifacts) {
+    if !available {
         return Ok(format!(
             "<details class=\"card\"><summary>{heading}</summary><p class=\"muted\">{}: {}</p></details>",
-            page.t("Недоступно", "Unavailable"),
-            escape(reason)
+            page.t("Данные подключения ещё не подготовлены", "Connection details are not ready yet"),
+            page.t("обратитесь к администратору.", "please contact your administrator.")
         ));
     }
     let mut parts = vec![format!("<details class=\"card\"><summary>{heading}</summary>")];
@@ -377,14 +387,17 @@ fn app_entry(page: &mut Page, manifest: &Manifest, entry: &AppEntry, url: &str, 
         .collect::<Vec<_>>()
         .join(", ");
     let head = format!(
-        "<div class=\"app\"><p class=\"app-name\">{}</p><p class=\"muted small\">{}</p>{}",
+        "<details class=\"app\"><summary><span class=\"app-mark\" aria-hidden=\"true\">{}</span>\
+         <span class=\"app-heading\"><span class=\"app-name\">{}</span>\
+         <span class=\"muted small\">{}</span></span></summary><div class=\"app-body\">{}",
+        escape(&app.name.chars().take(1).collect::<String>()),
         escape(app.name),
         escape(&platforms),
         gets(page, entry)
     );
     if !href.is_empty() {
         return format!(
-            "{head}<a class=\"btn{}\" href=\"{}\">{} {}</a></div>",
+            "{head}<a class=\"btn{}\" href=\"{}\">{} {}</a></div></details>",
             if first { " primary" } else { "" },
             escape(&href),
             page.t("Добавить в", "Add to"),
@@ -409,7 +422,7 @@ fn app_entry(page: &mut Page, manifest: &Manifest, entry: &AppEntry, url: &str, 
     );
     let label = format!("{} {}", page.t("Копировать ссылку для", "Copy the link for"), app.name);
     let copied = page.copy(&link, Some(&label), "");
-    format!("{head}<p class=\"small\">{paste}</p>{copied}<p class=\"small\">{downloads}</p></div>")
+    format!("{head}<p class=\"small\">{paste}</p>{copied}<p class=\"small\">{downloads}</p></div></details>")
 }
 
 /// `_quick_links(page, manifest, artifacts)`: for a client with no subscription protocol, the
@@ -432,7 +445,7 @@ fn quick_links(page: &Page, manifest: &Manifest, artifacts: &Artifacts) -> Strin
         return String::new();
     }
     format!(
-        "<section class=\"card\"><h2>{}</h2><p>{}</p>{buttons}</section>",
+        "<section id=\"connect\" class=\"card connect-card\"><h2>{}</h2><p>{}</p>{buttons}</section>",
         page.t("Подключиться", "Connect"),
         page.t("Нажмите на телефоне, где установлено приложение.", "Tap it on the phone where the app is installed.")
     )
@@ -445,6 +458,7 @@ fn auto_refresh(page: &mut Page, manifest: &Manifest, artifacts: &Artifacts, url
     for grant in &manifest.grants {
         let has = artifacts.get(&grant.grant_id).is_some_and(|items| !items.is_empty());
         if grant.enabled
+            && credential_reason(grant, artifacts).is_none()
             && has
             && SUBSCRIPTION_PROTOCOLS.contains(&grant.protocol.as_str())
             && !protocols.contains(&grant.protocol)
@@ -456,8 +470,8 @@ fn auto_refresh(page: &mut Page, manifest: &Manifest, artifacts: &Artifacts, url
         return Ok(quick_links(page, manifest, artifacts));
     }
     let intro = page.t(
-        "Добавьте ссылку в приложение один раз — новые доступы появятся в нём сами, без повторной настройки.",
-        "Add the link to an app once — new accesses will show up in it by themselves, no need to set it up again.",
+        "Добавьте подписку один раз. Изменения доступов появятся в приложении при следующем обновлении подписки.",
+        "Add your subscription once. Access changes appear in the app when it next refreshes the subscription.",
     );
     let mut body = String::new();
     // Without a public subscription address there is no link to copy or build buttons from.
@@ -466,11 +480,11 @@ fn auto_refresh(page: &mut Page, manifest: &Manifest, artifacts: &Artifacts, url
         let entries: Vec<String> =
             found.iter().enumerate().map(|(index, entry)| app_entry(page, manifest, entry, url, index == 0)).collect();
         let label = page.t("Копировать ссылку подписки", "Copy the subscription link").to_string();
-        body = page.copy(url, Some(&label), "");
+        body = format!("<div class=\"subscription-copy\">{}</div>", page.copy(url, Some(&label), ""));
         body.push_str(&page.qr(url)?);
         if !entries.is_empty() {
             body.push_str(&format!(
-                "<h3>{}</h3><p class=\"muted small\">{}</p>{}",
+                "<h3>{}</h3><p class=\"muted small\">{}</p><div class=\"apps-grid\">{}</div>",
                 page.t("Приложения", "Apps"),
                 page.t(
                     "Кнопка работает на устройстве, где приложение уже установлено.",
@@ -481,8 +495,14 @@ fn auto_refresh(page: &mut Page, manifest: &Manifest, artifacts: &Artifacts, url
         }
     }
     Ok(format!(
-        "<section class=\"card\"><h2>{}</h2><p>{intro}</p>{body}</section>",
-        page.t("Подписка обновляется сама", "The subscription updates itself")
+        "<section id=\"connect\" class=\"card connect-card\"><p class=\"eyebrow\">{}</p>\
+         <h2>{}</h2><p class=\"muted\">{intro}</p><ol class=\"steps\">\
+         <li>{}</li><li>{}</li><li>{}</li></ol>{body}</section>",
+        page.t("Быстрый старт", "Quick start"),
+        page.t("Подписка обновляется сама", "The subscription updates itself"),
+        page.t("Выберите приложение", "Choose an app"),
+        page.t("Добавьте подписку", "Add the subscription"),
+        page.t("Включите подключение", "Turn on the connection")
     ))
 }
 
@@ -523,17 +543,46 @@ pub fn render(
         "The link to this page is your personal key — do not share it.",
     );
     let refresh = auto_refresh(&mut page, manifest, artifacts, url)?;
+    let available =
+        manifest.grants.iter().filter(|grant| grant.enabled && credential_reason(grant, artifacts).is_none()).count();
+    let connect_nav = if refresh.is_empty() {
+        String::new()
+    } else {
+        format!("<a href=\"#connect\">{}</a>", page.t("Подключиться", "Connect"))
+    };
+    if sections.is_empty() {
+        sections = format!(
+            "<div class=\"card empty-state\"><span class=\"empty-mark\" aria-hidden=\"true\">+</span>\
+             <h3>{}</h3><p class=\"muted\">{}</p></div>",
+            page.t("Доступов пока нет", "No accesses yet"),
+            page.t(
+                "Когда администратор добавит доступ, он появится здесь.",
+                "When your administrator adds an access, it will appear here."
+            )
+        );
+    }
     let body = format!(
         "<!doctype html><html lang=\"{}\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
          <meta name=\"robots\" content=\"noindex\">\
          <title>{title}</title><style>{STYLE}</style></head><body><main>\
-         <h1>{title}</h1><p class=\"warn\">{warning}</p>\
-         {refresh}\
-         <h2>{}</h2>{sections}\
+         <div class=\"topbar\"><span class=\"brand\"><span class=\"brand-mark\" aria-hidden=\"true\">P</span>Proxy Control</span>\
+         <nav aria-label=\"{}\">{connect_nav}<a href=\"#accesses\">{}</a></nav></div>\
+         <header class=\"hero\"><div><p class=\"eyebrow\">{}</p><h1>{name}</h1>\
+         <p class=\"hero-description\">{}</p></div><div class=\"hero-summary\" data-available-count=\"{available}\">\
+         <strong>{available:02}</strong><span>{}</span></div></header>\
+         <p class=\"warn\"><span class=\"privacy-mark\" aria-hidden=\"true\">↗</span>{warning}</p>\
+         {refresh}<section id=\"accesses\" class=\"accesses\"><div class=\"section-heading\">\
+         <h2>{}</h2><span class=\"muted small\">{}</span></div>{sections}</section>\
          {}<script>{SCRIPT}</script></main></body></html>",
         page.lang(),
+        page.t("Навигация по странице", "Page navigation"),
         page.t("Все доступы", "All accesses"),
+        page.t("Ваше подключение", "Your connection"),
+        page.t("Всё для подключения — в одном месте.", "Everything you need to connect, in one place."),
+        page.t("доступно для подключения", "available to connect"),
+        page.t("Все доступы", "All accesses"),
+        page.t("Нажмите, чтобы увидеть детали", "Select an access to see its details"),
         footer(&page, updated_at),
     );
     finish(body.into_bytes(), max_bytes)
