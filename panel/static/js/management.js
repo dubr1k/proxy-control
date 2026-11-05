@@ -50,11 +50,15 @@ export async function renderVersions(context, generation) {
   }
   const data = await context.api("/api/versions");
   if (!isCurrent(context.state, generation, "versions")) return;
-  context.state.versions = data || { enabled: false, components: {} };
-  if (context.state.versions.enabled !== true) {
+  const latest = data || { enabled: false, components: {} };
+  if (latest.enabled !== true) {
+    // A degraded HTTP 200 is not a terminal operation result. Keep the last
+    // known running snapshot so repeated outages cannot silently stop polling.
+    if (!(versionBatch || updateRequests > 0 || agentBusy(context.state.versions))) context.state.versions = latest;
     context.ui.view.innerHTML = '<div class="empty-state"><span>!</span><h3>Агент обновлений недоступен</h3><p>Установите и запустите host version-agent. Панель не скачивает runtime-файлы и не получает Docker socket.</p></div>';
     return;
   }
+  context.state.versions = latest;
   // The agent lists `xray` only on a host that runs the Xray-router, so there is no
   // "router not installed" branch here.
   // 3.2 (owner): the panel's own card first, then the runtimes in the order of the overview.

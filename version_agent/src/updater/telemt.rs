@@ -30,7 +30,29 @@ fn fetch_telemt_binary(updater: &HostUpdater, entry: &CatalogEntry) -> Step<Vec<
     if Some(pc_host::fs::sha256_hex(&payload)) != entry.sha256 {
         return Err(refuse("telemt artifact SHA-256 mismatch"));
     }
-    Ok(payload)
+    let binary = if let Some(archive) = &entry.archive {
+        crate::artifacts::extract_member(
+            &payload,
+            archive.get("format").and_then(|v| v.as_str()),
+            archive.get("member").and_then(|v| v.as_str()).unwrap_or_default(),
+            updater.telemt_binary_max,
+        )
+        .map_err(|e| refuse(e.to_string()))?
+    } else {
+        payload
+    };
+    // A correct checksum authenticates the artifact, not its CPU architecture. Validate
+    // ELF64 little-endian EM_X86_64 before building or replacing the active generation.
+    if binary.len() < 64
+        || &binary[..4] != b"\x7fELF"
+        || binary[4..7] != [2, 1, 1]
+        || !matches!(u16::from_le_bytes([binary[16], binary[17]]), 2 | 3)
+        || u16::from_le_bytes([binary[18], binary[19]]) != 62
+        || u32::from_le_bytes(binary[20..24].try_into().unwrap()) != 1
+    {
+        return Err(refuse("Telemt artifact must be a Linux x86_64 ELF executable"));
+    }
+    Ok(binary)
 }
 
 /// `_build_telemt_image`: `docker build` of the pinned base image plus the verified binary, from a
@@ -123,6 +145,7 @@ pub fn update_telemt(updater: &HostUpdater, agent: &VersionAgent, entry: &Catalo
         return Err(refuse("Telemt Compose deployment is not configured"));
     };
     // Everything that can refuse (architecture, download, SHA-256) runs before the host changes.
+    agent.update_stage("telemt", "downloading")?;
     let binary = if build { Some(fetch_telemt_binary(updater, entry)?) } else { None };
     let previous = read_if_exists(&override_file)?;
     let previous_image = inspect_telemt_image(agent)?;
@@ -131,17 +154,22 @@ pub fn update_telemt(updater: &HostUpdater, agent: &VersionAgent, entry: &Catalo
     // required variables live only there.
     let outcome = (|| -> Step<()> {
         if let Some(binary) = &binary {
+            agent.update_stage("telemt", "building")?;
             build_telemt_image(agent, entry, binary, &target)?;
         }
+        agent.update_stage("telemt", "applying")?;
         atomic_write(&override_file, content.as_bytes(), 0o640)?;
         if !build {
             // A locally built tag is not in any registry.
             run_compose(agent, &compose_command(agent, &["pull", "mtproxy"], true, true)?, 900)?;
         }
         run_compose(agent, &compose_command(agent, &["up", "-d", "--no-deps", "mtproxy"], true, true)?, 300)?;
+        agent.update_stage("telemt", "verifying")?;
         verify_telemt_generation(updater, agent, &target)
     })();
     if let Err(exc) = outcome {
+        // Recording progress must never prevent restoring the previous generation.
+        let _ = agent.update_stage("telemt", "rolling_back");
         let rollback = (|| -> Step<()> {
             let command = match &previous {
                 None => {

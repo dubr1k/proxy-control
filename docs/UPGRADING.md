@@ -378,9 +378,12 @@ gates. It never calls `down -v`.
 
 When upstream `telemt/telemt` is newer than the registry image, the agent also offers a `build`
 candidate (catalog entry `kind: "build"`: `base_image` = `ghcr.io/samnet-dev/mtproxymax-telemt@sha256:…`,
-`url` = the release's `telemt` asset, `sha256`). Linux x86_64 only: the agent downloads the binary
-(at most 64 MiB), checks its SHA-256 against the digest GitHub published for the asset, and only then
-runs `docker build` of `proxy-control-telemt:<version>-<sha256[:12]>` (the base image plus the binary,
+`url`, `sha256`, and `archive: {"format": "tar.gz", "member": "telemt"}` for an archive). Linux x86_64
+uses the explicit `telemt-x86_64-linux-musl.tar.gz` asset preferentially: the unqualified `telemt`
+asset may contain a different CPU architecture. Legacy releases without the archive remain
+supported, but every binary must be ELF64 little-endian x86_64. Downloads and extracted binaries
+are bounded to 64 MiB. The agent verifies the **artifact** SHA-256 against the published GitHub
+digest and validates the ELF before changing the running container. Only then it runs `docker build` of `proxy-control-telemt:<version>-<sha256[:12]>` (the base image plus the binary,
 nothing downloaded is executed). That tag goes into the override; there is no `compose pull`. A failed
 build, start or health check is rolled back exactly as for an image, and older
 `proxy-control-telemt:*` images are removed except the current and the previous one.

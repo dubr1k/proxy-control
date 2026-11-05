@@ -177,5 +177,6 @@ command output or artifact URLs are included in the operation error.
 
 The object is absent for older agents and for components without an update
 attempt. The update POST remains synchronous for runtimes and asynchronous for
-the panel; old clients and agents keep their existing contract. Competing host
-update requests are rejected with HTTP 409 instead of silently queued.
+the panel; old clients and agents keep their existing contract. Competing runtime/panel update
+POST requests are rejected with HTTP 409 instead of silently queued; the distinct
+manual manager-rebuild endpoint retains its existing locking behavior.

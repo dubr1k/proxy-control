@@ -744,3 +744,25 @@ fn check_all_probes_the_protocol_managers_only_on_a_host_that_runs_them() {
     assert!(with_awg["amneziawg"]["last_error"].as_str().unwrap().contains("unexpected url"));
     assert!(!with_awg.contains_key("trusttunnel"));
 }
+
+#[test]
+fn telemt_prefers_explicit_x86_64_musl_archive_over_ambiguous_binary() {
+    let mut item = release("3.5.16");
+    let explicit = telemt_release(
+        "3.5.16",
+        Some(&format!("sha256:{}", "a".repeat(64))),
+        100,
+        false,
+        false,
+        "telemt-x86_64-linux-musl.tar.gz",
+    );
+    item["assets"].as_array_mut().unwrap().push(explicit["assets"][0].clone());
+    let result = check_component("telemt", Some("3.5.9"), &telemt_table(vec![item.clone()], &TAGS), false).unwrap();
+    let entry = result["candidates"].as_array().unwrap().iter().find(|c| c["kind"] == "build").unwrap();
+    assert_eq!(entry["url"], format!("{TELEMT_DOWNLOAD}/3.5.16/telemt-x86_64-linux-musl.tar.gz"));
+    assert_eq!(entry["sha256"], "a".repeat(64));
+    assert_eq!(entry["archive"], json!({"format": "tar.gz", "member": "telemt"}));
+    item["assets"][1].as_object_mut().unwrap().remove("digest");
+    let result = check_component("telemt", Some("3.5.9"), &telemt_table(vec![item], &TAGS), false).unwrap();
+    assert!(result["candidates"].as_array().unwrap().iter().all(|c| c["kind"] != "build"));
+}

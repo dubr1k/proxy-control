@@ -31,3 +31,27 @@ def test_update_progress_survives_refresh_and_poll_shows_rollback(tmp_path):
             browser.open_view('versions', f"document.querySelector('.version-operation')?.textContent.includes('{label}')", width=390)
         browser.js("localStorage.setItem('proxy-control.lang', 'en'); true")
         browser.open_view('versions', "document.querySelector('.version-operation')?.textContent.includes('Update completed')", width=1440)
+
+
+def test_known_update_recovers_after_repeated_agent_unavailability(tmp_path):
+    with isolated_panel(tmp_path, OverviewFixture) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        operation = {
+            'from_version': '3.4.24', 'target_version': '3.4.25',
+            'status': 'running', 'stage': 'verifying', 'started_at': 1700000000,
+        }
+        fixture.versions.components['telemt']['operation'] = operation
+        browser.open_view('versions', "!!document.querySelector('.version-operation')", width=390)
+        original = fixture.versions.list_versions
+        failures = {'remaining': 2, 'served': 0}
+
+        async def temporarily_unavailable():
+            if failures['remaining']:
+                failures['remaining'] -= 1
+                failures['served'] += 1
+                return {'enabled': False, 'components': {}}
+            return await original()
+
+        fixture.versions.list_versions = temporarily_unavailable
+        operation.update(status='succeeded', stage='finished', finished_at=1700000001)
+        browser.wait("document.querySelector('.version-operation')?.textContent.includes('Обновление завершено')", 'result recovers automatically after two degraded polls')
+        assert failures['served'] == 2

@@ -283,3 +283,21 @@ fn the_catalog_takes_a_well_formed_manager_build() {
     assert_eq!(Value::Object(awg.build.unwrap()), json!({"commit": "b".repeat(40), "tag": "v3.1.20260828"}));
     assert_eq!(tt.sha256.as_deref(), Some("c".repeat(64).as_str()));
 }
+
+#[test]
+fn telemt_architecture_archive_has_exact_url_format_and_member() {
+    let url = "https://github.com/telemt/telemt/releases/download/3.5.14/telemt-x86_64-linux-musl.tar.gz";
+    let good = json!({"url": url, "archive": {"format": "tar.gz", "member": "telemt"}});
+    let loaded = load(json!({"schema": 1, "components": {"telemt": [build_entry(good)]}})).unwrap();
+    let entry = loaded.entry("telemt", "3.5.14").unwrap();
+    assert_eq!(entry.public()["archive"], json!({"format": "tar.gz", "member": "telemt"}));
+    for bad in [
+        json!({"url": url}),
+        json!({"url": url, "archive": {"format": "zip", "member": "telemt"}}),
+        json!({"url": url, "archive": {"format": "tar.gz", "member": "other"}}),
+        json!({"url": BUILD_URL, "archive": {"format": "tar.gz", "member": "telemt"}}),
+        json!({"url": "https://github.com/telemt/telemt/releases/download/3.5.14/telemt-aarch64-linux-musl.tar.gz", "archive": {"format": "tar.gz", "member": "telemt"}}),
+    ] {
+        assert!(load(json!({"schema": 1, "components": {"telemt": [build_entry(bad.clone())]}})).is_err(), "{bad}");
+    }
+}

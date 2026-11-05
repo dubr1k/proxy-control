@@ -31,6 +31,8 @@ pub const OPTIONAL_COMPONENTS: [&str; 2] = ["amneziawg", "trusttunnel"];
 pub const TELEMT_REPOSITORY: &str = "samnet-dev/mtproxymax-telemt";
 pub const TELEMT_UPSTREAM_REPOSITORY: &str = "telemt/telemt";
 pub const TELEMT_BINARY_ASSET: &str = "telemt";
+/// Architecture-explicit static build; the unqualified asset has shipped as ARM64.
+pub const TELEMT_ARCHIVE_ASSET: &str = "telemt-x86_64-linux-musl.tar.gz";
 pub const AMNEZIAWG_REPOSITORY: &str = "amnezia-vpn/amneziawg-go";
 pub const TRUSTTUNNEL_REPOSITORY: &str = "TrustTunnel/TrustTunnel";
 pub const PANEL_REPOSITORY: &str = "dubr1k/proxy-control";
@@ -488,26 +490,37 @@ fn telemt_builds(fetcher: &dyn Fetcher) -> Result<Vec<Value>, UpstreamError> {
             continue;
         }
         let Some(tag) = item.get("tag_name").and_then(Value::as_str).filter(|t| is_dotted(t)) else { continue };
-        let asset = list_of(item.get("assets"))
-            .iter()
-            .filter_map(Value::as_object)
-            .find(|a| a.get("name").and_then(Value::as_str) == Some(TELEMT_BINARY_ASSET));
-        let Some(asset) = asset else { continue };
+        let assets = list_of(item.get("assets"));
+        let named = |name: &str| {
+            assets.iter().filter_map(Value::as_object).find(|a| a.get("name").and_then(Value::as_str) == Some(name))
+        };
+        // Never fall back to the ambiguous binary when an explicit asset exists but
+        // lacks a valid published digest. Legacy releases still work after ELF validation.
+        let (name, asset) = if let Some(asset) = named(TELEMT_ARCHIVE_ASSET) {
+            (TELEMT_ARCHIVE_ASSET, asset)
+        } else if let Some(asset) = named(TELEMT_BINARY_ASSET) {
+            (TELEMT_BINARY_ASSET, asset)
+        } else {
+            continue;
+        };
         let digest = asset.get("digest").and_then(Value::as_str).filter(|d| is_digest(d));
         let size = asset.get("size").and_then(crate::py::as_strict_int);
         let (Some(digest), Some(_)) = (digest, size.filter(|s| (1..=MAX_TELEMT_BINARY).contains(s))) else { continue };
         let mut single = BTreeMap::new();
-        single
-            .insert(TELEMT_BINARY_ASSET.to_string(), asset.get("browser_download_url").cloned().unwrap_or(Value::Null));
-        let url = asset_url(&single, TELEMT_BINARY_ASSET, repository)?;
-        let expected = format!("https://github.com/{repository}/releases/download/{tag}/{TELEMT_BINARY_ASSET}");
+        single.insert(name.to_string(), asset.get("browser_download_url").cloned().unwrap_or(Value::Null));
+        let url = asset_url(&single, name, repository)?;
+        let expected = format!("https://github.com/{repository}/releases/download/{tag}/{name}");
         if url.as_deref() != Some(expected.as_str()) {
             return fail("asset URL is not the release download of its repository");
         }
-        result.push(json!({
+        let mut candidate = json!({
             "version": tag, "tag": tag, "kind": "build", "source": "upstream", "url": expected,
             "sha256": &digest[7..], "published_at": published(item),
-        }));
+        });
+        if name == TELEMT_ARCHIVE_ASSET {
+            candidate["archive"] = json!({"format": "tar.gz", "member": "telemt"});
+        }
+        result.push(candidate);
     }
     Ok(result)
 }

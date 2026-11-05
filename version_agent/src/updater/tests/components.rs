@@ -801,7 +801,7 @@ fn telemt_rollback_verifies_restored_image_and_health() {
     assert_eq!(state_json(&dir.join("state.json"))["components"]["telemt"]["version"], "3.4.24");
 }
 
-const BUILD_BINARY: &[u8] = b"\x7fELF-telemt-3.5.14";
+const BUILD_BINARY: &[u8] = b"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\x3e\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 const BUILD_URL: &str = "https://github.com/telemt/telemt/releases/download/3.5.14/telemt";
 
 fn build_base() -> String {
@@ -852,8 +852,8 @@ fn build_agent(
         let argv = &c.argv;
         let current = || {
             let text = std::fs::read_to_string(&watched).unwrap_or_default();
-            if text.contains(&build_tag()) {
-                build_tag()
+            if let Some(image) = text.lines().find_map(|line| line.trim().strip_prefix("image: ")) {
+                image.to_string()
             } else {
                 "proxy-control-telemt:3.5.9-aaaaaaaaaaaa".to_string()
             }
@@ -1199,4 +1199,61 @@ fn a_trusttunnel_update_needs_an_x86_64_host() {
     };
     let error = update_error(agent.update("trusttunnel", "1.2.0", Some("1.1.0")));
     assert_eq!(error.message, "the TrustTunnel release archive is pinned for x86_64 only");
+}
+
+#[test]
+fn telemt_foreign_or_invalid_elf_refuses_before_host_changes() {
+    for (label, payload) in [
+        ("aarch64", {
+            let mut b = BUILD_BINARY.to_vec();
+            b[18] = 183;
+            b
+        }),
+        ("truncated", b"\x7fELF".to_vec()),
+        ("elf32", {
+            let mut b = BUILD_BINARY.to_vec();
+            b[4] = 1;
+            b
+        }),
+        ("big-endian", {
+            let mut b = BUILD_BINARY.to_vec();
+            b[5] = 2;
+            b
+        }),
+        ("text", vec![b'x'; 64]),
+    ] {
+        let dir = TempDir::new(label);
+        let digest = sha(&payload);
+        let run = build_agent(&dir, serving(payload), None, None);
+        let catalog_path = dir.join("catalog.json");
+        let mut catalog = state_json(&catalog_path);
+        catalog["components"]["telemt"][0]["sha256"] = json!(digest);
+        write(&catalog_path, catalog.to_string().as_bytes());
+        let error = update_error(run.agent.update("telemt", "3.5.14", Some("3.5.9")));
+        assert!(error.message.contains("x86_64 ELF"), "{label}: {error:?}");
+        assert!(run.host.argvs().is_empty(), "{label}");
+        assert!(!run.override_file.exists(), "{label}");
+        assert_eq!(state_json(&run.state)["components"]["telemt"]["version"], "3.5.9");
+    }
+}
+
+#[test]
+fn telemt_architecture_archive_verifies_digest_then_extracts_elf() {
+    let dir = TempDir::new("telemt-musl-archive");
+    let archive = targz_of(&[("telemt", BUILD_BINARY)], None);
+    let digest = sha(&archive);
+    let run = build_agent(&dir, serving(archive), None, None);
+    let catalog_path = dir.join("catalog.json");
+    let mut catalog = state_json(&catalog_path);
+    let entry = &mut catalog["components"]["telemt"][0];
+    entry["url"] = json!("https://github.com/telemt/telemt/releases/download/3.5.14/telemt-x86_64-linux-musl.tar.gz");
+    entry["sha256"] = json!(digest);
+    entry["archive"] = json!({"format": "tar.gz", "member": "telemt"});
+    write(&catalog_path, catalog.to_string().as_bytes());
+    run.agent.update("telemt", "3.5.14", Some("3.5.9")).unwrap();
+    assert_eq!(run.built.lock().unwrap().binary, BUILD_BINARY);
+    assert_eq!(
+        state_json(&run.state)["components"]["telemt"]["archive"],
+        json!({"format": "tar.gz", "member": "telemt"})
+    );
 }

@@ -2,6 +2,14 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The history starts with 1.0.0, the first stable release.
 
+## [Unreleased]
+
+### Fixes
+- Select the architecture-specific Telemt x86_64 musl archive and reject foreign or malformed ELF binaries before replacing a running generation.
+
+### Interface
+- Persist component update stages and terminal results on the server; restore active progress after refreshing the versions page and retain failure, rollback and interrupted outcomes.
+
 ## [4.0.2] - 2026-11-05
 
 ### Release process

@@ -335,7 +335,11 @@ fn entry(component: &str, raw: &Value) -> Result<CatalogEntry, CatalogError> {
             result.build = Some(naive_build(raw.get("build"))?);
         }
         ("build", "telemt") => {
-            reject_unknown(raw, &["version", "kind", "base_image", "url", "sha256", "source"], "telemt build")?;
+            reject_unknown(
+                raw,
+                &["version", "kind", "base_image", "url", "sha256", "archive", "source"],
+                "telemt build",
+            )?;
             if !is_dotted(version) {
                 return Err(CatalogError::new("telemt build version must be dotted digits"));
             }
@@ -343,9 +347,19 @@ fn entry(component: &str, raw: &Value) -> Result<CatalogEntry, CatalogError> {
                 return Err(CatalogError::new("telemt build must use the mtproxymax-telemt image by digest"));
             };
             let (url, digest) = https_artifact(raw, "telemt build")?;
-            if url != format!("https://github.com/telemt/telemt/releases/download/{version}/telemt") {
-                return Err(CatalogError::new("telemt build must download the telemt/telemt release binary"));
+            let prefix = format!("https://github.com/telemt/telemt/releases/download/{version}/");
+            let unpack = archive(component, raw.get("archive"))?;
+            let archived = url == format!("{prefix}{}", crate::upstream::TELEMT_ARCHIVE_ASSET);
+            let valid_archive = unpack.as_ref().is_some_and(|a| {
+                a.get("format").and_then(Value::as_str) == Some("tar.gz")
+                    && a.get("member").and_then(Value::as_str) == Some("telemt")
+            });
+            if !((archived && valid_archive) || (url == format!("{prefix}telemt") && unpack.is_none())) {
+                return Err(CatalogError::new(
+                    "telemt build must download the telemt/telemt release binary or x86_64 musl archive",
+                ));
             }
+            result.archive = unpack;
             result.url = Some(url);
             result.sha256 = Some(digest);
             result.base_image = Some(base.into());

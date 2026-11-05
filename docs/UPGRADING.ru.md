@@ -377,8 +377,12 @@ readback или health восстанавливает прежний override и
 
 Если upstream `telemt/telemt` новее образа в реестре, агент предлагает ещё и кандидата `build`
 (запись каталога `kind: "build"`: `base_image` = `ghcr.io/samnet-dev/mtproxymax-telemt@sha256:…`,
-`url` — asset `telemt` релиза, `sha256`). Только Linux x86_64: агент скачивает бинарник (не более
-64 МиБ), сверяет SHA-256 с digest, который GitHub опубликовал для asset, и только потом выполняет
+`url`, `sha256` и для архива `archive: {"format": "tar.gz", "member": "telemt"}`). Для Linux x86_64
+предпочитается явно именованный `telemt-x86_64-linux-musl.tar.gz`: общий asset `telemt` может
+оказаться бинарником другой архитектуры. Старые релизы без архива поддерживаются, но любой
+бинарник должен быть ELF64 little-endian x86_64. Агент ограничивает скачивание и распакованный
+бинарник 64 МиБ, сверяет SHA-256 **артефакта** с опубликованным GitHub digest и проверяет ELF
+до изменения работающего контейнера. Только потом выполняется
 `docker build` образа `proxy-control-telemt:<версия>-<sha256[:12]>` (базовый образ плюс бинарник;
 скачанное не запускается). Этот тег попадает в override, `compose pull` не выполняется. Ошибка
 сборки, запуска или health откатывается так же, как для образа; старые образы
@@ -437,7 +441,7 @@ URL невозможен ни из браузера, ни из конфигур�
 |---|---|---|---|
 | Xray-router (`xray`) | GitHub Releases `XTLS/Xray-core` | `xray`, `geoip.dat`, `geosite.dat` из `Xray-linux-64.zip` | `.dgst` релиза |
 | Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` из `mita_<v>_linux_amd64.tar.gz` | `.sha256.txt` релиза |
-| Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | образ по digest манифеста либо (`build`) бинарник `telemt` в локальном образе на новейшем образе реестра | digest реестра; опубликованный `sha256` asset релиза |
+| Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | образ по digest манифеста либо (`build`) x86_64 musl-архив (либо старый бинарник `telemt`) в локальном образе на новейшем образе реестра | digest реестра; опубликованный `sha256` asset релиза |
 | NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + ветка `naive` `klzgrad/forwardproxy` | Caddy собирается на хосте (`docker build`, builder-образ по digest, до 15 минут) | пин собранного бинарника |
 | AmneziaWG (`amneziawg`) | теги `amnezia-vpn/amneziawg-go` | образ `awg-manager`, собранный на хосте из коммита тега | коммит тега (40 hex), сверяется после клонирования |
 | TrustTunnel (`trusttunnel`) | стабильные GitHub Releases `TrustTunnel/TrustTunnel` | образ `trusttunnel-manager` с `trusttunnel-v<v>-linux-x86_64.tar.gz` | опубликованный `sha256` asset релиза |
