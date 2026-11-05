@@ -1,7 +1,8 @@
 //! Replays the frozen legacy framework probes: 404/405 with `Allow`, trailing-slash redirects,
 //! HEAD, hosts, body limits, validation precedence, security headers, cookies and static payloads.
-//! Built-in pages and OpenAPI are maintained artifacts, not byte-frozen legacy source: their
-//! transport/auth contracts remain here; browser and registered-route tests cover their contents.
+//! Built-in pages, styles, translations and OpenAPI are maintained artifacts, not byte-frozen
+//! legacy source: their transport/auth contracts remain here; static bytes match current files,
+//! while browser and registered-route tests cover their contents.
 
 mod common;
 
@@ -196,15 +197,29 @@ fn framework_probes_match_python() {
         }
         let head = request.starts_with("HEAD ");
         let (status, headers, body) = common::parse(&common::exchange(&panel.socket, &raw), head);
+        let target = request.split_ascii_whitespace().nth(1).and_then(|target| target.split('?').next());
+        let maintained_static = match target {
+            Some("/static/style.css") => Some("style.css"),
+            Some("/static/i18n/en.json") => Some("i18n/en.json"),
+            _ => None,
+        };
         let maintained_artifact = status == 200
-            && request
-                .split_ascii_whitespace()
-                .nth(1)
-                .is_some_and(|target| matches!(target.split('?').next(), Some("/" | "/login" | "/api/openapi.json")));
+            && (maintained_static.is_some() || matches!(target, Some("/" | "/login" | "/api/openapi.json")));
         let got = normalise(status, &headers, &body, !maintained_artifact);
         let mut want = want.clone();
         want.as_object_mut().unwrap().remove("name");
         if maintained_artifact {
+            if let Some(relative) = maintained_static {
+                let current = std::fs::read(common::static_dir().join(relative)).unwrap();
+                assert_eq!(
+                    common::header(&headers, "content-length").and_then(|value| value.parse::<usize>().ok()),
+                    Some(current.len()),
+                    "{name}: Content-Length must describe the current static file"
+                );
+                if !head {
+                    assert!(body == current, "{name}: the response must contain the exact current static file");
+                }
+            }
             if !head {
                 assert_eq!(
                     common::header(&headers, "content-length").and_then(|value| value.parse::<usize>().ok()),
@@ -230,6 +245,24 @@ fn framework_probes_match_python() {
         }
     }
     assert!(failures.is_empty(), "{} of {} probes differ:\n{}", failures.len(), expected.len(), failures.join("\n"));
+}
+
+#[test]
+fn maintained_static_head_describes_current_files_without_a_body() {
+    let panel = common::start(&[]);
+    for relative in ["style.css", "i18n/en.json"] {
+        let request =
+            format!("HEAD /static/{relative}?cache=probe HTTP/1.1\r\nHost: testserver\r\nConnection: close\r\n\r\n");
+        // Keep raw body bytes: the HEAD-aware parser would clear them before the assertion.
+        let (status, headers, body) = common::parse(&common::exchange(&panel.socket, request.as_bytes()), false);
+        assert_eq!(status, 200, "{relative}");
+        assert!(body.is_empty(), "{relative}: HEAD must not carry the static body");
+        assert_eq!(
+            common::header(&headers, "content-length").and_then(|value| value.parse::<usize>().ok()),
+            Some(std::fs::read(common::static_dir().join(relative)).unwrap().len()),
+            "{relative}: HEAD must describe the current static file"
+        );
+    }
 }
 
 #[test]
