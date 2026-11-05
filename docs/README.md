@@ -4,7 +4,7 @@
 
 This index separates **installation**, **protocols and the panel**, **operations**, and
 **development**. Start with the README in your language, then follow the document for the
-boundary you are changing. The current release is **[v4.0.1](releases/v4.0.1.md)**:
+boundary you are changing. The current release is **[v4.0.2](releases/v4.0.2.md)**:
 the application runtime is Rust; Python is used only by external development and acceptance tools.
 
 ## Repository layout / Структура репозитория
