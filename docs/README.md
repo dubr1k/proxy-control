@@ -85,6 +85,7 @@ application source and must not be copied into a release or issue report.
 
 ### Выпуски
 
+- **[v4.0.2](releases/v4.0.2.md)** — восстановление Naive, новая страница подписки, обновления компонентов и каталог маршрутизации
 - **[v4.0.1](releases/v4.0.1.md)** — компактные карточки, удобная выдача подписок и исправления интерфейса
 - **[v4.0.0](releases/v4.0.0.md)** — нативный Rust runtime, готовые хостовые бинарники, переход с 3.3.0 и исправления установщика
 
@@ -180,6 +181,7 @@ application source and must not be copied into a release or issue report.
 
 ### Releases
 
+- **[v4.0.2](releases/v4.0.2.md)** — Naive recovery, a new subscription page, component updates and routing catalogue
 - **[v4.0.1](releases/v4.0.1.md)** — compact cards, clearer subscription delivery and interface fixes
 - **[v4.0.0](releases/v4.0.0.md)** — native Rust runtime, prebuilt host executables, the 3.3.0 transition and installer fixes
 

@@ -2,7 +2,7 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The history starts with 1.0.0, the first stable release.
 
-## [Unreleased]
+## [4.0.2] - 2026-11-05
 
 ### Release process
 - Simplify releases from 4.0.2: reuse exact-commit CI, build reproducibly only in Release, accept ready-built draft files on the lab host and publish those same files through an explicit workflow.
