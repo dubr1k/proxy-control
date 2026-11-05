@@ -10,6 +10,12 @@ export const ACCENTS = [
   ["violet", "Фиолет"],
   ["rose", "Роза"],
   ["orange", "Оранж"],
+  ["amber", "Янтарь"],
+  ["lime", "Лайм"],
+  ["teal", "Мята"],
+  ["sky", "Небо"],
+  ["pink", "Розовый"],
+  ["red", "Коралл"],
 ];
 const KEY = "proxy-control.accent";
 const DEFAULT = "indigo";

@@ -474,6 +474,41 @@ const GEODATA_SOURCES = {
   iran: "Иран — chocolate4u", v2fly: "v2fly — без региональных списков", custom: "свои URL",
 };
 
+// Extra publishers use the existing HTTPS pair contract, including on older linked panels.
+// These are source choices, never additional files silently merged into the active dataset.
+export const GEODATA_CATALOG = [
+  { id: "runetfreedom", title: "Россия · runetfreedom", note: "Блокировки РФ, AntiFilter и Re:filter", codes: "ru-blocked · refilter · antifilter-download-community", repository: "runetfreedom/russia-v2ray-rules-dat" },
+  { id: "loyalsoldier", title: "Loyalsoldier", note: "Общие категории, реклама, Китай и GFW", codes: "category-ads-all · cn · geolocation-!cn", repository: "Loyalsoldier/v2ray-rules-dat" },
+  { id: "metacubex", title: "MetaCubeX", note: "Расширенные категории сервисов и трекеров", codes: "tracker · telegram · google", repository: "MetaCubeX/meta-rules-dat", base: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest" },
+  { id: "refilter", title: "Re:filter", note: "Отфильтрованные блокировки доменов и IP в РФ", codes: "geosite:refilter · geoip:refilter", repository: "1andrevich/Re-filter-lists", base: "https://github.com/1andrevich/Re-filter-lists/releases/latest/download" },
+  { id: "metacubex-lite", title: "MetaCubeX Lite", note: "Облегчённый набор популярных сервисов", codes: "youtube · netflix · openai · spotify", repository: "MetaCubeX/meta-rules-dat", base: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest", suffix: "-lite" },
+  { id: "ru-direct", title: "Россия · ru-direct", note: "Российские сервисы для прямого подключения", codes: "ru-lite · ru-standard · ru-full", repository: "kyoresuas/ru-direct", base: "https://github.com/kyoresuas/ru-direct/releases/latest/download" },
+  { id: "ru-inside", title: "Россия · golukon Lite", note: "Небольшой набор доменов и сетей внутри РФ", codes: "geosite:ru-inside · geoip:ru", repository: "golukon/russia-v2ray-rules-lite", base: "https://github.com/golukon/russia-v2ray-rules-lite/releases/latest/download" },
+  { id: "iran", title: "Иран · chocolate4u", note: "Иранские сервисы, реклама и региональные сети", codes: "category-ir · geoip:ir", repository: "chocolate4u/Iran-v2ray-rules" },
+  { id: "v2fly", title: "v2fly", note: "Официальные списки сообщества V2Ray", codes: "youtube · google · telegram", repository: "v2fly/domain-list-community" },
+];
+
+function catalogueSource(id) {
+  const item = GEODATA_CATALOG.find((entry) => entry.id === id);
+  return item?.base ? { kind: "custom", geosite_url: `${item.base}/geosite${item.suffix || ""}.dat`, geoip_url: `${item.base}/geoip${item.suffix || ""}.dat` } : { kind: id };
+}
+
+function catalogueId(source) {
+  if (source?.kind !== "custom") return source?.kind;
+  return GEODATA_CATALOG.find((item) => {
+    const pair = catalogueSource(item.id);
+    return pair.kind === "custom" && pair.geosite_url === source.geosite_url && pair.geoip_url === source.geoip_url;
+  })?.id || "custom";
+}
+
+function sourceDetails(context) {
+  const id = query("#geodata-source", context.root).value;
+  const item = GEODATA_CATALOG.find((entry) => entry.id === id);
+  query("#geodata-custom", context.root).hidden = id !== "custom";
+  const details = query("#geodata-source-details", context.root);
+  if (details) details.innerHTML = item ? `${esc(item.note)}<br><code>${esc(item.codes)}</code> · <a href="https://github.com/${esc(item.repository)}" target="_blank" rel="noopener noreferrer">GitHub</a>` : "";
+}
+
 function geodataLine(context, target) {
   const state = ensureState(context);
   if (!target.router?.available) return "";
@@ -483,7 +518,7 @@ function geodataLine(context, target) {
   if (!geo) return "";
   const files = geo.files || {};
   const counts = `geosite: ${number(files.geosite?.codes || 0)} кодов · geoip: ${number(files.geoip?.codes || 0)}`;
-  const source = GEODATA_SOURCES[geo.source?.kind] || geo.source?.kind || "?";
+  const source = GEODATA_CATALOG.find((item) => item.id === catalogueId(geo.source))?.title || GEODATA_SOURCES[geo.source?.kind] || geo.source?.kind || "?";
   const version = geo.version ? ` ${esc(geo.version)}` : "";
   const when = geo.updated_at ? ` · обновлено ${esc(date(Date.parse(geo.updated_at) / 1000))}` : "";
   // v1.0.1: a daily update waits for its UTC hour (the router restarts on new lists).
@@ -502,24 +537,37 @@ function geodataLine(context, target) {
     ${error}
     <span class="routing-geodata-tools">
       <button class="ghost" data-routing-action="geodata-update"${owner ? "" : " disabled"}>${pinned ? "Вернуть пин" : "Обновить сейчас"}</button>
-      <button class="ghost" data-routing-action="geodata-settings"${owner ? "" : " disabled"}>Источник…</button>
+      <button class="ghost" data-routing-action="geodata-settings"${owner ? "" : " disabled"}>Источник и автообновление</button>
     </span>
     <datalist id="geodata-geosite-codes">${codeOptions(state.codes?.geosite)}</datalist>
     <datalist id="geodata-geoip-codes">${codeOptions(state.codes?.geoip)}</datalist>
   </div>`;
 }
 
+function listsPanel(context, target) {
+  if (!target.router?.available) return "";
+  const owner = context.state.me?.role === "owner" && Boolean(ensureState(context).geodata);
+  const selected = catalogueId(ensureState(context).geodata?.source);
+  return `<section class="routing-lists" aria-label="Списки сайтов и IP">
+    <div class="panel-head"><div><h3>Популярные списки сайтов и IP</h3><span>Выберите набор, настройте автообновление и скачайте его кнопкой «Обновить сейчас». На узле используется один набор; нужные категории выбираются в правилах.</span></div></div>
+    <div class="routing-list-sources">${GEODATA_CATALOG.map((item) => `<button type="button" class="routing-list-source${item.id === selected ? " selected" : ""}" data-routing-action="geodata-settings" data-geodata-source="${item.id}"${owner ? "" : " disabled"}><b>${esc(item.title)}</b><small>${esc(item.note)}</small><code>${esc(item.codes)}</code><span>${item.id === selected ? "Выбран" : "Выбрать источник"}</span></button>`).join("")}</div>
+    ${geodataLine(context, target)}
+  </section>`;
+}
+
 function codeOptions(codes) {
   return (codes || []).map((code) => `<option value="${esc(code)}"></option>`).join("");
 }
 
-function openGeodataModal(context) {
+function openGeodataModal(context, source = null) {
   const { root } = context;
   const geo = ensureState(context).geodata;
   if (!geo) return;
   query("#geodata-form", root).reset();
   query("#geodata-error", root).textContent = "";
-  query("#geodata-source", root).value = geo.source?.kind || "xray";
+  const select = query("#geodata-source", root);
+  select.innerHTML = GEODATA_CATALOG.map((item) => `<option value="${item.id}">${esc(item.title)}</option>`).join("") + '<option value="xray">Архив Xray-core (пин установщика, без обновлений)</option><option value="custom">Свои URL</option>';
+  select.value = source || catalogueId(geo.source) || "xray";
   query("#geodata-geosite-url", root).value = geo.source?.geosite_url || "";
   query("#geodata-geoip-url", root).value = geo.source?.geoip_url || "";
   query("#geodata-auto", root).checked = geo.auto_update === true;
@@ -528,7 +576,7 @@ function openGeodataModal(context) {
   const hourField = query("#geodata-hour", root);
   hourField.closest("label").hidden = !("update_hour" in geo);
   hourField.value = Number.isInteger(geo.update_hour) ? String(geo.update_hour) : "";
-  query("#geodata-custom", root).hidden = query("#geodata-source", root).value !== "custom";
+  sourceDetails(context);
   context.ui.openModal("#geodata-modal", "#geodata-source");
 }
 
@@ -538,7 +586,7 @@ async function saveGeodata(context, button) {
   const error = query("#geodata-error", root);
   const kind = query("#geodata-source", root).value;
   const body = {
-    source: { kind },
+    source: catalogueSource(kind),
     auto_update: query("#geodata-auto", root).checked,
     interval_hours: Number(query("#geodata-interval", root).value) || 24,
   };
@@ -688,7 +736,7 @@ function targetCard(context) {
   const laneTools = lane === LANE_SERVICE ? "" : `<div class="routing-lane-tools"><small>${laneItem?.grant ? `доступ ${esc(laneItem.grant.runtime_username)} клиента ${esc(laneItem.grant.client_name)}: свой маршрут` : "полоса клиента"}</small><button class="secondary" data-routing-action="lane-remove"${owner && laneItem?.grant ? "" : " disabled"}>Вернуть в полосу сервиса</button></div>`;
   // v0.17 (owner: «чтобы было удобно, понятно»): the card is four numbered steps in the order an
   // operator works — for whom, where traffic goes, check, apply — and the node's plumbing
-  // (exits, Xray-router, geodata, relay) below them, folded once the service is on the router.
+  // (exits, Xray-router, relay) below them; popular lists remain visible above the steps.
   const setupOpen = !target.router || !target.router.attached;
   const capabilities = capabilityList(target.capabilities).join(", ") || "—";
   return `<article class="panel-card routing-card">
@@ -704,6 +752,7 @@ function targetCard(context) {
     ${target.protocol === "amneziawg" && !target.router?.attached ? '<p class="form-hint">Весь трафик клиентов AmneziaWG идёт по одной политике: напрямую или через WARP. Если туннель WARP пропадает, трафик клиентов не выпускается с IP сервера, а отбрасывается, пока туннель не вернётся. Для правил по сайтам, своих выходов и других узлов подключите AmneziaWG к Xray-router в «Возможностях узла» ниже.</p>' : ""}
     ${target.protocol === "amneziawg" && target.router?.attached ? '<p class="form-hint">AmneziaWG идёт через Xray-router: правила по доменам (их узнаёт сниффер), спискам geosite и geoip, адресам и портам, свои выходы и другие узлы. WARP здесь — WireGuard-выход роутера, через него идут и TCP, и UDP. Пока роутер не работает, трафик клиентов отбрасывается. Полос для отдельных клиентов нет.</p>' : ""}
     ${reason}
+    ${listsPanel(context, target)}
     <section class="routing-step">
       ${stepHead(1, "Для кого", "Весь сервис или отдельный клиент со своей полосой: его трафик живёт по своей политике.")}
       ${laneTabs(context, target)}
@@ -726,12 +775,11 @@ function targetCard(context) {
       <div id="routing-history" hidden></div>
     </section>
     <details class="routing-node-setup"${setupOpen ? " open" : ""}>
-      <summary>Возможности узла: выходы, Xray-router, списки geosite/geoip, relay</summary>
+      <summary>Возможности узла: выходы, Xray-router, relay</summary>
       <p class="form-hint">Провайдеры узла: ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress: «Применить» заменит её и сохранит для отката" : ""}</p>
       ${exitsLine(context, target)}
       ${customExitsPanel(context, target)}
       ${routerLine(context, target)}
-      ${geodataLine(context, target)}
       ${relayLine(context, target)}
     </details>
   </article>`;
@@ -950,7 +998,7 @@ export function handleRoutingInput(context, element) {
 export function handleRoutingChange(context, element) {
   if (context.state.view !== "routing") return false;
   if (element.id === "geodata-source") {
-    query("#geodata-custom", context.root).hidden = element.value !== "custom";
+    sourceDetails(context);
     return true;
   }
   if (element.id === "routing-node") {
@@ -1480,7 +1528,7 @@ export function handleRoutingClick(context, button) {
     return true;
   }
   if (action === "geodata-settings") {
-    openGeodataModal(context);
+    openGeodataModal(context, button.dataset.geodataSource);
     return true;
   }
   if (action === "apply" || action === "rollback" || action === "delete") {
@@ -1534,7 +1582,7 @@ export function bindRouting(context) {
     button.addEventListener("click", () => setExitTab(context, button.dataset.exitTab));
   }
   query("#geodata-source", context.root)?.addEventListener("change", ({ currentTarget: select }) => {
-    query("#geodata-custom", context.root).hidden = select.value !== "custom";
+    sourceDetails(context);
   });
   let dragged = null;
   view.addEventListener("dragstart", (event) => {

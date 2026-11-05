@@ -11,6 +11,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Make the Fleet test node distinguish raw MTProxy secrets from the Fake-TLS prefix by their complete format, including raw secrets starting with `ee`. Add a deterministic regression for credential capture and replay.
 
 ### Interface
+- Fill the overview's final row with two wider cards. Add an MTProxy summary and themed Mieru, AmneziaWG and TrustTunnel cards; align node actions with status and expand the accent palette to 13 colours.
+- Highlight each component's available update. “Update all” confirms the list, updates sequentially with the panel last, and stops at the first error.
+- Expose a nine-dataset routing catalogue, adding MetaCubeX, MetaCubeX Lite, Re:filter, ru-direct and golukon Lite. Sources retain manual downloads, automatic refresh intervals and update hours.
 - Explain that the NaiveProxy graph includes service healthchecks; wrap long monitoring node names on phones.
 - Align the server load, live indicator, update time and monitoring link on the overview; wrap whole groups cleanly on phones.
 - Redesign the browser subscription page with a personal header, connection steps, compact app and access cards, light/dark themes and mobile layouts. Copy, import and QR actions keep their existing URLs and formats; only the HTML cache version changes.

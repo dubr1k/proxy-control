@@ -62,8 +62,8 @@ export async function renderNaive(context, generation) {
   const active = users.filter((user) => user.enabled).length;
   const blocked = users.length - active;
   const ready = context.state.naiveService.ready === true;
-  context.ui.view.innerHTML = `<div class="naive-overview">
-    <article><span class="naive-mark">${icon("status")}</span><div><small>Сервис</small><b>${ready ? "Caddy работает" : "Manager недоступен"}</b><em>${esc(context.state.naiveService.host || "—")}</em></div><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article>
+  context.ui.view.innerHTML = `<div class="naive-overview service-overview">
+    <article class="service-summary"><span class="naive-mark">${icon("status")}</span><div><small>Сервис</small><b>${ready ? "Caddy работает" : "Manager недоступен"}</b><em>${esc(context.state.naiveService.host || "—")}</em></div><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article>
     <article><small>Доступы</small><strong>${number(active)}</strong><span>${blocked ? `${blocked} отключено` : "Все активны"}</span></article>
     <article><small>Учёт</small><strong>${bytes(sumNaiveTraffic(users))}</strong><span>payload-байты закрытых CONNECT</span></article>
   </div>

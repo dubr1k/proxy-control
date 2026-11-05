@@ -1,4 +1,4 @@
-import { cssEscape, date, esc, initials, offeredVersions, query, updateRequestBody, versionOptions } from "./common.js";
+import { cssEscape, date, esc, initials, newestUpdate, offeredVersions, query, updateRequestBody, versionOptions } from "./common.js";
 import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
@@ -10,6 +10,22 @@ const PANEL_POLL_LIMIT_MS = 10 * 60 * 1000;
 const PANEL_CONFIRM = "Панель пересоберётся и перезапустится; страница перезагрузится сама, когда панель ответит новой версией. База данных и код сохраняются в rollback-копии.";
 let panelPoll = null;
 let rebuildTimer = null;
+let versionBatch = false;
+let batchProgress = "";
+const COMPONENT_NAMES = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
+
+function batchPlan(data) {
+  return Object.keys(COMPONENT_NAMES).filter((name) => name !== "panel").concat("panel")
+    .flatMap((component) => {
+      const item = data.components?.[component];
+      const candidate = newestUpdate(item);
+      return candidate ? [{ component, version: candidate.version, raw: item.current, current: offeredVersions(item).current }] : [];
+    });
+}
+
+function agentBusy(data) {
+  return Object.values(data.components || {}).some((item) => item.status === "updating" || item.rebuilding_managers === true);
+}
 
 export { ROLE_NAMES };
 
@@ -24,13 +40,17 @@ export async function renderVersions(context, generation) {
   // The agent lists `xray` only on a host that runs the Xray-router, so there is no
   // "router not installed" branch here.
   // 3.2 (owner): the panel's own card first, then the runtimes in the order of the overview.
-  const names = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
+  const names = COMPONENT_NAMES;
   const order = Object.keys(names);
   const rank = (component) => (order.includes(component) ? order.indexOf(component) : order.length);
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Обновления с GitHub ещё не проверялись";
-  const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
+  const plan = batchPlan(context.state.versions);
+  const blocked = versionBatch || agentBusy(context.state.versions);
+  const checkBar = `<div class="version-check"><span>${esc(checkedAt)} · Доступно обновлений: ${plan.length}</span><div class="version-check-actions">${context.state.versions.upstream_enabled === false ? "" : `<button class="ghost" data-version-check="1"${blocked ? " disabled" : ""}>Проверить обновления</button>`}${context.state.me?.role === "owner" ? `<button class="primary" data-version-update-all="1"${blocked || !plan.length ? " disabled" : ""}>Обновить всё${plan.length ? ` · ${plan.length}` : ""}</button>` : ""}</div></div>`;
   const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
     const { raw, current, offered, hasNewer } = offeredVersions(item);
+    const update = newestUpdate(item);
+    const announcement = update ? `<p class="version-available"><b>Доступно обновление: ${esc(update.version)}</b></p>` : "";
     const available = Array.isArray(item.available) ? item.available : [];
     const upstream = item.upstream || {};
     const notInstallable = !hasNewer && upstream.latest && upstream.reason === "no_published_digest"
@@ -57,10 +77,18 @@ export async function renderVersions(context, generation) {
         ? `<p class="version-empty">${esc(pendingList.join(", "))} — ещё не пересобраны</p>${rebuildError}${canRebuild ? '<button class="ghost" data-managers-rebuild="1">Пересобрать менеджеры</button>' : ""}`
         : "";
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
-    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}</article>`;
+    return `<article class="version-card${update ? " has-update" : ""}"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${update ? "update-available" : current === "не определена" ? "blocked" : "active"}"><i></i>${update ? "Есть обновление" : current === "не определена" ? "Не определена" : "Установлена"}</span></div>${announcement}${control}${pending}${lastError}${failure}</article>`;
   }).join("");
   context.ui.view.innerHTML = `<details class="page-help"><summary>Как обновлять</summary><p>Перед заменой проверяется контрольная сумма, а прежняя версия сохраняется для отката. «Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.</p></details>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
-  if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
+  if (versionBatch) {
+    for (const control of context.ui.view.querySelectorAll(".version-card button, .version-card select")) control.disabled = true;
+    const progress = document.createElement("p");
+    progress.className = "version-batch-progress";
+    progress.setAttribute("role", "status");
+    progress.textContent = batchProgress;
+    context.ui.view.prepend(progress);
+  }
+  if (!versionBatch && context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
   // A manager rebuild runs in the agent's background: look again until it is over.
   window.clearTimeout(rebuildTimer);
   if (context.state.versions.components?.panel?.rebuilding_managers === true) {
@@ -94,10 +122,11 @@ async function pollPanelUpdate(context, version) {
     if (panel && (version ? panel.current === version : !panel.last_error)) {
       context.ui.toast(`Панель обновлена до ${panel.current}`);
       window.location.reload();
-      return;
+      return true;
     }
     context.ui.toast(panel ? (panel.last_error || "Панель не обновилась") : "Панель не ответила за 10 минут", "error");
     if (context.state.view === "versions") await context.navigate("versions");
+    return false;
   })().finally(() => { panelPoll = null; });
   return panelPoll;
 }
@@ -105,6 +134,7 @@ async function pollPanelUpdate(context, version) {
 // Nothing to offer is good news once upstream answered: say so instead of «в каталоге нет
 // версий», which reads like a fault. Without a check the catalog is all there is.
 function upToDate(current, upstream, available) {
+  if (upstream.last_error) return '<p class="version-empty">Не удалось проверить новые версии. Повторите проверку обновлений.</p>';
   if (upstream.checked_at && upstream.latest) {
     const same = upstream.latest === current || current.startsWith(`${upstream.latest}-`);
     return `<p class="version-empty"><b>Установлена актуальная версия</b> — ${same ? "новее релизов на GitHub нет" : `последний релиз ${esc(upstream.latest)} не новее установленной`}</p>`;
@@ -114,6 +144,7 @@ function upToDate(current, upstream, available) {
 }
 
 async function checkVersions(context, button) {
+  if (versionBatch) return;
   try {
     context.ui.setBusy(button, true, "Проверяем…");
     await context.api("/api/versions/check", { method: "POST" });
@@ -127,6 +158,7 @@ async function checkVersions(context, button) {
 }
 
 async function rebuildManagers(context, button) {
+  if (versionBatch) return;
   try {
     context.ui.setBusy(button, true, "Пересобираем…");
     await context.api("/api/versions/panel/rebuild-managers", { method: "POST" });
@@ -140,6 +172,7 @@ async function rebuildManagers(context, button) {
 }
 
 async function versionAction(context, component, button) {
+  if (versionBatch) return;
   const select = query(`[data-version-select="${cssEscape(component)}"]`, context.ui.view);
   const version = select?.value;
   const raw = button.dataset.current;
@@ -176,6 +209,43 @@ async function versionAction(context, component, button) {
     context.ui.toast(error.message, "error");
   } finally {
     context.ui.setBusy(button, false);
+  }
+}
+
+async function updateAll(context, button) {
+  if (versionBatch || context.state.me?.role !== "owner") return;
+  versionBatch = true;
+  try {
+    const data = await context.api("/api/versions");
+    if (data.enabled !== true || agentBusy(data)) throw new Error("Дождитесь завершения текущего обновления или пересборки");
+    const plan = batchPlan(data);
+    if (!plan.length) {
+      context.ui.toast("Доступных обновлений нет");
+      return;
+    }
+    const list = plan.map((item) => `${COMPONENT_NAMES[item.component]}: ${item.current} → ${item.version}`).join("\n");
+    const warning = `Компоненты обновятся по очереди; их соединения могут прерваться. При первой ошибке обновление остановится. Панель обновляется последней.\n\n${list}${plan.some((item) => item.component === "panel") ? `\n\n${PANEL_CONFIRM}` : ""}`;
+    if (!await context.ui.confirmed("Обновить все компоненты?", warning, "Обновить всё")) return;
+    context.ui.setBusy(button, true, "Обновляем…");
+    for (const [index, item] of plan.entries()) {
+      batchProgress = `Обновление ${index + 1} из ${plan.length}: ${COMPONENT_NAMES[item.component]} → ${item.version}`;
+      if (context.state.view === "versions") await context.navigate("versions");
+      await context.api(`/api/versions/${encodeURIComponent(item.component)}/update`, {
+        method: "POST", body: JSON.stringify(updateRequestBody(item.version, item.raw)),
+      });
+      if (item.component === "panel") {
+        if (context.state.view === "versions") await context.navigate("versions");
+        if (!await pollPanelUpdate(context, item.version)) throw new Error("Панель не подтвердила новую версию");
+      }
+    }
+    context.ui.toast("Все выбранные компоненты обновлены");
+  } catch (error) {
+    context.ui.toast(`Обновление остановлено: ${error.message}`, "error");
+  } finally {
+    versionBatch = false;
+    batchProgress = "";
+    context.ui.setBusy(button, false);
+    if (context.state.view === "versions") await context.navigate("versions");
   }
 }
 
@@ -267,6 +337,10 @@ export function handleManagementChange(context, target) {
 }
 
 export function handleManagementClick(context, button) {
+  if (button.dataset.versionUpdateAll) {
+    void updateAll(context, button);
+    return true;
+  }
   if (button.dataset.versionCheck) {
     void checkVersions(context, button);
     return true;

@@ -344,6 +344,23 @@ the automatic refresh: `GET /api/routing/geodata?node=`, `GET …/geodata/codes`
 `POST …/geodata/update | restore`; on a linked panel through `/api/fleet/v2/geodata*`. Audit
 `routing.geodata.settings | update | restore`, on the node `fleet.geodata.*`.
 
+The routing screen shows “Popular domain and IP lists” above its setup steps when the
+selected node has Xray-router available. Nine choices are offered: Loyalsoldier, runetfreedom,
+MetaCubeX, MetaCubeX Lite, Re:filter, ru-direct, golukon Lite, chocolate4u and v2fly.
+Cards open settings with that source selected. Save the settings, then choose “Update now” and confirm
+the download. “Source and automatic updates” also offers the pinned Xray lists and custom HTTPS URLs,
+automatic updates, an interval of 1–336 hours and a UTC update hour.
+The lists are shared by all services on the selected node; choosing a source adds no routing rules.
+
+A dataset contains multiple categories for routing rules. The node uses one active
+`geosite.dat`/`geoip.dat` pair; changing datasets replaces that pair after checking the current rules.
+New catalogue entries use the existing HTTPS URL mode, including on linked panels, without extending the API.
+The [runetfreedom dataset](https://github.com/runetfreedom/russia-v2ray-rules-dat) includes AntiFilter and
+Re:filter categories. [Re:filter](https://github.com/1andrevich/Re-filter-lists) is also available separately.
+[MetaCubeX](https://github.com/MetaCubeX/meta-rules-dat) offers full and lightweight service categories;
+[ru-direct](https://github.com/kyoresuas/ru-direct) and [golukon Lite](https://github.com/golukon/russia-v2ray-rules-lite)
+provide categories intended for direct access to Russian services.
+
 The «Маршрутизация» screen: rules as a «what / where / note» table with a rule modal and
 drag-and-drop; the quick settings above it; on the node's card — «Свои выходы» (a form per
 protocol or a share-link import, a test, on/off) and the Geodata block.

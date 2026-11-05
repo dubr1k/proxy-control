@@ -252,7 +252,7 @@
   <dialog id="geodata-modal" class="sheet">
     <form method="dialog" id="geodata-form">
       <div class="modal-head"><div><span class="eyebrow">GEODATA</span><h2>Списки geosite и geoip</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Откуда роутер узла берёт файлы, по которым понимает коды вроде <code>geosite:youtube</code> и <code>geoip:ru</code>. Обновление проверяется: оба файла скачиваются по HTTPS, сверяются с опубликованной контрольной суммой, текущая конфигурация прогоняется через <code>xray -test</code>, и только потом файлы подменяются и роутер перезапускается.</p>
+      <p class="modal-copy">Откуда роутер узла берёт файлы, по которым понимает коды вроде <code>geosite:youtube</code> и <code>geoip:ru</code>. Обновление проверяется: оба файла скачиваются по HTTPS, проверяется формат и опубликованная контрольная сумма, если она есть; текущая конфигурация прогоняется через <code>xray -test</code>, и только потом файлы подменяются и роутер перезапускается.</p>
       <label>Источник<select id="geodata-source" name="kind">
         <option value="loyalsoldier">Loyalsoldier — Китай и общие категории (по умолчанию)</option>
         <option value="runetfreedom">Россия — runetfreedom: ru-blocked, ru-available-only-inside</option>
@@ -261,6 +261,7 @@
         <option value="xray">Архив Xray-core (пин установщика, без обновлений)</option>
         <option value="custom">Свои URL</option>
       </select></label>
+      <p id="geodata-source-details" class="form-hint"></p>
       <div id="geodata-custom" hidden>
         <label>URL geosite.dat<input id="geodata-geosite-url" type="url" maxlength="1024" placeholder="https://example.org/geosite.dat"><small>Только https; если рядом лежит <code>&lt;url&gt;.sha256sum</code>, он проверяется</small></label>
         <label>URL geoip.dat<input id="geodata-geoip-url" type="url" maxlength="1024" placeholder="https://example.org/geoip.dat"></label>

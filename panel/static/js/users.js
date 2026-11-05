@@ -1,4 +1,4 @@
-import { actionMenu, bytes, date, esc, initials, localDateTime, number, query } from "./common.js";
+import { actionMenu, bytes, date, esc, initials, localDateTime, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
@@ -58,10 +58,19 @@ export function paintUsers(context) {
 }
 
 export async function renderUsers(context, generation) {
-  const users = await refreshUsers(context, generation);
+  const [users, dashboard] = await Promise.all([
+    refreshUsers(context, generation),
+    context.api("/api/dashboard").catch(() => null),
+  ]);
   if (!isCurrent(context.state, generation, "users") || users === null) return;
   const { state, ui } = context;
-  ui.view.innerHTML = `<div class="toolbar">
+  const mt = dashboard?.protocols?.mtproxy;
+  const active = users.filter((user) => user.enabled !== false).length;
+  ui.view.innerHTML = `<div class="service-overview">
+    ${serviceSummary({ name: "MTProxy / Telemt", detail: "MTProto · FakeTLS", status: mt?.ready ? "Работает" : mt ? "Есть неполадки" : "Состояние неизвестно", tone: mt?.ready ? "active" : "blocked" })}
+    <article><small>Доступы</small><strong>${number(active)}</strong><span>${users.length - active ? `${number(users.length - active)} отключено` : "Все активны"}</span></article>
+    <article><small>Трафик</small><strong>${mt ? bytes(mt.runtime?.traffic_octets) : "—"}</strong><span>С последнего запуска MTProxy, это не квота${mt ? ` · соединений сейчас ${number(mt.runtime?.current_connections)}` : ""}</span></article>
+  </div><div class="toolbar">
     <div class="search"><input id="user-search" type="search" value="${esc(state.userQuery)}" placeholder="Поиск по имени" aria-label="Поиск пользователей"></div>
     <div class="filter-pills"><button class="filter-pill ${state.userFilter === "all" ? "active" : ""}" data-user-filter="all">Все · ${state.users.length}</button><button class="filter-pill ${state.userFilter === "active" ? "active" : ""}" data-user-filter="active">Активные</button><button class="filter-pill ${state.userFilter === "blocked" ? "active" : ""}" data-user-filter="blocked">Заблокированные</button></div>
   </div>

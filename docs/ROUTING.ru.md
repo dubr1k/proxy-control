@@ -341,6 +341,32 @@ IP → напрямую» (`cn`) и «Иранские домены и IP → н
 связанной панели — через `/api/fleet/v2/geodata*`. Аудит `routing.geodata.settings | update |
 restore`, на узле `fleet.geodata.*`.
 
+На экране «Маршрутизация» раздел «Популярные списки сайтов и IP» виден над шагами настройки,
+если на выбранном узле доступен Xray-router. Девять вариантов: Loyalsoldier, runetfreedom,
+MetaCubeX, MetaCubeX Lite, Re:filter, ru-direct, golukon Lite, chocolate4u и v2fly.
+Карточка открывает настройки с выбранным источником. Сохраните настройки, затем нажмите «Обновить
+сейчас» и подтвердите скачивание. Кнопка «Источник…» также позволяет выбрать закреплённые
+списки Xray или свои HTTPS-адреса. Здесь же включаются автоматические обновления,
+интервал 1–336 часов и время запуска по UTC. Списки общие для всех сервисов выбранного узла;
+выбор источника сам по себе не добавляет правил маршрутизации.
+
+Набор содержит несколько категорий, используемых в правилах. На узле активна одна пара
+`geosite.dat`/`geoip.dat`; смена набора заменяет прежнюю пару и проверяется с текущими правилами.
+Новые варианты используют существующий режим HTTPS-адресов, поэтому доступны и связанным
+панелям без расширения API. Например, runetfreedom содержит категории AntiFilter и Re:filter;
+для работы только со списками Re:filter есть отдельный источник.
+
+| Источник | Основные категории и назначение |
+| --- | --- |
+| [Loyalsoldier](https://github.com/Loyalsoldier/v2ray-rules-dat) | Общие категории, реклама, Китай, GFW |
+| [runetfreedom](https://github.com/runetfreedom/russia-v2ray-rules-dat) | `ru-blocked`, `refilter`, `antifilter-download-community` |
+| [MetaCubeX / Lite](https://github.com/MetaCubeX/meta-rules-dat) | Сервисы, трекеры; Lite — облегчённый набор |
+| [Re:filter](https://github.com/1andrevich/Re-filter-lists) | `geosite:refilter`, `geoip:refilter` |
+| [ru-direct](https://github.com/kyoresuas/ru-direct) | `ru-lite`, `ru-standard`, `ru-full` для прямого подключения |
+| [golukon Lite](https://github.com/golukon/russia-v2ray-rules-lite) | `geosite:ru-inside`, `geoip:ru` |
+| [chocolate4u](https://github.com/chocolate4u/Iran-v2ray-rules) | Иранские категории и сети |
+| [v2fly](https://github.com/v2fly/domain-list-community) | Категории сообщества V2Ray |
+
 Экран «Маршрутизация»: правила — таблица «что / куда / заметка» с модалкой правила и
 перетаскиванием; над ней быстрые настройки; на карточке узла — «Свои выходы» (форма по
 протоколу или импорт ссылки, проверка, вкл/выкл) и блок Geodata.

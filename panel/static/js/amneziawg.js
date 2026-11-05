@@ -2,7 +2,7 @@
 // who holds it, when it last connected and how much it carried. A row disables, re-keys or deletes
 // its access in place (v3.0.0); the config with the key is in the access window (the same one the
 // client card opens), because the panel owns the client's keys.
-import { bytes, esc, initials, number, query } from "./common.js";
+import { bytes, esc, initials, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { AWG_VERSIONS, awgAccount, awgVersions } from "./placement.js";
 import { loadNodeOptions } from "./clients.js";
@@ -85,7 +85,11 @@ export async function renderAmneziawg(context, generation) {
     : "";
   context.ui.view.innerHTML = `${note}${waiting}
   <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code> и порту своей версии. Новый доступ — кнопка «+ AmneziaWG доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Конфиг с ключом показывает окно доступа.</div>
-  <div class="awg-overview"><article><small>Менеджер AmneziaWG</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${egressCard(context, data.egress)}${(data.versions || []).map(versionCard).join("")}</div>
+  <div class="service-overview awg-service-overview">
+    ${serviceSummary({ name: "AmneziaWG", detail: data.public_host || "UDP · WireGuard с маскировкой", status: word, tone })}
+    ${egressCard(context, data.egress)}
+  </div>
+  <div class="awg-overview">${(data.versions || []).map(versionCard).join("")}</div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов AmneziaWG пока нет</h3><p>Нажмите «+ AmneziaWG доступ» вверху справа.</p></div>'}</section>`;
   startLiveRates(context, generation, "amneziawg", "amneziawg");
 }

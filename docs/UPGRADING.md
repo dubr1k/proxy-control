@@ -359,6 +359,14 @@ blocked until an operator restores and verifies the complete generation and then
 root-owned state. Linked nodes are updated from the central the same way: «Nodes» → the node →
 «Updates».
 
+An available newer version is highlighted on its component card; the header counts updates.
+“Update all” offers the newest installable versions, excluding rollbacks and components with
+an unknown installed version. After list confirmation, it updates components sequentially,
+with the panel last. The first error stops the queue; components already updated retain their
+new versions. Another update cannot start while an update or manager rebuild is running.
+The queue runs in the open tab: wait for it to finish; the page reloads automatically after
+the panel update. This button updates components on the current server.
+
 ### Telemt
 
 The agent reads back the current container image, pulls the selected immutable image, uses the full

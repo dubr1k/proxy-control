@@ -1,4 +1,4 @@
-import { actionMenu, bytes, esc, initials, number, query } from "./common.js";
+import { actionMenu, bytes, esc, initials, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
@@ -48,7 +48,11 @@ export async function renderMieru(context, generation) {
   if (!isCurrent(context.state, generation, "mieru") || users === null) return;
   const ready = context.state.mieruService.ready === true;
   context.ui.view.innerHTML = `<div class="security-note">Квоты Mieru — rolling application-byte admission quota (approximate): проверяются при открытии сессии и не являются hard cap.</div>
-  <div class="naive-overview"><article><small>mita</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article><article><small>Пользователи</small><strong>${number(users.length)}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article></div>
+  <div class="service-overview">
+    ${serviceSummary({ name: "Mieru / mita", detail: ready ? "RUNNING · Native AEAD · TCP" : "DEGRADED · Native AEAD · TCP", status: ready ? "Работает" : "Есть неполадки", tone: ready ? "active" : "blocked" })}
+    <article><small>Доступы</small><strong>${number(users.filter((user) => user.enabled === true).length)}</strong><span>Всего: ${number(users.length)}</span></article>
+    <article><small>Конфигурация</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article>
+  </div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Пользователь</span><span>Статус и квота</span><span>Трафик</span><span class="align-right">Действия</span></div>${users.length ? users.map((user) => mieruRow(context, user)).join("") : '<div class="empty-state"><h3>Mieru-доступов нет</h3><p>Добавьте доступ, чтобы выдать конфигурацию с one-time reveal.</p></div>'}</section>`;
   startLiveRates(context, generation, "mieru", "mieru");
 }

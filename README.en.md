@@ -612,7 +612,10 @@ Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, **Am
 (amneziawg-go), **TrustTunnel** (the endpoint), the **Xray-router** and the panel itself — can be
 updated from the «Versions» screen. «Check for updates» shows
 new releases of these projects with their published checksum; a release without a published
-checksum is visible but not installable. The checksum detects changes against the published
+checksum is visible but not installable. Each component card highlights its available update.
+«Update all» lists installable updates and, after confirmation, applies them sequentially,
+with the panel last; it stops at the first error. Rollbacks are excluded from this list.
+The checksum detects changes against the published
 value; it does not by itself establish authorship or mean that Proxy Control has verified
 the version. Updating is owner-only, and on an error the agent restores the previous
 version. An installed 3x-ui is updated with its own tools.

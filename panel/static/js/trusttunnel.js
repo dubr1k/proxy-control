@@ -3,7 +3,7 @@
 // re-keys or deletes its access in place (v3.0.0); the link and config are in the access window
 // (the one the client card opens), because the panel owns the password. «+ TrustTunnel доступ» issues a new one through the same
 // grant API the client card uses.
-import { bytes, esc, initials, number, query } from "./common.js";
+import { bytes, esc, initials, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { loadNodeOptions, proposeUsername } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
@@ -69,7 +69,11 @@ export async function renderTrusttunnel(context, generation) {
   const rows = data.clients || [];
   context.ui.view.innerHTML = `${waiting}
   <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code>, порт 443, только TCP/HTTP2. Новый доступ — кнопка «+ TrustTunnel доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Ссылка, QR и конфиг TOML — в окне доступа.</div>
-  <div class="awg-overview tt-overview"><article><small>Менеджер TrustTunnel</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${endpointCards(data)}${totalsCard(data)}</div>
+  <div class="service-overview tt-service-overview">
+    ${serviceSummary({ name: "TrustTunnel", detail: data.public_host || "HTTP/2 · TCP", status: word, tone })}
+    ${totalsCard(data)}
+  </div>
+  <div class="awg-overview tt-overview">${endpointCards(data)}</div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${rows.length ? rows.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов TrustTunnel пока нет</h3><p>Нажмите «+ TrustTunnel доступ» вверху справа.</p></div>'}</section>`;
   startLiveRates(context, generation, "trusttunnel", "trusttunnel");
 }

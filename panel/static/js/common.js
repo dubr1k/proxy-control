@@ -154,8 +154,8 @@ export function installedVersion(current, available) {
 // Dotted numeric order (3.5.9 < 3.5.14) for the releases around a digest-identified build.
 export function versionIsNewer(version, installed) {
   const parse = (text) => {
-    const [base, ...rest] = String(text).trim().replace(/^v/i, "").split(/[-+]/);
-    return { numbers: base.split(".").map((part) => Number.parseInt(part, 10) || 0), pre: rest.length > 0 };
+    const [base, ...rest] = String(text).trim().replace(/^v/i, "").split("-");
+    return { numbers: base.split(".").map((part) => Number.parseInt(part, 10) || 0), suffix: rest.join("-") };
   };
   const left = parse(version);
   const right = parse(installed);
@@ -164,7 +164,9 @@ export function versionIsNewer(version, installed) {
     if (diff) return diff > 0;
   }
   // 26.10.17-beta ranks below 26.10.17
-  return left.pre === right.pre ? false : right.pre;
+  // Match the agent: a release sorts above a suffix; two suffixes compare as strings.
+  if (left.suffix === right.suffix) return false;
+  return !left.suffix || (Boolean(right.suffix) && left.suffix > right.suffix);
 }
 
 // What the Versions screen and the overview's attention block both ask of a component: the
@@ -174,9 +176,23 @@ export function offeredVersions(item) {
   const available = Array.isArray(item?.available) ? item.available : [];
   const raw = item?.current || "не определена";
   const { label: current, entry: installed } = installedVersion(raw, available);
+  const known = installed || /^v?\d+(\.\d+)+/.test(current);
   const offered = available.filter((entry) => entry.version !== current)
-    .map((entry) => (installed ? { ...entry, newer: versionIsNewer(entry.version, installed.version) } : entry));
+    .map((entry) => {
+      // The agent compares raw digests as zero: a mapped digest needs the catalogue label.
+      const compare = installed || (known && typeof entry.newer !== "boolean");
+      return compare ? { ...entry, newer: versionIsNewer(entry.version, current) } : entry;
+    });
   return { raw, current, offered, hasNewer: offered.some((entry) => entry.newer !== false) };
+}
+
+// Bulk updates never guess the identity of an unknown digest or choose a rollback.
+export function newestUpdate(item) {
+  if (!item || item.status === "updating") return null;
+  const { current, offered } = offeredVersions(item);
+  if (!/^v?\d+(\.\d+)+/.test(current)) return null;
+  return offered.filter((entry) => entry.newer !== false)
+    .reduce((latest, entry) => !latest || versionIsNewer(entry.version, latest.version) ? entry : latest, null);
 }
 
 export function plural(count, one, few, many) {
@@ -196,4 +212,9 @@ export function cssEscape(value) {
 // Native disclosure keeps secondary controls reachable by keyboard without portal positioning.
 export function actionMenu(controls) {
   return `<details class="actions-menu"><summary aria-label="Ещё действия">⋯</summary><div class="actions-menu-body">${controls}</div></details>`;
+}
+
+// Protocol pages share the same compact, theme-aware service identity as NaiveProxy.
+export function serviceSummary({ name, detail, status, tone = "active" }) {
+  return `<article class="service-summary"><span class="naive-mark">${icon("status")}</span><div><small>Сервис</small><b>${esc(name)}</b>${detail ? `<em>${esc(detail)}</em>` : ""}</div><span class="status-pill ${esc(tone)}"><i></i>${esc(status)}</span></article>`;
 }
