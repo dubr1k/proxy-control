@@ -1,13 +1,8 @@
 name: Release
 
-# Acceptance uses the targeted checks selected in AGENTS.md on ams-test, with
-# isolated candidate state and real protocol probes for the affected boundary.
-# Destructive lab-host scenarios require an explicitly disposable guest; never
-# reset the live ams-test host. CI independently checks packaging and native crates,
-# rebuilds the tagged commit twice, and refuses any archive digest other than the one
-# accepted by the lab (`expected_sha256`). Provenance is attested before publication.
-# The project targets x86-64 VPS hosts, the only architecture the installer accepts.
-# No job here has SSH access or touches a production environment.
+# Build the exact green main commit twice, attest it and stop at a draft.
+# Lab acceptance and publication use these immutable files, without rebuilding.
+# The separate Publish workflow requires the accepted archive SHA-256.
 
 on:
   push:
@@ -20,26 +15,16 @@ on:
         description: Semantic version to build, without the leading v
         required: true
         type: string
-      expected_sha256:
-        description: SHA-256 of the archive that passed the lab host (dist/SHA256SUMS on ams-test); the workflow refuses to publish different bytes
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: proxy-control-release
   cancel-in-progress: false
 
 env:
   RELEASE_VERSION: ${{ inputs.version || '' }}
-  # Set by workflow_dispatch; a tag push carries it in the tag's own annotation
-  # (`git tag -a vX -m 'lab-sha256: <digest>'`), read in the build job. The annotation also
-  # names every prebuilt host binary the lab built (`lab-bin-sha256: <name> <hex>`, one line
-  # each), compared before the archive so a mismatch names the binary. A dispatch relies on the
-  # archive digest alone, which covers the binaries as members.
-  EXPECTED_SHA256: ${{ inputs.expected_sha256 || '' }}
 
 jobs:
   quality:
@@ -47,29 +32,22 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Python environment for release-tool tests
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip install -r panel/requirements-dev.txt
-      - name: Ruff and release packaging regressions
-        run: |
-          .venv/bin/ruff check .
-          .venv/bin/python -m pytest -q tests/test_release_build.py
-      - name: Host crates (fmt, clippy, tests) in the pinned builder image
-        run: |
-          # Every crate of release/host-binaries.list that exists, inside the image that builds
-          # the shipped binaries (release/Dockerfile.host-binaries, stage `check`).
-          docker buildx build --platform linux/amd64 --file release/Dockerfile.host-binaries \
-            --target checked --output "type=local,dest=$RUNNER_TEMP/host-crates-checked" .
+      - name: Require full CI for this exact main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 release/workflow.py ci
       - name: Tag and VERSION agree
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
           test "$(cat VERSION)" = "$version"
           test "${GITHUB_REF_TYPE}" != "tag" || test "${GITHUB_REF_NAME}" = "v$version"
+          git fetch --no-tags origin "refs/tags/v${version}"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$GITHUB_SHA"
           case "$version" in
             4.0.*-*) echo "4.0 pre-releases must be tested privately; publication is disabled" >&2; exit 1 ;;
           esac
@@ -103,38 +81,8 @@ jobs:
             verify-release manifest release/external-artifacts.json
       - name: Build the release twice and require identical bytes
         id: build
-        env:
-          # Read-only: only the tag object's annotation is fetched with it.
-          GH_TOKEN: ${{ github.token }}
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
-          # Only the bytes the lab host accepted may go out. The digest comes from the
-          # dispatch input or from the annotated tag (`lab-sha256: <digest>`); a tag
-          # without it, or a mismatch, stops the train here.
-          expected=${EXPECTED_SHA256:-}
-          message=
-          if test -z "$expected" && test "${GITHUB_REF_TYPE}" = "tag"; then
-            # actions/checkout peels an annotated tag to its commit, so the annotation is
-            # read from the tag object itself through the API, not from the local ref.
-            object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" --jq '.object')
-            if test "$(jq -r .type <<<"$object")" = "tag"; then
-              message=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(jq -r .sha <<<"$object")" --jq '.message')
-            fi
-            expected=$(printf '%s\n' "$message" \
-              | sed -n 's/^lab-sha256: *\([0-9a-f]\{64\}\).*/\1/p' | head -n1)
-          fi
-          test -n "$expected" || { echo "no lab digest: pass expected_sha256 or annotate the tag with 'lab-sha256: <digest>'" >&2; exit 1; }
-          # The annotation names each host binary the lab built (`lab-bin-sha256: <name> <hex>`).
-          # Comparing them before the archive turns a cross-machine rustc difference into a
-          # message naming the binary instead of an opaque archive mismatch.
-          if test -n "$message"; then
-            lab=$(printf '%s\n' "$message" \
-              | sed -n 's/^lab-bin-sha256: *\([a-z0-9-]\{1,\}\) \{1,\}\([0-9a-f]\{64\}\).*/\1 \2/p' | LC_ALL=C sort)
-            built=$(while read -r digest path; do printf '%s %s\n' "${path##*/}" "$digest"; done \
-              < bin-a/host-binaries.sha256 | LC_ALL=C sort)
-            printf 'host binaries built here:\n%s\nhost binaries the lab built:\n%s\n' "$built" "$lab"
-            test "$built" = "$lab" || { echo "the host binaries differ from the lab's (lab-bin-sha256)" >&2; exit 1; }
-          fi
           python3 release/build.py --source . --output dist --version "$version" --binaries-from bin-a
           python3 release/build.py --source . --output dist-again --version "$version" --binaries-from bin-b
           first=$(sha256sum dist/proxy-control-v"$version".tar.gz | cut -d' ' -f1)
@@ -145,19 +93,19 @@ jobs:
           cmp dist/install-release.sh dist-again/install-release.sh
           cmp dist/install-release.sh.sha256 dist-again/install-release.sh.sha256
           python3 release/build.py --verify dist
-          test "$first" = "$expected" || { echo "built $first but the lab accepted $expected" >&2; exit 1; }
           echo "archive-sha256=$first" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: The archive excludes private and lab state
+        run: |
+          version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
+          ! tar -tzf dist/proxy-control-v"$version".tar.gz | grep -E \
+            '^proxy-control/(\.git/|\.env|secrets/|\.lab-state/|lab-results/|dist/)'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: release-dist
           path: dist/
           if-no-files-found: error
-          retention-days: 7
-
-  # The QEMU lab job that used to sit here (`lab-amd64`) is gone: its scenarios run on
-  # the lab host before the tag exists (`remote-gate.sh lab-container` and `lab-host`),
-  # and `build-twice-and-compare` refuses any archive but the one that passed there.
+          retention-days: 30
 
   attest:
     needs: [build-twice-and-compare]
@@ -172,7 +120,7 @@ jobs:
         with:
           name: release-dist
           path: dist
-      - name: The attested archive is the one the lab host accepted
+      - name: The attested archive is the candidate built above
         run: |
           test "$(sha256sum dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz | cut -d' ' -f1)" \
             = "${{ needs.build-twice-and-compare.outputs.archive-sha256 }}"
@@ -198,8 +146,7 @@ jobs:
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           draft: true
-          # Other release trains may use pre-release suffixes; 4.0 prereleases are
-          # refused in quality while 3.3.0 hosts still exist.
+          # 4.0 pre-releases remain disabled by the version check.
           prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
           tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
           files: |
@@ -209,21 +156,3 @@ jobs:
             dist/SHA256SUMS
             dist/install-release.sh
             dist/install-release.sh.sha256
-
-  publish:
-    needs: [draft-release, build-twice-and-compare]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    # Publishing is meant to wait for a human reviewer on this environment; the gate only
-    # exists once the environment has a required reviewer configured in the repository
-    # settings (on 2026-09-11 it had none and `v0.2.0-beta.1` published without a stop).
-    environment:
-      name: release-publish
-    permissions:
-      contents: write
-    steps:
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
-        with:
-          draft: false
-          prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
-          tag_name: v${{ needs.build-twice-and-compare.outputs.version }}

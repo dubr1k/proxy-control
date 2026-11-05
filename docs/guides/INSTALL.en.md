@@ -82,7 +82,7 @@ wizard `sudo bash install.sh wizard` from the extracted `proxy-control/` directo
 
 The repository copy of the script —
 [`scripts/install-release.sh`](../../scripts/install-release.sh) — takes `--version X.Y.Z` and
-optionally `--sha256 <lab-sha256>` from the tag annotation or the release note: it fetches
+optionally `--sha256 <archive-sha256>` from `SHA256SUMS` or the release note: it fetches
 the four files, verifies them unprivileged, extracts and starts the wizard through one
 `sudo`; `--requirements` prints what the host needs and what gets installed.
 

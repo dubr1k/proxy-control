@@ -194,7 +194,7 @@
 | Один Rust-крейт | `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`, узкий регрессионный тест, затем тесты этого крейта |
 | Общая библиотека или контракт | То же для изменённого крейта и зависимых компонентов, выбранные внешние тесты контракта |
 | Мастер, конфигурация, установка | `installer_core`, `installer`, `installer/tests/documented_cli.rs`; реальные сценарии только затронутого пути |
-| HTTP API, UI, менеджер | Затронутые Rust-пакеты и внешние файлы тестов; для UI также tier `ui` |
+| HTTP API, UI, менеджер | Затронутые Rust-пакеты и внешние файлы тестов; для UI — браузерная проверка затронутых экранов на телефоне и компьютере |
 | Compose, Dockerfile, зависимости образа | Затронутые Compose-модели и образы, проверки соответствующего компонента |
 | Сквозное изменение, неясная граница или прямое поручение | Полный набор из [VALIDATION](docs/VALIDATION.md) и CI |
 
@@ -640,24 +640,32 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
   (`pytest::файл::тест`, `lab-host::сценарий`, `ui::экран.проверка`, `fleet::шаг`, …); на
   полном наборе `VERIFICATION_STRICT=1` запрещает статус `gap`. Новая функция = строка матрицы
   + доказательство, иначе тест-страж падает.
-- **Tier `ui`** (`scripts/dev/remote-gate.sh ui` → `scripts/lab/ui-acceptance.py`): настоящий
-  headless Chrome по CDP на лабораторном узле — каждый экран, обе роли, центр во втором
-  экземпляре панели, проверка секретов в кадрах (`SECRET_SHAPES`), пересечения ячеек
-  (`cells_do_not_overlap`) и ошибок консоли. Правка UI без проверки в этом tier'е не считается
-  проверенной; скриншоты выпуска — только из этого прогона, только стендовые данные, ≤150 КБ,
-  без метаданных, и агент обязан **посмотреть каждый кадр** перед публикацией.
+- **UI:** для локальной правки проверяйте затронутые экраны и состояния в настоящем браузере
+  на телефоне и компьютере, отсутствие переполнений, пересечений, ошибок консоли/CSP и
+  секретов в кадрах. Полный tier `ui` с обеими ролями и связанными панелями нужен только
+  при изменении общей навигации, ролей или взаимодействия панелей. Скриншоты выпуска —
+  только со стендовыми данными, ≤150 КБ, без метаданных; каждый кадр просматривается.
 - **Tier `managed-xui`** — реальный 3x-ui на стенде; **сценарий `backup-restore`** в `lab-host`.
 - Tier'ы (`full`, `compose`, `lab-container`, `lab-host`, `fleet`, `routing`, `router`, `chains`, `ui`,
   `managed-xui`) запускаются по необходимости, а не как обязательный релизный гейт.
-- Публикация (только по поручению владельца): хостовые бинари дважды из чистого клона на
-  лабораторном хосте (`release/build.py --build-binaries bin-a`, затем `bin-b`; файлы
-  `host-binaries.sha256` равны) → архив дважды (`release/build.py --binaries-from bin-a` и
-  `--binaries-from bin-b`, байты равны) → аннотированный тег с `lab-sha256: <digest>` и строкой
-  `lab-bin-sha256: <имя бинаря> <hex>` на каждый бинарь из `bin-a/host-binaries.sha256`
-  (каждая строка — отдельный `-m` у `git tag -a vX`) → push ветки и тега → workflow `Release`
-  (сначала сверяет каждый бинарь, потом архив)
-  → `SHA256SUMS` = стендовые, `gh attestation verify` → тело релиза из заметки с абсолютными
-  ссылками. Merge в `main` и раскатка — решения владельца.
+- **Порядок выпуска, начиная с 4.0.2** (также применяется к подготовке самого 4.0.2):
+  один успешный полный CI (`test.yml`, push в `main`) для точного коммита кандидата →
+  тег `vX.Y.Z`, соответствующий `VERSION` и этому коммиту → `Release` один раз выполняет
+  цикл двух независимых сборок бинарников и архива, сравнивает все файлы, создаёт
+  подтверждение происхождения и **останавливается на черновике**.
+- Скачайте `release-dist` выбранного запуска Release или файлы его черновика, проверьте
+  суммы и происхождение; на `ams-test` проверьте **готовый архив**, выбирая сценарии по
+  изменениям. Зафиксируйте SHA коммита, SHA-256 архива, команды, результат и ограничения.
+  Не пересобирайте принятый кандидат. Для установки/обновления — затронутые сценарии
+  в изолированном окружении; полный жизненный цикл нужен только при сквозных изменениях
+  или по прямому заданию.
+- По поручению владельца запустите `Publish accepted release` (`publish.yml`): номер
+  успешного запуска Release, SHA-256 принятого архива и описание выполненной приёмки.
+  Workflow сверяет источник, тег, attestation и **каждый файл** черновика с неизменяемым
+  артефактом выбранной сборки и меняет только видимость выпуска. Повторных сборок,
+  ручных `lab-sha256`/`lab-bin-sha256` в теге и повторного полного CI на теге нет.
+  Обычный CI продолжает полностью проверять push веток и PR. После публикации обязательна
+  проверка скачивания и входа в мастер с `quit`, описанная выше. Раскатка на узлы — отдельно.
 
 ## 9. Таблица «код отказа → действие агента»
 
@@ -897,7 +905,7 @@ Choose checks by the changed boundary to avoid unnecessary test time:
 | One Rust crate | fmt, clippy with warnings denied, narrow regression test, then that crate's tests |
 | Shared library or contract | Changed crate and dependent components, selected external contract tests |
 | Wizard, configuration, installation | `installer_core`, `installer`, `installer/tests/documented_cli.rs`; real scenarios for the affected path |
-| HTTP API, UI, manager | Affected Rust packages and external test files; also tier `ui` for UI changes |
+| HTTP API, UI, manager | Affected Rust packages and external test files; browser checks of affected screens on phone and desktop for UI changes |
 | Compose, Dockerfile, image dependencies | Affected models, images and component checks |
 | Cross-cutting change, unclear scope or explicit request | Full [VALIDATION](docs/VALIDATION.md) and CI set |
 
@@ -1029,8 +1037,18 @@ without a flag, `release/build.py` builds them itself in the pinned image of
 `release/Dockerfile.host-binaries` (Docker buildx, static musl, no layer cache).
 `--build-binaries DIR` only builds them and prints each digest, `--binaries-from DIR` injects
 already-built ones after checking their digests, and `--no-binaries` is for dry runs without
-Docker (a host cannot install such an archive). A publication annotates the tag with
-`lab-sha256: <archive digest>` plus one `lab-bin-sha256: <binary name> <hex>` line per binary.
+Docker (a host cannot install such an archive). Starting with 4.0.2 (including its preparation), use one successful full main-push CI
+for the exact candidate commit, then create the matching version tag. Release performs
+the only pair of independent binary/archive builds, attests the files and stops at a draft.
+Test those ready-built files on `ams-test`, selecting scenarios for the actual change;
+record the source SHA, archive SHA-256, checks and limitations. Do not rebuild them.
+Explicit publication uses `publish.yml` with the Release run ID, accepted archive digest
+and acceptance evidence. It checks the tag, source, attestation and every draft asset
+against that run's immutable artifact, then changes visibility without uploading new files.
+No lab digests in tag annotations or repeated full CI on tag pushes are required.
+Post-publication download/checksum/wizard-quit checks remain mandatory; deployment is separate.
+For small UI edits, check affected screens/states on phone and desktop in a real browser.
+The complete installed-stack UI tier is reserved for shared navigation, roles or panel links.
 
 The complete lifecycle — install, a repeated install, `repair`, reboot recovery,
 an interrupted phase, reporting, uninstall, and shared-443 coexistence — runs on

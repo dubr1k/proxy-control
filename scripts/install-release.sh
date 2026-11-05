@@ -8,7 +8,7 @@
 # exactly those steps for any tag and stops at the first failed check. It never pipes a
 # download into a shell: the files land on disk, the payload is checked against
 # SHA256SUMS, the manifest must name the same archive and digest, the digest may be pinned
-# (`--sha256`, the `lab-sha256` of the tag annotation) and, when `gh` is present, the
+# (`--sha256`, the accepted archive digest) and, when `gh` is present, the
 # GitHub build-provenance attestation is verified too. Everything before the installer
 # runs unprivileged; `sudo` is asked once, for the installer itself — the same rule
 # `install-bootstrap` follows.
@@ -16,7 +16,7 @@
 #   scripts/install-release.sh --requirements            # what is needed and what gets installed
 #   bash install-release.sh                              # the copy published beside a release:
 #                                                        # that release, its digest pinned
-#   scripts/install-release.sh --version 1.1.2 --sha256 <lab-sha256>
+#   scripts/install-release.sh --version 1.1.2 --sha256 <archive-sha256>
 #   scripts/install-release.sh --version 1.1.2 --no-wizard
 #   scripts/install-release.sh --version 1.1.2 -- plan --config install.toml --json
 #   bash install-release.sh --update                     # v1.1: update an installed host to that
@@ -47,7 +47,7 @@ usage: scripts/install-release.sh [--version X.Y.Z[-rc.N]] [--sha256 DIGEST] [--
 
   --version       release to fetch (default: the release this copy was published with,
                   or the VERSION file beside this script's tree)
-  --sha256        pin the archive digest — the `lab-sha256` of the tag annotation
+  --sha256        pin the archive digest from SHA256SUMS or the release note
                   or the digest in the release note; a different archive is refused
                   (the copy published with a release pins its own digest already)
   --dir           where to download and extract (default: ./proxy-control-vX.Y.Z; must be new)

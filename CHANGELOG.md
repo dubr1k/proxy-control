@@ -4,6 +4,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Release process
+- Simplify releases from 4.0.2: reuse exact-commit CI, build reproducibly only in Release, accept ready-built draft files on the lab host and publish those same files through an explicit workflow.
+
 ### Tests
 - Make the Fleet test node distinguish raw MTProxy secrets from the Fake-TLS prefix by their complete format, including raw secrets starting with `ee`. Add a deterministic regression for credential capture and replay.
 

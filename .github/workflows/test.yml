@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 permissions:
@@ -105,6 +106,7 @@ jobs:
       - name: Every tracked shell script
         run: |
           mapfile -d '' -t shell_files < <(git ls-files -z '*.sh')
+          shell_files+=(install-bootstrap)
           test "${#shell_files[@]}" -gt 0
           printf '%s\n' "${shell_files[@]}"
           for script in "${shell_files[@]}"; do
@@ -179,45 +181,6 @@ jobs:
           # shipped binaries (release/Dockerfile.host-binaries, stage `check`).
           docker buildx build --platform linux/amd64 --file release/Dockerfile.host-binaries \
             --target checked --output "type=local,dest=$RUNNER_TEMP/host-crates-checked" .
-
-  reproducible-release:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Two builds of the host binaries are byte-identical
-        run: |
-          # Independent builds (no layer cache) in the pinned image. Compare these digests with
-          # the lab's (`release/build.py --build-binaries` on ams-test) to prove that rustc
-          # output does not depend on the machine either.
-          python3 release/build.py --source . --build-binaries bin-a --allow-dirty
-          python3 release/build.py --source . --build-binaries bin-b --allow-dirty
-          cat bin-a/host-binaries.builder bin-a/host-binaries.sha256
-          cmp bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 \
-            || { diff bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 >&2; exit 1; }
-      - name: Two builds of this commit are byte-identical
-        run: |
-          version=$(cat VERSION)
-          python3 release/build.py --source . --output dist --version "$version" --allow-dirty --binaries-from bin-a
-          python3 release/build.py --source . --output dist-again --version "$version" --allow-dirty --binaries-from bin-b
-          cmp dist/proxy-control-v"$version".tar.gz dist-again/proxy-control-v"$version".tar.gz
-          cmp dist/release-manifest.json dist-again/release-manifest.json
-          cmp dist/sbom.spdx.json dist-again/sbom.spdx.json
-          cmp dist/install-release.sh dist-again/install-release.sh
-          cmp dist/install-release.sh.sha256 dist-again/install-release.sh.sha256
-          python3 release/build.py --verify dist
-      - name: The archive excludes private and lab state
-        run: |
-          version=$(cat VERSION)
-          ! tar -tzf dist/proxy-control-v"$version".tar.gz | grep -E \
-            '^proxy-control/(\.git/|\.env|secrets/|\.lab-state/|lab-results/|dist/)'
-      - name: The bootstrap verifies before it dispatches
-        run: |
-          bash -n install-bootstrap
-          shellcheck install-bootstrap
 
   compose-and-images:
     runs-on: ubuntu-24.04

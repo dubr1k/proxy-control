@@ -82,7 +82,7 @@ chmod 700 install-bootstrap
 `sudo bash install.sh wizard` из распакованного каталога `proxy-control/`.
 
 Копия сценария в репозитории — [`scripts/install-release.sh`](../../scripts/install-release.sh) —
-принимает `--version X.Y.Z` и при желании `--sha256 <lab-sha256>` из аннотации тега или
+принимает `--version X.Y.Z` и при желании `--sha256 <archive-sha256>` из `SHA256SUMS` или
 заметки о выпуске: скачивает четыре файла, проверяет их без привилегий, распаковывает и
 одним `sudo` запускает мастер; `--requirements` печатает, что нужно хосту и что
 устанавливается.

@@ -1,0 +1,48 @@
+name: Publish accepted release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful Release run whose files were tested on ams-test
+        required: true
+        type: string
+      accepted_sha256:
+        description: SHA-256 of the archive accepted on ams-test
+        required: true
+        type: string
+      acceptance:
+        description: Completed checks and evidence location for this exact archive
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-control-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify and publish the accepted files without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          ACCEPTED_SHA256: ${{ inputs.accepted_sha256 }}
+          ACCEPTANCE: ${{ inputs.acceptance }}
+          PYTHONPATH: .
+        # The guard compares every draft asset to the immutable build artifact,
+        # then changes only visibility through the Releases API.
+        run: python3 release/workflow.py publish

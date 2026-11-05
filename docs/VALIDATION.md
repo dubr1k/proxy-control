@@ -17,6 +17,42 @@ suite and destructive `lab-host` are not mandatory pre-release gates. QEMU runs
 only on an explicit assignment. Destructive installation/removal scenarios belong
 only on an explicitly disposable guest, never directly on `ams-test`.
 
+## Release procedure from 4.0.2
+
+This procedure includes preparation of 4.0.2 itself. It does not publish that version
+or authorize a production deployment merely by changing these rules.
+
+1. Complete targeted development checks. Require one successful full `test.yml`
+   main-push CI for the exact candidate commit; tag pushes do not repeat full CI.
+2. Set `VERSION` and user-facing release notes before that CI, then tag that same
+   commit as `vX.Y.Z`. No archive or binary digests belong in the tag annotation.
+3. `Release` checks the exact source CI and tag, builds the binaries and archive
+   twice, compares all release files, attests them and creates a **draft**.
+   This is the only required reproducibility build cycle. It also keeps the
+   packaging private-state exclusion check and installer manifest validation.
+4. Download `release-dist` from that run or the matching draft assets. Verify
+   checksums/provenance and test those ready-built bytes on `ams-test`. Select
+   scenarios by the changed boundary; installation/update changes need their
+   affected isolated scenarios, not an automatic full host lifecycle.
+5. Record the source SHA, archive SHA-256, commands/results and limitations.
+   Explicit publication invokes `Publish accepted release` with `source_run_id`,
+   `accepted_sha256`, and `acceptance` (completed checks/evidence location).
+   It validates the successful Release run, exact main CI, current tag, manifest,
+   checksums, attestations and every draft asset against the immutable artifact.
+   It changes only draft visibility; accepted files are never rebuilt or replaced.
+6. As an ordinary user on `ams-test`, download the published install script and
+   checksum, verify them, enter the wizard and exit with `quit`. Record
+   “the archive digest matches the pinned one” and “No changes were made”.
+   Production deployment remains a separate owner-authorized operation.
+
+Artifacts are retained for 30 days. If they expire, prepare a new candidate and
+repeat its acceptance instead of publishing an unverified reconstruction.
+Small UI changes need affected-screen browser checks on phone and desktop;
+the full installed-stack UI tier is required only for shared navigation, roles
+or inter-panel behavior changes. A full suite remains available below.
+
+## Full repository suite reference
+
 ```sh
 set -Eeuo pipefail
 python3 -m venv .venv
