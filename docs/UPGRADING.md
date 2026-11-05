@@ -796,3 +796,21 @@ not change. The update is the usual `bash install-release.sh --update`.
 - **Images carry bytecode.** Every Python image is built with `python -m compileall`: health checks and
   `docker exec` start several times faster and no longer compile the standard library on every run.
 - **Fleet.** Nodes first, then the central panel, as always. A 2.x node and a 3.0 central work together.
+
+### Update state after reloading the page
+
+For component updates the agent persists the last operation: source and target
+versions, the actual phase (download, build, install, verify or rollback), start
+and completion times, and the outcome. The Versions screen polls the server and
+restores this state after a page reload. Percentages are not estimated from time.
+The running version and the last attempt's outcome are separate: a verified
+rollback keeps the old version, the update offer, and a rollback message.
+After an unexpected agent stop, unfinished operations are marked interrupted;
+this does not prove either generation healthy. Detailed diagnostics stay in the
+agent journal; command output is not returned to the UI.
+
+Update all still runs its queue in the open tab, with the panel last. Closing or
+reloading the tab does not stop the current server operation, but the remaining
+queue is not started automatically. Wait for the result and click Update all
+again for the remaining offers. Older agents remain compatible; detailed phases
+become available after updating the agent.

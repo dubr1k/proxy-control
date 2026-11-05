@@ -202,6 +202,7 @@ pub fn update_binary(
     let mut previous_overlay: Option<Vec<u8>> = None;
     let mut overlay_touched = false;
     let outcome = (|| -> Step<()> {
+        agent.update_stage(component, "applying")?;
         atomic_write(&stage, &payload, 0o755)?;
         run_config_checks(agent, component, &stage, runtime_version.as_deref())?;
         fs::rename(&stage, &target)?;
@@ -217,6 +218,7 @@ pub fn update_binary(
             previous_overlay = rewrite_env_line(overlay, key, &installed)?;
             overlay_touched = true;
         }
+        agent.update_stage(component, "verifying")?;
         restart_service_and_slots(agent, service)?;
         if let Some((_, _, consumer_service)) = &consumer {
             compose_up(agent, consumer_service)?;
@@ -226,6 +228,7 @@ pub fn update_binary(
     let result = match outcome {
         Ok(()) => Ok(installed),
         Err(exc) => {
+            let _ = agent.update_stage(component, "rolling_back");
             let rollback = (|| -> Step<()> {
                 if existed {
                     restore_copy(&backup, &target, mode_of(&backup)?)?;

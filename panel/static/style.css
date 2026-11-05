@@ -868,3 +868,4 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 #confirm-text{white-space:pre-line}
 
 .clipboard-helper{position:fixed;left:-10000px;top:0;width:1px;height:1px;opacity:0}.grant-state-word[data-grant-state=unknown],.grant-row[data-grant-state=unknown] .grant-state{color:var(--muted)}
+.version-operation{padding:11px 12px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);font-size:12px;line-height:1.5;overflow-wrap:anywhere}.version-operation p{margin:0 0 5px}.version-operation small{color:var(--muted)}

@@ -161,3 +161,21 @@ relaxations: `MieruOptions.quotas` defaults to `[]` (a grant request may omit it
 did), and a local attach/detach records the backend's pass-through digest on the policy (in the existing
 columns). `docs/VERIFICATION_MATRIX.md` lists every route with the row that proves it; `scripts/dev/route-coverage.py`
 fails the full gate on a route that is not gated, not mentioned by a test, or public without being listed.
+
+## Component update operation status — additive
+
+`GET /v1/versions` and the panel's `GET /api/versions` may include an optional
+`components.<name>.operation` object for the latest runtime update. Fields are
+`from_version`, `target_version`, `status`, `stage`, `started_at`, `updated_at`,
+`finished_at`, and `error` (nullable). Times are Unix seconds. Status is `running`,
+`succeeded`, `update_failed`, `rolled_back`, `rollback_failed`, or `interrupted`.
+Stages are descriptive actual phases, not percentages; consumers should tolerate
+new stage names. An active operation also reports the existing component
+`status: updating`; the installed `current` is not replaced by the target before
+success. Terminal results remain visible until the next accepted update. No
+command output or artifact URLs are included in the operation error.
+
+The object is absent for older agents and for components without an update
+attempt. The update POST remains synchronous for runtimes and asynchronous for
+the panel; old clients and agents keep their existing contract. Competing host
+update requests are rejected with HTTP 409 instead of silently queued.

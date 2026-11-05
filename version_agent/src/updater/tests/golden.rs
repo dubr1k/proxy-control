@@ -197,11 +197,19 @@ fn the_recorded_updates_are_reproduced_byte_for_byte() {
         // `record()` lists the versions after the step (the last recorded command).
         let listed = agent.list_versions(true).unwrap();
         let directory = format!("agent/updates/{index:02}-{name}");
+        // Historical goldens predate additive operation reporting. Preserve their byte-level
+        // contract for existing fields; operation lifecycle itself has dedicated service tests.
+        let mut stored = agent.load_state().unwrap();
+        assert!(stored.remove("operations").is_some(), "{name}: persisted operations");
         assert_eq!(
-            read(&work.join("state/state.json")),
+            pc_host::json::pretty2_ascii_nonl(&Value::Object(stored)).as_bytes(),
             golden_bytes(&format!("{directory}/state.json")),
             "{name}: state.json"
         );
+        let mut listed = listed;
+        for component in listed["components"].as_object_mut().unwrap().values_mut() {
+            component.as_object_mut().unwrap().remove("operation");
+        }
         assert_eq!(listed, golden_json(&format!("{directory}/versions.json")), "{name}: /v1/versions");
         let mut host = state.lock().unwrap();
         assert_eq!(host.calls, recorded_calls(step), "{name}: commands");

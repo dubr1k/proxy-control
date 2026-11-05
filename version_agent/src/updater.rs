@@ -300,6 +300,10 @@ impl Updater for HostUpdater {
         current: Option<&str>,
     ) -> Result<Applied, UpdateError> {
         let mut applied = Applied::from_entry(entry);
+        agent.update_stage(
+            component,
+            if entry.kind == "build" || manager_build(component).is_some() { "building" } else { "downloading" },
+        )?;
         let outcome: Step<()> = if component == "telemt" {
             telemt::update_telemt(self, agent, entry)
         } else if manager_build(component).is_some() {

@@ -172,7 +172,7 @@ class PanelServer:
 
     def _rust_env(self, node_routes: dict) -> dict[str, str]:
         env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "RUST_BACKTRACE",
-                                                "RUST_LOG") if key in os.environ}
+                                                "RUST_LOG", "PANEL_STATIC_DIR") if key in os.environ}
         values = {"database_path": self.db_path, "session_cookie_secure": False, "allowed_hosts": self.hosts,
                   **({"master_key_file": self.key_path} if self.key_path else {}), **self.settings}
         for field, value in values.items():

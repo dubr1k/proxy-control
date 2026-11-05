@@ -12,6 +12,19 @@ let panelPoll = null;
 let rebuildTimer = null;
 let versionBatch = false;
 let batchProgress = "";
+let updateRequests = 0;
+const STAGE_NAMES = { preparing: "Подготовка", downloading: "Загрузка и проверка артефакта", building: "Сборка", applying: "Установка", verifying: "Проверка запуска и здоровья", rolling_back: "Восстановление предыдущей версии" };
+
+function operationSummary(operation) {
+  if (!operation || typeof operation !== "object") return "";
+  const status = { running: "Обновление идёт", succeeded: "Обновление завершено", rolled_back: "Обновление не удалось — выполнен откат", rollback_failed: "Откат не подтверждён — требуется восстановление оператором", update_failed: "Обновление не удалось", interrupted: "Обновление прервано — проверьте работающую версию перед повтором" }[operation.status];
+  if (!status) return "";
+  const phase = operation.status === "running" ? ` · ${STAGE_NAMES[operation.stage] || "Выполнение"}` : "";
+  const when = operation.finished_at || operation.started_at;
+  // Agent times are Unix seconds; common date() expects an ISO timestamp.
+  const time = Number.isFinite(when) ? date(new Date(when * 1000).toISOString()) : "";
+  return `<div class="version-operation" role="status"><p><b>${esc(status)}${esc(phase)}</b></p><p>${esc(operation.from_version || "не определена")} → ${esc(operation.target_version || "не определена")}${time ? ` · ${esc(time)}` : ""}</p>${operation.status === "running" ? "<small>Состояние сохранено на сервере. Можно обновить страницу.</small>" : ""}</div>`;
+}
 const COMPONENT_NAMES = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
 
 function batchPlan(data) {
@@ -24,12 +37,17 @@ function batchPlan(data) {
 }
 
 function agentBusy(data) {
-  return Object.values(data.components || {}).some((item) => item.status === "updating" || item.rebuilding_managers === true);
+  return Object.values(data.components || {}).some((item) => item.operation?.status === "running" || item.status === "updating" || item.rebuilding_managers === true);
 }
 
 export { ROLE_NAMES };
 
 export async function renderVersions(context, generation) {
+  // Keep retrying through transient proxy/agent failures during a known operation.
+  window.clearTimeout(rebuildTimer);
+  if (versionBatch || updateRequests > 0 || agentBusy(context.state.versions)) {
+    rebuildTimer = window.setTimeout(() => { if (isCurrent(context.state, generation, "versions")) void context.navigate("versions"); }, 4000);
+  }
   const data = await context.api("/api/versions");
   if (!isCurrent(context.state, generation, "versions")) return;
   context.state.versions = data || { enabled: false, components: {} };
@@ -45,7 +63,7 @@ export async function renderVersions(context, generation) {
   const rank = (component) => (order.includes(component) ? order.indexOf(component) : order.length);
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Обновления с GitHub ещё не проверялись";
   const plan = batchPlan(context.state.versions);
-  const blocked = versionBatch || agentBusy(context.state.versions);
+  const blocked = versionBatch || updateRequests > 0 || agentBusy(context.state.versions);
   const checkBar = `<div class="version-check"><span>${esc(checkedAt)} · Доступно обновлений: ${plan.length}</span><div class="version-check-actions">${context.state.versions.upstream_enabled === false ? "" : `<button class="ghost" data-version-check="1"${blocked ? " disabled" : ""}>Проверить обновления</button>`}${context.state.me?.role === "owner" ? `<button class="primary" data-version-update-all="1"${blocked || !plan.length ? " disabled" : ""}>Обновить всё${plan.length ? ` · ${plan.length}` : ""}</button>` : ""}</div></div>`;
   const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
     const { raw, current, offered, hasNewer } = offeredVersions(item);
@@ -57,9 +75,9 @@ export async function renderVersions(context, generation) {
       ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но релиз без опубликованного хэша — установка невозможна</p>`
       : "";
     // The panel's own update runs in the agent's background (another tab may have started it).
-    const updating = component === "panel" && item.status === "updating";
+    const updating = item.operation?.status === "running" || item.status === "updating";
     const control = updating
-      ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
+      ? `<p class="version-empty"><b>Обновление идёт…</b> ${component === "panel" ? "Панель пересобирается и перезапускается; страница перезагрузится сама." : "Агент обновляет компонент; состояние появится здесь автоматически."}</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
         ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label><button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button>`
         : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
@@ -77,11 +95,13 @@ export async function renderVersions(context, generation) {
         ? `<p class="version-empty">${esc(pendingList.join(", "))} — ещё не пересобраны</p>${rebuildError}${canRebuild ? '<button class="ghost" data-managers-rebuild="1">Пересобрать менеджеры</button>' : ""}`
         : "";
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
-    return `<article class="version-card${update ? " has-update" : ""}"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${update ? "update-available" : current === "не определена" ? "blocked" : "active"}"><i></i>${update ? "Есть обновление" : current === "не определена" ? "Не определена" : "Установлена"}</span></div>${announcement}${control}${pending}${lastError}${failure}</article>`;
+    return `<article class="version-card${update ? " has-update" : ""}"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${update ? "update-available" : current === "не определена" ? "blocked" : "active"}"><i></i>${update ? "Есть обновление" : current === "не определена" ? "Не определена" : "Установлена"}</span></div>${announcement}${operationSummary(item.operation)}${control}${pending}${lastError}${failure}</article>`;
   }).join("");
   context.ui.view.innerHTML = `<details class="page-help"><summary>Как обновлять</summary><p>Перед заменой проверяется контрольная сумма, а прежняя версия сохраняется для отката. «Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.</p></details>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
-  if (versionBatch) {
+  if (blocked) {
     for (const control of context.ui.view.querySelectorAll(".version-card button, .version-card select")) control.disabled = true;
+  }
+  if (versionBatch) {
     const progress = document.createElement("p");
     progress.className = "version-batch-progress";
     progress.setAttribute("role", "status");
@@ -91,7 +111,7 @@ export async function renderVersions(context, generation) {
   if (!versionBatch && context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
   // A manager rebuild runs in the agent's background: look again until it is over.
   window.clearTimeout(rebuildTimer);
-  if (context.state.versions.components?.panel?.rebuilding_managers === true) {
+  if (agentBusy(context.state.versions) || updateRequests > 0 || versionBatch) {
     rebuildTimer = window.setTimeout(() => { if (isCurrent(context.state, generation, "versions")) void context.navigate("versions"); }, 4000);
   }
 }
@@ -197,7 +217,10 @@ async function versionAction(context, component, button) {
   if (!await context.ui.confirmed(title, text, back ? "Откатить" : "Обновить")) return;
   try {
     context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building || manager ? "Собираем…" : "Обновляем…");
-    await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify(updateRequestBody(version, raw)) });
+    updateRequests += 1;
+    const request = context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify(updateRequestBody(version, raw)) });
+    if (!panel && context.state.view === "versions") void context.navigate("versions");
+    await request;
     if (panel) {
       // The agent answered before restarting the panel: do not navigate, wait for it.
       await pollPanelUpdate(context, version);
@@ -208,7 +231,9 @@ async function versionAction(context, component, button) {
   } catch (error) {
     context.ui.toast(error.message, "error");
   } finally {
+    updateRequests = Math.max(0, updateRequests - 1);
     context.ui.setBusy(button, false);
+    if (context.state.view === "versions") await context.navigate("versions");
   }
 }
 
@@ -224,7 +249,7 @@ async function updateAll(context, button) {
       return;
     }
     const list = plan.map((item) => `${COMPONENT_NAMES[item.component]}: ${item.current} → ${item.version}`).join("\n");
-    const warning = `Компоненты обновятся по очереди; их соединения могут прерваться. При первой ошибке обновление остановится. Панель обновляется последней.\n\n${list}${plan.some((item) => item.component === "panel") ? `\n\n${PANEL_CONFIRM}` : ""}`;
+    const warning = `Компоненты обновятся по очереди; их соединения могут прерваться. Если закрыть или обновить страницу, текущая операция продолжится на сервере, но оставшуюся очередь нужно запустить заново. При первой ошибке обновление остановится. Панель обновляется последней.\n\n${list}${plan.some((item) => item.component === "panel") ? `\n\n${PANEL_CONFIRM}` : ""}`;
     if (!await context.ui.confirmed("Обновить все компоненты?", warning, "Обновить всё")) return;
     context.ui.setBusy(button, true, "Обновляем…");
     for (const [index, item] of plan.entries()) {

@@ -341,6 +341,14 @@ impl VersionAgent {
 
     /// `_locked()`: a new open file description each time, so threads serialise too.
     pub fn lock(&self) -> Result<AgentLock, AgentError> {
+        self.acquire_lock(false)
+    }
+
+    pub(crate) fn try_operation_lock(&self) -> Result<AgentLock, AgentError> {
+        self.acquire_lock(true)
+    }
+
+    fn acquire_lock(&self, nonblocking: bool) -> Result<AgentLock, AgentError> {
         let path = self.lock_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(internal)?;
@@ -348,10 +356,15 @@ impl VersionAgent {
         let file = OpenOptions::new().read(true).append(true).create(true).mode(0o666).open(&path).map_err(internal)?;
         loop {
             // SAFETY: a valid descriptor owned by `file`.
-            if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+            if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | if nonblocking { libc::LOCK_NB } else { 0 }) }
+                == 0
+            {
                 return Ok(AgentLock { _file: file });
             }
             let err = std::io::Error::last_os_error();
+            if nonblocking && err.kind() == std::io::ErrorKind::WouldBlock {
+                return Err(AgentError::conflict("another host operation is already running"));
+            }
             if err.kind() != std::io::ErrorKind::Interrupted {
                 return Err(internal(err));
             }
@@ -372,6 +385,38 @@ impl VersionAgent {
             0o600,
             None,
         )
+    }
+
+    /// Persist a real phase while the caller holds the agent operation lock.
+    /// Stage names are internal constants, never subprocess output.
+    pub fn update_stage(&self, component: &str, stage: &str) -> Result<(), UpdateError> {
+        let mut state = self.load_state()?;
+        if let Some(operation) = state.get_mut("operations").and_then(|ops| ops.get_mut(component)) {
+            if operation["status"] == "running" {
+                operation["stage"] = json!(stage);
+                operation["updated_at"] = json!(self.now_int());
+                self.save_state(&mut state).map_err(|_| UpdateError::new("could not persist update progress"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn finish_operation(&self, state: &mut Map<String, Value>, component: &str, status: &str) {
+        if let Some(operation) = state.get_mut("operations").and_then(|ops| ops.get_mut(component)) {
+            operation["status"] = json!(status);
+            operation["stage"] = json!("finished");
+            operation["updated_at"] = json!(self.now_int());
+            operation["finished_at"] = json!(self.now_int());
+            operation["error"] = match status {
+                "succeeded" => Value::Null,
+                "rolled_back" => json!("Update failed; previous generation was restored and verified"),
+                "rollback_failed" => {
+                    json!("Update failed; previous generation could not be verified; operator recovery required")
+                }
+                "interrupted" => json!("Agent stopped during the update; inspect the runtime before retrying"),
+                _ => json!("Update failed; see the version-agent journal for diagnostics"),
+            };
+        }
     }
 
     // --- listing and the upstream check ------------------------------------------------------
@@ -555,8 +600,20 @@ impl VersionAgent {
                     "last_error": field("last_error"),
                 },
             });
+            if let Some(operation) = state.get("operations").and_then(|ops| ops.get(component)) {
+                listed["operation"] = operation.clone();
+                if operation["status"] == "running" {
+                    listed["status"] = json!("updating");
+                }
+            }
             if component == "panel" {
-                if heal && current.get("pending_rebuild").is_some_and(pc_common::pyvalue::truthy) {
+                if heal
+                    && !state
+                        .get("operations")
+                        .and_then(Value::as_object)
+                        .is_some_and(|ops| ops.values().any(|op| op["status"] == "running"))
+                    && current.get("pending_rebuild").is_some_and(pc_common::pyvalue::truthy)
+                {
                     current = self.heal_pending(current);
                 }
                 for key in ["last_error", "pending_rebuild", "previous_version", "rebuild_error", "managers_rebuilt_at"]
@@ -666,7 +723,7 @@ impl VersionAgent {
         if component == "panel" {
             return self.updater.update_panel(self, version, expected);
         }
-        let _lock = self.lock()?;
+        let _lock = self.try_operation_lock()?;
         let mut state = self.load_state()?;
         let entry = self.resolve(component, version, &state)?;
         let current_data = Self::component_state(&state, component);
@@ -699,28 +756,33 @@ impl VersionAgent {
         if panel.get("status").and_then(Value::as_str) == Some("updating") || self.rebuilding(&panel) {
             return Err(AgentError::conflict("panel update or manager rebuild is already running"));
         }
-        let applied = match self.updater.apply(self, component, &entry, current.as_str()) {
+        let operations = state.entry("operations").or_insert_with(|| json!({}));
+        operations[component] = json!({
+            "from_version": current, "target_version": version, "status": "running",
+            "stage": "preparing", "started_at": self.now_int(), "updated_at": self.now_int(),
+            "finished_at": null, "error": null,
+        });
+        self.save_state(&mut state).map_err(internal)?;
+        let outcome = self.updater.apply(self, component, &entry, current.as_str());
+        // Phase callbacks persisted into the same atomic state file while we held the lock.
+        state = self.load_state()?;
+        let applied = match outcome {
             Ok(applied) => applied,
-            Err(error) if error.state == crate::errors::UpdateState::RollbackFailed => {
-                let mut failed = current_data.clone();
-                failed.insert("status".into(), json!("rollback_failed"));
-                failed.insert("failed_at".into(), json!(self.now_int()));
-                state["components"][component] = Value::Object(failed);
-                if let Err(save) = self.save_state(&mut state) {
-                    return Err(UpdateError::rollback_failed(format!(
-                        "{component} rollback failed and the failure state could not be persisted"
-                    ))
-                    .caused_by(crate::errors::Cause {
-                        class: crate::runner::os_class(&save).into(),
-                        message: save.to_string(),
-                        stderr: None,
-                    })
-                    .caused_by_update(&error)
-                    .into());
+            Err(error) => {
+                self.finish_operation(&mut state, component, error.state.as_str());
+                if error.state == crate::errors::UpdateState::RollbackFailed {
+                    let mut failed = current_data.clone();
+                    failed.insert("status".into(), json!("rollback_failed"));
+                    failed.insert("failed_at".into(), json!(self.now_int()));
+                    state["components"][component] = Value::Object(failed);
+                }
+                if self.save_state(&mut state).is_err() {
+                    return Err(UpdateError::rollback_failed("update failed and its result could not be persisted")
+                        .caused_by_update(&error)
+                        .into());
                 }
                 return Err(error.into());
             }
-            Err(error) => return Err(error.into()),
         };
         let mut record = json!({
             "version": version,
@@ -743,6 +805,7 @@ impl VersionAgent {
             record["build"] = Value::Object(build.clone());
         }
         state["components"][component] = record;
+        self.finish_operation(&mut state, component, "succeeded");
         self.save_state(&mut state).map_err(internal)?;
         Ok(json!({"component": component, "version": version, "changed": true}))
     }
@@ -973,6 +1036,15 @@ impl VersionAgent {
             panel.insert("rebuild_error".into(), json!(INTERRUPTED_REBUILD));
             changes.push("an interrupted manager rebuild was recorded as rebuild_error".to_string());
         }
+        let interrupted: Vec<String> = state
+            .get("operations")
+            .and_then(Value::as_object)
+            .map(|ops| ops.iter().filter(|(_, op)| op["status"] == "running").map(|(name, _)| name.clone()).collect())
+            .unwrap_or_default();
+        for component in interrupted {
+            self.finish_operation(&mut state, &component, "interrupted");
+            changes.push(format!("an interrupted {component} update was recorded"));
+        }
         if !changes.is_empty() {
             let components = state.entry("components").or_insert_with(|| json!({}));
             if let Some(components) = components.as_object_mut() {
@@ -1015,7 +1087,7 @@ pub fn load_state(path: &Path) -> Result<Map<String, Value>, UpdateError> {
         Some(_) => false,
     };
     let is_dict = |key: &str| state.get(key).is_none_or(Value::is_object);
-    if !schema_ok || !is_dict("components") || !is_dict("upstream") {
+    if !schema_ok || !is_dict("components") || !is_dict("upstream") || !is_dict("operations") {
         return Err(UpdateError::new("version state is invalid"));
     }
     Ok(state)

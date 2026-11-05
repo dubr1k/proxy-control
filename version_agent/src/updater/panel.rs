@@ -41,7 +41,7 @@ pub fn update_panel_async(
     expected: Option<&str>,
 ) -> Result<Value, AgentError> {
     let (entry, current) = {
-        let _lock = agent.lock()?;
+        let _lock = agent.try_operation_lock()?;
         let mut state = agent.load_state()?;
         let entry = agent.resolve("panel", version, &state)?;
         let present = |value: &Option<String>| value.as_deref().is_some_and(|v| !v.is_empty());

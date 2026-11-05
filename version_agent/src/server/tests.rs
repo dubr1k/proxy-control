@@ -554,3 +554,79 @@ fn stop_signal_wakes_a_waiting_thread() {
     assert!(thread.join().unwrap());
     assert!(stop.wait(5.0));
 }
+
+#[test]
+fn operation_is_readable_over_socket_during_update_and_survives_rollback() {
+    use crate::catalog::CatalogEntry;
+    use crate::service::{AgentConfig, Applied, Updater};
+
+    struct GatedUpdater(Arc<UpdateGate>);
+    impl Updater for GatedUpdater {
+        fn apply(
+            &self,
+            agent: &Arc<VersionAgent>,
+            component: &str,
+            _: &CatalogEntry,
+            _: Option<&str>,
+        ) -> Result<Applied, UpdateError> {
+            agent.update_stage(component, "verifying")?;
+            self.0.enter();
+            Err(UpdateError::rolled_back("SECRET subprocess diagnostic"))
+        }
+        fn update_panel(&self, _: &Arc<VersionAgent>, _: &str, _: Option<&str>) -> Result<Value, AgentError> {
+            unreachable!()
+        }
+        fn rebuild_managers(&self, _: &Arc<VersionAgent>) -> Result<Value, AgentError> {
+            unreachable!()
+        }
+    }
+    let dir = TempDir::new("operation-socket");
+    let catalog = dir.join("catalog.json");
+    std::fs::write(
+        &catalog,
+        json!({"schema": 1, "components": {"telemt": [{
+            "version": "3.4.25", "kind": "image", "image": format!("ghcr.io/example/telemt@sha256:{}", "a".repeat(64))
+        }]}})
+        .to_string(),
+    )
+    .unwrap();
+    let mut agent = VersionAgent::new(AgentConfig::new(catalog, dir.join("state.json")));
+    let gate = Arc::new(UpdateGate::new());
+    agent.updater = Arc::new(GatedUpdater(gate.clone()));
+    let mut state = json!({"components": {"telemt": {"version": "3.4.24"}}}).as_object().unwrap().clone();
+    agent.save_state(&mut state).unwrap();
+    let agent = Arc::new(agent);
+    let running = start(routes(Some(Arc::new(agent.clone()))));
+    let socket = running.socket.clone();
+    let worker = std::thread::spawn(move || {
+        post(&socket, "/v1/update", br#"{"component":"telemt","version":"3.4.25","expected_current":"3.4.24"}"#)
+    });
+    gate.wait_entered();
+    let before = std::fs::read(&agent.config.state_path).unwrap();
+    let during = get(&running.socket, "/v1/versions");
+    let unchanged = before == std::fs::read(&agent.config.state_path).unwrap();
+    let competing = post(
+        &running.socket,
+        "/v1/update",
+        br#"{"component":"telemt","version":"3.4.25","expected_current":"3.4.24"}"#,
+    );
+    gate.release();
+    let result = worker.join().unwrap();
+    assert_eq!(during.status, 200);
+    assert!(unchanged, "GET must not mutate the operation");
+    assert_eq!(during.json()["components"]["telemt"]["operation"]["stage"], "verifying");
+    assert_eq!(during.json()["components"]["telemt"]["status"], "updating");
+    assert_eq!(competing.status, 409);
+    assert_eq!(result.status, 502);
+    let after = get(&running.socket, "/v1/versions").json();
+    assert_eq!(after["components"]["telemt"]["current"], "3.4.24");
+    assert_eq!(after["components"]["telemt"]["operation"]["status"], "rolled_back");
+    assert!(!after.to_string().contains("SECRET"));
+    let stale =
+        post(&running.socket, "/v1/update", br#"{"component":"telemt","version":"3.4.25","expected_current":"wrong"}"#);
+    assert_eq!(stale.status, 409);
+    assert_eq!(
+        get(&running.socket, "/v1/versions").json()["components"]["telemt"]["operation"],
+        after["components"]["telemt"]["operation"]
+    );
+}

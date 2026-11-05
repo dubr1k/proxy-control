@@ -92,6 +92,7 @@ pub fn update_xray(
     if is_symlink(&bin_dir) || !bin_dir.is_dir() {
         return Err(refuse("xray-router binary directory is missing"));
     }
+    agent.update_stage("xray", "downloading")?;
     let payload = updater.download(entry.url.as_deref().unwrap_or_default(), MAX_ARTIFACT)?;
     if Some(pc_host::fs::sha256_hex(&payload)) != entry.sha256 {
         return Err(refuse("xray artifact SHA-256 mismatch"));
@@ -126,6 +127,7 @@ pub fn update_xray(
     let overlay = agent.config.xray_overlay.clone();
     let previous_overlay = read_if_exists(&overlay)?;
     let outcome = (|| -> Step<()> {
+        agent.update_stage("xray", "applying")?;
         for (name, mode, data) in &extracted {
             atomic_write(&bin_dir.join(name), data, *mode)?;
         }
@@ -135,9 +137,11 @@ pub fn update_xray(
             rewrite_env_line(&overlay, key, digest)?;
         }
         compose_up(agent, "xray-router")?;
+        agent.update_stage("xray", "verifying")?;
         assert_xray_running(agent, Some(&entry.version))
     })();
     if let Err(exc) = outcome {
+        let _ = agent.update_stage("xray", "rolling_back");
         let rollback = (|| -> Step<()> {
             for ((name, mode, _), exists) in extracted.iter().zip(&existed) {
                 if *exists {

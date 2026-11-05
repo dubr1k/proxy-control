@@ -96,7 +96,9 @@ pub fn update_manager(
         atomic_write(&override_file, content.as_bytes(), 0o640)?;
         // Under the panel's 1200 s wait for the verdict.
         let command = compose_command(agent, &["up", "-d", "--build", "--no-deps", service], true, true)?;
+        agent.update_stage(component, "building")?;
         run_compose(agent, &command, 1080)?;
+        agent.update_stage(component, "verifying")?;
         wait_healthy(updater, agent, &[service.to_string()])?;
         let running = agent.manager_version(component);
         if running.as_deref() != Some(entry.version.as_str()) {
@@ -106,6 +108,7 @@ pub fn update_manager(
         Ok(())
     })();
     let Err(exc) = outcome else { return Ok(()) };
+    let _ = agent.update_stage(component, "rolling_back");
     let rollback = (|| -> Step<()> {
         match &previous {
             None => unlink_missing_ok(&override_file)?,

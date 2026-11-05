@@ -2036,5 +2036,21 @@
  "С последнего запуска MTProxy, это не квота": "Since the last MTProxy start; this is not quota usage",
  "включая служебные проверки": "including service healthchecks",
  "соединений сейчас": "current connections",
- "Обновление проверяется: оба файла скачиваются по HTTPS, проверяется формат и опубликованная контрольная сумма, если она есть; текущая конфигурация прогоняется через": "The update is checked: both files are downloaded over HTTPS, their format and any published checksum are checked; the current configuration is run through"
+ "Обновление проверяется: оба файла скачиваются по HTTPS, проверяется формат и опубликованная контрольная сумма, если она есть; текущая конфигурация прогоняется через": "The update is checked: both files are downloaded over HTTPS, their format and any published checksum are checked; the current configuration is run through",
+ "Подготовка": "Preparing",
+ "Загрузка и проверка артефакта": "Downloading and verifying artifact",
+ "Сборка": "Building",
+ "Установка": "Installing",
+ "Проверка запуска и здоровья": "Verifying startup and health",
+ "Восстановление предыдущей версии": "Restoring previous version",
+ "Обновление идёт": "Update in progress",
+ "Обновление завершено": "Update completed",
+ "Обновление не удалось — выполнен откат": "Update failed — previous version restored",
+ "Откат не подтверждён — требуется восстановление оператором": "Rollback unverified — operator recovery required",
+ "Обновление не удалось": "Update failed",
+ "Обновление прервано — проверьте работающую версию перед повтором": "Update interrupted — inspect the running version before retrying",
+ "Выполнение": "In progress",
+ "Состояние сохранено на сервере. Можно обновить страницу.": "State is saved on the server. You can reload the page.",
+ "Агент обновляет компонент; состояние появится здесь автоматически.": "The agent is updating the component; its state will refresh here automatically.",
+ "Компоненты обновятся по очереди; их соединения могут прерваться. Если закрыть или обновить страницу, текущая операция продолжится на сервере, но оставшуюся очередь нужно запустить заново. При первой ошибке обновление остановится. Панель обновляется последней.": "Components update sequentially; connections may be interrupted. Closing or reloading this page leaves the current operation running on the server, but the remaining queue must be started again. Updating stops on the first error. The panel updates last."
 }

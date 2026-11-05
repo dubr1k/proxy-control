@@ -792,3 +792,90 @@ fn the_components_follow_the_installed_overlays_and_read_the_running_versions() 
     let bare = agent_with(&["compose.yaml"]).list_versions(true).unwrap();
     assert!(bare["components"].get("amneziawg").is_none() && bare["components"].get("trusttunnel").is_none());
 }
+
+#[test]
+fn operation_survives_rollback_and_reload_without_exposing_errors() {
+    let dir = TempDir::new("operation-rollback");
+    let mut agent = agent_in(&dir);
+    agent.updater =
+        Arc::new(Recording { fail: Some(UpdateError::rolled_back("SECRET command output")), ..Recording::default() });
+    let agent = Arc::new(agent);
+    let mut state = json!({"components": {"telemt": {"version": "3.4.24"}}}).as_object().unwrap().clone();
+    agent.save_state(&mut state).unwrap();
+    assert!(agent.update("telemt", "3.4.25", Some("3.4.24")).is_err());
+    let listed = agent.list_versions(false).unwrap();
+    let item = &listed["components"]["telemt"];
+    assert_eq!(item["current"], "3.4.24");
+    assert_eq!(item["operation"]["status"], "rolled_back");
+    assert_eq!(item["operation"]["target_version"], "3.4.25");
+    assert_eq!(item["operation"]["from_version"], "3.4.24");
+    assert!(item["operation"]["finished_at"].is_number());
+    assert!(!item.to_string().contains("SECRET"));
+    assert_eq!(agent_in(&dir).list_versions(false).unwrap()["components"]["telemt"]["operation"], item["operation"]);
+}
+
+#[test]
+fn operation_success_is_terminal_and_startup_marks_only_active_operations_interrupted() {
+    let dir = TempDir::new("operation-success");
+    let mut agent = agent_in(&dir);
+    agent.updater = Arc::new(Recording::default());
+    let agent = Arc::new(agent);
+    agent.update("telemt", "3.4.25", None).unwrap();
+    assert_eq!(agent.list_versions(false).unwrap()["components"]["telemt"]["operation"]["status"], "succeeded");
+    let mut state = agent.load_state().unwrap();
+    state["operations"]["naive"] =
+        json!({"status": "running", "stage": "building", "target_version": "2.11.8", "started_at": 1});
+    agent.save_state(&mut state).unwrap();
+    agent.recover_interrupted().unwrap();
+    let state = agent.load_state().unwrap();
+    assert_eq!(state["operations"]["naive"]["status"], "interrupted");
+    assert_eq!(state["operations"]["telemt"]["status"], "succeeded");
+}
+
+#[test]
+fn operation_is_visible_during_apply_and_competing_request_is_rejected() {
+    struct Inspect;
+    impl Updater for Inspect {
+        fn apply(
+            &self,
+            agent: &Arc<VersionAgent>,
+            component: &str,
+            entry: &CatalogEntry,
+            _: Option<&str>,
+        ) -> Result<Applied, UpdateError> {
+            agent.update_stage(component, "verifying")?;
+            let listed = agent.list_versions(true).unwrap();
+            assert_eq!(listed["components"][component]["status"], "updating");
+            assert_eq!(listed["components"][component]["operation"]["stage"], "verifying");
+            assert!(matches!(agent.update("mita", "3.35.0", None), Err(AgentError::Conflict(_))));
+            Ok(Applied::from_entry(entry))
+        }
+        fn update_panel(&self, _: &Arc<VersionAgent>, _: &str, _: Option<&str>) -> Result<Value, AgentError> {
+            unreachable!()
+        }
+        fn rebuild_managers(&self, _: &Arc<VersionAgent>) -> Result<Value, AgentError> {
+            unreachable!()
+        }
+    }
+    let dir = TempDir::new("operation-active");
+    let mut agent = agent_in(&dir);
+    agent.updater = Arc::new(Inspect);
+    Arc::new(agent).update("telemt", "3.4.25", None).unwrap();
+}
+
+#[test]
+fn operation_records_safe_failure_outcomes_without_overwriting_running_version() {
+    for error in [UpdateError::new("SECRET"), UpdateError::rollback_failed("SECRET")] {
+        let dir = TempDir::new("operation-failure");
+        let mut agent = agent_in(&dir);
+        agent.updater = Arc::new(Recording { fail: Some(error.clone()), ..Recording::default() });
+        let mut state = json!({"components": {"telemt": {"version": "3.4.24"}}}).as_object().unwrap().clone();
+        agent.save_state(&mut state).unwrap();
+        let agent = Arc::new(agent);
+        assert!(agent.update("telemt", "3.4.25", None).is_err());
+        let item = &agent.list_versions(false).unwrap()["components"]["telemt"];
+        assert_eq!(item["operation"]["status"], error.state.as_str());
+        assert_eq!(item["current"], "3.4.24");
+        assert!(!item.to_string().contains("SECRET"));
+    }
+}
