@@ -362,7 +362,7 @@ sudo bash install.sh plan --config examples/installer/core-trusttunnel.toml --js
 sudo bash install.sh plan --config examples/installer/existing-three-xui.toml --json
 ```
 
-Управляемый 3x-ui **3.10.2** публикует три эталонных inbound: **VLESS Reality TCP** и
+Управляемый 3x-ui **3.11.0** публикует три эталонных inbound: **VLESS Reality TCP** и
 **VLESS Reality XHTTP** на loopback-бэкендах за общим роутером 443 и
 **Hysteria2** поверх TLS на публичном UDP/443 с собственным сертификатом. Для
 каждого генерируются свежие ключи Reality, short ID и клиентские учётные данные;

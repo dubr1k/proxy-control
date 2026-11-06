@@ -11,7 +11,7 @@ use base64::Engine;
 use serde_json::{json, Map, Value};
 
 const LIMIT: usize = 4 * 1024 * 1024;
-const CONTRACT: &str = include_str!("../assets/three-xui-api-contract-3.10.2.json");
+const CONTRACT: &str = include_str!("../assets/three-xui-api-contract-3.11.0.json");
 fn failure(message: &str) -> Error {
     Error::other("ThreeXuiApiError", message)
 }
@@ -333,7 +333,7 @@ impl<T: Transport> ThreeXuiApi<T> {
         }
         let contract: Value =
             serde_json::from_str(CONTRACT).map_err(|_| failure("the 3x-ui API contract is unavailable"))?;
-        if contract["version"] != "3.10.2" {
+        if contract["version"] != "3.11.0" {
             return Err(failure("the 3x-ui API contract is not the pinned version"));
         }
         Ok(Self {

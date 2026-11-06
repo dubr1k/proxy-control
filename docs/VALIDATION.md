@@ -110,7 +110,7 @@ compiler settings. This build-only change does not change installer CLI or host 
 `release/build.py --build-binaries DIR` stages tracked files from the listed crates,
 VERSION and `release/host-binaries.list`, plus the explicitly declared embedded inputs.
 The installer's `include_str!` requires the tracked 3x-ui API contract at
-`installer/assets/three-xui-api-contract-3.10.2.json` in that build context. A missing
+`installer/assets/three-xui-api-contract-3.11.0.json` in that build context. A missing
 or untracked declared input is refused before Docker runs; local cache files do
 not supply it. The contract is embedded in the binary, so the installed host does
 not need the JSON file to run the installer.

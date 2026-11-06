@@ -139,7 +139,7 @@ Proxy Control — что нужно для установки
   отказ, файл выбрасывается); файл, положенный вручную в /var/lib/proxy-control/
   (хост без интернета), используется как есть и никогда не заменяется:
   • профили с Mieru: mita_3.38.1_amd64.deb и mieru_3.38.1_amd64.deb;
-  • управляемый 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
+  • управляемый 3x-ui 3.11.0: x-ui-linux-amd64.tar.gz;
   • Xray-router: Xray-linux-64.zip (Xray-core 26.10.21);
   • TrustTunnel: trusttunnel-v1.1.0-linux-x86_64.tar.gz (TrustTunnel endpoint 1.1.0) —
     его скачивает и сверяет при сборке образа менеджера Docker, не установщик.
@@ -254,7 +254,7 @@ Nothing to stage for the pinned external artifacts — the installer fetches the
   is a refusal, the file is discarded); a file staged by hand in
   /var/lib/proxy-control/ (an offline host) is used as it is and never replaced:
   • the Mieru profiles: mita_3.38.1_amd64.deb and mieru_3.38.1_amd64.deb;
-  • managed 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
+  • managed 3x-ui 3.11.0: x-ui-linux-amd64.tar.gz;
   • the Xray-router: Xray-linux-64.zip (Xray-core 26.10.21);
   • TrustTunnel: trusttunnel-v1.1.0-linux-x86_64.tar.gz (TrustTunnel endpoint 1.1.0) —
     Docker downloads and checks it while building the manager image, not the installer.

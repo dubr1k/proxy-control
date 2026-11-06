@@ -1,6 +1,6 @@
 {
-  "archive_sha256": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
-  "version": "3.10.2",
+  "archive_sha256": "0ddfa4702f595442e2962acd81addc768fdacaa4ff2672c971a0463dae744916",
+  "version": "3.11.0",
   "entries": [
     {
       "path": "x-ui",
@@ -11,31 +11,31 @@
       "path": "x-ui/x-ui",
       "mode": 493,
       "kind": "file",
-      "sha256": "0748168b208efe544e4e800a9448923d75843aa0339a0a8cc31381d21b92b126"
+      "sha256": "fb7b3776334fce69299f90168c8c31377b69f89c7787088e6dbf561d07b3d345"
     },
     {
       "path": "x-ui/x-ui.sh",
       "mode": 420,
       "kind": "file",
-      "sha256": "3c7dabe7ea9edf0d950eff1caffbf203a1f8b52e98fc75e203372757f47998c0"
+      "sha256": "26c229d5fb3b184e81581b4b223b801582ca7cf5908aaedeb8d1c7c70ad4cc25"
     },
     {
       "path": "x-ui/x-ui.service.rhel",
       "mode": 420,
       "kind": "file",
-      "sha256": "27d3519da126a23aa604d6fba34220a5da575c3373ba2284640ad5e34e2fb72a"
+      "sha256": "6fe75a895650736438be9c9be60a0f3eb994e60c91b521f5b7b3be99360e0a96"
     },
     {
       "path": "x-ui/x-ui.service.arch",
       "mode": 420,
       "kind": "file",
-      "sha256": "16706ef00fb6f8ade6a4e9b965ac6e8d074588845bb20ccdbcdadbffaf9a92f6"
+      "sha256": "fe1bf335d831034049398b5f8b981bdcc76d0a645c93a79f2e2fd61a68d04df9"
     },
     {
       "path": "x-ui/x-ui.service.debian",
       "mode": 420,
       "kind": "file",
-      "sha256": "6e120b037ed0a1305331e31de21471d3e6485ea28133ccf85a45d1270258ff9e"
+      "sha256": "95cb6e39499601148404cadf3b4d75b0489301ff7e7ab565cd9db21d23be957c"
     },
     {
       "path": "x-ui/bin",
@@ -46,31 +46,31 @@
       "path": "x-ui/bin/geosite_IR.dat",
       "mode": 420,
       "kind": "file",
-      "sha256": "d0fe7fa043bd7b21cffb831b578b91e9c0c0dd9726aef7b10d3de2df42cecd7f"
+      "sha256": "76697377ff1bffa73205622f6dcdfc72bc63d36540222ad44c9a992cce12c04a"
     },
     {
       "path": "x-ui/bin/mtg-linux-amd64",
       "mode": 493,
       "kind": "file",
-      "sha256": "452f152feeb2f24450e525680911234f1cdcc148cce71149c78a6344de5b3699"
+      "sha256": "cd76cea638507169b8da842cb30c7a462202755b6471b9f0bc790282d4b2c438"
     },
     {
       "path": "x-ui/bin/xray-linux-amd64",
       "mode": 493,
       "kind": "file",
-      "sha256": "4cca4de3ab8c16b3803a70e9ebe0570d2a72480c716d89aa91603ec568bf0f44"
+      "sha256": "a27e3f95ab6ce270956d0cecd32eda4686a811afc71c64a6a734a3dede14883e"
     },
     {
       "path": "x-ui/bin/geosite.dat",
       "mode": 420,
       "kind": "file",
-      "sha256": "c5a73fbd415bb0506ecf8fa574caadc6f54a71d9308c265e97da49e4cebf8466"
+      "sha256": "e16ee9af893247f9c8b15c5259e5c0a6ae491b85ee351c22f1954e696ebb8997"
     },
     {
       "path": "x-ui/bin/geoip_IR.dat",
       "mode": 420,
       "kind": "file",
-      "sha256": "b008752d6e54fc569b7cddd90a90a9c598ae3de05be45f3a576fcd8b1ff42fc4"
+      "sha256": "903758ef7c2e38a853eea6abbcc533a8ba61de87bbb17aab3bd5d25265ddcc7e"
     },
     {
       "path": "x-ui/bin/LICENSE",
@@ -88,13 +88,13 @@
       "path": "x-ui/bin/geoip.dat",
       "mode": 420,
       "kind": "file",
-      "sha256": "116cc0f03d48991962f7f9cdbbcf53d45d89777f9c3cd1a663210853e5df6093"
+      "sha256": "a6271d3c96361d96156e6d3f7cf1550ef21b00d2f951deb772f464db91e89ac5"
     },
     {
       "path": "x-ui/bin/geoip_RU.dat",
       "mode": 420,
       "kind": "file",
-      "sha256": "e31714917fb9207e456251c784d88e90ab9a691e0764f4c05016b32bc073cfa2"
+      "sha256": "1529547b928581d579616d37fcb070aad650328a436d6796effd8cd1d3d77b49"
     },
     {
       "path": "x-ui/bin/README.md",

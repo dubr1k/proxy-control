@@ -1417,7 +1417,7 @@ fn router_question_names_the_pinned_xray_version() {
 fn managed_xui_help_names_the_pinned_version_in_both_languages() {
     let tree = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let expected = pinned_version(&tree, "three_xui");
-    assert_eq!(expected, "3.10.2");
+    assert_eq!(expected, "3.11.0");
     for locale in Locale::ALL {
         assert!(text(locale, "three_xui_mode_help", &[]).contains(&format!("3x-ui {expected}")));
     }

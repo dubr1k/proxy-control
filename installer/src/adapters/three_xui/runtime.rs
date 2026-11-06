@@ -32,17 +32,28 @@ pub(super) fn domain(value: &str) -> bool {
         })
 }
 impl ThreeXuiAdapter {
-    fn runtime_selection(&self, action: &Action) -> Result<BTreeMap<String, String>, Error> {
+    fn runtime_selection(&self, action: &Action, allow_historical: bool) -> Result<BTreeMap<String, String>, Error> {
         if action.id != "three_xui.runtime" {
             return Err(fail("3x-ui action is invalid"));
         }
         let selected = h::selection(action, "three_xui", "proxy-control:three-xui")?;
         let pin = h::pin(&self.context, "three_xui")?;
+        // Accepted 3.10.2 generations remain repairable/removable, never new defaults.
+        let (version, url, digest) =
+            if allow_historical && selected.get("version").map(String::as_str) == Some("3.10.2") {
+                (
+                    "3.10.2",
+                    "https://github.com/MHSanaei/3x-ui/releases/download/v3.10.2/x-ui-linux-amd64.tar.gz",
+                    "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0",
+                )
+            } else {
+                ("3.11.0", pin.url.as_str(), pin.sha256.as_str())
+            };
         for (key, value) in [
-            ("version", "3.10.2"),
+            ("version", version),
             ("architecture", "amd64"),
-            ("release-url", pin.url.as_str()),
-            ("release-digest", pin.sha256.as_str()),
+            ("release-url", url),
+            ("release-digest", digest),
             ("root", ROOT),
             ("unit", UNIT),
             ("database", DATABASE),
@@ -191,11 +202,43 @@ impl ThreeXuiAdapter {
         password: &str,
         path: &str,
     ) -> Result<(), Error> {
-        let payload = json!({"port":2053,"panel_port":8451,"certificate":format!("/etc/letsencrypt/live/{}/fullchain.pem",selected["panel-domain"]),"private_key":format!("/etc/letsencrypt/live/{}/privkey.pem",selected["panel-domain"]),"initial_username":"admin","initial_password":"admin","username":username,"password":password,"web_path":path});
+        // 3.11 no longer has admin/admin. Seed only a private, disposable bootstrap
+        // identity via the upstream restore command, before the first server start.
+        // The SQL contains a bcrypt hash, never a plaintext credential or secret argv.
+        let initial_username = format!("bootstrap-{}", pc_host::fs::token_hex::<16>());
+        let initial_password = pc_host::fs::token_hex::<32>();
+        let hash = bcrypt::hash(&initial_password, bcrypt::DEFAULT_COST)
+            .map_err(|_| fail("cannot hash the 3x-ui bootstrap credential"))?;
+        let seed_path = format!("/var/lib/proxy-control/three-xui/seed-{}.sql", pc_host::fs::token_hex::<8>());
+        let seed = format!("CREATE TABLE users (id integer PRIMARY KEY AUTOINCREMENT, username text, password text, login_epoch integer DEFAULT 0);\nINSERT INTO users (username,password) VALUES ('{initial_username}','{hash}');\n");
+        pc_host::fs::durable_mkdir(&h::host(&self.context, "/etc/x-ui")?, 0o700)?;
+        h::atomic(&self.context, &seed_path, seed.as_bytes(), 0o600)?;
+        let seeded = h::run(
+            &self.context,
+            &[
+                "sh",
+                "-c",
+                "umask 077; exec \"$@\"",
+                "sh",
+                "/usr/local/x-ui/x-ui",
+                "migrate-db",
+                "--restore",
+                &seed_path,
+                "--out",
+                DATABASE,
+            ],
+            None,
+        );
+        h::remove(&self.context, &seed_path)?;
+        seeded?;
+        let payload = json!({"port":2053,"panel_port":8451,"certificate":format!("/etc/letsencrypt/live/{}/fullchain.pem",selected["panel-domain"]),"private_key":format!("/etc/letsencrypt/live/{}/privkey.pem",selected["panel-domain"]),"initial_username":initial_username,"initial_password":initial_password,"username":username,"password":password,"web_path":path});
         let payload_path = format!("/var/lib/proxy-control/three-xui/bootstrap-{}.json", pc_host::fs::token_hex::<8>());
         h::atomic(&self.context, &payload_path, pc_host::json::canonical(&payload).as_bytes(), 0o600)?;
-        h::run(&self.context, &["ip", "netns", "add", "proxy-control-x-ui"], None)?;
+        let mut namespace_created = false;
+        let mut unit_started = false;
         let result = (|| {
+            h::run(&self.context, &["ip", "netns", "add", "proxy-control-x-ui"], None)?;
+            namespace_created = true;
             h::run(
                 &self.context,
                 &["ip", "netns", "exec", "proxy-control-x-ui", "ip", "link", "set", "lo", "up"],
@@ -213,6 +256,7 @@ impl ThreeXuiAdapter {
                 ],
                 None,
             )?;
+            unit_started = true;
             let binary = std::env::current_exe()?;
             h::run(
                 &self.context,
@@ -227,8 +271,16 @@ impl ThreeXuiAdapter {
                 Some(h::host(&self.context, &payload_path)?),
             )
         })();
-        let stop = h::run(&self.context, &["systemctl", "stop", "x-ui-bootstrap.service"], None);
-        let remove = h::run(&self.context, &["ip", "netns", "delete", "proxy-control-x-ui"], None);
+        let stop = if unit_started {
+            h::run(&self.context, &["systemctl", "stop", "x-ui-bootstrap.service"], None)
+        } else {
+            Ok(())
+        };
+        let remove = if namespace_created {
+            h::run(&self.context, &["ip", "netns", "delete", "proxy-control-x-ui"], None)
+        } else {
+            Ok(())
+        };
         h::remove(&self.context, &payload_path)?;
         result?;
         stop?;
@@ -363,14 +415,14 @@ impl Adapter for ThreeXuiAdapter {
             return Ok(actions);
         }
         let pin = h::pin(&self.context, "three_xui")?;
-        if pin.version != "3.10.2" {
+        if pin.version != "3.11.0" {
             return Err(fail("release manifest pins an unexpected 3x-ui version"));
         }
         let x = &config.three_xui;
         let hysteria =
             x.hysteria_domain.as_deref().ok_or_else(|| PlanError::new("managed 3x-ui requires a Hysteria2 domain"))?;
         let mutations = vec![
-            "version=3.10.2".into(),
+            "version=3.11.0".into(),
             "architecture=amd64".into(),
             format!("release-url={}", pin.url),
             format!("release-digest={}", pin.sha256),
@@ -445,7 +497,7 @@ impl Adapter for ThreeXuiAdapter {
                 .unwrap()
                 .clone());
         }
-        self.runtime_selection(action)?;
+        self.runtime_selection(action, false)?;
         self.assert_absent()?;
         Ok(json!({"marker_value":pc_host::fs::token_hex::<16>(),"owner":action.owner,"ownership":{},"staged":false})
             .as_object()
@@ -461,7 +513,7 @@ impl Adapter for ThreeXuiAdapter {
             self.warp_domains(action)?;
             return Ok(checkpoint);
         }
-        let selected = self.runtime_selection(action)?;
+        let selected = self.runtime_selection(action, false)?;
         if checkpoint.get("owner") != Some(&json!(action.owner))
             || !checkpoint.get("marker_value").and_then(Value::as_str).is_some_and(|value| {
                 value.len() == 32 && value.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
@@ -494,7 +546,7 @@ impl Adapter for ThreeXuiAdapter {
             }
             let version =
                 h::checked(&self.context, &[binary.to_str().ok_or_else(|| fail("invalid staging path"))?, "-v"])?;
-            if !version.contains("3.10.2") {
+            if !version.contains("3.11.0") {
                 return Err(fail("staged 3x-ui reports an unpinned version"));
             }
             h::atomic(
@@ -571,8 +623,8 @@ impl Adapter for ThreeXuiAdapter {
                 json!({"routes":routes.len(),"installed":installed}),
             );
         }
-        self.runtime_selection(action)?;
-        if !h::checked(&self.context, &["/usr/local/x-ui/x-ui", "-v"])?.contains("3.10.2") {
+        let selected = self.runtime_selection(action, true)?;
+        if !h::checked(&self.context, &["/usr/local/x-ui/x-ui", "-v"])?.contains(&selected["version"]) {
             return Err(fail("the installed 3x-ui is not the pinned version"));
         }
         let mut ports = listening(&h::checked(&self.context, &["ss", "-lntH"])?);
@@ -597,7 +649,7 @@ impl Adapter for ThreeXuiAdapter {
             self.warp_domains(action)?;
             return Ok(checkpoint);
         }
-        self.runtime_selection(action)?;
+        self.runtime_selection(action, true)?;
         let ownership = checkpoint
             .get("ownership")
             .and_then(Value::as_object)
@@ -634,7 +686,7 @@ impl Adapter for ThreeXuiAdapter {
                 json!({"persistent_data_preserved":true}),
             );
         }
-        self.runtime_selection(action)?;
+        self.runtime_selection(action, true)?;
         let marker_path = h::host(&self.context, MARKER)?;
         if fs::symlink_metadata(&marker_path).is_ok_and(|metadata| !metadata.is_file()) {
             return Err(fail("3x-ui ownership marker is not a regular file"));
@@ -738,4 +790,118 @@ pub fn bootstrap_dialogue(payload: &Value) -> Result<(), Error> {
         Some(text("certificate")?),
         Some(text("private_key")?),
     )
+}
+
+#[cfg(test)]
+mod bootstrap_tests {
+    use super::*;
+    use crate::adapters::AdapterContext;
+    use crate::testkit::TempDir;
+    use pc_host::runner::{RecordingRunner, Reply};
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn bootstrap_seed_is_private_hashed_rotated_and_cleaned_on_success_or_failure() {
+        for fail_step in ["none", "restore", "namespace", "dialogue"] {
+            let temp = TempDir::new("xui-bootstrap");
+            let root = temp.path().to_path_buf();
+            let observed = Arc::new(Mutex::new((String::new(), None::<Value>)));
+            let seen = observed.clone();
+            let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+                if let Some(index) = call.argv.iter().position(|arg| arg == "--restore") {
+                    assert!(call.argv.iter().any(|arg| arg.contains("umask 077")));
+                    assert_eq!(fs::metadata(root.join("etc/x-ui")).unwrap().permissions().mode() & 0o777, 0o700);
+                    let file = root.join(call.argv[index + 1].trim_start_matches('/'));
+                    assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
+                    let sql = fs::read_to_string(&file).unwrap();
+                    assert!(!sql.contains("admin") && !sql.contains("final-secret"));
+                    assert!(sql.contains("$2b$"));
+                    seen.lock().unwrap().0 = sql;
+                    if fail_step == "restore" {
+                        return Some(Reply::exit(1, "", ""));
+                    }
+                }
+                if call.argv.last().is_some_and(|arg| arg == "three-xui-bootstrap") {
+                    let file = call.stdin_path.as_ref().unwrap();
+                    assert_eq!(fs::metadata(file).unwrap().permissions().mode() & 0o777, 0o600);
+                    seen.lock().unwrap().1 = Some(serde_json::from_slice(&fs::read(file).unwrap()).unwrap());
+                    if fail_step == "dialogue" {
+                        return Some(Reply::exit(1, "", ""));
+                    }
+                }
+                if fail_step == "namespace" && call.argv.get(2).is_some_and(|arg| arg == "add") {
+                    return Some(Reply::exit(1, "", ""));
+                }
+                Some(Reply::ok(""))
+            }));
+            let context = AdapterContext {
+                root: temp.path().to_path_buf(),
+                tree: temp.path().to_path_buf(),
+                runner: runner.clone(),
+            };
+            let adapter = ThreeXuiAdapter::new(&context);
+            let selected = BTreeMap::from([("panel-domain".into(), "panel.example.com".into())]);
+            let result = adapter.bootstrap(&selected, "owner", "final-secret", "/private/");
+            assert_eq!(result.is_err(), fail_step != "none");
+            let (sql, payload) = &*observed.lock().unwrap();
+            assert!(!sql.is_empty());
+            if fail_step == "none" || fail_step == "dialogue" {
+                let payload = payload.as_ref().unwrap();
+                let password = payload["initial_password"].as_str().unwrap();
+                let user = payload["initial_username"].as_str().unwrap();
+                assert!(sql.contains(user) && !sql.contains(password));
+                let hash = sql.split("','").nth(1).unwrap().split('\'').next().unwrap();
+                assert!(bcrypt::verify(password, hash).unwrap());
+                assert!(runner.calls().iter().all(|call| !call.argv.iter().any(|arg| arg.contains(password))));
+            } else {
+                assert!(payload.is_none());
+            }
+            assert_eq!(fs::read_dir(temp.path().join("var/lib/proxy-control/three-xui")).unwrap().count(), 0);
+            assert!(runner.calls().iter().all(|call| !call.argv.iter().any(|arg| arg.contains("final-secret"))));
+        }
+    }
+
+    #[test]
+    fn historical_pin_is_retained_only_and_mixed_fields_are_rejected() {
+        let temp = TempDir::new("xui-bootstrap");
+        let tree = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let context = AdapterContext {
+            root: temp.path().to_path_buf(),
+            tree: tree.into(),
+            runner: Arc::new(RecordingRunner::new()),
+        };
+        let adapter = ThreeXuiAdapter::new(&context);
+        let config =
+            installer_core::config::load_config(&tree.join("examples/installer/managed-three-xui.toml")).unwrap();
+        let mut action = adapter
+            .plan(&config, &AuditFacts::default())
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "three_xui.runtime")
+            .unwrap();
+        assert!(adapter.runtime_selection(&action, false).is_ok());
+        for entry in &mut action.mutations {
+            if entry.starts_with("version=") {
+                *entry = "version=3.10.2".into();
+            }
+            if entry.starts_with("release-url=") {
+                *entry =
+                    "release-url=https://github.com/MHSanaei/3x-ui/releases/download/v3.10.2/x-ui-linux-amd64.tar.gz"
+                        .into();
+            }
+            if entry.starts_with("release-digest=") {
+                *entry = "release-digest=bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0".into();
+            }
+        }
+        assert!(adapter.runtime_selection(&action, true).is_ok());
+        assert!(adapter.prepare(&action).is_err());
+        assert!(adapter.apply(&action, CheckpointData::new()).is_err());
+        for field in ["version", "release-url", "release-digest"] {
+            let mut altered = action.clone();
+            let entry = altered.mutations.iter_mut().find(|entry| entry.starts_with(&format!("{field}="))).unwrap();
+            entry.push('x');
+            assert!(adapter.runtime_selection(&altered, true).is_err());
+        }
+    }
 }

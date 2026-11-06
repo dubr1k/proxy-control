@@ -232,7 +232,7 @@ def test_distribution_uses_an_explicit_runtime_allowlist(tmp_path):
         "pc_common/src/lib.rs", "pc_host/src/lib.rs",
         "panel/crates/web/openapi/panel-openapi.json",
         "panel/crates/subscriptions/src/assets/style.css",
-        "installer/assets/three-xui-api-contract-3.10.2.json",
+        "installer/assets/three-xui-api-contract-3.11.0.json",
         "probe/src/index.cjs", "deploy/mieru-client/src/main.rs",
         "scripts/update-host.sh", "release/three-xui-layout-amd64.json",
     )
@@ -323,7 +323,7 @@ def test_runtime_policy_keeps_production_inputs_but_not_development_tools():
     required = {
         ".dockerignore", "install.sh", "uninstall.sh", "install-bootstrap",
         "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md", "pc_common/RELEASE",
-        "installer/assets/three-xui-api-contract-3.10.2.json",
+        "installer/assets/three-xui-api-contract-3.11.0.json",
         "panel/crates/web/openapi/panel-openapi.json",
         "panel/crates/subscriptions/src/assets/style.css",
         "panel/crates/subscriptions/src/assets/script.js",
@@ -739,7 +739,18 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions(language)
 
 PROBE = "installer/bin/linux-amd64/proxy-control-installer"
 LIBRARY_FILE = "pc_common/src/lib.rs"
-THREE_XUI_CONTRACT = "installer/assets/three-xui-api-contract-3.10.2.json"
+THREE_XUI_CONTRACT = "installer/assets/three-xui-api-contract-3.11.0.json"
+
+
+def test_managed_xui_pin_layout_and_embedded_api_are_the_same_release():
+    external = json.loads((ROOT / "release/external-artifacts.json").read_text())
+    pin = next(item for item in external["artifacts"] if item["name"] == "three_xui")
+    layout = json.loads((ROOT / "release/three-xui-layout-amd64.json").read_text())
+    contract = json.loads((ROOT / THREE_XUI_CONTRACT).read_text())
+    assert pin["version"] == layout["version"] == contract["version"] == "3.11.0"
+    assert pin["platforms"]["amd64"]["sha256"] == layout["archive_sha256"]
+    assert pin["tag"] == "v3.11.0"
+    assert pin["platforms"]["amd64"]["url"].endswith("/v3.11.0/x-ui-linux-amd64.tar.gz")
 
 
 def checkout_with_host_crates(tmp_path: Path) -> Path:

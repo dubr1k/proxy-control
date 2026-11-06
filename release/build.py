@@ -85,7 +85,7 @@ HOST_PLATFORM_DIR = "bin/linux-amd64"
 # Compile-time resources must be tracked, even when they live inside a crate.
 # Neither the workstation nor a cache may supply a missing declared input.
 HOST_BINARY_EMBEDDED_INPUTS = {
-    "installer": ("installer/assets/three-xui-api-contract-3.10.2.json",),
+    "installer": ("installer/assets/three-xui-api-contract-3.11.0.json",),
 }
 DISTRIBUTION_POLICY = "release/runtime-files.json"
 _CRATE_DIR_RE = re.compile(r"[a-z0-9_][a-z0-9_-]*(?:/[a-z0-9_][a-z0-9_-]*)*\Z")

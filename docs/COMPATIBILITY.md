@@ -162,6 +162,20 @@ did), and a local attach/detach records the backend's pass-through digest on the
 columns). `docs/VERIFICATION_MATRIX.md` lists every route with the row that proves it; `scripts/dev/route-coverage.py`
 fails the full gate on a route that is not gated, not mentioned by a test, or public without being listed.
 
+## Managed 3x-ui 3.11.0
+
+Fresh `managed-new` installations pin 3x-ui 3.11.0. Before first startup, the
+installer uses upstream `migrate-db --restore` to seed one random temporary user
+with a bcrypt hash from an owner-only SQL file, then rotates that credential over
+the isolated bootstrap HTTP connection. No first-login credential is read from
+logs or passed in command arguments. The restore subprocess alone uses umask 077;
+temporary seed files are removed on success and failure.
+
+Accepted 3.10.2 generations retain verification, ownership-checked repair and
+rollback/uninstall using their exact historical version, URL and digest. They are
+not silently upgraded, and the historical pin cannot authorize a new apply.
+The `existing` attachment mode does not change installed 3x-ui files or users.
+
 ## Component update operation status — additive
 
 `GET /v1/versions` and the panel's `GET /api/versions` may include an optional

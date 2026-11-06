@@ -9,5 +9,5 @@ Host mode (fresh/coexist) [fresh]:   core       — the panel and MTProxy (Teleg
   AmneziaWG and TrustTunnel are not part of a profile: they are separate questions further below
 Proxy Control profile (core/core-naive/core-mieru/full) [full]:   none        — no 3x-ui
   existing    — 3x-ui is already installed: only routes to its VLESS Reality inbounds are added on 443
-  managed-new — the installer sets up its own 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+  managed-new — the installer sets up its own 3x-ui 3.11.0 (VLESS Reality TCP/XHTTP, Hysteria2)
 3x-ui mode (none/existing/managed-new) [none]: No changes were made.

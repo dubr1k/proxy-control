@@ -196,7 +196,7 @@ The installer:
 7. waits for services to be ready and runs the acceptance for every protocol.
 
 It does not touch DNS, WARP, Fleet, foreign containers, or foreign Nginx routes.
-The `managed-new` mode pins 3x-ui **3.10.2**, verifies the archive SHA-256,
+The `managed-new` mode pins 3x-ui **3.11.0**, verifies the archive SHA-256,
 and removes temporary acceptance accounts through the client API.
 
 It manages UFW rules and 3x-ui only when your configuration says so.

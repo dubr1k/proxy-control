@@ -359,12 +359,12 @@ fn managed_three_xui_real_tls_engine_apply_and_rollback() {
         &["/usr/local/x-ui/bin/xray-linux-amd64", "x25519"],
         Reply::ok(&format!("PrivateKey: {}\nPublicKey: {}\n", "a".repeat(43), "b".repeat(43))),
     );
-    runner.reply(&["/usr/local/x-ui/x-ui", "-v"], Reply::ok("3.10.2\n"));
+    runner.reply(&["/usr/local/x-ui/x-ui", "-v"], Reply::ok("3.11.0\n"));
     let staged_runner = runner.clone();
     let original = runner;
     let runner = Arc::new(RecordingRunner::with_responder(move |call| {
         if call.argv.last().is_some_and(|arg| arg == "-v") {
-            Some(Reply::ok("3.10.2\n"))
+            Some(Reply::ok("3.11.0\n"))
         } else {
             let argv = call.argv.iter().map(String::as_str).collect::<Vec<_>>();
             use pc_host::runner::HostRunner;

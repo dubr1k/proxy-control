@@ -9,5 +9,5 @@
   AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже
 Профиль Proxy Control (core/core-naive/core-mieru/full) [full]:   none        — без 3x-ui
   existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality
-  managed-new — установщик поставит свой 3x-ui 3.10.2 (VLESS Reality TCP/XHTTP, Hysteria2)
+  managed-new — установщик поставит свой 3x-ui 3.11.0 (VLESS Reality TCP/XHTTP, Hysteria2)
 Режим 3x-ui (none/existing/managed-new) [none]: Изменения не внесены.

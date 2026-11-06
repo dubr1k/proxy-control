@@ -67,7 +67,7 @@ way. The installer can also install 3x-ui for you.
 | **Mieru** | A traffic-obfuscating proxy with its own protocol over TCP; a one-time `mierus://` link and QR. |
 | **AmneziaWG** | A VPN over UDP — WireGuard with traffic obfuscation. Versions 1.5, 2.0 and 3.1 each run on their own port; a client can hold several, and the config is given as a `.conf` file and a QR. Optional. |
 | **TrustTunnel** | AdGuard's VPN: HTTP/2 over TLS, TCP only, on the shared port 443 through the Nginx SNI route, with no new ports and no UDP. Handed out as a `tt://` link with a QR, a TOML config and a Clash/mihomo entry; routed as a service (no per-client lanes). Optional, needs a domain of its own. |
-| **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.10.2` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
+| **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.11.0` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
 | **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
 | **Routing** | Outbound traffic rules per node and service: direct, through WARP, your own exit or another node; blocks by domain, CIDR, geosite and geoip through the optional Xray-router. |
@@ -282,7 +282,7 @@ itself. `coexist` — Nginx already holds port 443 and the installer only adds i
 - `existing` — adopt an installed one: the installer adds routes to its VLESS Reality TCP
   and XHTTP inbounds and does not change a single file of it. You create the inbounds in
   3x-ui yourself;
-- `managed-new` — install 3x-ui `3.10.2`: the installer issues the certificates, moves the
+- `managed-new` — install 3x-ui `3.11.0`: the installer issues the certificates, moves the
   3x-ui panel from public ports to `127.0.0.1` under a private path, replaces the factory
   `admin/admin` with yours and creates VLESS Reality TCP, VLESS Reality XHTTP and Hysteria2
   itself. Only in `fresh` mode.
@@ -852,7 +852,7 @@ top of the pinned registry image).
 |---|---|---|---|
 | `mita` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The Mieru server; only the executable and the license notice are installed. |
 | `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
-| `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.11.0 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
 | `xray` (`XTLS/Xray-core`) | 26.10.21 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
 | `trusttunnel` (`TrustTunnel/TrustTunnel`) | 1.1.0 | Apache-2.0 | The TrustTunnel endpoint: the archive is downloaded and checked while the `trusttunnel-manager` image is built; it runs unmodified as a subprocess. |
 
