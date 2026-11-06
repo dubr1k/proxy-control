@@ -35,6 +35,11 @@ impl NaiveClient {
         self.call("GET", "/v1/traffic", None).await
     }
 
+    /// Read-only live CONNECT meter. Does not collect completed logs or probe Caddy.
+    pub async fn live_traffic(&self) -> Result<Value> {
+        self.call("GET", "/v1/traffic/live", None).await
+    }
+
     /// `POST /v1/users {username, quota_bytes, [password], [operation_id]}`: `quota_bytes` is
     /// always sent (`null` when unset), the optional keys only when given.
     pub async fn create(

@@ -64,6 +64,9 @@ fn simulated_host(work: &Path, state: Arc<Mutex<Simulated>>) -> Host {
         if starts(argv, &["systemctl", "list-units", "--plain"]) {
             return Ok("mita@1.service loaded active running\nmita@2.service loaded active running".into());
         }
+        if argv.last().is_some_and(|arg| arg == "list-modules") {
+            return Ok("http.handlers.forward_proxy\nproxy_control.naive_live_meter\n".into());
+        }
         if has(argv, "{{.Config.Image}}") {
             let configured = std::fs::read_to_string(&override_file).unwrap_or_default();
             return Ok(if configured.contains(TELEMT_IMAGE_NEW) { TELEMT_IMAGE_NEW } else { TELEMT_IMAGE_OLD }.into());
@@ -168,12 +171,18 @@ fn golden_agent(work: &Path, host: &Host) -> Arc<VersionAgent> {
 }
 
 fn recorded_calls(step: &Value) -> Vec<Vec<String>> {
-    step["calls"]
+    let mut calls: Vec<Vec<String>> = step["calls"]
         .as_array()
         .unwrap()
         .iter()
         .map(|call| call.as_array().unwrap().iter().map(|a| a.as_str().unwrap().to_string()).collect())
-        .collect()
+        .collect();
+    // Keep the original historical recording intact. Native Naive updates add
+    // exactly one fail-closed capability check before the recorded restart path.
+    if step["step"] == "update-naive-rolled-back" {
+        calls.insert(0, vec!["<work>/bin/.caddy.proxy-control-new".into(), "list-modules".into()]);
+    }
+    calls
 }
 
 #[test]

@@ -417,6 +417,11 @@ The Xray-router checks both numeric and named UID/GID ownership before applying 
 
 ## Acceptance per protocol
 
+NaiveProxy uses a pinned Caddy build with `proxy_control.naive_live_meter`; fresh installs
+and updates both preserve the live meter. Its `/run/caddy-naive/live.sock` (`GET /v1/live`)
+is private to the manager; the panel reads the manager’s authenticated `GET /v1/traffic/live`.
+Metrics are not published on public proxy/cover listeners; no new TCP port is needed.
+
 A healthy process is not a protocol test. The installer accepts a generation
 only on end-to-end evidence:
 

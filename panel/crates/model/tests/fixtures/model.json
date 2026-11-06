@@ -20388,7 +20388,14 @@
     "trusttunnel.clients",
     "trusttunnel.connections",
     "trusttunnel.up_bytes",
-    "trusttunnel.down_bytes"
+    "trusttunnel.down_bytes",
+    "naive_connect.up_bps",
+    "naive_connect.down_bps",
+    "naive_connect.sessions",
+    "naive_connect.clients",
+    "naive_connect.connections",
+    "naive_connect.up_bytes",
+    "naive_connect.down_bytes"
    ],
    "RANGES": {
     "15m": 900,

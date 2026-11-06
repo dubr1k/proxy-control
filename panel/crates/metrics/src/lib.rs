@@ -29,6 +29,7 @@
 //! [`MetricsStore::history`].
 
 pub mod collector;
+mod naive_live;
 pub mod pyfloat;
 pub mod query;
 pub mod rates;

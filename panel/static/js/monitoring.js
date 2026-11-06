@@ -3,7 +3,7 @@
 // protocol) and «Узлы» (the comparison and a drill-down per node).
 //
 // Honesty rules of the screen: a number that the backend did not measure is a dash, not a zero;
-// a protocol without live kernel counters says so; a stale node keeps its last values, greyed,
+// a protocol without its live source says so; a stale node keeps its last values, greyed,
 // with their age; a gap in the history stays a gap.
 import { esc, locale, number, query, queryAll } from "./common.js";
 import {
@@ -29,6 +29,14 @@ const PROTOCOLS = [
   ["trusttunnel", "TrustTunnel", "HTTP/2 · TCP"],
 ];
 const PROTOCOL_NAME = Object.fromEntries(PROTOCOLS.map(([id, name]) => [id, name]));
+// Never relabel the old port/completed-accounting history as client payload.
+const HISTORY_PROTOCOLS = PROTOCOLS.flatMap(([id, name]) => id === "naive"
+  ? [["naive_connect", "NaiveProxy · CONNECT", "naive"], ["naive", "NaiveProxy · прежний учёт", "naive"]]
+  : [[id, name, id]]);
+const protocolSeries = (proto) => proto === "naive" ? "naive_connect" : proto;
+const historyRateSeries = () => HISTORY_PROTOCOLS.flatMap(([id]) => [`${id}.up_bps`, `${id}.down_bps`]);
+const naiveCompatible = (entry) => entry?.source === "naive_connect" && entry.semantics === "authenticated_connect_payload";
+
 const RANGES = [["15m", "15 м"], ["1h", "1 ч"], ["6h", "6 ч"], ["24h", "24 ч"], ["7d", "7 д"], ["30d", "30 д"], ["90d", "90 д"]];
 const TABS = [["now", "Сейчас"], ["traffic", "Трафик"], ["nodes", "Узлы"]];
 const DIRECTIONS = [["down", "↓ к клиентам"], ["up", "↑ от клиентов"], ["sum", "Σ всего"]];
@@ -177,9 +185,10 @@ function sampleValues(node) {
   };
   for (const [proto] of PROTOCOLS) {
     const entry = node.protocols?.[proto];
-    const live = entry?.available && entry.live !== false;
-    values[`${proto}.up_bps`] = live ? entry.up_bps : null;
-    values[`${proto}.down_bps`] = live ? entry.down_bps : null;
+    const live = entry?.available && entry.live !== false && (proto !== "naive" || naiveCompatible(entry));
+    const series = protocolSeries(proto);
+    values[`${series}.up_bps`] = live ? entry.up_bps : null;
+    values[`${series}.down_bps`] = live ? entry.down_bps : null;
   }
   return values;
 }
@@ -193,13 +202,37 @@ function sumNodes(nodes) {
       total[key] = (total[key] || 0) + Number(value);
     }
   }
+  const naive = mergeProtocols(nodes).naive;
+  total["naive_connect.up_bps"] = naive.up_bps;
+  total["naive_connect.down_bps"] = naive.down_bps;
   return total;
 }
 
 function mergeProtocols(nodes) {
   const merged = {};
   for (const [proto] of PROTOCOLS) {
-    const parts = nodes.filter((node) => node.status === "ok").map((node) => node.protocols?.[proto]).filter((entry) => entry?.available);
+    const enabled = nodes.filter((node) => {
+      const entry = node.protocols?.[proto];
+      return entry && entry.reason !== "disabled";
+    });
+    const parts = enabled.filter((node) => node.status === "ok").map((node) => node.protocols[proto])
+      .filter((entry) => entry.available && (proto !== "naive" || naiveCompatible(entry)));
+    if (proto === "naive") {
+      const compatible = parts.filter((entry) => entry.live === true);
+      // A missing direction/sample is unknown, never an invented zero.
+      const add = (key) => compatible.length && compatible.every((entry) => finite(entry[key]))
+        ? compatible.reduce((sum, entry) => sum + Number(entry[key]), 0) : null;
+      merged[proto] = {
+        available: compatible.length > 0, live: true, source: "naive_connect", semantics: "authenticated_connect_payload",
+        reason: enabled.length ? "live_meter_unavailable" : "disabled",
+        partial: compatible.length < enabled.length,
+        coverage: { compatible: compatible.length, enabled: enabled.length },
+        ...Object.fromEntries(["up_bps", "down_bps", "up_bytes", "down_bytes", "sessions", "clients"].map((key) => [key, add(key)])),
+        connections: compatible.length && compatible.every((entry) => finite(entry.active_tunnels ?? entry.connections))
+          ? compatible.reduce((sum, entry) => sum + Number(entry.active_tunnels ?? entry.connections), 0) : null,
+      };
+      continue;
+    }
     if (!parts.length) {
       merged[proto] = { available: false };
       continue;
@@ -209,7 +242,8 @@ function mergeProtocols(nodes) {
     merged[proto] = {
       available: true,
       live: live.length > 0,
-      source: live.length === parts.length ? "ядро" : "ядро и менеджер",
+      source: [...new Set(parts.map((entry) => entry.source).filter(Boolean))].join(" + "),
+      semantics: [...new Set(parts.map((entry) => entry.semantics).filter(Boolean))].join(" + "),
       partial: live.length > 0 && live.length < parts.length,
       up_bps: live.length ? add("up_bps", live) : null,
       down_bps: live.length ? add("down_bps", live) : null,
@@ -259,6 +293,10 @@ function paintSegmented(root, attribute, current) {
 // Port-based protocols report established TCP connections measured by the agent; the managers' own
 // «sessions» stay the fallback (and AmneziaWG's peer count), so a card never shows a made-up zero.
 function protoMeta(entry) {
+  if (entry.source === "naive_connect" && entry.semantics === "authenticated_connect_payload") {
+    const tunnels = entry.active_tunnels ?? entry.connections;
+    return `<div class="proto-meta"><span>Активных туннелей <b>${finite(tunnels) ? number(tunnels) : "—"}</b></span></div>`;
+  }
   if (finite(entry.connections)) {
     const clients = finite(entry.clients) && entry.clients > 0 ? `<span>Клиентов <b>${number(entry.clients)}</b></span>` : "";
     return `<div class="proto-meta"><span title="Установленные TCP-соединения на портах протокола">Соединений <b>${number(entry.connections)}</b></span>${clients}</div>`;
@@ -470,15 +508,21 @@ function paintProtocols(context, protocols, ring, single) {
   const gap = ringGap(rt, ring);
   for (const [proto, name] of PROTOCOLS) {
     const card = query(`[data-proto="${proto}"]`, context.ui.view);
-    const entry = protocols[proto] || { available: false };
+    const raw = protocols[proto] || { available: false };
+    const entry = proto === "naive" && !naiveCompatible(raw) && raw.reason !== "disabled"
+      ? { ...raw, available: false, reason: "live_meter_unavailable" } : raw;
+    const coverage = entry.coverage ? ` · Покрытие: ${entry.coverage.compatible}/${entry.coverage.enabled}` : "";
     const body = query("[data-proto-body]", card);
     const spark = query("[data-spark]", card);
     card.classList.toggle("is-off", !entry.available);
     card.classList.toggle("not-live", Boolean(entry.available && !entry.live));
     if (!entry.available) {
-      setHtmlIfChanged(rt, `proto-${proto}`, body, `<p class="proto-off">Не включён${single ? " на этом узле" : " ни на одном узле"}</p>`);
+      const unavailable = proto === "naive" && entry.reason !== "disabled";
+      setHtmlIfChanged(rt, `proto-${proto}`, body, unavailable
+        ? `<p class="proto-off">Данные клиентского трафика недоступны</p>${protoMeta({ source: "naive_connect", semantics: "authenticated_connect_payload" })}`
+        : `<p class="proto-off">Не включён${single ? " на этом узле" : " ни на одном узле"}</p>`);
       spark.hidden = true;
-      setText(card, "[data-foot]", "");
+      setText(card, "[data-foot]", proto === "naive" ? `Клиентский трафик · CONNECT${coverage}` : "");
       continue;
     }
     if (!entry.live) {
@@ -503,20 +547,22 @@ function paintProtocols(context, protocols, ring, single) {
       gap,
       unit: "rate",
       series: [
-        { values: ring.v[`${proto}.down_bps`] || [], cls: `ser-${proto}`, label: "↓" },
-        { values: ring.v[`${proto}.up_bps`] || [], cls: `ser-${proto}`, dash: true, noArea: true, label: "↑" },
+        { values: ring.v[`${protocolSeries(proto)}.down_bps`] || [], cls: `ser-${proto}`, label: "↓" },
+        { values: ring.v[`${protocolSeries(proto)}.up_bps`] || [], cls: `ser-${proto}`, dash: true, noArea: true, label: "↑" },
       ],
     });
-    setText(card, "[data-foot]", `Источник: ${entry.partial ? "ядро и менеджер" : entry.source === "manager" ? "менеджер" : "ядро"}${entry.partial ? " · часть узлов без счётчиков ядра" : ""}${proto === "naive" && (entry.partial || ["kernel", "ядро"].includes(entry.source)) ? " · включая служебные проверки" : ""}`);
+    setText(card, "[data-foot]", proto === "naive"
+      ? `Клиентский трафик · CONNECT${coverage}`
+      : `Источник: ${entry.source || "—"}${entry.partial ? " · неполное покрытие" : ""}`);
   }
 }
 
 function directionValues(ring, proto, dir) {
-  const up = ring.v[`${proto}.up_bps`] || [];
-  const down = ring.v[`${proto}.down_bps`] || [];
+  const up = ring.v[`${protocolSeries(proto)}.up_bps`] || [];
+  const down = ring.v[`${protocolSeries(proto)}.down_bps`] || [];
   if (dir === "up") return up;
   if (dir === "down") return down;
-  return up.map((value, index) => (finite(value) || finite(down[index]) ? (finite(value) ? Number(value) : 0) + (finite(down[index]) ? Number(down[index]) : 0) : null));
+  return sumDirection(up, down, dir, proto === "naive");
 }
 
 function paintChartNow(context, protocols, ring) {
@@ -525,11 +571,11 @@ function paintChartNow(context, protocols, ring) {
   const host = query("[data-chart-now]", context.ui.view);
   const win = windowOf(ring);
   const list = PROTOCOLS
-    .filter(([proto]) => protocols[proto]?.available && protocols[proto].live)
+    .filter(([proto]) => protocols[proto]?.available && protocols[proto].live && (proto !== "naive" || naiveCompatible(protocols[proto])))
     .map(([proto, name]) => ({ id: proto, label: name, cls: `ser-${proto}`, values: directionValues(ring, proto, mon.dir) }));
   const options = { x: ring.t, domain: win.domain, series: list, unit: "rate", height: 230, gap: ringGap(rt, ring), label: "Трафик по протоколам за последние 5 минут", legend: true };
   if (!list.length) {
-    host.innerHTML = emptyBlock("Нет протоколов с данными в реальном времени", "Счётчики ядра недоступны или протоколы выключены.");
+    host.innerHTML = emptyBlock("Нет протоколов с данными в реальном времени", "Источники трафика недоступны или протоколы выключены.");
     rt.chartHandle = null;
     return;
   }
@@ -647,7 +693,7 @@ async function prefill(context, nodeId, generation, epoch) {
   if (nodeId === "all") return;
   const ring = ringOf(rt, nodeId);
   if (ring.t.length) return;
-  const series = [...PREFILL_SERIES, ...PROTOCOLS.flatMap(([proto]) => [`${proto}.up_bps`, `${proto}.down_bps`])];
+  const series = [...PREFILL_SERIES, ...historyRateSeries()];
   try {
     const data = await context.api(`/api/metrics/history?node=${encodeURIComponent(nodeId)}&series=${series.join(",")}&range=15m&points=450`);
     if (!isCurrent(context.state, generation, "monitoring") || mon.epoch !== epoch || ring.t.length) return;
@@ -720,28 +766,28 @@ function trafficShell(mon) {
     <div data-traffic><div class="skeleton-grid mon-skeleton"><i></i><i></i><i></i><i></i></div></div>`;
 }
 
-function sumDirection(up, down, dir) {
+function sumDirection(up, down, dir, strict = false) {
   if (dir === "up") return up;
   if (dir === "down") return down;
-  return up.map((value, index) => (finite(value) || finite(down[index]) ? (finite(value) ? Number(value) : 0) + (finite(down[index]) ? Number(down[index]) : 0) : null));
+  return up.map((value, index) => ((strict ? finite(value) && finite(down[index]) : finite(value) || finite(down[index])) ? (finite(value) ? Number(value) : 0) + (finite(down[index]) ? Number(down[index]) : 0) : null));
 }
 
 function trafficSeries(history, dir) {
   const aligned = alignSeries(history.series || {});
   const list = [];
-  for (const [proto, name] of PROTOCOLS) {
+  for (const [proto, name, color] of HISTORY_PROTOCOLS) {
     const up = aligned.series[`${proto}.up_bps`];
     const down = aligned.series[`${proto}.down_bps`];
     if (!up && !down) continue;
-    const values = sumDirection(up || new Array(aligned.x.length).fill(null), down || new Array(aligned.x.length).fill(null), dir);
+    const values = sumDirection(up || new Array(aligned.x.length).fill(null), down || new Array(aligned.x.length).fill(null), dir, proto === "naive_connect");
     if (!values.some(finite)) continue;
-    list.push({ id: proto, label: name, cls: `ser-${proto}`, values });
+    list.push({ id: proto, label: name, cls: `ser-${color}`, values });
   }
   return { x: aligned.x, series: list };
 }
 
 function totalsHtml(summary) {
-  const rows = PROTOCOLS.map(([proto, name]) => ({ proto, name, row: summary.protocols?.[proto] })).filter((entry) => entry.row)
+  const rows = HISTORY_PROTOCOLS.map(([id, name, proto]) => ({ proto, name, row: summary.protocols?.[id] })).filter((entry) => entry.row)
     .sort((a, b) => (b.row.total_bytes || 0) - (a.row.total_bytes || 0));
   if (!rows.length) return emptyBlock("Нет данных об объёмах", "За выбранный период сервер не накопил статистику.");
   const sum = (key) => rows.reduce((total, entry) => total + (Number(entry.row[key]) || 0), 0);
@@ -758,8 +804,8 @@ function totalsHtml(summary) {
 
 function hoursChart(host, summary, rt) {
   const hours = summary.hours_of_day || {};
-  const list = PROTOCOLS.filter(([proto]) => Array.isArray(hours[proto]) && hours[proto].some(finite))
-    .map(([proto, name]) => ({ id: proto, label: name, cls: `ser-${proto}`, values: hours[proto] }));
+  const list = HISTORY_PROTOCOLS.filter(([id]) => Array.isArray(hours[id]) && hours[id].some(finite))
+    .map(([id, name, color]) => ({ id, label: name, cls: `ser-${color}`, values: hours[id] }));
   if (!list.length) {
     host.innerHTML = emptyBlock("Распределение по часам суток считается от 7 дней", "Выберите период 7 д, 30 д или 90 д — тогда здесь появится средняя нагрузка по часам.");
     return;
@@ -794,7 +840,7 @@ async function openTraffic(context, generation) {
   body.innerHTML = trafficShell(mon);
   const target = query("[data-traffic]", body);
   const node = trafficNode(mon);
-  const series = PROTOCOLS.flatMap(([proto]) => [`${proto}.up_bps`, `${proto}.down_bps`]).join(",");
+  const series = historyRateSeries().join(",");
   let history;
   let summary;
   try {
@@ -884,8 +930,8 @@ function totalOf(row) {
 function shareBar(row) {
   const total = totalOf(row);
   if (!total) return '<span class="muted">—</span>';
-  const parts = PROTOCOLS.map(([proto]) => ({ proto, bytes: Number(row.protocols?.[proto]?.total_bytes) || 0 })).filter((entry) => entry.bytes > 0);
-  return `<span class="stack-share" role="img" aria-label="${esc(parts.map((entry) => `${PROTOCOL_NAME[entry.proto]} ${formatPercent((entry.bytes / total) * 100)}`).join(", "))}">${parts.map((entry) => `<i class="ser-${entry.proto}" data-width="${((entry.bytes / total) * 100).toFixed(1)}"></i>`).join("")}</span>`;
+  const parts = HISTORY_PROTOCOLS.map(([id, name, proto]) => ({ proto, name, bytes: Number(row.protocols?.[id]?.total_bytes) || 0 })).filter((entry) => entry.bytes > 0);
+  return `<span class="stack-share" role="img" aria-label="${esc(parts.map((entry) => `${entry.name} ${formatPercent((entry.bytes / total) * 100)}`).join(", "))}">${parts.map((entry) => `<i class="ser-${entry.proto}" data-width="${((entry.bytes / total) * 100).toFixed(1)}"></i>`).join("")}</span>`;
 }
 
 function compareHtml(rows, mon) {
@@ -967,7 +1013,7 @@ async function openNodes(context, generation) {
 }
 
 function protocolVolumes(row) {
-  const entries = PROTOCOLS.map(([proto, name]) => ({ proto, name, entry: row.protocols?.[proto] })).filter((item) => item.entry);
+  const entries = HISTORY_PROTOCOLS.map(([id, name, proto]) => ({ proto, name, entry: row.protocols?.[id] })).filter((item) => item.entry);
   if (!entries.length) return emptyBlock("Нет объёмов за период", "");
   const total = entries.reduce((sum, item) => sum + (Number(item.entry.total_bytes) || 0), 0) || 1;
   return `<ul class="vol-list">${entries.sort((a, b) => (b.entry.total_bytes || 0) - (a.entry.total_bytes || 0)).map(({ proto, name, entry }) => (
@@ -994,7 +1040,7 @@ async function openDrill(context, nodeId, generation, epoch) {
     <h3 class="drill-sub">Объёмы по протоколам</h3>${protocolVolumes(row)}</section>`;
   fillWidths(host);
   host.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-  const protoSeries = PROTOCOLS.flatMap(([proto]) => [`${proto}.up_bps`, `${proto}.down_bps`]);
+  const protoSeries = historyRateSeries();
   let history;
   try {
     history = await context.api(`/api/metrics/history?node=${encodeURIComponent(nodeId)}&series=${["host.cpu", "host.mem", "host.disk", "net.rx_bps", "net.tx_bps", ...protoSeries].join(",")}&range=${mon.nodesRange}&points=240`);

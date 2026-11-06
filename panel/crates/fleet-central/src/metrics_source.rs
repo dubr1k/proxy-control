@@ -338,7 +338,22 @@ impl FleetMetricsSource {
             .flight(key, async move {
                 match this
                     .guarded(budget, async {
-                        this.client(&node).await?.metrics_history(&series_owned, &range_owned, points, timeout).await
+                        let client = this.client(&node).await?;
+                        let answer = client.metrics_history(&series_owned, &range_owned, points, timeout).await;
+                        // Older metrics.v1 peers reject an entire request containing the new
+                        // namespace. Keep their other history without relabelling legacy Naive.
+                        let legacy: Vec<String> =
+                            series_owned.iter().filter(|name| !name.starts_with("naive_connect.")).cloned().collect();
+                        if matches!(&answer, Err(NodeError::Rejected { status: 422, .. }))
+                            && !legacy.is_empty()
+                            && legacy.len() != series_owned.len()
+                        {
+                            let mut body = client.metrics_history(&legacy, &range_owned, points, timeout).await?;
+                            body.insert("naive_connect_coverage".into(), json!("unsupported"));
+                            Ok(body)
+                        } else {
+                            answer
+                        }
                     })
                     .await
                 {

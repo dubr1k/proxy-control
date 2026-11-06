@@ -22,6 +22,7 @@ pub struct Config {
     pub router_url: Option<String>,
     pub router_credential_file: Option<PathBuf>,
     pub traffic_log: PathBuf,
+    pub live_socket: PathBuf,
     pub traffic_database: PathBuf,
 }
 
@@ -44,6 +45,7 @@ pub fn from_env(env: &HashMap<String, String>) -> Result<Config, String> {
         .map(|_| PathBuf::from(get(env, "NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE", "")));
     Ok(Config {
         public_host,
+        live_socket: PathBuf::from(get(env, "NAIVE_LIVE_SOCKET", crate::live::SOCKET)),
         caddyfile: PathBuf::from(get(env, "NAIVE_CADDYFILE", "/data/Caddyfile")),
         state_file: PathBuf::from(get(env, "NAIVE_STATE_FILE", "/data/users.json")),
         backup_dir: PathBuf::from(get(env, "NAIVE_BACKUP_DIR", "/data/backups")),
@@ -66,6 +68,7 @@ pub fn build_manager(config: &Config) -> Result<Arc<NaiveManager>, Error> {
         config.backup_dir.clone(),
         &config.public_host,
     );
+    settings.live_socket = config.live_socket.clone();
     settings.provider_url = config.provider_url.clone();
     settings.router_url = config.router_url.clone();
     settings.router_credential_file = config.router_credential_file.clone();

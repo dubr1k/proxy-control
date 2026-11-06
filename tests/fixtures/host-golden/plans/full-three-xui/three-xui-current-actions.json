@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "adapter": "three_xui",
+      "credentials_required": false,
+      "id": "three_xui.routes",
+      "inverse": [
+        "remove only the owned 3x-ui route block"
+      ],
+      "mutations": [
+        "mode=existing",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450"
+      ],
+      "owner": "nginx.routes.three_xui",
+      "preconditions": [
+        "the shared 443 router is owned and verified",
+        "every routed 3x-ui inbound answers on loopback"
+      ],
+      "verification": [
+        "each owned SNI route reaches its loopback 3x-ui backend"
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ services:
       NAIVE_PUBLIC_HOST: ${NAIVE_PUBLIC_HOST:?set an explicit NaiveProxy public host}
       NAIVE_MANAGER_TOKEN_FILE: /data/manager-token
       NAIVE_SOCKET_MODE: "660"
+      NAIVE_LIVE_SOCKET: /run/caddy-naive/live.sock
       NAIVE_TRAFFIC_LOG: /logs/access.json
       NAIVE_TRAFFIC_DATABASE: /data/traffic.sqlite3
       # The host's WARP proxy-mode endpoint the egress API may route the service through
@@ -29,6 +30,7 @@ services:
       - ${NAIVE_DATA_DIR:-/var/lib/naive-manager}:/data
       - /var/log/naive-proxy:/logs:ro
       - naive-manager-run:/run/naive-manager
+      - /run/caddy-naive:/run/caddy-naive:ro
     read_only: true
     tmpfs:
       # Owned by the manager user (10002:101), same reason as the panel's /tmp in compose.yaml.

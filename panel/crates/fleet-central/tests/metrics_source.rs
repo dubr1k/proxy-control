@@ -56,6 +56,7 @@ enum AnswerKind {
 struct NodeState {
     live_body: Map<String, Value>,
     history_body: Option<Map<String, Value>>,
+    reject_connect_series: bool,
     summary_body: Map<String, Value>,
     failure: Option<NodeError>,
     delay: Duration,
@@ -78,6 +79,7 @@ impl FakeNode {
             state: Mutex::new(NodeState {
                 live_body,
                 history_body: None,
+                reject_connect_series: false,
                 summary_body: object(json!({
                     "range": "1h",
                     "host": {"cpu": {"avg": 5.0}},
@@ -218,7 +220,16 @@ impl NodeClient for FakeClient {
             "step": 60,
             "series": series
         }));
-        Box::pin(async move { self.answer(AnswerKind::History, timeout, Some(default)).await })
+        let rejected = lock(&self.node.state).reject_connect_series
+            && series.keys().any(|name| name.starts_with("naive_connect."));
+        Box::pin(async move {
+            let body = self.answer(AnswerKind::History, timeout, Some(default)).await?;
+            if rejected {
+                Err(NodeError::Rejected { status: 422, code: None, detail: "unknown series".into() })
+            } else {
+                Ok(body)
+            }
+        })
     }
 
     fn metrics_summary<'a>(
@@ -764,4 +775,16 @@ async fn history_deduplication_distinguishes_series_range_and_point_count() {
         assert_eq!(answer.unwrap()["status"], "ok");
     }
     assert_eq!(harness.node("berlin").calls(), 4);
+}
+
+#[tokio::test]
+async fn legacy_peer_keeps_other_history_when_client_connect_series_is_unknown() {
+    let harness = Harness::new(vec![("berlin", FakeNode::new())]);
+    lock(&harness.node("berlin").state).reject_connect_series = true;
+    let body = history(&harness, "berlin", &["host.cpu", "naive_connect.up_bps"], "1h", 120).await;
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["series"]["host.cpu"], json!([[1, 2.0, 3.0]]));
+    assert!(body["series"].get("naive_connect.up_bps").is_none());
+    assert_eq!(body["naive_connect_coverage"], "unsupported");
+    assert_eq!(harness.node("berlin").calls(), 2);
 }

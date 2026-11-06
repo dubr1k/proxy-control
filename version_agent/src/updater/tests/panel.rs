@@ -22,13 +22,12 @@ const PANEL_URL: &str =
 const PANEL_EXEC: [&str; 5] = ["docker", "exec", "proxy-control-panel", "cat", "/app/VERSION"];
 const ROUTER_OVERLAY: &str = "services:\n  xray-router:\n    image: x\n  xray-router-ingress:\n    image: x\n";
 const OLD: &str = "2020-01-01T00:00:00.123456789Z";
-const RESTART: [&str; 6] = [
+const RESTART: [&str; 5] = [
     "systemd-run",
     "--on-active=5",
     "--unit=proxy-control-version-agent-restart",
-    "systemctl",
-    "restart",
-    "version-agent",
+    crate::native_services::BINARY,
+    crate::native_services::FLAG,
 ];
 
 fn panel_image_id() -> String {

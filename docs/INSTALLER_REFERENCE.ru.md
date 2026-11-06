@@ -401,6 +401,11 @@ sudo bash install.sh plan --config examples/installer/existing-three-xui.toml --
 
 ## Приёмка по протоколам
 
+NaiveProxy использует закреплённую сборку Caddy с `proxy_control.naive_live_meter`: и свежая
+установка, и обновление сохраняют live-meter. Его `/run/caddy-naive/live.sock` (`GET /v1/live`)
+доступен только менеджеру; панель читает защищённый `GET /v1/traffic/live` менеджера.
+На публичных proxy/cover listener метрики не публикуются; новый TCP-порт не нужен.
+
 Живой процесс — это не протокольная проверка. Установщик принимает поколение
 только по сквозным доказательствам:
 

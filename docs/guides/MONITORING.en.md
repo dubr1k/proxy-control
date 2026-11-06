@@ -39,12 +39,12 @@ Host figures:
 | Protocol | Where the bytes come from | Live rate |
 |---|---|---|
 | MTProxy (Telemt) | kernel counters on the backend port (`8445/tcp` behind Nginx SNI) | yes |
-| NaiveProxy | kernel counters on `4443/tcp` (loopback behind the SNI router; a direct listener is counted too) | yes |
+| NaiveProxy | authenticated CONNECT payload from Caddy’s private live meter (`source: naive_connect`) | yes, before the tunnel closes |
 | Mieru | kernel counters on the TCP/UDP ports of mita's `portBindings` and of the Mieru lanes | yes |
 | TrustTunnel | kernel counters on the endpoint port (`TT_LISTEN`, `4453/tcp` by default) | yes |
 | AmneziaWG | interface counters `awg15`, `awg20`, `awg31` from `/proc/net/dev` | yes |
 
-The kernel counters live in **a nftables table of their own**, `inet proxy_control_metrics`. The
+For port-based protocols (not NaiveProxy client CONNECT), the kernel counters live in **a nftables table of their own**, `inet proxy_control_metrics`. The
 agent creates it itself, idempotently and in one transaction, and recreates it when the set of
 ports changes. It has two chains (`input` and `output`, priority `-300`, policy `accept`); the rules
 only count (`counter`) and never decide a packet's fate. No other nftables table, Docker or ufw rule
@@ -74,13 +74,16 @@ is touched.
 
 ### Connections
 
-The `connections` field of each protocol entry is the number of **established TCP connections**
+For NaiveProxy, `connections` (and `active_tunnels`, when present) means **active CONNECT tunnels**,
+not TCP connections: one HTTP/2 TCP stream can carry several tunnels. The card says
+“Active tunnels”; an unknown value is `—`. History uses `naive_connect.connections`.
+
+For the other protocols, the `connections` field is the number of **established TCP connections**
 (state `ESTABLISHED`) on the protocol's ports, counted by the agent once a second from `/proc/net/tcp`
 and `/proc/net/tcp6` with no external tool. The card shows it as «Соединений N» (Connections). These are
 real TCP streams, not clients: one client may hold several. It exists because the managers have no live
-count: TrustTunnel's `sessions` stays 0 while traffic flows and NaiveProxy and Mieru have none, so
-`sessions` is not used for them. Behind the SNI router (NaiveProxy) the loopback hop is counted, i.e.
-the number of tunnels to the backend. For Mieru **only its TCP ports** are counted; UDP is not.
+count: TrustTunnel's `sessions` stays 0 while traffic flows and Mieru has none, so
+`sessions` is not used for Mieru. For Mieru **only its TCP ports** are counted; UDP is not.
 AmneziaWG has no TCP port: its `connections` is `null` and the card shows «Сессий» (Sessions), the
 number of peers with a recent handshake. If `/proc/net/tcp*` is missing, `connections` is `null`, not 0,
 and the card falls back to «Сессий». History keeps it as `<protocol>.connections`, the summary as
@@ -93,13 +96,19 @@ and the card falls back to «Сессий». History keeps it as `<protocol>.con
 - **MTProxy** — ↑/↓ rates from the kernel. The manager path (Telemt) has **only a combined counter**,
   `total_octets`, with no ↑/↓ split: per client you see the total rate, and connections come from
   `current_connections` (polled every 15 seconds).
-- **NaiveProxy** — the total live rate from the kernel. The **per-client** rates come from the manager
-  (polled every 15 seconds, even while the kernel counts the port): Caddy's log is written when a
-  tunnel closes, so a client's row is a 60-second average over finished connections, with
-  `live: false` and the mark «from finished». These are real volumes, not a running meter.
-  The port counter includes service HTTPS traffic: the Naive healthcheck requests the cover site
-  every 20 seconds. Small spikes are therefore possible without client tunnels; the graph retains
-  previous samples while the rate number shows the current sample.
+- **NaiveProxy** — “Client traffic · CONNECT”: only data inside authenticated tunnels,
+  excluding cover GET, healthchecks, failed authentication, outer TCP/TLS overhead and padding.
+  The client's nested protocol is included. Bytes mean accepted by the local Writer, not
+  confirmed delivery to the client application. Source `naive_connect`, semantics
+  `authenticated_connect_payload`, `live: true`. The manager reads Caddy's private
+  `GET /v1/live` at `/run/caddy-naive/live.sock`; the panel reads authenticated
+  `GET /v1/traffic/live` over the manager UDS, without health/probe calls or log reads.
+  Rates use counter deltas and source sample time; a changed epoch establishes a new baseline,
+  and repeating a cached sample does not become a zero rate.
+  **Per-client** accounting still comes from the access log: polled every 15 seconds, a
+  60-second average over completed CONNECTs (`live: false`, “from finished”). SQLite quotas
+  are unchanged and are never added to the live meter. Synthetic CONNECTs using normal client
+  identities also count as client traffic.
 - **Mieru** — the total rate from the kernel (UDP too). The **per-client** rates are live from mita's
   counters (`mita get metrics`, served by the manager on `/v1/traffic`; with lanes the running slots
   are added up), polled every 5 seconds, split into ↑ and ↓. Mieru has no per-client sessions. mita's
@@ -107,8 +116,11 @@ and the card falls back to «Сессий». History keeps it as `<protocol>.con
 
 If `nft` is missing or fails, the agent reports `kernel_counters: "unavailable"` and retries every 30
 seconds. The panel then falls back to sums over the managers (`source: "manager"`): TrustTunnel and
-AmneziaWG and Mieru work as usual, MTProxy gives only a total rate, NaiveProxy is flagged not live
-(`live: false`, a one-minute average over finished connections).
+AmneziaWG and Mieru work as usual, MTProxy gives only a total rate.
+NaiveProxy does not depend on nftables: an unavailable live meter yields `available: false`,
+`reason: live_meter_unavailable`/`pending` and a chart gap, not zero or kernel/log fallback.
+Fleet adds only compatible live sources, displaying compatible/enabled coverage; legacy,
+unavailable and stale nodes do not enter the client sum.
 
 ## The three screens
 
@@ -195,8 +207,11 @@ All routes are `GET`, open to every signed-in role (and to API keys, `monitor` i
 
 `range` is one of `15m 1h 6h 24h 7d 30d 90d`; any other value gives `422`. Series ids: `host.cpu`,
 `host.mem`, `host.swap`, `host.disk`, `host.disk_read_bps`, `host.disk_write_bps`, `host.load1`,
-`net.rx_bps`, `net.tx_bps` and, for each protocol (`mtproxy`, `naive`, `mieru`, `amneziawg`,
+`net.rx_bps`, `net.tx_bps` and, for each protocol (`mtproxy`, `mieru`, `amneziawg`,
 `trusttunnel`), `<protocol>.up_bps`, `.down_bps`, `.sessions`, `.clients`, `.connections`, `.up_bytes`, `.down_bytes`.
+NaiveProxy client series are `naive_connect.up_bps`, `.down_bps`, `.up_bytes`, `.down_bytes`,
+`.connections`, `.sessions`. Old `naive.*` remain legacy accounting with their original semantics,
+never renamed; charts show them separately as “NaiveProxy · legacy accounting”.
 
 An example `GET /api/metrics/live?node=local` (abridged):
 
@@ -228,7 +243,8 @@ An example `GET /api/metrics/live?node=local` (abridged):
 
 A node's `status` is `ok`, `stale` (the agent did not answer; the last sample is shown with its
 `age_seconds`), `unavailable` (there has been no sample yet) or `unsupported` (a node without the
-`metrics.v1` capability). A protocol's `source` is `kernel`, `interface` (AmneziaWG) or `manager`.
+`metrics.v1` capability). A protocol's `source` is `kernel`, `interface` (AmneziaWG), `manager` or `naive_connect`
+(with `semantics: authenticated_connect_payload`).
 
 An example `GET /api/metrics/history?series=host.cpu,trusttunnel.down_bytes&range=24h&points=96`:
 
@@ -276,8 +292,8 @@ compact `metrics` section: per node the status, CPU, RAM and disk percent, netwo
 
 - **The agent does not answer.** The collector marks the node `stale` and shows the last sample with
   its age; after 60 seconds a `stale` alert appears. History does not break: the gap simply has no data.
-- **No `nft`.** The protocol series are built from the managers (see above), NaiveProxy is not live,
-  Mieru comes from mita's counters; the host figures keep working.
+- **No `nft`.** Port-based protocols use managers (see above); NaiveProxy keeps using its private
+  live meter, Mieru uses mita counters, and host figures keep working.
 - **No Docker** or cgroup v2 means only that there is no containers table.
 - **The panel restarted.** The in-memory ring fills up again; the history in the database is intact
   (at most the last 30 seconds of points may not have been written).

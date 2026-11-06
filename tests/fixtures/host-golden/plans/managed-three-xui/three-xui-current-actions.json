@@ -1,0 +1,65 @@
+{
+  "actions": [
+    {
+      "adapter": "three_xui",
+      "credentials_required": false,
+      "id": "three_xui.routes",
+      "inverse": [
+        "remove only the owned 3x-ui route block"
+      ],
+      "mutations": [
+        "mode=managed-new",
+        "route=vless.example.com 127.0.0.1:8449",
+        "route=xhttp.example.com 127.0.0.1:8450",
+        "route=xui-sub.example.com 127.0.0.1:2096",
+        "route=xui.example.com 127.0.0.1:8451"
+      ],
+      "owner": "nginx.routes.three_xui",
+      "preconditions": [
+        "the shared 443 router is owned and verified",
+        "every routed 3x-ui inbound answers on loopback"
+      ],
+      "verification": [
+        "each owned SNI route reaches its loopback 3x-ui backend"
+      ]
+    },
+    {
+      "adapter": "three_xui",
+      "credentials_required": true,
+      "id": "three_xui.runtime",
+      "inverse": [
+        "stop the staged unit and remove only the staged generation"
+      ],
+      "mutations": [
+        "version=3.11.0",
+        "architecture=amd64",
+        "release-url=https://github.com/MHSanaei/3x-ui/releases/download/v3.11.0/x-ui-linux-amd64.tar.gz",
+        "release-digest=0ddfa4702f595442e2962acd81addc768fdacaa4ff2672c971a0463dae744916",
+        "root=/usr/local/x-ui",
+        "unit=/etc/systemd/system/x-ui.service",
+        "database=/etc/x-ui/x-ui.db",
+        "panel-domain=xui.example.com",
+        "hysteria-domain=hy2.example.com",
+        "vless-tcp-domain=vless.example.com",
+        "vless-xhttp-domain=xhttp.example.com",
+        "vless-tcp-backend=8449",
+        "vless-xhttp-backend=8450",
+        "panel-backend=8451",
+        "warp=false",
+        "warp-port=40000",
+        "warp-domains=",
+        "subscription-domain=xui-sub.example.com"
+      ],
+      "owner": "proxy-control:three-xui",
+      "preconditions": [
+        "no x-ui database, binary tree, unit, user, or listener exists",
+        "the pinned release digest matches before and after extraction"
+      ],
+      "verification": [
+        "the staged binary reports the pinned version",
+        "the panel answers only on loopback under its private path",
+        "every promised inbound exists and its port is open"
+      ]
+    }
+  ]
+}

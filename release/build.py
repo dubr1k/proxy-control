@@ -86,6 +86,12 @@ HOST_PLATFORM_DIR = "bin/linux-amd64"
 # Neither the workstation nor a cache may supply a missing declared input.
 HOST_BINARY_EMBEDDED_INPUTS = {
     "installer": ("installer/assets/three-xui-api-contract-3.11.0.json",),
+    "version_agent": (
+        "docker/naive-live-meter/apply.sh",
+        "docker/naive-live-meter/forwardproxy.patch",
+        "docker/naive-live-meter/live_meter.go",
+        "docker/naive-live-meter/live_meter_test.go",
+    ),
 }
 DISTRIBUTION_POLICY = "release/runtime-files.json"
 _CRATE_DIR_RE = re.compile(r"[a-z0-9_][a-z0-9_-]*(?:/[a-z0-9_][a-z0-9_-]*)*\Z")

@@ -428,7 +428,16 @@ impl MetricsStore {
             host.insert((*key).into(), stats(series));
         }
         let mut totals: Vec<(&str, Map<String, Value>, Option<i64>)> = Vec::new();
-        for proto in PROTOCOLS {
+        let summary_protocols: Vec<&str> = PROTOCOLS
+            .iter()
+            .copied()
+            .chain(
+                data.iter()
+                    .any(|(key, slots)| key.starts_with("naive_connect.") && !slots.is_empty())
+                    .then_some("naive_connect"),
+            )
+            .collect();
+        for proto in &summary_protocols {
             let up = slots_of(&format!("{proto}.up_bytes"));
             let down = slots_of(&format!("{proto}.down_bytes"));
             let up_b = up.values().fold(0.0, |sum, s| sum + s.sum);
@@ -471,7 +480,7 @@ impl MetricsStore {
         }
         let mut hours = Map::new();
         if seconds >= range_seconds("7d").expect("7d") {
-            for proto in PROTOCOLS {
+            for proto in &summary_protocols {
                 let mut cells: IndexMap<i64, IndexMap<&str, (f64, i64)>> = IndexMap::new();
                 for direction in ["up_bps", "down_bps"] {
                     for (at, slot) in slots_of(&format!("{proto}.{direction}")) {

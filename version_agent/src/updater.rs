@@ -47,13 +47,12 @@ pub const MAX_ARTIFACT: u64 = 256 * 1024 * 1024;
 pub const TELEMT_BINARY_MAX: u64 = 64 * 1024 * 1024;
 /// The agent's own restart after its tree changed (`AGENT_RESTART`): systemd restarts the unit five
 /// seconds later, after the worker recorded its verdict.
-pub const AGENT_RESTART: [&str; 6] = [
+pub const AGENT_RESTART: [&str; 5] = [
     "systemd-run",
     "--on-active=5",
     "--unit=proxy-control-version-agent-restart",
-    "systemctl",
-    "restart",
-    "version-agent",
+    crate::native_services::BINARY,
+    crate::native_services::FLAG,
 ];
 
 /// Downloads an approved artifact: `(url, maximum bytes)` → the bytes (`_download`).

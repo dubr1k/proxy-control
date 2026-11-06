@@ -199,9 +199,9 @@ async fn snapshot_shape_from_kernel_counters_and_managers() {
 async fn kernel_rates_are_averaged_over_the_panel_tick_not_the_agents_last_second() {
     let run = replay("kernel_rates_are_averaged_over_the_panel_tick_not_the_agents_last_second").await;
     let naive = &run.latest[1]["protocols"]["naive"];
-    assert_eq!((&naive["up_bps"], &naive["down_bps"]), (&json!(500.0), &json!(3000.0)));
+    assert_eq!((&naive["up_bps"], &naive["down_bps"]), (&Value::Null, &Value::Null));
     let reset = &run.latest[2]["protocols"]["naive"];
-    assert_eq!((&reset["up_bps"], &reset["down_bps"]), (&json!(5.0), &json!(10.0)));
+    assert_eq!((&reset["up_bps"], &reset["down_bps"]), (&Value::Null, &Value::Null));
 }
 
 #[tokio::test]
@@ -225,10 +225,7 @@ async fn without_kernel_counters_rates_come_from_manager_deltas() {
     );
     assert_eq!(run.latest[1]["kernel_counters"], json!("unavailable"));
     let naive = &run.latest[3]["protocols"]["naive"];
-    assert_eq!(
-        (&naive["source"], &naive["live"], &naive["down_bps"]),
-        (&json!("manager"), &json!(false), &json!(900.0))
-    );
+    assert_eq!((&naive["source"], &naive["live"], &naive["down_bps"]), (&Value::Null, &json!(false), &Value::Null));
 }
 
 #[tokio::test]
@@ -244,7 +241,7 @@ async fn naive_is_polled_every_15_seconds_even_when_the_kernel_counts_it() {
 async fn naive_and_mieru_clients_get_their_own_rows_while_the_kernel_keeps_the_node_totals() {
     let run = replay("naive_and_mieru_clients_get_their_own_rows_while_the_kernel_keeps_the_node_totals").await;
     let node = run.latest.last().unwrap();
-    assert_eq!(node["protocols"]["naive"]["source"], json!("kernel"));
+    assert_eq!(node["protocols"]["naive"]["reason"], "live_meter_unavailable");
     assert_eq!(node["protocols"]["mieru"]["source"], json!("kernel"));
     let rows = node["top_clients"].as_array().unwrap();
     let mia = rows.iter().find(|r| r["username"] == "mia").unwrap();

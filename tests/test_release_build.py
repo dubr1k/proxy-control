@@ -1054,3 +1054,48 @@ def test_the_knowledge_graph_is_tracked_but_never_shipped(tmp_path):
     (tmp_path / "VERSION").write_text("1.1.0\n")
     subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
     assert tracked_files(tmp_path) == ("VERSION",)
+
+NAIVE_METER_INPUTS = (
+    "docker/naive-live-meter/apply.sh",
+    "docker/naive-live-meter/forwardproxy.patch",
+    "docker/naive-live-meter/live_meter.go",
+    "docker/naive-live-meter/live_meter_test.go",
+)
+
+
+def test_naive_live_meter_runtime_and_compile_time_inputs_are_complete():
+    # New source files may still be unstaged in a developer checkout; the release
+    # builder itself separately requires every declared input to be tracked.
+    names = sorted(set(tracked_files(ROOT)) | set(NAIVE_METER_INPUTS))
+    shipped = set(release_build.distribution_files(ROOT, names))
+    assert set(NAIVE_METER_INPUTS) <= shipped
+    assert set(NAIVE_METER_INPUTS) <= set(release_build.HOST_BINARY_EMBEDDED_INPUTS["version_agent"])
+
+
+def test_host_builder_stages_the_naive_live_meter_assets(tmp_path, monkeypatch):
+    source = checkout_with_host_crates(tmp_path)
+    (source / "version_agent/src").mkdir(parents=True)
+    (source / "version_agent/Cargo.toml").write_text('[package]\nname = "proxy-control-version-agent"\n')
+    (source / "version_agent/Cargo.lock").write_bytes((ROOT / "version_agent/Cargo.lock").read_bytes())
+    (source / "version_agent/src/main.rs").write_text("fn main() {}\n")
+    for name in NAIVE_METER_INPUTS:
+        (source / name).parent.mkdir(parents=True, exist_ok=True)
+        (source / name).write_bytes((ROOT / name).read_bytes())
+    git(source, "add", "-A")
+    git(source, "-c", "commit.gpgsign=false", "commit", "-qm", "meter fixture")
+
+    def builder(command):
+        context = Path(command[-1])
+        for name in NAIVE_METER_INPUTS:
+            assert (context / name).read_bytes() == (source / name).read_bytes()
+        output = command[command.index("--output") + 1]
+        fake_build(Path(output.removeprefix("type=local,dest=")), {
+            PROBE: b"built probe",
+            "version_agent/bin/linux-amd64/proxy-control-version-agent": b"built agent",
+        })
+
+    monkeypatch.setattr(release_build, "_run_builder", builder)
+    release_build.build_host_binaries(source, tracked_files(source), tmp_path / "bin", epoch=FIXED_EPOCH)
+    git(source, "rm", "--cached", NAIVE_METER_INPUTS[0])
+    with pytest.raises(ReleaseBuildError, match="required build input.*must be tracked"):
+        release_build.build_host_binaries(source, tracked_files(source), tmp_path / "missing", epoch=FIXED_EPOCH)

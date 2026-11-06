@@ -40,6 +40,9 @@ MemoryDenyWriteExecute=true
 # restores the panel database inside the Docker volume on rollback.
 # `-` marks a path a host may not have (no router, no NaiveProxy): systemd otherwise refuses
 # to start the unit at all («Failed to set up mount namespacing», seen on a node without the router).
+# The managed Caddy live-meter migration owns only this dedicated drop-in dir.
+# tmpfiles creates it before startup; never grant write access to all system units.
+ReadWritePaths=-/etc/systemd/system/caddy-naive.service.d
 ReadWritePaths=/run/proxy-control /var/lib/proxy-control /etc/proxy-control /opt/mtproxy-shared443 /usr/local/bin /usr/bin -/usr/local/lib/proxy-control -/var/log/naive-proxy -/var/log/caddy -/opt/proxy-control -/var/lib/docker/volumes
 
 [Install]

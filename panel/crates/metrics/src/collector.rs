@@ -28,6 +28,7 @@ use serde_json::{json, Map, Value};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 
+use crate::naive_live::{LiveMeter, INTERVAL as LIVE_INTERVAL, SEMANTICS, TIMEOUT as LIVE_TIMEOUT};
 use crate::pyfloat::{self, float, num, opt_float, opt_int, round_to};
 use crate::rates::{fold, ClientRates, Reading};
 use crate::ring::SeriesRing;
@@ -193,6 +194,7 @@ impl Entry {
 struct State {
     latest: Option<Map<String, Value>>,
     rates: ClientRates,
+    naive_live: LiveMeter,
     last_agent: Option<Value>,
     agent_now: Option<Value>,
     last_agent_wall: Option<f64>,
@@ -274,6 +276,7 @@ impl MetricsCollector {
         let state = State {
             latest: None,
             rates: ClientRates::default(),
+            naive_live: LiveMeter::default(),
             last_agent: None,
             agent_now: None,
             last_agent_wall: None,
@@ -559,6 +562,14 @@ impl MetricsCollector {
 
     fn launch_due(self: &Arc<Self>, state: &mut State, mono: f64) {
         let mut inflight = lock(&self.inflight);
+        if self.config.naive_enabled
+            && !inflight.get("naive_live").is_some_and(|task| !task.is_finished())
+            && mono - state.last_poll.get("naive_live").copied().unwrap_or(-1e9) >= LIVE_INTERVAL
+        {
+            state.last_poll.insert("naive_live", mono);
+            let me = Arc::clone(self);
+            inflight.insert("naive_live", tokio::spawn(async move { me.poll_naive_live().await }));
+        }
         for (protocol, every) in CADENCE {
             let busy = inflight.get(protocol).is_some_and(|task| !task.is_finished());
             if busy || !self.config.wanted(protocol) {
@@ -571,6 +582,24 @@ impl MetricsCollector {
             let me = Arc::clone(self);
             inflight.insert(protocol, tokio::spawn(async move { me.poll(protocol, mono).await }));
         }
+    }
+
+    async fn poll_naive_live(self: Arc<Self>) {
+        let answer = tokio::time::timeout(Duration::from_secs_f64(LIVE_TIMEOUT), self.sources.naive_live()).await;
+        let mut state = self.state.lock().await;
+        let now = self.clock.monotonic();
+        // Expired baselines are not bridged across a monitoring gap.
+        if !state.naive_live.fresh(now) {
+            state.naive_live.unavailable();
+        }
+        match answer {
+            Ok(Ok(value)) => {
+                // Duplicate snapshots age out; malformed samples invalidate immediately.
+                let _ = state.naive_live.update(&value, now);
+            }
+            _ => state.naive_live.unavailable(),
+        }
+        self.refresh_latest(&mut state);
     }
 
     async fn poll(self: Arc<Self>, protocol: &'static str, mono: f64) {
@@ -743,6 +772,27 @@ impl MetricsCollector {
 
     fn protocol_entry(&self, state: &State, protocol: &str, agent: Option<&Value>, mono: f64) -> Entry {
         let mut entry = Entry::empty();
+        if protocol == "naive" {
+            if !self.config.naive_enabled {
+                entry.reason = Some("disabled");
+            } else if state.naive_live.fresh(mono) {
+                let sample = state.naive_live.sample.as_ref().expect("fresh sample");
+                entry.available = true;
+                entry.live = true;
+                entry.source = Some("naive_connect".into());
+                entry.up_bytes = i64::try_from(sample.up).ok();
+                entry.down_bytes = i64::try_from(sample.down).ok();
+                entry.connections = i64::try_from(sample.tunnels).ok();
+                if let Some((up, down)) = state.naive_live.rates() {
+                    entry.up_bps = Some(up);
+                    entry.down_bps = Some(down);
+                    entry.total_bps = Some(up + down);
+                }
+            } else {
+                entry.reason = Some("live_meter_unavailable");
+            }
+            return entry;
+        }
         let manager = self.fresh(state, protocol, mono);
         if Self::kernel_has(protocol, agent) {
             let kernel = agent.and_then(|a| a.get("protocols")).and_then(|p| p.get(protocol)).expect("kernel_has");
@@ -793,7 +843,12 @@ impl MetricsCollector {
     fn protocols_json(&self, state: &State, agent: Option<&Value>, mono: f64) -> Value {
         let mut map = Map::new();
         for protocol in PROTOCOLS {
-            map.insert(protocol.to_string(), self.protocol_entry(state, protocol, agent, mono).to_json());
+            let mut entry = self.protocol_entry(state, protocol, agent, mono).to_json();
+            if *protocol == "naive" && entry["source"] == "naive_connect" {
+                entry["semantics"] = json!(SEMANTICS);
+                entry["active_tunnels"] = entry["connections"].clone();
+            }
+            map.insert(protocol.to_string(), entry);
         }
         Value::Object(map)
     }
@@ -857,12 +912,19 @@ impl MetricsCollector {
             if !entry.available {
                 continue;
             }
-            values.insert(format!("{protocol}.up_bps"), entry.up_bps);
-            values.insert(format!("{protocol}.down_bps"), entry.down_bps);
-            values.insert(format!("{protocol}.sessions"), entry.sessions.map(|v| v as f64));
-            values.insert(format!("{protocol}.clients"), entry.clients.map(|v| v as f64));
-            values.insert(format!("{protocol}.connections"), entry.connections.map(|v| v as f64));
+            let series = if *protocol == "naive" { "naive_connect" } else { protocol };
+            values.insert(format!("{series}.up_bps"), entry.up_bps);
+            values.insert(format!("{series}.down_bps"), entry.down_bps);
+            values.insert(format!("{series}.sessions"), entry.sessions.map(|v| v as f64));
+            values.insert(format!("{series}.clients"), entry.clients.map(|v| v as f64));
+            values.insert(format!("{series}.connections"), entry.connections.map(|v| v as f64));
             match entry.source.as_deref() {
+                Some("naive_connect") => {
+                    if let Some((up, down)) = state.naive_live.take_delta() {
+                        values.insert(format!("{series}.up_bytes"), Some(up));
+                        values.insert(format!("{series}.down_bytes"), Some(down));
+                    }
+                }
                 Some("kernel" | "interface") => {
                     let kernel = agent.and_then(|a| a.get("protocols")).and_then(|p| p.get(protocol));
                     let up = num(kernel.and_then(|k| k.get("up_bytes")));
@@ -871,16 +933,16 @@ impl MetricsCollector {
                     if let (Some(up), Some(down)) = (up, down) {
                         state.kernel_prev.insert(protocol.to_string(), (up, down));
                         if let Some(previous) = previous {
-                            values.insert(format!("{protocol}.up_bytes"), fold(Some(previous.0), up));
-                            values.insert(format!("{protocol}.down_bytes"), fold(Some(previous.1), down));
+                            values.insert(format!("{series}.up_bytes"), fold(Some(previous.0), up));
+                            values.insert(format!("{series}.down_bytes"), fold(Some(previous.1), down));
                         }
                     }
                 }
                 Some("manager") => {
                     let manager = state.manager.get_mut(protocol).expect("a fresh manager");
                     if manager.result.is_some_and(|r| r.directional) {
-                        values.insert(format!("{protocol}.up_bytes"), Some(manager.pending_up));
-                        values.insert(format!("{protocol}.down_bytes"), Some(manager.pending_down));
+                        values.insert(format!("{series}.up_bytes"), Some(manager.pending_up));
+                        values.insert(format!("{series}.down_bytes"), Some(manager.pending_down));
                         manager.pending_up = 0.0;
                         manager.pending_down = 0.0;
                     }

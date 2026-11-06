@@ -22,6 +22,24 @@ fn integer(name: &str, default: &str) -> Result<i64, String> {
 
 fn main() -> ExitCode {
     logging::init();
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if !args.is_empty() {
+        if args != [version_agent::native_services::FLAG] || unsafe { libc::geteuid() } != 0 {
+            logging::print("only root may run the fixed --refresh-native-services maintenance mode");
+            return ExitCode::FAILURE;
+        }
+        return match version_agent::native_services::refresh_or_restart(
+            Path::new("/"),
+            &version_agent::runner::SystemRunner,
+        ) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                logging::print(&error);
+                ExitCode::FAILURE
+            }
+        };
+    }
+    version_agent::native_services::schedule_legacy_refresh(&version_agent::runner::SystemRunner);
     let config = match AgentConfig::from_env(env) {
         Ok(config) => config,
         Err(message) => {

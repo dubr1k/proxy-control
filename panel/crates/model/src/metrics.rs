@@ -24,7 +24,7 @@ pub const PROTOCOL_SERIES: &[&str] =
 /// Every series id: the host's, then `<protocol>.<series>` for each protocol in order.
 pub fn all_series() -> Vec<String> {
     let mut out: Vec<String> = HOST_SERIES.iter().map(|name| name.to_string()).collect();
-    for protocol in PROTOCOLS {
+    for protocol in PROTOCOLS.iter().copied().chain(std::iter::once("naive_connect")) {
         for series in PROTOCOL_SERIES {
             out.push(format!("{protocol}.{series}"));
         }
@@ -35,9 +35,9 @@ pub fn all_series() -> Vec<String> {
 /// Whether `name` is a series id.
 pub fn is_series(name: &str) -> bool {
     HOST_SERIES.contains(&name)
-        || name
-            .split_once('.')
-            .is_some_and(|(protocol, series)| PROTOCOLS.contains(&protocol) && PROTOCOL_SERIES.contains(&series))
+        || name.split_once('.').is_some_and(|(protocol, series)| {
+            (PROTOCOLS.contains(&protocol) || protocol == "naive_connect") && PROTOCOL_SERIES.contains(&series)
+        })
 }
 
 /// The named ranges and their length in seconds, in the Python order.

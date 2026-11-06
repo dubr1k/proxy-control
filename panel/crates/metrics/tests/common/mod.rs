@@ -109,6 +109,12 @@ impl MeterSources for Replay {
         Box::pin(async move { self.next(protocol) })
     }
 
+    fn naive_live(&self) -> BoxFuture<'_, Result<Value, String>> {
+        Box::pin(async move {
+            self.fixed.lock().unwrap().get("naive_live").cloned().unwrap_or_else(|| Err("no live capability".into()))
+        })
+    }
+
     fn local_node_name(&self) -> BoxFuture<'_, Option<String>> {
         Box::pin(async move { self.local_name.lock().unwrap().clone() })
     }

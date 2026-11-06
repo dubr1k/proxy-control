@@ -260,7 +260,7 @@ fn router_rejects_symlink_archive_without_network() {
     assert!(adapter.prepare(&action).unwrap_err().to_string().contains("regular file"));
 }
 #[test]
-fn managed_xui_actions_match_python_goldens() {
+fn managed_xui_actions_match_current_pin_golden_layout() {
     for (name, file) in [("managed-three-xui", "managed-three-xui.toml"), ("full-three-xui", "full-three-xui.toml")] {
         let root = TempDir::new("xui-golden");
         let context = context(&root);
@@ -274,7 +274,8 @@ fn managed_xui_actions_match_python_goldens() {
             ]})).unwrap()).unwrap();
         }
         let document: Value = serde_json::from_slice(
-            &fs::read(tree().join(format!("tests/fixtures/host-golden/plans/{name}/plan.json"))).unwrap(),
+            &fs::read(tree().join(format!("tests/fixtures/host-golden/plans/{name}/three-xui-current-actions.json")))
+                .unwrap(),
         )
         .unwrap();
         let expected: Vec<_> =

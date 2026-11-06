@@ -7,13 +7,17 @@ Wants=network-online.target
 Type=notify
 User=naive-caddy
 Group=naive-accounting
+SupplementaryGroups=101
+Environment=PROXY_CONTROL_NAIVE_LIVE_SOCKET=/run/caddy-naive/live.sock
 # Keep Caddy storage inside the private runtime directory: the service has
 # no home and ProtectSystem=strict leaves no other writable location.
 Environment=XDG_DATA_HOME=/run/caddy-naive
 Environment=XDG_CONFIG_HOME=/run/caddy-naive
 ExecStartPre=/usr/local/libexec/check-naive-caddy-build
 RuntimeDirectory=caddy-naive
-RuntimeDirectoryMode=0700
+RuntimeDirectoryMode=0750
+# The manager bind-mounts this directory: preserve its inode across restarts.
+RuntimeDirectoryPreserve=yes
 ExecStartPre=+/usr/local/libexec/caddy-naive-adapt
 ExecStart=/usr/local/bin/caddy run --environ --config /run/caddy-naive/config.json
 ExecReload=+/usr/local/libexec/caddy-naive-adapt

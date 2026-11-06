@@ -210,7 +210,10 @@ fn interrupted_host_files(resumed: &TransactionState) -> BTreeMap<String, Vec<u8
             "/usr/local/libexec/prepare-mieru-token",
             "tests/fixtures/host-golden/journals/interrupted/prepare-mieru-token.snapshot",
         ),
-        ("/etc/tmpfiles.d/proxy-control-version-agent.conf", "deploy/proxy-control-version-agent.tmpfiles.conf"),
+        (
+            "/etc/tmpfiles.d/proxy-control-version-agent.conf",
+            "tests/fixtures/host-golden/journals/interrupted/version-agent.tmpfiles.snapshot",
+        ),
     ] {
         files.insert(host_path.to_string(), bytes(repo().join(source)));
     }

@@ -1,0 +1,2 @@
+# Unified patch context intentionally contains space-prefixed Go tabs/blank lines.
+docker/naive-live-meter/*.patch -whitespace

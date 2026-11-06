@@ -21,3 +21,11 @@ $CADDY list-modules | grep -Fxq 'http.handlers.forward_proxy' || {
     echo 'refusing Caddy build without http.handlers.forward_proxy' >&2
     exit 1
 }
+# Legacy recovery has no socket configured. Meter-enabled services and staged
+# updates must never silently accept an upstream-only build.
+if [ -n "${PROXY_CONTROL_NAIVE_LIVE_SOCKET:-}" ]; then
+$CADDY list-modules | grep -Fxq 'proxy_control.naive_live_meter' || {
+    echo 'refusing Caddy build without Naive live-meter schema 1' >&2
+    exit 1
+}
+fi

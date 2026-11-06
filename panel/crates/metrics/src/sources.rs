@@ -22,6 +22,11 @@ pub trait MeterSources: Send + Sync + 'static {
     /// An error makes that protocol unavailable until the next good poll.
     fn poll(&self, protocol: &'static str) -> BoxFuture<'_, Result<Value, String>>;
 
+    /// Authenticated CONNECT process counters; never access-log accounting or health.
+    fn naive_live(&self) -> BoxFuture<'_, Result<Value, String>> {
+        Box::pin(async { Err("live meter unavailable".into()) })
+    }
+
     /// The local node's display name (`nodes.local().display_name`); `None` or empty → `local`.
     fn local_node_name(&self) -> BoxFuture<'_, Option<String>> {
         Box::pin(async { None })
@@ -92,6 +97,15 @@ mod managers {
                         None => missing(),
                     },
                     _ => missing(),
+                }
+            })
+        }
+
+        fn naive_live(&self) -> BoxFuture<'_, Result<Value, String>> {
+            Box::pin(async move {
+                match &self.naive {
+                    Some(client) => client.live_traffic().await.map_err(|e| e.to_string()),
+                    None => missing(),
                 }
             })
         }

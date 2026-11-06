@@ -118,6 +118,12 @@ fn dispatch(manager: &NaiveManager, token: &str, request: &Request) -> Result<Re
             return ok(status, health);
         }
         ("GET", "/v1/users") => return ok(200, manager.list_users()?),
+        ("GET", "/v1/traffic/live") => {
+            return match crate::live::read(&manager.settings.live_socket) {
+                Ok(sample) => ok(200, sample),
+                Err(_) => ok(503, json!({"detail":"live meter unavailable", "code":"live_meter_unavailable"})),
+            };
+        }
         ("GET", "/v1/traffic") => return ok(200, manager.traffic_report()?),
         ("GET", "/v1/egress") => return ok(200, manager.egress()?),
         ("GET", "/v1/lanes") => return ok(200, manager.lanes()?),

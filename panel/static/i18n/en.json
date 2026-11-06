@@ -2054,5 +2054,12 @@
  "Выполнение": "In progress",
  "Состояние сохранено на сервере. Можно обновить страницу.": "State is saved on the server. You can reload the page.",
  "Агент обновляет компонент; состояние появится здесь автоматически.": "The agent is updating the component; its state will refresh here automatically.",
- "Компоненты обновятся по очереди; их соединения могут прерваться. Если закрыть или обновить страницу, текущая операция продолжится на сервере, но оставшуюся очередь нужно запустить заново. При первой ошибке обновление остановится. Панель обновляется последней.": "Components update sequentially; connections may be interrupted. Closing or reloading this page leaves the current operation running on the server, but the remaining queue must be started again. Updating stops on the first error. The panel updates last."
+ "Компоненты обновятся по очереди; их соединения могут прерваться. Если закрыть или обновить страницу, текущая операция продолжится на сервере, но оставшуюся очередь нужно запустить заново. При первой ошибке обновление остановится. Панель обновляется последней.": "Components update sequentially; connections may be interrupted. Closing or reloading this page leaves the current operation running on the server, but the remaining queue must be started again. Updating stops on the first error. The panel updates last.",
+ "Клиентский трафик · CONNECT": "Client traffic · CONNECT",
+ "Активных туннелей": "Active tunnels",
+ "Покрытие": "Coverage",
+ "Данные клиентского трафика недоступны": "Client traffic data unavailable",
+ "NaiveProxy · прежний учёт": "NaiveProxy · legacy accounting",
+ "Источники трафика недоступны или протоколы выключены.": "Traffic sources are unavailable or protocols are disabled.",
+ "неполное покрытие": "incomplete coverage"
 }

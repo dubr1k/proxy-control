@@ -1,0 +1,114 @@
+--- a/forwardproxy.go
++++ b/forwardproxy.go
+@@ -120,6 +120,9 @@
+ // Provision ensures that h is set up properly before use.
+ func (h *Handler) Provision(ctx caddy.Context) error {
+ 	h.logger = ctx.Logger(h)
++	if err := provisionLiveMeter(); err != nil {
++		return err
++	}
+ 
+ 	if h.DialTimeout <= 0 {
+ 		h.DialTimeout = caddy.Duration(30 * time.Second)
+@@ -341,15 +344,17 @@
+ 				fmt.Errorf("hostname %s is not allowed", r.URL.Hostname()))
+ 		}
+ 		defer targetConn.Close()
++		tunnel := beginLiveTunnel(len(h.AuthCredentials) > 0)
++		defer tunnel.done()
+ 
+ 		switch r.ProtoMajor {
+ 		case 1: // http1: hijack the whole flow
+-			return serveHijack(w, targetConn)
++			return serveHijack(w, targetConn, tunnel)
+ 		case 2: // http2: keep reading from "request" and writing into same response
+ 			fallthrough
+ 		case 3:
+ 			defer r.Body.Close()
+-			return dualStream(targetConn, r.Body, w, r.Header.Get("Padding") != "")
++			return dualStream(targetConn, r.Body, w, r.Header.Get("Padding") != "", tunnel)
+ 		}
+ 
+ 		panic("There was a check for http version, yet it's incorrect")
+@@ -628,7 +633,7 @@
+ 
+ // Hijacks the connection from ResponseWriter, writes the response and proxies data between targetConn
+ // and hijacked connection.
+-func serveHijack(w http.ResponseWriter, targetConn net.Conn) error {
++func serveHijack(w http.ResponseWriter, targetConn net.Conn, tunnel *liveTunnel) error {
+ 	w.WriteHeader(http.StatusOK)
+ 	clientConn, brw, err := http.NewResponseController(w).Hijack()
+ 	if err != nil {
+@@ -640,7 +645,16 @@
+ 	// snippet borrowed from `proxy` plugin
+ 	if n := brw.Reader.Buffered(); n > 0 {
+ 		rbuf, _ := brw.Peek(n)
+-		_, _ = targetConn.Write(rbuf)
++		nw, ew := targetConn.Write(rbuf)
++		if nw > 0 && tunnel.metered {
++			processLive.upload.Add(uint64(nw))
++		}
++		if ew != nil {
++			return ew
++		}
++		if nw != len(rbuf) {
++			return io.ErrShortWrite
++		}
+ 	}
+ 	err = brw.Flush()
+ 	if err != nil {
+@@ -648,7 +662,7 @@
+ 			fmt.Errorf("failed to flush to client: %v", err))
+ 	}
+ 
+-	return dualStream(targetConn, clientConn, clientConn, false)
++	return dualStream(targetConn, clientConn, clientConn, false, tunnel)
+ }
+ 
+ const (
+@@ -661,26 +675,30 @@
+ // Copies data target->clientReader and clientWriter->target, and flushes as needed
+ // Returns when clientWriter-> target stream is done.
+ // Caddy should finish writing target -> clientReader.
+-func dualStream(target net.Conn, clientReader io.ReadCloser, clientWriter io.Writer, padding bool) error {
+-	stream := func(w io.Writer, r io.Reader, paddingType int) error {
+-		// copy bytes from r to w
++func dualStream(target net.Conn, clientReader io.ReadCloser, clientWriter io.Writer, padding bool, tunnel *liveTunnel) error {
++	stream := func(w io.Writer, r io.Reader, paddingType int, upload bool) error {
+ 		bufPtr := bufferPool.Get().(*[]byte)
+-		buf := *bufPtr
+-		buf = buf[0:cap(buf)]
+-		_, _err := flushingIoCopy(w, r, buf, paddingType)
+-		bufferPool.Put(bufPtr)
+-
++		defer bufferPool.Put(bufPtr)
++		counter := &processLive.download
++		if upload {
++			counter = &processLive.upload
++		}
++		if !tunnel.metered {
++			counter = nil
++		}
++		_, err := liveIoCopy(w, r, (*bufPtr)[:cap(*bufPtr)], paddingType, counter)
+ 		if cw, ok := w.(closeWriter); ok {
+ 			_ = cw.CloseWrite()
+ 		}
+-		return _err
+-	}
++		return err
++	}
++	upPadding, downPadding := NoPadding, NoPadding
+ 	if padding {
+-		go stream(target, clientReader, RemovePadding)
+-		return stream(clientWriter, target, AddPadding)
+-	}
+-	go stream(target, clientReader, NoPadding) //nolint: errcheck
+-	return stream(clientWriter, target, NoPadding)
++		upPadding, downPadding = RemovePadding, AddPadding
++	}
++	tunnel.refs.Add(1)
++	go func() { defer tunnel.done(); _ = stream(target, clientReader, upPadding, true) }()
++	return stream(clientWriter, target, downPadding, false)
+ }
+ 
+ type closeWriter interface {

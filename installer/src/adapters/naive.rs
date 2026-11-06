@@ -210,9 +210,9 @@ impl NaiveAdapter {
         Ok(())
     }
     fn pinned_caddy(&self) -> Result<(), Error> {
-        self.check_caddy_version(CADDY_VERSION, true)
+        self.check_caddy_version(CADDY_VERSION, true, true)
     }
-    fn check_caddy_version(&self, expected: &str, allow_agent: bool) -> Result<(), Error> {
+    fn check_caddy_version(&self, expected: &str, allow_agent: bool, require_live_meter: bool) -> Result<(), Error> {
         let binary = self.host.host(CADDY_BINARY)?;
         let info = fs::symlink_metadata(&binary)?;
         if !info.is_file() {
@@ -224,15 +224,13 @@ impl NaiveAdapter {
         if version.trim() != expected
             && !(allow_agent && self.host.agent_value("naive", "runtime_version").as_deref() == Some(version.trim()))
             || !modules.lines().any(|line| line.trim() == "http.handlers.forward_proxy")
+            || require_live_meter && !modules.lines().any(|line| line.trim() == "proxy_control.naive_live_meter")
         {
             return Err(self.host.error("refusing an unpinned Caddy build"));
         }
         Ok(())
     }
     fn recovery_caddy(&self, selected: &NaiveSelection, checkpoint: &CheckpointData) -> Result<(), Error> {
-        if selected.caddy_build == CADDY_VERSION {
-            return self.pinned_caddy();
-        }
         // A plan string alone is not runtime provenance. Require immutable applied
         // ownership for the historical binary, pin and generation marker before
         // executing the binary. assert_ownership also recognizes agent-owned updates.
@@ -253,7 +251,7 @@ impl NaiveAdapter {
         if pin != selected.caddy_build && self.host.agent_value("naive", "runtime_version").as_deref() != Some(pin) {
             return Err(self.host.error("historical Caddy pin does not match the accepted runtime"));
         }
-        self.check_caddy_version(pin, false)
+        self.check_caddy_version(pin, false, false)
     }
     fn install_caddy(&self, checkpoint: &CheckpointData) -> Result<(), Error> {
         if checkpoint["caddy_preexisting"] == true {

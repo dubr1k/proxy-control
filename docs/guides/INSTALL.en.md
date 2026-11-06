@@ -18,6 +18,11 @@ Unix sockets, without new TCP ports. In `coexist`, an operator-owned PROXY bridg
 is needed to preserve IPs; the installer does not change foreign frontend behavior.
 See the [ingress and migration reference](../INSTALLER_REFERENCE.en.md).
 
+NaiveProxy installs a Caddy build with the `proxy_control.naive_live_meter` capability.
+Client CONNECT traffic is read through a private Unix socket, without a new public port.
+Caddy updates preserve this capability; missing metrics never fall back to port counters.
+See [monitoring](MONITORING.en.md).
+
 ## The primary install path: a verified release
 
 The release includes static native host binaries; neither Python nor Cargo is needed.

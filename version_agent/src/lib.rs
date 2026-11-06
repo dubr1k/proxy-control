@@ -24,6 +24,7 @@ pub mod host;
 pub mod hostmetrics;
 pub mod logging;
 pub mod metrics_ports;
+pub mod native_services;
 pub mod py;
 pub mod runner;
 pub mod server;

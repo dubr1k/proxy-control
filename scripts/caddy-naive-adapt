@@ -9,6 +9,7 @@ caddy_bin=${CADDY_BIN:-/usr/local/bin/caddy}
 jq_bin=${JQ_BIN:-jq}
 owner=${CADDY_NAIVE_OWNER:-10003}
 group=${CADDY_NAIVE_GROUP:-10004}
+runtime_group=${CADDY_NAIVE_RUNTIME_GROUP:-101}
 
 stage_uid=$(id -u)
 stage_gid=$(id -g)
@@ -22,10 +23,10 @@ cleanup() {
     trap - EXIT
     [[ -z "$caddyfile_tmp" ]] || rm -f -- "$caddyfile_tmp"
     [[ -z "$config_tmp" ]] || rm -f -- "$config_tmp"
-    if ! chown "$owner:$group" "$runtime_dir"; then
+    if ! chown "$owner:$runtime_group" "$runtime_dir"; then
         status=1
     fi
-    if ! chmod 0700 "$runtime_dir"; then
+    if ! chmod 0750 "$runtime_dir"; then
         status=1
     fi
     exit "$status"

@@ -30,6 +30,7 @@ pub struct Settings {
     pub backup_dir: PathBuf,
     pub public_host: String,
     pub caddyfile_mode: u32,
+    pub live_socket: PathBuf,
     /// The host's WARP proxy-mode endpoint (`NAIVE_EGRESS_WARP`), the only address the egress
     /// API writes for the `warp` provider.
     pub provider_url: Option<String>,
@@ -47,6 +48,7 @@ impl Settings {
             backup_dir,
             public_host: public_host.to_string(),
             caddyfile_mode: 0o640,
+            live_socket: crate::live::SOCKET.into(),
             provider_url: None,
             router_url: None,
             router_credential_file: None,

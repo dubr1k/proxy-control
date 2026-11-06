@@ -11,6 +11,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeployCliTests(unittest.TestCase):
+    def test_naive_live_meter_capability_is_required_for_meter_enabled_services(self):
+        helper = ROOT / "scripts/check-naive-caddy-build.sh"
+        with tempfile.TemporaryDirectory() as td:
+            fake = Path(td) / "caddy"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "case \"$1\" in\n"
+                " version) echo vtest ;;\n"
+                " list-modules) echo http.handlers.forward_proxy; "
+                "[ \"${TEST_METER_MODULE:-}\" != yes ] || echo proxy_control.naive_live_meter ;;\n"
+                "esac\n"
+            )
+            fake.chmod(0o755)
+            env = os.environ | {"CADDY_BIN": str(fake), "EXPECTED_CADDY_VERSION": "vtest"}
+            env.pop("PROXY_CONTROL_NAIVE_LIVE_SOCKET", None)
+            legacy = subprocess.run([str(helper)], env=env, capture_output=True)
+            self.assertEqual(legacy.returncode, 0, legacy.stderr)
+            env["PROXY_CONTROL_NAIVE_LIVE_SOCKET"] = "/run/caddy-naive/live.sock"
+            missing = subprocess.run([str(helper)], env=env, capture_output=True)
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn(b"live-meter schema 1", missing.stderr)
+            env["TEST_METER_MODULE"] = "yes"
+            enabled = subprocess.run([str(helper)], env=env, capture_output=True)
+            self.assertEqual(enabled.returncode, 0, enabled.stderr)
+
     def test_mieru_mss_clamp_is_idempotent_reversible_and_service_managed(self):
         helper = ROOT / "scripts/mieru-mss-clamp.sh"
         with tempfile.TemporaryDirectory() as td:
@@ -116,6 +141,7 @@ class DeployCliTests(unittest.TestCase):
                 "JQ_BIN": jq,
                 "CADDY_NAIVE_OWNER": str(os.getuid()),
                 "CADDY_NAIVE_GROUP": str(os.getgid()),
+                "CADDY_NAIVE_RUNTIME_GROUP": str(os.getgid()),
             }
 
             completed = subprocess.run(
@@ -126,6 +152,7 @@ class DeployCliTests(unittest.TestCase):
             )
 
             self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(runtime.stat().st_mode & 0o777, 0o750)
             self.assertEqual((runtime / "Caddyfile").read_text(), source.read_text())
             self.assertEqual(victim.read_text(), "protected\n")
             self.assertFalse((runtime / "config.json").is_symlink())

@@ -38,6 +38,7 @@ pub fn run_config_checks(
     component: &str,
     binary: &Path,
     runtime_version: Option<&str>,
+    require_live_meter: bool,
 ) -> Step<()> {
     if let Some(checker) = agent.config.checkers.get(component).filter(|c| !c.as_os_str().is_empty()) {
         let mut command =
@@ -45,9 +46,18 @@ pub fn run_config_checks(
         if let Some(version) = runtime_version.filter(|v| !v.is_empty()) {
             command = command.env("EXPECTED_CADDY_VERSION", version);
         }
+        if component == "naive" && require_live_meter {
+            command = command.env("PROXY_CONTROL_NAIVE_LIVE_SOCKET", "/run/caddy-naive/live.sock");
+        }
         agent.runner.run(&command)?;
     }
     if component == "naive" {
+        if require_live_meter {
+            let modules = run(agent, &argv(&[&binary.to_string_lossy(), "list-modules"]), 30)?;
+            if !modules.lines().any(|line| line.trim() == "proxy_control.naive_live_meter") {
+                return Err(refuse("Naive update lacks live-meter schema 1 capability"));
+            }
+        }
         if let Some(caddyfile) = agent.config.caddyfiles.get(component).filter(|c| !c.as_os_str().is_empty()) {
             let binary = binary.to_string_lossy().into_owned();
             let caddyfile = caddyfile.to_string_lossy().into_owned();
@@ -142,6 +152,27 @@ fn restart_service_and_slots(agent: &VersionAgent, service: &str) -> Step<()> {
     Ok(())
 }
 
+/// Older managed services have a private 0700 runtime directory and no meter
+/// environment. An additive drop-in upgrades that boundary without replacing a
+/// locally managed unit or helper. It is rolled back with the binary generation.
+const NAIVE_LIVE_DROPIN: &str = "[Service]\nEnvironment=PROXY_CONTROL_NAIVE_LIVE_SOCKET=/run/caddy-naive/live.sock\nSupplementaryGroups=101\nRuntimeDirectoryMode=0750\nRuntimeDirectoryPreserve=yes\nExecStartPre=+/usr/bin/chown 10003:101 /run/caddy-naive\nExecStartPre=+/usr/bin/chmod 0750 /run/caddy-naive\nExecReload=+/usr/bin/chown 10003:101 /run/caddy-naive\nExecReload=+/usr/bin/chmod 0750 /run/caddy-naive\n";
+
+fn install_naive_live_dropin(path: &Path) -> Step<Option<Vec<u8>>> {
+    if is_symlink(path) || path.parent().is_some_and(is_symlink) {
+        return Err(refuse("refusing symlink in Naive live-meter service drop-in"));
+    }
+    let previous = match fs::read(path) {
+        Ok(previous) => Some(previous),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    atomic_write(path, NAIVE_LIVE_DROPIN.as_bytes(), 0o644)?;
+    Ok(previous)
+}
+
 /// `_update_binary`: install `payload` (or the downloaded catalog artifact) as the component's
 /// binary; returns its SHA-256. Every failure after the backup restores the previous binary, pin
 /// and overlay, restarts and proves them, or reports the rollback as unverified.
@@ -201,10 +232,14 @@ pub fn update_binary(
     };
     let mut previous_overlay: Option<Vec<u8>> = None;
     let mut overlay_touched = false;
+    let live_dropin = (component == "naive" && target == Path::new("/usr/local/bin/caddy") && service == "caddy-naive")
+        .then(|| PathBuf::from("/etc/systemd/system/caddy-naive.service.d/50-naive-live-meter.conf"));
+    let mut previous_dropin = None;
+    let mut dropin_touched = false;
     let outcome = (|| -> Step<()> {
         agent.update_stage(component, "applying")?;
         atomic_write(&stage, &payload, 0o755)?;
-        run_config_checks(agent, component, &stage, runtime_version.as_deref())?;
+        run_config_checks(agent, component, &stage, runtime_version.as_deref(), true)?;
         fs::rename(&stage, &target)?;
         pc_host::fs::fsync_directory(&parent)?;
         assert_generation(&target, Some(&installed))?;
@@ -217,6 +252,11 @@ pub fn update_binary(
             // follows the new build before anything restarts.
             previous_overlay = rewrite_env_line(overlay, key, &installed)?;
             overlay_touched = true;
+        }
+        if let Some(path) = &live_dropin {
+            previous_dropin = install_naive_live_dropin(path)?;
+            dropin_touched = true;
+            run(agent, &argv(&["systemctl", "daemon-reload"]), 30)?;
         }
         agent.update_stage(component, "verifying")?;
         restart_service_and_slots(agent, service)?;
@@ -240,10 +280,14 @@ pub fn update_binary(
                 assert_pin(agent, component, previous_pin.as_deref())?;
                 if existed {
                     assert_generation(&target, previous_sha.as_deref())?;
-                    run_config_checks(agent, component, &target, previous_pin.as_deref())?;
+                    run_config_checks(agent, component, &target, previous_pin.as_deref(), false)?;
                 }
                 if let (Some((overlay, _, _)), true) = (&consumer, overlay_touched) {
                     restore_file(overlay, previous_overlay.as_deref(), 0o600)?;
+                }
+                if let (Some(path), true) = (&live_dropin, dropin_touched) {
+                    restore_file(path, previous_dropin.as_deref(), 0o644)?;
+                    run(agent, &argv(&["systemctl", "daemon-reload"]), 30)?;
                 }
                 restart_service_and_slots(agent, service)?;
                 if let Some((_, _, consumer_service)) = &consumer {
@@ -274,15 +318,32 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
     let field = |key: &str| build.get(key).and_then(|v| v.as_str()).unwrap_or_default().to_string();
     let (builder, caddy_version, commit) =
         (field("builder_image"), field("caddy_version"), field("forwardproxy_commit"));
+    if commit != "d62c80d3dd2c706b6b87579844d2397bddd18317" {
+        return Err(refuse(
+            "unsupported forwardproxy commit for Naive live-meter schema 1; update the maintained patch first",
+        ));
+    }
     let directory = &agent.config.caddy_build_dir;
     fs::create_dir_all(directory)?;
     chmod(directory, 0o700)?;
     let dockerfile = directory.join("Dockerfile");
+    let assets = directory.join("docker/naive-live-meter");
+    fs::create_dir_all(&assets)?;
+    for (name, content) in [
+        ("apply.sh", include_str!("../../../docker/naive-live-meter/apply.sh")),
+        ("forwardproxy.patch", include_str!("../../../docker/naive-live-meter/forwardproxy.patch")),
+        ("live_meter.go", include_str!("../../../docker/naive-live-meter/live_meter.go")),
+        ("live_meter_test.go", include_str!("../../../docker/naive-live-meter/live_meter_test.go")),
+    ] {
+        atomic_write(&assets.join(name), content.as_bytes(), 0o600)?;
+    }
     let text = format!(
         "# Generated by proxy-control version-agent; do not edit manually.\n\
          FROM {builder} AS builder\n\
-         RUN xcaddy build v{caddy_version} \\\n    \
-         --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@{commit}\n\
+         COPY docker/naive-live-meter /live-meter\n\
+         RUN sh /live-meter/apply.sh {commit}\n\
+         RUN xcaddy build v{caddy_version} --with github.com/caddyserver/forwardproxy=/src/forwardproxy\n\
+         RUN /usr/bin/caddy list-modules | grep -Fx proxy_control.naive_live_meter\n\
          FROM scratch\n\
          COPY --from=builder /usr/bin/caddy /caddy\n"
     );
@@ -306,6 +367,10 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
     let read = (|| -> Step<(Vec<u8>, String)> {
         let payload = fs::read(&extracted)?;
         chmod(&extracted, 0o755)?;
+        let modules = run(agent, &argv(&[&extracted_arg, "list-modules"]), 30)?;
+        if !modules.lines().any(|line| line.trim() == "proxy_control.naive_live_meter") {
+            return Err(refuse("built Caddy lacks Naive live-meter schema 1 capability"));
+        }
         let output = run(agent, &argv(&[&extracted_arg, "version"]), 30)?;
         let first = pc_common::pytext::splitlines(pc_common::pytext::strip(&output))
             .first()
@@ -319,4 +384,25 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
         return Err(refuse(format!("built Caddy reports {reported}, expected v{caddy_version}")));
     }
     Ok((payload, runtime_version))
+}
+
+#[cfg(test)]
+mod live_runtime_tests {
+    use super::*;
+    #[test]
+    fn managed_meter_dropin_preserves_previous_generation() {
+        let dir = crate::testutil::TempDir::new("meter-dropin");
+        let path = dir.join("caddy-naive.service.d/50-naive-live-meter.conf");
+        assert_eq!(install_naive_live_dropin(&path).unwrap(), None);
+        let first = fs::read(&path).unwrap();
+        assert!(String::from_utf8(first.clone()).unwrap().contains("SupplementaryGroups=101"));
+        assert!(NAIVE_LIVE_DROPIN.contains("ExecReload=+/usr/bin/chmod 0750"));
+        assert_eq!(install_naive_live_dropin(&path).unwrap(), Some(first.clone()));
+        restore_file(&path, None, 0o644).unwrap();
+        assert!(!path.exists());
+        fs::write(&path, b"previous").unwrap();
+        let previous = install_naive_live_dropin(&path).unwrap();
+        restore_file(&path, previous.as_deref(), 0o644).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"previous");
+    }
 }

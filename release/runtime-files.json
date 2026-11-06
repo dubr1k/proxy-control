@@ -69,6 +69,7 @@
     "deploy/mieru-client/src/**",
     "docker/Caddyfile",
     "docker/Dockerfile.caddy-naive",
+    "docker/naive-live-meter/**",
     "docker/telemt-entrypoint.sh",
     "probe/Dockerfile",
     "probe/install.sh",

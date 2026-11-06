@@ -55,7 +55,8 @@ impl Rig {
         let root = dir.path().to_path_buf();
         let caddy_version = Arc::new(Mutex::new(super::naive::CADDY_VERSION.to_string()));
         let reported_version = caddy_version.clone();
-        let caddy_modules = Arc::new(Mutex::new("http.handlers.forward_proxy\n".to_string()));
+        let caddy_modules =
+            Arc::new(Mutex::new("http.handlers.forward_proxy\nproxy_control.naive_live_meter\n".to_string()));
         let reported_modules = caddy_modules.clone();
         let fail = Arc::new(Mutex::new(None::<String>));
         let flags = fail.clone();
@@ -527,6 +528,14 @@ fn naive_apply_refuses_unpinned_caddy_and_missing_forward_proxy() {
         *rig.fail.lock().unwrap() = Some(fail.into());
         assert!(rig.naive().apply(&rig.action("naive"), rig.naive().prepare(&rig.action("naive")).unwrap()).is_err());
     }
+}
+#[test]
+fn naive_apply_refuses_upstream_only_build_without_live_meter() {
+    let rig = Rig::new();
+    *rig.caddy_modules.lock().unwrap() = "http.handlers.forward_proxy\n".to_string();
+    let adapter = rig.naive();
+    let action = rig.action("naive");
+    assert!(adapter.apply(&action, adapter.prepare(&action).unwrap()).is_err());
 }
 #[test]
 fn publishing_the_keypair_fails_closed() {
@@ -1461,6 +1470,25 @@ fn naive_historical_repair_preserves_runtime_pin_and_operator_state_twice() {
 }
 
 #[test]
+fn naive_owned_legacy_recovery_does_not_require_live_meter() {
+    for current_pin in [false, true] {
+        let rig = Rig::new();
+        let (mut action, mut data) = historical_naive_fixture(&rig);
+        if current_pin {
+            set(&mut action, "caddy-build", super::naive::CADDY_VERSION);
+            let pin = format!("{}\n", super::naive::CADDY_VERSION);
+            rig.put("/etc/proxy-control/caddy-naive.pin", pin.as_bytes(), 0o644);
+            for key in ["ownership", "planned_ownership"] {
+                data[key]["/etc/proxy-control/caddy-naive.pin"]["sha256"] = sha256_hex(pin.as_bytes()).into();
+            }
+            *rig.caddy_version.lock().unwrap() = super::naive::CADDY_VERSION.into();
+        }
+        *rig.caddy_modules.lock().unwrap() = "http.handlers.forward_proxy\n".into();
+        rig.naive().repair(&action, data).unwrap();
+    }
+}
+
+#[test]
 fn naive_historical_engine_repair_keeps_accepted_plan_and_digest() {
     use crate::journal::{Checkpoint, Phase, Status, TransactionState};
     let rig = Rig::new();
@@ -1579,7 +1607,7 @@ fn naive_accepts_the_caddy_the_version_agent_built_but_not_a_failed_rollback() {
             return Some(Reply::ok("v2.12.0 h1:agent="));
         }
         if call.argv.last().is_some_and(|arg| arg == "list-modules") {
-            return Some(Reply::ok("http.handlers.forward_proxy\n"));
+            return Some(Reply::ok("http.handlers.forward_proxy\nproxy_control.naive_live_meter\n"));
         }
         Some(Reply::ok(""))
     }));

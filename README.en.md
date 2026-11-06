@@ -77,8 +77,8 @@ way. The installer can also install 3x-ui for you.
 | **Panel** | Owner, admin and viewer roles; API keys scoped `admin \| monitor \| node-sync`; a secret-free audit; Russian and English interface. |
 
 Traffic accounting differs between protocols and the panel does not hide it: Telemt
-separates the process counter from quota usage, NaiveProxy counts bytes only after a
-tunnel closes, and Mieru shows `unavailable` when there is no safe per-user counter.
+separates the process counter from quota usage, NaiveProxy shows live client CONNECT traffic
+but updates per-user quota/accounting after a tunnel closes, and Mieru shows `unavailable` when there is no safe per-user counter.
 
 ## Interface
 
