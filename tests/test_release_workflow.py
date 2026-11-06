@@ -86,6 +86,20 @@ def test_release_stops_at_draft_and_ci_does_not_repeat_reproducibility():
     assert "release/build.py --source" not in publish
 
 
+@pytest.mark.parametrize("matches", [[], [{"id": 7, "draft": False}],
+    [{"id": 7, "draft": True}, {"id": 8, "draft": True}],
+    [{"id": True, "draft": True}], [{"id": 0, "draft": True}],
+    [{"id": "7", "draft": True}]])
+def test_draft_lookup_refuses_missing_ambiguous_published_or_invalid_id(monkeypatch, matches):
+    import json
+
+    module = guards()
+    pages = [[dict(item, tag_name="v3.2.0") for item in matches]]
+    monkeypatch.setattr(module, "gh", lambda *args: json.dumps(pages).encode())
+    with pytest.raises(ValueError):
+        module.draft_release_id("owner/project", "v3.2.0")
+
+
 @pytest.mark.parametrize("failure", [None, "archive_digest", "draft_installer", "tag_commit", "draft_tag"])
 def test_publication_uses_verified_bytes_and_refuses_changed_candidate(tmp_path, monkeypatch, failure):
     import io
@@ -111,8 +125,9 @@ def test_publication_uses_verified_bytes_and_refuses_changed_candidate(tmp_path,
         path = args[-1]
         if args[:2] == ("run", "list"):
             return json.dumps([dict(ci_run(), headSha=sha)]).encode()
-        if args[:2] == ("release", "view"):
-            return b'{"databaseId": 7, "isDraft": true, "tagName": "v3.2.0"}'
+        if args == ("api", "--paginate", "--slurp", "repos/owner/project/releases?per_page=100"):
+            # Draft-by-tag lookup can return 404; the list endpoint includes drafts.
+            return b'[[{"id": 8, "draft": false, "tag_name": "v3.1.0"}], [{"id": 7, "draft": true, "tag_name": "v3.2.0"}]]'
         if path.endswith("actions/runs/42"):
             result = dict(path=".github/workflows/release.yml", head_sha=sha,
                           head_repository={"full_name": "owner/project"}, status="completed", conclusion="success")

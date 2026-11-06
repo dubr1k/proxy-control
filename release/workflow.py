@@ -70,6 +70,19 @@ def tag_commit(repository: str, tag: str) -> str:
     return obj["sha"]
 
 
+def draft_release_id(repository: str, tag: str) -> str:
+    # Drafts may be absent from tag-based lookup; authenticated listing includes them.
+    pages = json.loads(gh("api", "--paginate", "--slurp",
+                          f"repos/{repository}/releases?per_page=100"))
+    matches = [release for page in pages for release in page if release.get("tag_name") == tag]
+    if len(matches) != 1 or matches[0].get("draft") is not True:
+        raise ValueError("expected exactly one draft release for the accepted tag")
+    release_id = matches[0].get("id")
+    if type(release_id) is not int or release_id <= 0:
+        raise ValueError("invalid draft release ID")
+    return str(release_id)
+
+
 def publish_candidate(repository: str, run_id: str, accepted: str, evidence: str, work: Path) -> None:
     from release.build import verify_release
 
@@ -112,11 +125,7 @@ def publish_candidate(repository: str, run_id: str, accepted: str, evidence: str
         subprocess.run(["gh", "attestation", "verify", str(path), "--repo", repository,
                         "--signer-workflow", f"{repository}/.github/workflows/release.yml",
                         "--source-digest", sha], check=True)
-    release = json.loads(gh("release", "view", tag, "--repo", repository,
-                            "--json", "databaseId,isDraft,tagName"))
-    if not release["isDraft"] or release["tagName"] != tag:
-        raise ValueError("candidate must still be a draft")
-    release_id = str(release["databaseId"])
+    release_id = draft_release_id(repository, tag)
     before = api(repository, f"releases/{release_id}")
     if not before["draft"] or before["tag_name"] != tag:
         raise ValueError("draft release tag changed")
