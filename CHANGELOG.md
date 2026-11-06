@@ -5,6 +5,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## [Unreleased]
 
 ### Fixes
+- Isolate successive confirmation, selection and text dialogs so a delayed close cannot cancel or duplicate a newly confirmed action.
 - Show only authenticated CONNECT payload in the NaiveProxy live chart; preserve unavailable-data gaps and keep client history separate from legacy port counters.
 - Select the architecture-specific Telemt x86_64 musl archive and reject foreign or malformed ELF binaries before replacing a running generation.
 

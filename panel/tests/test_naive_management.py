@@ -30,6 +30,7 @@ async def test_naive_list_is_secret_free_and_viewer_is_read_only(client, server,
             "quota_used_bytes_decimal": "0", "quota_remaining_bytes": None,
             "quota_remaining_bytes_decimal": None, "quota_exhausted": False,
             "period_start": naive.period_start, "updated_at": naive.period_start,
+            "client_id": None, "client_name": None, "grant_id": None, "client_state": None,
         }],
         "service": {"ready": True, "host": "naive.example.com"},
         "traffic": {

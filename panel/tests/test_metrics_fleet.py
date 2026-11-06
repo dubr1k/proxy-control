@@ -197,7 +197,9 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server
     remotes = {}
     for name, rate in (("alpha", 10), ("bravo", 5000), ("charlie", 700)):
         server, clock, agent = make_app(panel_server, name)
-        agent.set_protocol("naive", rate, 0)
+        # Comparison ordering is independent of Naive's CONNECT-only meter. A
+        # supported port-counter protocol supplies the synthetic traffic here.
+        agent.set_protocol("trusttunnel", rate, 0)
         await tick(server, clock, 3)
         remotes[name] = server
     central, clock, _ = make_app(panel_server, "central",
@@ -223,6 +225,6 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server
     # Detailed nodes follow node-id order, not the traffic-sorted compare table.
     offline = next(row for row in body["nodes"] if row["node_id"] == ids["charlie"])
     assert offline["node_id"] == ids["charlie"] and offline["status"] == "unavailable"
-    naive = offline["protocols"].get("naive")
-    if naive and naive.get("peak_bps") is not None:
-        assert naive["peak_bps"] == 700
+    protocol = offline["protocols"].get("trusttunnel")
+    if protocol and protocol.get("peak_bps") is not None:
+        assert protocol["peak_bps"] == 700

@@ -167,35 +167,45 @@ export function createUi(root) {
     button.closest("dialog").close("cancel");
   });
 
+  const dialogQueues = new WeakMap();
+  function dialogAnswer(selector, prepare, answer) {
+    const dialog = query(selector, root);
+    // close() changes `open` immediately but queues its event. Do not let a new
+    // opening overwrite the old returnValue or consume that queued close event.
+    const previous = dialogQueues.get(dialog) || Promise.resolve();
+    const result = previous.then(() => new Promise((resolve) => {
+      dialog.returnValue = "cancel";
+      prepare();
+      dialog.addEventListener("close", () => resolve(answer(dialog)), { once: true });
+      openModal(selector);
+    }));
+    dialogQueues.set(dialog, result.then(() => {}, () => {}));
+    return result;
+  }
+
   function confirmed(title, text, button = "Продолжить") {
-    const dialog = query("#confirm", root);
-    query("#confirm-title", root).textContent = title;
-    query("#confirm-text", root).textContent = text;
-    query("#confirm-ok", root).textContent = button;
-    openModal("#confirm");
-    return new Promise((resolve) => {
-      dialog.addEventListener("close", () => resolve(dialog.returnValue === "default"), { once: true });
-    });
+    return dialogAnswer("#confirm", () => {
+      query("#confirm-title", root).textContent = title;
+      query("#confirm-text", root).textContent = text;
+      query("#confirm-ok", root).textContent = button;
+    }, (dialog) => dialog.returnValue === "default");
   }
 
   // One choice among a few named things (a grant for a lane): the value of the chosen
   // option, or null when dismissed. The labels are set as text, never as markup.
   function choose(title, text, options, button = "Выбрать") {
-    const dialog = query("#choose", root);
-    query("#choose-title", root).textContent = title;
-    query("#choose-text", root).textContent = text;
-    query("#choose-ok", root).textContent = button;
     const select = query("#choose-select", root);
-    select.replaceChildren(...options.map((option) => {
-      const element = document.createElement("option");
-      element.value = option.id;
-      element.textContent = option.label;
-      return element;
-    }));
-    openModal("#choose");
-    return new Promise((resolve) => {
-      dialog.addEventListener("close", () => resolve(dialog.returnValue === "default" ? select.value : null), { once: true });
-    });
+    return dialogAnswer("#choose", () => {
+      query("#choose-title", root).textContent = title;
+      query("#choose-text", root).textContent = text;
+      query("#choose-ok", root).textContent = button;
+      select.replaceChildren(...options.map((option) => {
+        const element = document.createElement("option");
+        element.value = option.id;
+        element.textContent = option.label;
+        return element;
+      }));
+    }, (dialog) => dialog.returnValue === "default" ? select.value : null);
   }
 
   async function copyText(input, container = null) {
@@ -226,21 +236,18 @@ export function createUi(root) {
   // One line of text (a new name): the trimmed value, or null when dismissed. `required`
   // keeps an empty value out; without it an empty answer means «put the default back».
   function askText(title, text, { label = "Название", value = "", maxLength = 128, required = true, button = "Сохранить" } = {}) {
-    const dialog = query("#ask-text", root);
     const input = query("#ask-text-input", root);
-    query("#ask-text-title", root).textContent = title;
-    query("#ask-text-text", root).textContent = text;
-    query("#ask-text-label", root).textContent = label;
-    query("#ask-text-ok", root).textContent = button;
-    query("#ask-text-error", root).textContent = "";
-    input.maxLength = maxLength;
-    input.required = required;
-    input.value = value;
-    openModal("#ask-text");
-    input.select();
-    return new Promise((resolve) => {
-      dialog.addEventListener("close", () => resolve(dialog.returnValue === "default" ? input.value.trim() : null), { once: true });
-    });
+    return dialogAnswer("#ask-text", () => {
+      query("#ask-text-title", root).textContent = title;
+      query("#ask-text-text", root).textContent = text;
+      query("#ask-text-label", root).textContent = label;
+      query("#ask-text-ok", root).textContent = button;
+      query("#ask-text-error", root).textContent = "";
+      input.maxLength = maxLength;
+      input.required = required;
+      input.value = value;
+      window.setTimeout(() => input.select(), 0);
+    }, (dialog) => dialog.returnValue === "default" ? input.value.trim() : null);
   }
 
   return { view, toast, setBusy, renderSkeleton, renderError, openModal, confirmed, choose, askText, copyText, prepareNavigation, finishNavigation };

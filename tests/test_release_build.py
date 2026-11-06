@@ -357,7 +357,12 @@ def test_runtime_policy_keeps_production_inputs_but_not_development_tools():
                                     "graphify-out/", "docs/adr/", "docs/spikes/")) for name in shipped)
     assert not {"AGENTS.md", "CONTRIBUTING.md", "release/build.py", "release/sbom.py",
                 "release/Dockerfile.host-binaries", "docs/VALIDATION.md"} & shipped
-    assert not any("/testdata/" in name or name.endswith("_test.go") for name in shipped)
+    assert not any("/testdata/" in name for name in shipped)
+    # The version-agent embeds this exact overlay input at compile time. Keep the
+    # production build closure closed: no other Go test files belong in a release.
+    assert {name for name in shipped if name.endswith("_test.go")} == {
+        "docker/naive-live-meter/live_meter_test.go",
+    }
     assert not any(name.endswith(".py") for name in shipped), "Python utilities belong in the source tree"
 
 

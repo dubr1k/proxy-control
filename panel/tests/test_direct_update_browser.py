@@ -70,7 +70,11 @@ def test_direct_build_preserves_warning_raw_identity_and_cancellation(tmp_path):
         browser.click('[data-version-update="telemt"][data-version-target]')
         browser.wait("document.querySelector('#confirm').open", 'build confirmation again')
         browser.click('#confirm-ok')
-        browser.wait("!document.querySelector('[data-version-update=\"telemt\"][data-version-target]')", 'build completed')
+        # A loading skeleton also has no update button. Require the completed
+        # version card, not that transient absence, before checking mutations.
+        browser.wait("""document.querySelector('[data-version-select="telemt"]')
+            ?.closest('.version-card').querySelector('.panel-head b').textContent === '3.4.25'
+            && !document.querySelector('[data-version-update="telemt"][data-version-target]')""", 'build completed')
         assert fixture.versions.calls == [('telemt', '3.4.25', 'sha256:123456789abc')]
 
 

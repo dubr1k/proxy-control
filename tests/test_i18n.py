@@ -29,7 +29,10 @@ def test_translations_are_english_and_not_empty():
 def test_the_extractor_sees_template_parts_but_not_markup():
     found = set(strings.fragments())
     assert {"Как это работает", "Ключ не сохранён", "Акцентный цвет"} <= found
-    assert not any(re.search(r"[<>=${}]|\bclass\b", item) for item in found)
+    # An equality in visible unit guidance is text, not a leaked HTML attribute.
+    unit_guidance = {"1 ГБ = 1 000 000 000 байт"}
+    assert unit_guidance <= found
+    assert not any(re.search(r"[<>=${}]|\bclass\b", item) for item in found - unit_guidance)
 
 
 def test_real_translation_runtime_handles_composed_strings_and_preserves_typed_names(tmp_path):

@@ -1311,14 +1311,16 @@ def test_native_trusttunnel_real_credential_link_qr_toml_and_locale(native_ui, l
     browser.healthy()
 
 
-def test_native_naive_kernel_card_explains_background_traffic(native_ui):
+def test_native_naive_card_never_falls_back_to_kernel_traffic(native_ui):
     browser = native_ui()
-    browser.fixture.agent.set_protocol("naive", 0, 0)
+    browser.fixture.agent.set_protocol("naive", 900000, 800000)
     browser.fixture.sample(12.5, 40, 30)
     browser.open_view("monitoring", "!!document.querySelector('[data-proto=naive] [data-foot]')", width=320)
-    browser.wait("document.querySelector('[data-proto=naive] [data-foot]').textContent.includes('служебные проверки')",
-                 "kernel traffic explanation")
-    assert browser.js("!document.querySelector('[data-proto=naive] [data-spark]').hidden")
+    browser.wait("document.querySelector('[data-proto=naive] [data-proto-body]').textContent.includes('Данные клиентского трафика недоступны')",
+                 "missing CONNECT source is unavailable, not kernel traffic")
+    assert browser.js("document.querySelector('[data-proto=naive] [data-foot]').textContent.includes('Клиентский трафик · CONNECT')")
+    assert browser.js("document.querySelector('[data-proto=naive] [data-spark]').hidden")
+    assert browser.js("!document.querySelector('[data-proto=naive]').textContent.includes('служебные проверки')")
     browser.healthy()
 
 
