@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::future::join_all;
 use panel_core::clock::{FakeClock, SharedClock};
@@ -609,27 +609,46 @@ async fn live_fan_out_caps_node_calls_at_eight() {
 
 #[tokio::test]
 async fn live_many_budget_leaves_slow_call_running_to_fill_cache() {
-    let options = SourceOptions { call_timeout: Duration::from_secs(1), ..SourceOptions::default() };
+    let gate = Arc::new(Semaphore::new(0));
+    let options = SourceOptions { call_timeout: Duration::from_secs(30), ..SourceOptions::default() };
     let harness = Harness::with(
-        vec![("fast", FakeNode::new()), ("slow", FakeNode::new().delayed(Duration::from_millis(500)))],
+        vec![("fast", FakeNode::new()), ("slow", FakeNode::new().gated(gate.clone()))],
         true,
         &["metrics.v1"],
         options,
     );
 
-    let started = Instant::now();
-    let got = live_many(&harness, &["fast", "slow"], Duration::from_millis(50)).await;
-    assert!(started.elapsed() < Duration::from_millis(300), "slow node exceeded caller budget");
-    assert_eq!(
-        got.iter()
-            .map(|entry| (entry["node_id"].as_str().unwrap(), entry["status"].as_str().unwrap()))
-            .collect::<Vec<_>>(),
-        vec![("fast", "ok"), ("slow", "unavailable")]
-    );
+    // Cold SQLite/client setup is not promised to finish within a 50 ms caller
+    // budget. Seed the known sample and hold the slow RPC explicitly instead of
+    // relying on CI scheduling and a sleep being slower than another sleep.
+    assert_eq!(live(&harness, "fast").await["status"], "ok");
+    let got =
+        tokio::time::timeout(Duration::from_secs(5), live_many(&harness, &["fast", "slow"], Duration::from_millis(50)))
+            .await
+            .expect("caller budget must return while the slow RPC gate remains closed");
+    assert_eq!(got[0]["node_id"], "fast");
+    assert!(matches!(got[0]["status"].as_str(), Some("ok" | "stale")));
+    assert_eq!(got[0]["host"], json!({"cpu_percent": 10.0}));
+    assert_eq!((got[1]["node_id"].as_str(), got[1]["status"].as_str()), (Some("slow"), Some("unavailable")));
+    assert_eq!(harness.node("fast").calls(), 1);
 
-    tokio::time::sleep(Duration::from_millis(600)).await;
-    let again = live_many(&harness, &["slow"], Duration::from_millis(50)).await;
-    assert_eq!(again[0]["status"], "ok");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while harness.node("slow").calls() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("slow RPC must still start after the caller budget expires");
+    assert_eq!(harness.counters.active.load(Ordering::SeqCst), 1);
+    gate.add_permits(1);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while harness.counters.active.load(Ordering::SeqCst) != 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("detached RPC must complete after opening its gate");
+    assert_eq!(live(&harness, "slow").await["status"], "ok");
     assert_eq!(harness.node("slow").calls(), 1);
 }
 
