@@ -122,7 +122,9 @@ jobs:
           grep -q 'Mieru/mita' THIRD_PARTY_NOTICES.md
           grep -q 'not bundled' THIRD_PARTY_NOTICES.md
           grep -Fq 'caddy:2.11.7-builder@sha256:d842facfd63b960922e57444ff76fd8f0793a66dfdcf481af8026e1f4e6a39b4' docker/Dockerfile.caddy-naive
-          grep -Fq 'github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@d62c80d3dd2c706b6b87579844d2397bddd18317' docker/Dockerfile.caddy-naive
+          grep -Fq 'RUN sh /live-meter/apply.sh d62c80d3dd2c706b6b87579844d2397bddd18317' docker/Dockerfile.caddy-naive
+          grep -Fq -- '--with github.com/caddyserver/forwardproxy=/src/forwardproxy' docker/Dockerfile.caddy-naive
+          grep -Fq 'RUN /usr/bin/caddy list-modules | grep -Fx proxy_control.naive_live_meter' docker/Dockerfile.caddy-naive
           sudo install -d /usr/local/libexec /opt/proxy-control/version_agent/bin/linux-amd64
           sudo install -m 0755 /bin/true /usr/local/libexec/check-naive-caddy-build
           sudo install -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
