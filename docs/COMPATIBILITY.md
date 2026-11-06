@@ -14,6 +14,11 @@ A migration must provide discovery, read-only planning, backups, ownership check
 
 ## Naive runtime recovery
 
+Naive update candidates combine a discovered Caddy release and digest-pinned builder
+with the immutable forwardproxy revision supported by the shipped live-meter patch.
+They do not follow the moving upstream `naive` branch. The same forwardproxy revision
+is used by fresh installations; unsupported revisions remain refused before building.
+
 An accepted plan is not rewritten when the installer's default Caddy build changes.
 Repair recognizes the released `v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=`
 identity in addition to the current default. For this historical identity it requires

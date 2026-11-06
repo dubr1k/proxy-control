@@ -13,7 +13,7 @@ use std::time::Duration;
 use pc_host::net::{ClientOptions, HttpsClient, NetError, UPSTREAM_HOSTS};
 use serde_json::{json, Map, Value};
 
-use crate::catalog::{is_dotted, is_hex40, is_version};
+use crate::catalog::{is_dotted, is_hex40, is_version, NAIVE_FORWARDPROXY_COMMIT};
 
 pub const MAX_JSON: u64 = 16 * 1024 * 1024;
 pub const MAX_DIGEST_FILE: u64 = 4096;
@@ -629,11 +629,8 @@ fn naive(fetcher: &dyn Fetcher, current: Option<&str>) -> Result<Value, Upstream
     if picked.is_empty() {
         return Ok(json!({"latest": first.version, "installable": false, "reason": null, "candidates": []}));
     }
-    // NaiveProxy's forwardproxy lives on the `naive` branch.
-    let head = json_of(fetcher, "https://api.github.com/repos/klzgrad/forwardproxy/commits/naive", MAX_JSON, &[])?;
-    let Some(commit) = head.get("sha").and_then(Value::as_str).filter(|c| is_hex40(c)) else {
-        return fail("forwardproxy commit is missing");
-    };
+    // Caddy releases may advance independently; the maintained live-meter patch must
+    // use the reviewed forwardproxy revision, never the moving `naive` branch HEAD.
     let token =
         token(fetcher, "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/caddy:pull")?;
     let mut candidates = Vec::new();
@@ -651,7 +648,7 @@ fn naive(fetcher: &dyn Fetcher, current: Option<&str>) -> Result<Value, Upstream
             "version": release.version, "tag": release.tag, "kind": "build", "source": "upstream",
             "published_at": release.published_at,
             "build": {"caddy_version": release.version, "builder_image": format!("caddy:{}-builder@{digest}", release.version),
-                      "forwardproxy_commit": commit},
+                      "forwardproxy_commit": NAIVE_FORWARDPROXY_COMMIT},
         }));
     }
     Ok(probe(Value::String(first.version.clone()), current, candidates, None))

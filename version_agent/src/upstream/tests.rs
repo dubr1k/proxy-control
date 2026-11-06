@@ -328,9 +328,25 @@ fn naive_candidate_is_a_build_with_the_builder_digest_and_forwardproxy_commit() 
     assert_eq!(
         candidate["build"],
         json!({"caddy_version": "2.12.0", "builder_image": format!("caddy:2.12.0-builder@sha256:{}", "e".repeat(64)),
-               "forwardproxy_commit": "d".repeat(40)})
+               "forwardproxy_commit": "d62c80d3dd2c706b6b87579844d2397bddd18317"})
     );
     assert_eq!((&candidate["source"], &candidate["version"]), (&json!("upstream"), &json!("2.12.0")));
+}
+
+#[test]
+fn naive_catalog_does_not_depend_on_the_moving_forwardproxy_head() {
+    let head_url = "https://api.github.com/repos/klzgrad/forwardproxy/commits/naive";
+    let fetch = naive_table(json!([{"tag_name": "v2.11.9", "prerelease": false, "draft": false,
+                                  "published_at": null, "assets": []}]))
+    .without(head_url)
+    .with(
+        "https://registry-1.docker.io/v2/library/caddy/manifests/2.11.9-builder",
+        with_digest(&format!("sha256:{}", "e".repeat(64))),
+    );
+    let result = check_component("naive", Some("2.11.7"), &fetch, false).unwrap();
+    assert_eq!(result["installable"], true);
+    assert_eq!(result["candidates"][0]["build"]["forwardproxy_commit"], "d62c80d3dd2c706b6b87579844d2397bddd18317");
+    assert!(!fetch.seen().iter().any(|url| url == head_url));
 }
 
 #[test]

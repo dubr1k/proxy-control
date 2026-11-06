@@ -15,6 +15,8 @@ pub const COMPONENTS: [&str; 7] = ["telemt", "naive", "mita", "xray", "panel", "
 /// `XRAY_MEMBERS`.
 pub const XRAY_MEMBERS: [&str; 3] = ["xray", "geoip.dat", "geosite.dat"];
 pub const TRUSTTUNNEL_REPOSITORY: &str = "TrustTunnel/TrustTunnel";
+/// Immutable forwardproxy revision supported by the shipped Naive live-meter patch.
+pub const NAIVE_FORWARDPROXY_COMMIT: &str = "d62c80d3dd2c706b6b87579844d2397bddd18317";
 
 /// `CatalogEntry`.
 #[derive(Debug, Clone, PartialEq)]

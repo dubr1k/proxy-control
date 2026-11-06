@@ -22,7 +22,9 @@ Caddy config files remain mode 0400. There is no TCP metrics listener.
 or destinations. Caddy advertises `proxy_control.naive_live_meter`.
 
 Both the fresh-install Dockerfile and the updater's embedded build context use
-these exact assets. A different upstream commit is refused before building;
+these exact assets. Update discovery uses the same maintained commit, not the
+moving upstream branch HEAD, while Caddy releases and builder digests are discovered
+independently. A different upstream commit is refused before building;
 updating the pin requires reviewing the new upstream forwarding paths, updating
 and testing this patch, and changing both compatibility checks together. Test
 with `go test -race $(go list -f '{{join .GoFiles " "}}') live_meter_test.go`

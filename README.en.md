@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v4.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3)
+> **Current release: [v4.0.4](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -384,7 +384,7 @@ previous state.
 <summary>Verify and launch an archive manually</summary>
 
 The same path without the script. Download the four files under Assets of the
-[4.0.3 release](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3): the archive,
+[4.0.4 release](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -392,9 +392,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v4.0.3.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.4.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v4.0.3.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.4.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file

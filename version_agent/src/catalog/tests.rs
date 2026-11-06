@@ -35,6 +35,14 @@ fn catalog_requires_immutable_artifacts() {
 }
 
 #[test]
+fn maintained_naive_pin_matches_the_shipped_patch_and_fresh_installer() {
+    let patch = include_str!("../../../docker/naive-live-meter/apply.sh");
+    let installer = include_str!("../../../docker/Dockerfile.caddy-naive");
+    assert!(patch.lines().any(|line| line == format!("expected={NAIVE_FORWARDPROXY_COMMIT}")));
+    assert!(installer.lines().any(|line| line == format!("RUN sh /live-meter/apply.sh {NAIVE_FORWARDPROXY_COMMIT}")));
+}
+
+#[test]
 fn catalog_accepts_archive_members_and_the_xray_component() {
     let loaded = load(json!({"schema": 1, "components": {
         "xray": [{"version": "26.4.1", "kind": "binary",

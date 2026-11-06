@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::catalog::CatalogEntry;
+use crate::catalog::{CatalogEntry, NAIVE_FORWARDPROXY_COMMIT};
 use crate::runner::Command;
 use crate::service::VersionAgent;
 
@@ -318,7 +318,7 @@ pub fn build_caddy(_updater: &HostUpdater, agent: &VersionAgent, entry: &Catalog
     let field = |key: &str| build.get(key).and_then(|v| v.as_str()).unwrap_or_default().to_string();
     let (builder, caddy_version, commit) =
         (field("builder_image"), field("caddy_version"), field("forwardproxy_commit"));
-    if commit != "d62c80d3dd2c706b6b87579844d2397bddd18317" {
+    if commit != NAIVE_FORWARDPROXY_COMMIT {
         return Err(refuse(
             "unsupported forwardproxy commit for Naive live-meter schema 1; update the maintained patch first",
         ));

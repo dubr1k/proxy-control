@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.4] - 2026-11-06
+
+### Fixes
+- Build Naive/Caddy update candidates with the immutable forwardproxy revision supported by the shipped live-meter patch, rather than the moving upstream branch. Keep unsupported revisions refused before building.
+
+### Host installer
+- Installer defaults and download-script behaviour are unchanged; the published script pins the 4.0.4 archive and its checksum.
+
 ## [4.0.3] - 2026-11-06
 
 ### Fixes
