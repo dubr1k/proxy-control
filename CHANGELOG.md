@@ -4,14 +4,21 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.3] - 2026-11-06
+
 ### Fixes
 - Isolate successive confirmation, selection and text dialogs so a delayed close cannot cancel or duplicate a newly confirmed action.
 - Show only authenticated CONNECT payload in the NaiveProxy live chart; preserve unavailable-data gaps and keep client history separate from legacy port counters.
 - Select the architecture-specific Telemt x86_64 musl archive and reject foreign or malformed ELF binaries before replacing a running generation.
 
 ### Interface
+- Remove redundant overview captions, the service-status list and aggregate sidebar indicator; use the 443-heart brand on the simplified login screen.
+- Add a direct update action on component cards while keeping version selection and rollback in a collapsible section.
 - Unify all five protocol lists with client identity, traffic and visible settings/delete actions; default new access to unlimited traffic and validity, with opt-in GB quotas and day-based lifetime.
 - Persist component update stages and terminal results on the server; restore active progress after refreshing the versions page and retain failure, rollback and interrupted outcomes.
+
+### Host installer
+- Pin fresh managed 3x-ui installations to 3.11.0 and align artifact checksums and bootstrap credentials.
 
 ## [4.0.2] - 2026-11-05
 

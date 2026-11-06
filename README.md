@@ -19,8 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v4.0.2](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.2).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.2)
+> **Текущий выпуск — [v4.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -382,16 +382,16 @@ sudo bash install.sh install --config examples/installer/full-three-xui.toml --a
 <summary>Проверка и запуск архива вручную</summary>
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 4.0.2](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.2): архив,
+[выпуска 4.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.3): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v4.0.2.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v4.0.3.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v4.0.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v4.0.3.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он

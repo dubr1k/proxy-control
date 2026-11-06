@@ -4,7 +4,7 @@
 
 This index separates **installation**, **protocols and the panel**, **operations**, and
 **development**. Start with the README in your language, then follow the document for the
-boundary you are changing. The current release is **[v4.0.2](releases/v4.0.2.md)**:
+boundary you are changing. The current release is **[v4.0.3](releases/v4.0.3.md)**:
 the application runtime is Rust; Python is used only by external development and acceptance tools.
 
 ## Repository layout / Структура репозитория
@@ -85,6 +85,7 @@ application source and must not be copied into a release or issue report.
 
 ### Выпуски
 
+- **[v4.0.3](releases/v4.0.3.md)** — клиентский live-трафик Naive, единый интерфейс доступов и устойчивый прогресс обновлений
 - **[v4.0.2](releases/v4.0.2.md)** — восстановление Naive, новая страница подписки, обновления компонентов и каталог маршрутизации
 - **[v4.0.1](releases/v4.0.1.md)** — компактные карточки, удобная выдача подписок и исправления интерфейса
 - **[v4.0.0](releases/v4.0.0.md)** — нативный Rust runtime, готовые хостовые бинарники, переход с 3.3.0 и исправления установщика
@@ -181,6 +182,7 @@ application source and must not be copied into a release or issue report.
 
 ### Releases
 
+- **[v4.0.3](releases/v4.0.3.md)** — Naive client live traffic, consistent access pages and persistent update progress
 - **[v4.0.2](releases/v4.0.2.md)** — Naive recovery, a new subscription page, component updates and routing catalogue
 - **[v4.0.1](releases/v4.0.1.md)** — compact cards, clearer subscription delivery and interface fixes
 - **[v4.0.0](releases/v4.0.0.md)** — native Rust runtime, prebuilt host executables, the 3.3.0 transition and installer fixes
