@@ -231,28 +231,15 @@ function followLive(context, generation) {
   }
 }
 
-// The agents report English state words; the services list shows them in plain Russian.
-const STATUS_WORDS = { ready: "в порядке", ok: "в порядке", degraded: "сбой", unavailable: "недоступно", disabled: "отключено" };
-
-function statusWord(status, ready) {
-  return STATUS_WORDS[status] || status || (ready ? STATUS_WORDS.ready : STATUS_WORDS.degraded);
-}
-
-// One line of «Состояние сервисов» for a protocol that is switched on: green when its manager is ready.
-function serviceRow(name, available, ready, status) {
-  if (!available) return "";
-  return `<div class="service-row ${ready ? "" : "degraded"}"><i></i><span><b>${name}</b><small>${ready ? "Менеджер работает" : "Менеджер недоступен"}</small></span><em>${esc(statusWord(status, ready))}</em></div>`;
-}
-
 // 3.1 (owner: «приведи к одному виду»): every protocol card is the same three blocks — the head
 // with its status, the active/disabled pair, and one traffic tile across the card (value on one
-// line, its source under it), pinned to the bottom so the cards of a row line up.
-function protocolCard({ name, kind, ready, available = true, status, active, disabled, traffic, source, className = "" }) {
+// line), pinned to the bottom so the cards of a row line up.
+function protocolCard({ name, kind, ready, available = true, status, active, disabled, traffic, className = "" }) {
   const pill = !available ? "Отключён" : status || (ready ? "Работает" : "Недоступен");
   return `<article class="protocol-card ${className} ${ready || !available ? "" : "degraded"}"${available ? "" : " hidden"}>
       <div class="protocol-head"><span><small>${esc(kind)}</small><h2>${esc(name)}</h2></span><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${esc(pill)}</span></div>
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${active}</strong></span><span><small>Отключённые</small><strong>${disabled}</strong></span></div>
-      <div class="protocol-traffic"><small>Трафик (↓ к клиентам · ↑ от клиентов)</small><b>${traffic}</b><em>${source}</em></div>
+      <div class="protocol-traffic"><small>Трафик (↓ к клиентам · ↑ от клиентов)</small><b>${traffic}</b></div>
     </article>`;
 }
 
@@ -300,7 +287,7 @@ function attentionBlock(context, { entries, nodes, versions, services }) {
 }
 
 // A client line opens the Clients screen with its filter preselected (the click runs before
-// the hash changes); the services line stays here and scrolls to the list it names.
+// the hash changes); the services line stays here and scrolls to the failing protocol.
 function bindAttention(context, generation) {
   const block = query("[data-attention]", context.ui.view);
   if (!block) return;
@@ -310,13 +297,13 @@ function bindAttention(context, generation) {
     if (link.dataset.attentionIssue) showClientIssue(context, link.dataset.attentionIssue);
     else if ("attentionServices" in link.dataset) {
       event.preventDefault();
-      query(".service-list", context.ui.view)?.scrollIntoView?.({ block: "center" });
+      query(".protocol-card.degraded", context.ui.view)?.scrollIntoView?.({ block: "center" });
     }
   });
 }
 
 export async function renderDashboard(context, generation) {
-  const { api, root, state, ui } = context;
+  const { api, state, ui } = context;
   const owner = state.me?.role === "owner";
   const [data, users, nodes, entries, nodeList, versions] = await Promise.all([
     api("/api/dashboard"),
@@ -342,21 +329,13 @@ export async function renderDashboard(context, generation) {
   const awg = data.protocols?.amneziawg || { available: false, status: "disabled" };
   const awgAvailable = awg.available === true;
   const awgReady = awg.ready === true;
-  const awgVersions = Object.entries(awg.versions || {}).map(([version, count]) => `${version}: ${count}`).join(" · ");
   const tt = data.protocols?.trusttunnel || { available: false, status: "disabled" };
   const ttAvailable = tt.available === true;
   const ttReady = tt.ready === true;
-  const allReady = mtReady && (!naiveAvailable || naiveReady) && (!mieruAvailable || mieruReady) && (!awgAvailable || awgReady) && (!ttAvailable || ttReady);
-  const system = query(".system-mini", root);
-  system.classList.toggle("degraded", !allReady);
-  query("b", system).textContent = allReady ? "Прокси-сервисы работают" : "Есть неполадки";
-  query("small", system).textContent = allReady ? "Сводка актуальна" : "Откройте обзор состояния";
-
   if (naiveAvailable) state.naiveService = { ready: naiveReady, host: naive.host || state.naiveService.host };
   const mtCredentials = mt.credentials || {};
   const naiveCredentials = naive.credentials || {};
   const naiveKnown = naiveCredentials.available !== false;
-  const naiveState = !naiveAvailable ? "Функция отключена" : naiveReady ? "Менеджер работает" : "NaiveProxy недоступен";
   const naiveStatus = !naiveAvailable ? "Отключён" : naiveReady ? "Работает" : "Сбой менеджера";
   const naiveTotals = naive.traffic?.aggregate;
 
@@ -365,31 +344,26 @@ export async function renderDashboard(context, generation) {
       name: "MTProxy", kind: "MTProto · FakeTLS", ready: mtReady, status: mtReady ? "Работает" : "Недоступен",
       active: number(mtCredentials.active), disabled: number(mtCredentials.disabled),
       traffic: `Σ ${bytes(mt.runtime?.traffic_octets)}`,
-      source: `С последнего запуска MTProxy, это не квота · соединений сейчас ${number(mt.runtime?.current_connections)} · активных IP ${number(mt.runtime?.active_ips)}`,
     }),
     protocolCard({
       name: "Mieru", kind: "Native AEAD · TCP", ready: mieruReady, available: mieruAvailable,
       active: number(mieru.credentials?.active), disabled: number(mieru.credentials?.disabled),
       traffic: mieru.traffic?.available ? upDown(mieru.traffic.upload_bytes, mieru.traffic.download_bytes) : "—",
-      source: mieru.traffic?.available ? "С запуска mita" : "Менеджер не отдаёт счётчики",
     }),
     protocolCard({
       name: "AmneziaWG", kind: "UDP · WireGuard с маскировкой", ready: awgReady, available: awgAvailable,
       active: number(awg.credentials?.active), disabled: number(awg.credentials?.disabled),
       traffic: upDown(awg.traffic?.upload_bytes, awg.traffic?.download_bytes),
-      source: `Счётчики туннелей${awgVersions ? ` · версии доступов ${esc(awgVersions)}` : ""}`,
     }),
     protocolCard({
       name: "TrustTunnel", kind: "HTTP/2 · TCP", ready: ttReady, available: ttAvailable,
       active: number(tt.credentials?.active), disabled: number(tt.credentials?.disabled),
       traffic: upDown(tt.traffic?.upload_bytes, tt.traffic?.download_bytes),
-      source: "Счётчики по каждому доступу",
     }),
     protocolCard({
       name: "NaiveProxy", kind: "HTTPS · HTTP/2 CONNECT", ready: naiveReady, status: naiveStatus, className: "naive-card",
       active: naiveKnown ? number(naiveCredentials.active) : "—", disabled: naiveKnown ? number(naiveCredentials.disabled) : "—",
       traffic: `${upDown(naiveTotals?.upload_bytes_decimal, naiveTotals?.download_bytes_decimal)} · Σ ${bytes(naiveTotals?.total_bytes_decimal)}`,
-      source: `Считаются только завершённые соединения; текущие появятся после закрытия${naive.host ? ` · ${esc(naive.host)}` : ""}`,
     }),
   ];
 
@@ -399,15 +373,7 @@ export async function renderDashboard(context, generation) {
   ui.view.innerHTML = `${attentionBlock(context, { entries, nodes: nodeList, versions, services: down })}<div class="protocol-overview">
     ${hostCard(data.host)}
     ${cards.join("\n    ")}
-  </div>
-  <div class="dashboard-grid"><section class="panel-card"><div class="panel-head"><h2>Состояние сервисов</h2><span>обновлено сейчас</span></div><div class="service-list">
-    <div class="service-row ${mtReady ? "" : "degraded"}"><i></i><span><b>MTProxy · Telemt</b><small>${mtReady ? "Управление отвечает" : "Проверьте Telemt"}</small></span><em>${esc(statusWord(mt.status, mtReady))}</em></div>
-    <div class="service-row ${naiveReady || !naiveAvailable ? "" : "degraded"}"><i></i><span><b>NaiveProxy · manager</b><small>${naiveState}</small></span><em>${esc(statusWord(naive.status, naiveReady))}</em></div>
-    ${serviceRow("Mieru · manager", mieruAvailable, mieruReady, mieru.status)}
-    ${serviceRow("AmneziaWG · manager", awgAvailable, awgReady, awg.status)}
-    ${serviceRow("TrustTunnel · manager", ttAvailable, ttReady, tt.status)}
-    <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control${state.me?.panel_version ? ` · ${esc(state.me.panel_version)}` : ""}</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "защищено" : "не защищено"}</em></div>
-  </div></section></div>`;
+  </div>`;
   fillBars(ui.view);
   bindAttention(context, generation);
   followLive(context, generation);

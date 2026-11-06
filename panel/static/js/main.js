@@ -163,12 +163,6 @@ function bindLogin(root) {
       button.disabled = false;
     }
   });
-  const transport = query("#transport-state", root);
-  if (transport) {
-    const secure = window.location.protocol === "https:";
-    transport.classList.toggle("degraded", !secure);
-    transport.lastChild.textContent = secure ? " Защищённое HTTPS-соединение" : " HTTP-соединение не защищено";
-  }
   return true;
 }
 

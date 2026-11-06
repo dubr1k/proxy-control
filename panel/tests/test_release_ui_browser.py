@@ -8,6 +8,7 @@ def test_dashboard_last_row_fills_available_width(tmp_path):
     with isolated_panel(tmp_path, OverviewFixture) as fixture, isolated_browser(tmp_path, fixture) as browser:
         for width in (390, 1000, 1440, 1920):
             browser.open_view('dashboard', "document.querySelectorAll('.protocol-traffic').length === 5", width=width)
+            assert browser.js("document.querySelectorAll('.protocol-traffic > em, .service-list, .system-mini').length") == 0
             assert browser.js("""(() => {
                 const cards = [...document.querySelectorAll('.protocol-overview > .protocol-card:not(.host-card)')];
                 const last = cards.at(-1).getBoundingClientRect();

@@ -1068,7 +1068,7 @@ def test_native_overview_monitor_off_polls_host_and_all_protocol_cards_have_unif
             pair.querySelector('small')?.textContent.trim() && pair.querySelector('strong')?.textContent.trim()) &&
         card.querySelectorAll(':scope > .protocol-traffic').length === 1 &&
         !!card.querySelector(':scope > .protocol-traffic > b') &&
-        !!card.querySelector(':scope > .protocol-traffic > em'))""")
+        !card.querySelector(':scope > .protocol-traffic > em'))""")
     browser.wait("window.__hostReads >= 1", "monitor-off host fallback")
     browser.fixture.versions.host_metrics["cpu"]["used_percent"] = 67.5
     browser.wait("window.__hostReads >= 2 && document.querySelector('[data-host-value=cpu]').textContent === '67.5 %'",
