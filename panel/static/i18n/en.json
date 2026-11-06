@@ -1010,6 +1010,8 @@
  "Умеет": "Supports",
  "Уникальные IP": "Unique IPs",
  "Установите и запустите host version-agent. Панель не скачивает runtime-файлы и не получает Docker socket.": "Install and start the host version-agent. The panel does not download runtime files and does not get the Docker socket.",
+ "Выбрать версию": "Choose version",
+ "Обновить до": "Update to",
  "Установить версию": "Install version",
  "Установлена": "Installed",
  "Установлена актуальная версия": "The latest version is installed",

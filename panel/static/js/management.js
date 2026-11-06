@@ -83,8 +83,8 @@ export async function renderVersions(context, generation) {
     const control = updating
       ? `<p class="version-empty"><b>Обновление идёт…</b> ${component === "panel" ? "Панель пересобирается и перезапускается; страница перезагрузится сама." : "Агент обновляет компонент; состояние появится здесь автоматически."}</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
-        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label><button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button>`
-        : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
+        ? `${update ? `<button class="primary version-update" data-version-update="${esc(component)}" data-version-target="${esc(update.version)}" data-current="${esc(raw)}" data-current-label="${esc(current)}"${blocked ? " disabled" : ""}>Обновить до ${esc(update.version)}</button>` : notInstallable || upToDate(current, upstream, available)}<details class="version-choice"><summary>Выбрать версию</summary><label>Установить версию<select data-version-select="${esc(component)}"${blocked ? " disabled" : ""}>${versionOptions(offered)}</select></label><button class="secondary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button></details>`
+        : notInstallable || upToDate(current, upstream, available);
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
     // The agent rebuilds them itself after a panel update; the button is for a failed or disabled rebuild.
@@ -196,15 +196,19 @@ async function rebuildManagers(context, button) {
 }
 
 async function versionAction(context, component, button) {
-  if (versionBatch) return;
+  if (versionBatch || agentBusy(context.state.versions)) return;
   const select = query(`[data-version-select="${cssEscape(component)}"]`, context.ui.view);
-  const version = select?.value;
+  const direct = button.dataset.versionTarget;
+  const candidate = direct ? newestUpdate(context.state.versions.components?.[component]) : null;
+  if (direct && candidate?.version !== direct) return;
+  const version = direct || select?.value;
   const raw = button.dataset.current;
   const current = button.dataset.currentLabel || raw;
   if (!version) return;
   // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min); a `telemt`
   // one builds a local image from the upstream release binary.
-  const building = (component === "naive" || component === "telemt") && select.selectedOptions[0]?.dataset.kind === "build";
+  const kind = direct ? candidate.kind : select?.selectedOptions[0]?.dataset.kind;
+  const building = (component === "naive" || component === "telemt") && kind === "build";
   // 3.2: the AmneziaWG and TrustTunnel managers carry their runtime in their own image.
   const manager = component === "amneziawg" || component === "trusttunnel";
   const warning = manager
@@ -215,7 +219,7 @@ async function versionAction(context, component, button) {
       ? " Caddy будет пересобран на хосте, это занимает до 15 минут."
       : " Образ Telemt будет собран на хосте из бинарника релиза, это занимает несколько минут.";
   const panel = component === "panel";
-  const back = select.selectedOptions[0]?.dataset.newer === "0";
+  const back = !direct && select?.selectedOptions[0]?.dataset.newer === "0";
   const text = panel ? `Панель: ${current} → ${version}. ${PANEL_CONFIRM}` : `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`;
   const title = panel ? "Обновить панель?" : back ? "Откатить компонент?" : "Обновить компонент?";
   if (!await context.ui.confirmed(title, text, back ? "Откатить" : "Обновить")) return;
@@ -360,8 +364,8 @@ export function bindManagement(context) {
 export function handleManagementChange(context, target) {
   const component = target.dataset.versionSelect;
   if (!component) return false;
-  const button = query(`[data-version-update="${cssEscape(component)}"]`, context.ui.view);
-  if (button) button.disabled = !target.value;
+  const button = query(`[data-version-update="${cssEscape(component)}"]:not([data-version-target])`, context.ui.view);
+  if (button) button.disabled = !target.value || versionBatch || agentBusy(context.state.versions);
   return true;
 }
 

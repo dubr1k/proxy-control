@@ -860,6 +860,8 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 
 .version-available{margin:0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:8px;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-soft);font-size:12px}
 .version-card.has-update{border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.version-choice>summary{cursor:pointer;min-height:36px;padding:8px 0;color:var(--muted)}
+.version-choice[open]>summary{margin-bottom:8px}
 .status-pill.update-available{color:var(--accent-soft);background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
 .status-pill.update-available i{background:var(--accent)}
 .version-check{flex-wrap:wrap;gap:10px}.version-check>span{flex:1 1 220px}
