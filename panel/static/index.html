@@ -74,6 +74,9 @@
       <p class="modal-copy">Панель безопасно сгенерирует отдельный ключ и сразу покажет ссылку и QR-код.</p>
       <label>Имя подключения<input id="new-user" pattern="[A-Za-z0-9_.\-]+" maxlength="32" autocomplete="off" placeholder="например, phone-sergey" required><small>Латиница, цифры, точка, дефис и подчёркивание</small></label>
       <label>Узел<select id="user-node" name="node_id"><option value="local">Этот сервер</option></select><small>На связанной панели доступ выдаётся как доступ клиента с этим именем и появится в «Клиентах» после доставки узлу</small></label>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><label class="limit-switch"><input id="new-user-traffic-enabled" type="checkbox" data-limit-toggle="new-user-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="new-user-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="new-user-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><label class="limit-switch"><input id="new-user-validity-enabled" type="checkbox" data-limit-toggle="new-user-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-user-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-user-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       <div class="form-error" id="user-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-user" type="button" disabled>Создать доступ</button></footer>
     </form>
@@ -85,12 +88,14 @@
       <input id="limits-user" type="hidden">
       <p class="modal-copy">Пустое поле снимает соответствующее ограничение. Квота учитывает трафик в обоих направлениях с последнего ручного сброса (или восстановленного состояния). Telemt 3.4.25 сохраняет состояние при ручном сбросе и штатной остановке, но не делает периодических контрольных записей. Автоматического ежемесячного сброса нет.</p>
       <div class="limit-form-grid">
-        <label>Квота, ГиБ<input id="limit-quota" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="без лимита"></label>
+        <label class="limit-switch"><input id="mt-limit-traffic-enabled" type="checkbox" data-limit-toggle="mt-limit-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="mt-limit-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="mt-limit-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label>
         <label>От клиента (up), Мбит/с<input id="limit-up" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="без лимита"></label>
         <label>К клиенту (down), Мбит/с<input id="limit-down" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="без лимита"></label>
         <label>TCP-соединения<input id="limit-connections" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="без лимита"></label>
         <label>Уникальные IP<input id="limit-ips" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="без лимита"></label>
-        <label>Действует до<input id="limit-expiration" type="datetime-local"></label>
+        <label class="limit-switch"><input id="mt-limit-validity-enabled" type="checkbox" data-limit-toggle="mt-limit-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="mt-limit-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="mt-limit-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       </div>
       <div class="form-error" id="limits-error" role="alert"></div>
       <footer><button class="secondary" id="reset-quota" type="button">Сбросить квоту</button><span class="spacer"></span><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="save-limits" type="button">Сохранить</button></footer>
@@ -100,9 +105,11 @@
   <dialog id="naive-modal" class="sheet">
     <form method="dialog" id="naive-form">
       <div class="modal-head"><div><span class="eyebrow">NAIVEPROXY</span><h2>Новый HTTPS-прокси</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Создаст отдельную пару логин/пароль и безопасно применит её через проверку Caddy. Пустая квота — безлимит.</p>
+      <p class="modal-copy">Создаст отдельную пару логин/пароль и безопасно применит её через проверку Caddy. По умолчанию — без лимита трафика и срока.</p>
       <label>Имя доступа<input id="new-naive-user" pattern="[A-Za-z0-9_.\-]+" maxlength="64" autocomplete="off" placeholder="например, macbook-sergey" required><small>Латиница, цифры, точка, дефис и подчёркивание</small></label>
-      <label>Квота, MiB<input id="new-naive-quota" type="number" min="1" max="8589934591" step="1" inputmode="numeric" placeholder="без квоты"><small>Лимит payload-байтов; после достижения закрытым CONNECT доступ отключается.</small></label>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><label class="limit-switch"><input id="new-naive-traffic-enabled" type="checkbox" data-limit-toggle="new-naive-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="new-naive-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="new-naive-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><label class="limit-switch"><input id="new-naive-validity-enabled" type="checkbox" data-limit-toggle="new-naive-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-naive-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-naive-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       <label>Узел<select id="naive-node" name="node_id"><option value="local">Этот сервер</option></select><small>На связанной панели доступ выдаётся как доступ клиента с этим именем и появится в «Клиентах» после доставки узлу</small></label>
       <div class="form-error" id="naive-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-naive" type="button" disabled>Создать доступ</button></footer>
@@ -114,7 +121,8 @@
       <div class="modal-head"><div><span class="eyebrow">NAIVEPROXY</span><h2 id="naive-quota-title">Квота доступа</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <input id="naive-quota-user" type="hidden">
       <p class="modal-copy">Учитываются payload-байты завершённых CONNECT в обоих направлениях. Пустое поле отключает квоту и возвращает безлимитный режим. При достижении лимита manager уберёт доступ из Caddy; активный туннель может завершиться с overshoot.</p>
-      <label>Квота, MiB<input id="naive-quota-mib" type="number" min="1" max="8589934591" step="1" inputmode="numeric" placeholder="без квоты"><small id="naive-quota-current"></small></label>
+      <label class="limit-switch"><input id="naive-quota-traffic-enabled" type="checkbox" data-limit-toggle="naive-quota-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="naive-quota-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="naive-quota-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><small id="naive-quota-current"></small>
       <div class="form-error" id="naive-quota-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="save-naive-quota" type="button">Сохранить</button></footer>
     </form>
@@ -132,6 +140,8 @@
         <small>Версии между собой несовместимы: клиентское приложение должно поддерживать выбранную.</small>
       </fieldset>
       <label>Узел<select id="awg-node" name="node_id"><option value="local">Этот сервер</option></select></label>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><p class="form-hint">Этот протокол не поддерживает лимит трафика.</p><label class="limit-switch"><input id="new-awg-validity-enabled" type="checkbox" data-limit-toggle="new-awg-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-awg-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-awg-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       <div class="form-error" id="awg-error" role="alert"></div><footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-awg" type="button" disabled>Создать</button></footer>
     </form>
   </dialog>
@@ -144,6 +154,8 @@
       <p class="form-hint" id="tt-no-clients" hidden>Сначала создайте клиента на экране «Клиенты».</p>
       <label>Название профиля<input id="tt-name" maxlength="64" placeholder="необязательно, например, Дом"><small>Так профиль называется в приложении TrustTunnel</small></label>
       <label>Узел<select id="tt-node" name="node_id"><option value="local">Этот сервер</option></select></label>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><p class="form-hint">Этот протокол не поддерживает лимит трафика.</p><label class="limit-switch"><input id="new-tt-validity-enabled" type="checkbox" data-limit-toggle="new-tt-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-tt-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-tt-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       <div class="form-error" id="tt-error" role="alert"></div><footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-tt" type="button" disabled>Создать</button></footer>
     </form>
   </dialog>
@@ -151,9 +163,11 @@
   <dialog id="mieru-modal" class="sheet">
     <form method="dialog" id="mieru-form">
       <div class="modal-head"><div><span class="eyebrow">MIERU</span><h2>Новый Mieru-доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Пароль и mierus:// ссылка показываются один раз. Квота — rolling application-byte admission quota (approximate), а не жёсткий биллинговый лимит. Очистите оба поля квоты, чтобы выдать безлимитный доступ.</p>
+      <p class="modal-copy">Пароль и mierus:// ссылка показываются один раз. Квота — rolling application-byte admission quota (approximate), а не жёсткий биллинговый лимит. Без включённого ограничения доступ безлимитный.</p>
       <label>Имя<input id="new-mieru-user" pattern="[A-Za-z0-9_.\-]+" maxlength="64" required placeholder="например, my-mac"><small>Латиница, цифры, точка, дефис и подчёркивание</small></label>
-      <div class="limit-form-grid"><label>Окно, дней<input id="mieru-days" type="number" min="1" max="3650" step="1" inputmode="numeric" value="30" placeholder="без квоты"></label><label>Квота, MiB<input id="mieru-mib" type="number" min="1" max="2147483647" step="1" inputmode="numeric" value="1024" placeholder="без квоты"></label></div>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><label class="limit-switch"><input id="new-mieru-traffic-enabled" type="checkbox" data-limit-toggle="new-mieru-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="new-mieru-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="new-mieru-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><label>Окно rolling-квоты, дней<input id="mieru-days" type="number" min="1" max="3650" step="1" data-limit-group="new-mieru-traffic" disabled><small>Не срок доступа. Квота округляется вверх до MiB.</small></label><label class="limit-switch"><input id="new-mieru-validity-enabled" type="checkbox" data-limit-toggle="new-mieru-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-mieru-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-mieru-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label>
       <label>Узел<select id="mieru-node" name="node_id"><option value="local">Этот сервер</option></select><small>На связанной панели доступ выдаётся как доступ клиента с этим именем и появится в «Клиентах» после доставки узлу</small></label>
       <div class="form-error" id="mieru-error" role="alert"></div><footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-mieru" type="button" disabled>Создать</button></footer>
     </form>
@@ -281,6 +295,9 @@
       <label>Имя<input id="client-name" maxlength="128" autocomplete="off" placeholder="например, Ноутбук Сергея" required></label>
       <div id="client-placement"></div>
       <label id="client-username-row" hidden>Имя учётной записи<input id="client-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop"><small>Одно имя во всех отмеченных клетках; латиница, цифры, точка, дефис, подчёркивание</small></label>
+      <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><label class="limit-switch"><input id="new-client-traffic-enabled" type="checkbox" data-limit-toggle="new-client-traffic"> Ограничить трафик</label>
+      <label>Трафик, ГБ<input id="new-client-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="new-client-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><label class="limit-switch"><input id="new-client-validity-enabled" type="checkbox" data-limit-toggle="new-client-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="new-client-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-client-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label><label>Окно rolling-квоты Mieru, дней<input id="new-client-rolling-days" data-limit-optional type="number" min="1" max="3650" step="1" data-limit-group="new-client-traffic" disabled><small>Только для Mieru: это окно квоты, не срок доступа. Квота округляется вверх до MiB. AmneziaWG и TrustTunnel не поддерживают лимит трафика.</small></label>
       <div class="form-error" id="client-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-client" type="button">Создать</button></footer>
     </form>
@@ -364,6 +381,9 @@
       </fieldset>
       <dl class="grant-facts" id="grant-facts"></dl>
       <div class="grant-actions" id="grant-actions"></div>
+      <details class="manual-limits" id="grant-settings"><summary>Настроить срок доступа</summary><p class="form-hint">Окно доступа панели. Собственные ограничения протокола, показанные выше, сохраняются.</p>
+      <p class="form-hint" id="grant-validity-current"></p><label class="limit-switch"><input id="grant-limit-validity-enabled" type="checkbox" data-limit-toggle="grant-limit-validity"> Ограничить срок</label>
+      <label>Срок, дней<input id="grant-limit-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="grant-limit-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label><button type="button" class="secondary" data-grant-action="save-validity">Сохранить срок</button></details>
       <details id="grant-technical" class="technical-details">
         <summary>Технические сведения</summary>
         <dl class="grant-facts" id="grant-technical-facts"></dl>

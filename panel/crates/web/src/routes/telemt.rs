@@ -300,6 +300,7 @@ async fn users(State(app): State<AppState>, call: Call) -> Handled {
     let quotas = tokio::spawn(async move { client.quota_stats().await });
     let (items, quota_data) = tokio::try_join!(gathering(items), gathering(quotas)).map_err(telemt_gather_error)?;
     let body = telemt::user_items(&items, &quota_data).map_err(page_fault)?;
+    let body = super::protocol_holders::enrich(&app, Protocol::Mtproxy, body).await?;
     Ok(response::json(200, &body))
 }
 

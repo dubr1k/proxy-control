@@ -1,0 +1,41 @@
+// Synthetic browser fixture, never deployed. Exercises the real renderers, forms and handlers.
+import * as users from '/static/js/users.js';
+import * as naive from '/static/js/naive.js';
+import * as mieru from '/static/js/mieru.js';
+import * as awg from '/static/js/amneziawg.js';
+import * as tt from '/static/js/trusttunnel.js';
+import { createPanelState } from '/static/js/state.js';
+import { createUi } from '/static/js/ui.js';
+import { createGrantDialog } from '/static/js/grant.js';
+import { bindClients } from '/static/js/clients.js';
+import { bindLimitToggles } from '/static/js/access-limits.js';
+window.requests=[];window.confirmNext=false;
+const row={username:'runtime-account',client_name:'Анна — длинное имя клиента <test>',client_id:'c1',grant_id:'g1',enabled:true,credential_kept:true,traffic_available:true,runtime_total_octets:2048,upload_bytes_decimal:'1024',download_bytes_decimal:'2048',total_bytes_decimal:'3072',upload_bytes:1024,download_bytes:2048,rx:1024,tx:2048,connections:1,sessions:1,version:'2.0',address:'10.0.0.2'};
+const items=()=>[{...row},{username:'unmapped',enabled:false,traffic_available:false,credential_kept:false}];
+const state=createPanelState();state.me={role:'owner'};
+state.nodes=[{node_id:'local',identity:{protocols:['mtproxy','naive','mieru','amneziawg','trusttunnel'],awg_versions:['2.0']}}];
+const ui=createUi(document);ui.confirmed=async()=>window.confirmNext;
+const context={root:document,state,ui,access:{showAccess(){},showNaiveAccess(){},showMieruAccess(){},async openOperationBundle(){}},subscriptions:{async open(){}}};
+context.api=async(path,opts={})=>{
+ if(opts.method){window.requests.push({path,method:opts.method,body:opts.body?JSON.parse(opts.body):null});return {id:'c1',status:'succeeded',operation_id:'op',reveal_token:'synthetic',revision:'1'};}
+ if(path.startsWith('/api/metrics/clients'))return {live:true,clients:{}};
+ if(path==='/api/dashboard')return {protocols:{mtproxy:{ready:true,runtime:{traffic_octets:2048,current_connections:1}}}};
+ if(path==='/api/users')return {items:items()};
+ if(path==='/api/naive/users'||path==='/api/mieru/users')return {items:items(),service:{ready:true,revision:'1',host:'proxy.test'}};
+ if(path==='/api/amneziawg/overview')return {status:'ok',peers:items(),versions:[],pending:[]};
+ if(path==='/api/trusttunnel/overview')return {status:'ok',clients:items(),totals:{active:1,clients:2,sessions:1},endpoint:{running:true,hostname:'proxy.test',port:443,certificate_trusted:true}};
+ if(path==='/api/nodes')return {items:state.nodes};
+ if(path==='/api/clients')return {items:[{client:{id:'c1',display_name:'Анна',state:'active'},grants:[]}]};
+ if(path==='/api/clients/c1')return {client:{id:'c1',display_name:'Анна',state:'active'},grants:[{id:'g1',protocol:state.view==='users'?'mtproxy':state.view,client_id:'c1',node_id:'local',runtime_username:row.username,desired_state:'enabled',observed_state:'enabled',options:{},valid_until:null}]};
+ if(path.startsWith('/api/reveal/'))return {};
+ if(path==='/api/subscriptions/compatibility')return {matrix:{}};
+ return {};
+};
+context.grants=createGrantDialog(context);context.grants.bind();
+for(const bind of [users.bindUsers,naive.bindNaive,mieru.bindMieru,awg.bindAmneziawg,tt.bindTrusttunnel,bindClients])bind(context);
+bindLimitToggles(document);
+const modules={users:[users,users.renderUsers],naive:[naive,naive.renderNaive],mieru:[mieru,mieru.renderMieru],amneziawg:[awg,awg.renderAmneziawg],trusttunnel:[tt,tt.renderTrusttunnel]};
+context.navigate=async(name=state.view)=>{state.view=name;document.querySelector('#title').textContent=({users:'MTProxy',naive:'NaiveProxy',mieru:'Mieru',amneziawg:'AmneziaWG',trusttunnel:'TrustTunnel'})[name];const gen=++state.navigationGeneration;await modules[name][1](context,gen);};
+document.querySelector('#view').addEventListener('click',e=>{const button=e.target.closest('button');if(!button)return;for(const fn of [users.handleUsersClick,naive.handleNaiveClick,mieru.handleMieruClick,awg.handleAmneziawgClick,tt.handleTrusttunnelClick])if(fn(context,button))break;});
+window.demo={context,modules,async open(name,role='owner'){state.me.role=role;await context.navigate(name);},async create(name){await this.open(name);await ({users:users.openUserModal,naive:naive.openNaiveModal,mieru:mieru.openMieruModal,amneziawg:awg.openAwgModal,trusttunnel:tt.openTtModal})[name](context);}};
+await context.navigate('users');window.demoReady=true;

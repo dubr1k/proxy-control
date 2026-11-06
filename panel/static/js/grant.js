@@ -1,3 +1,4 @@
+import { bindLimitToggles, setValidityLimit, validityLimit } from "./access-limits.js";
 // The window of one access (v1.0.2): everything the panel knows about a single grant — where it
 // lives, what the node reports, its route and limits — and, on request, its own link with a QR.
 // The client card and the client window both open it by a click on the grant's row.
@@ -294,6 +295,16 @@ export function createGrantDialog(context) {
 
   function renderActions(client, grant) {
     const box = query("#grant-actions", root);
+    const editor = query("#grant-settings", root);
+    if (editor) {
+      editor.hidden = !canWrite(client) || grant.desired_state === "deleted";
+      if (!editor.hidden && (editor.dataset.grant !== grant.id || editor.dataset.until !== String(grant.valid_until ?? ""))) {
+        setValidityLimit(root, "grant-limit", grant.valid_until);
+        editor.dataset.grant = grant.id;
+        editor.dataset.until = String(grant.valid_until ?? "");
+        query("#grant-validity-current", root).textContent = grant.valid_until != null ? `Окно панели до: ${formatDate(grant.valid_until)}` : "Окно панели не ограничено";
+      }
+    }
     if (!canWrite(client) || grant.desired_state === "deleted") {
       box.innerHTML = "";
       query("#grant-technical-actions", root).innerHTML = "";
@@ -307,8 +318,8 @@ export function createGrantDialog(context) {
       ? `<button type="button" class="secondary" data-grant-action="lane" data-lane-mode="${grant.routing_lane === "own" ? "service" : "own"}">${grant.routing_lane === "own" ? "Вернуть общий маршрут" : "Выделить полосу"}</button>`
       : "";
     const label = ["mtproxy", "amneziawg"].includes(grant.protocol) ? "" : '<button type="button" class="secondary" data-grant-action="label">Название в подписке</button>';
-    box.innerHTML = toggle;
-    query("#grant-technical-actions", root).innerHTML = `${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
+    box.innerHTML = toggle + '<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>';
+    query("#grant-technical-actions", root).innerHTML = `${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}`;
   }
 
   function render() {
@@ -538,14 +549,31 @@ export function createGrantDialog(context) {
     }
   }
 
+  async function saveValidity(button) {
+    const found = current();
+    if (!found || !canWrite(found.client)) return;
+    const error = query("#grant-error", root);
+    error.textContent = "";
+    try {
+      const until = validityLimit(root, "grant-limit");
+      ui.setBusy(button, true);
+      await api(`/api/clients/grants/${encodeURIComponent(found.grant.id)}/validity`, { method: "POST", body: JSON.stringify({ valid_until: until }) });
+      ui.toast("Срок доступа сохранён");
+      await refresh();
+    } catch (exception) { error.textContent = exception.message; }
+    finally { ui.setBusy(button, false); }
+  }
+
   function bind() {
     const dialog = query("#grant-window", root);
     if (!dialog) return;
+    bindLimitToggles(root);
     dialog.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-grant-action]");
       if (!button) return;
       const action = button.dataset.grantAction;
-      if (action === "show") void show(button);
+      if (action === "save-validity") void saveValidity(button);
+      else if (action === "show") void show(button);
       else if (action === "profiles") void profiles(button);
       else if (action === "lane") void lane(button);
       else if (action === "adopt") void adopt(button);

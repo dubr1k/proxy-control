@@ -47,7 +47,7 @@ const clients = {
   bob: { up_bps: null, down_bps: null, total_bps: 1024 },
   total: { up_bps: null, down_bps: null, total_bps: 5 * 1024 },
 };
-const context = { state: { liveRatesLast: { live: true, clients } }, ui: { view: root } };
+const context = { state: { liveRatesLast: { live: true, clients }, liveRatesAt: performance.now() }, ui: { view: root } };
 mod.repaintLiveRates(context);
 const live = Object.fromEntries(Object.entries(cells).map(([k, v]) => [k, v.textContent]));
 context.state.liveRatesLast = { live: false, clients };

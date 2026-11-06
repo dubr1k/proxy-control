@@ -1,4 +1,6 @@
-import { actionMenu, bytes, date, esc, initials, localDateTime, number, query, serviceSummary } from "./common.js";
+import { applyManualLimits, bindLimitToggles, setValidityLimit, trafficLimit, validityLimit } from "./access-limits.js";
+import { bindProtocolFilters, bytesToGb, measured, measuredBytes, protocolIdentity, protocolRowAttrs, protocolSettings, protocolToolbar, protocolWritable } from "./protocol-users.js";
+import { bytes, date, esc, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
@@ -30,19 +32,19 @@ function filteredUsers(state) {
 
 function userRow(context, user) {
   const enabled = user.enabled !== false;
-  const connections = user.current_connections ?? user.active_connections ?? 0;
-  const actions = context.state.me.role === "viewer"
+  const connections = user.current_connections ?? user.active_connections;
+  const actions = !protocolWritable(context, user)
     ? "Только просмотр"
     : `<button class="action-button share" data-user-action="share" data-user="${esc(user.username)}">Ссылка</button>
-       ${actionMenu(`<button class="action-button" data-user-action="limits" data-user="${esc(user.username)}">Лимиты</button>
+       ${protocolSettings(`<button class="action-button" data-user-action="limits" data-user="${esc(user.username)}">Лимиты</button>
        <button class="action-button" data-user-action="${enabled ? "disable" : "enable"}" data-user="${esc(user.username)}">${enabled ? "Заблокировать" : "Включить"}</button>
-       <button class="action-button" data-user-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>
-       <button class="action-button danger-text" data-user-action="delete" data-user="${esc(user.username)}">Удалить</button>`)}`;
+       <button class="action-button" data-user-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>`, user)}
+       <button class="action-button danger-text" data-user-action="delete" data-user="${esc(user.username)}">Удалить доступ</button>`;
 
-  return `<div class="data-row" data-name="${esc(user.username)}">
-    <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>MTProto · FakeTLS</small></span></div>
+  return `<div class="data-row protocol-user-row" ${protocolRowAttrs(user)} data-name="${esc(user.username)}">
+    ${protocolIdentity(user, "MTProto · FakeTLS")}
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${enabled ? "Активен" : "Заблокирован"}</span></div>
-    <div class="cell"><b>${userUsage(user)}</b><small>${number(connections)} соединений</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small></div>
+    <div class="cell"><b>Σ ${measuredBytes(user.runtime_total_octets)}</b><small>С запуска MTProxy · квота ${userUsage(user)}</small><small>${measured(connections) ? number(connections) : "—"} соединений</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small></div>
     <div class="row-actions">${actions}</div>
   </div>`;
 }
@@ -69,19 +71,18 @@ export async function renderUsers(context, generation) {
   ui.view.innerHTML = `<div class="service-overview">
     ${serviceSummary({ name: "MTProxy / Telemt", detail: "MTProto · FakeTLS", status: mt?.ready ? "Работает" : mt ? "Есть неполадки" : "Состояние неизвестно", tone: mt?.ready ? "active" : "blocked" })}
     <article><small>Доступы</small><strong>${number(active)}</strong><span>${users.length - active ? `${number(users.length - active)} отключено` : "Все активны"}</span></article>
-    <article><small>Трафик</small><strong>${mt ? bytes(mt.runtime?.traffic_octets) : "—"}</strong><span>С последнего запуска MTProxy, это не квота${mt ? ` · соединений сейчас ${number(mt.runtime?.current_connections)}` : ""}</span></article>
-  </div><div class="toolbar">
-    <div class="search"><input id="user-search" type="search" value="${esc(state.userQuery)}" placeholder="Поиск по имени" aria-label="Поиск пользователей"></div>
-    <div class="filter-pills"><button class="filter-pill ${state.userFilter === "all" ? "active" : ""}" data-user-filter="all">Все · ${state.users.length}</button><button class="filter-pill ${state.userFilter === "active" ? "active" : ""}" data-user-filter="active">Активные</button><button class="filter-pill ${state.userFilter === "blocked" ? "active" : ""}" data-user-filter="blocked">Заблокированные</button></div>
-  </div>
-  <section class="data-panel"><div class="data-head"><span>Пользователь</span><span>Статус</span><span>Квота и подключения</span><span class="align-right">Действия</span></div><div id="user-list"></div></section>`;
+    <article><small>Трафик</small><strong>${measuredBytes(mt?.runtime?.traffic_octets)}</strong><span>С последнего запуска MTProxy, это не квота${mt ? ` · соединений сейчас ${measured(mt.runtime?.current_connections) ? number(mt.runtime.current_connections) : "—"}` : ""}</span></article>
+  </div>${protocolToolbar(context, "mtproxy", users.length)}
+  <section class="data-panel"><div class="data-head protocol-user-row"><span>Клиент / учётная запись</span><span>Статус</span><span>Трафик и квота</span><span class="align-right">Действия</span></div><div id="user-list"></div></section>`;
   paintUsers(context);
+  bindProtocolFilters(context, "mtproxy");
   startLiveRates(context, generation, "users", "mtproxy");
 }
 
 export function openUserModal(context) {
   const form = query("#user-form", context.root);
   form.reset();
+  bindLimitToggles(context.root);
   query("#user-error", context.root).textContent = "";
   syncCreateButton(context);
   context.ui.openModal("#user-modal", "#new-user");
@@ -104,12 +105,13 @@ function openLimitsModal(context, user) {
   form.reset();
   query("#limits-user", root).value = user.username;
   query("#limits-title", root).textContent = `Лимиты · ${user.username}`;
-  query("#limit-quota", root).value = user.data_quota_bytes ? user.data_quota_bytes / 1_073_741_824 : "";
+  query("#mt-limit-traffic-enabled", root).checked = user.data_quota_bytes != null && Number(user.data_quota_bytes) > 0;
+  query("#mt-limit-traffic-gb", root).value = bytesToGb(user.data_quota_bytes);
   query("#limit-up", root).value = user.rate_limit_up_bps ? user.rate_limit_up_bps / 1_000_000 : "";
   query("#limit-down", root).value = user.rate_limit_down_bps ? user.rate_limit_down_bps / 1_000_000 : "";
   query("#limit-connections", root).value = user.max_tcp_conns ?? "";
   query("#limit-ips", root).value = user.max_unique_ips ?? "";
-  query("#limit-expiration", root).value = localDateTime(user.expiration_rfc3339);
+  setValidityLimit(root, "mt-limit", user.expiration_rfc3339 ? Date.parse(user.expiration_rfc3339) / 1000 : null);
   query("#limits-error", root).textContent = "";
   ui.openModal("#limits-modal");
 }
@@ -167,13 +169,14 @@ export function bindUsers(context) {
     const input = query("#new-user", root);
     const error = query("#user-error", root);
     error.textContent = "";
-    if (!input.reportValidity()) return;
+    if (!query("#user-form", root).reportValidity()) return;
     const nodeId = query("#user-node", root).value || "local";
     try {
       ui.setBusy(button, true, "Создаём…");
-      if (nodeId !== "local") {
+      const manual = applyManualLimits([{ protocol: "mtproxy", options: {} }], root, "new-user")[0];
+      if (nodeId !== "local" || Object.keys(manual.options).length || manual.valid_until != null) {
         // A linked panel: the access is a client's grant there, not a Telemt user here.
-        const result = await issueOnNode(context, { protocol: "mtproxy", username: input.value, nodeId });
+        const result = await issueOnNode(context, { protocol: "mtproxy", username: input.value, nodeId, options: manual.options, validUntil: manual.valid_until });
         query("#user-modal", root).close();
         if (result.status === "succeeded") await context.navigate("clients");
         return;
@@ -203,17 +206,17 @@ export function bindUsers(context) {
     const error = query("#limits-error", root);
     if (!form.reportValidity()) return;
     const username = query("#limits-user", root).value;
-    const expiration = query("#limit-expiration", root).value;
-    const payload = {
-      data_quota_bytes: optionalNumber(root, "#limit-quota", 1_073_741_824),
-      rate_limit_up_bps: optionalNumber(root, "#limit-up", 1_000_000),
-      rate_limit_down_bps: optionalNumber(root, "#limit-down", 1_000_000),
-      max_tcp_conns: optionalNumber(root, "#limit-connections"),
-      max_unique_ips: optionalNumber(root, "#limit-ips"),
-      expiration_rfc3339: expiration ? new Date(expiration).toISOString() : null,
-    };
     error.textContent = "";
     try {
+      const expiration = validityLimit(root, "mt-limit");
+      const payload = {
+        data_quota_bytes: trafficLimit(root, "mt-limit"),
+        rate_limit_up_bps: optionalNumber(root, "#limit-up", 1_000_000),
+        rate_limit_down_bps: optionalNumber(root, "#limit-down", 1_000_000),
+        max_tcp_conns: optionalNumber(root, "#limit-connections"),
+        max_unique_ips: optionalNumber(root, "#limit-ips"),
+        expiration_rfc3339: expiration !== null ? new Date(expiration * 1000).toISOString() : null,
+      };
       ui.setBusy(button, true, "Сохраняем…");
       await api(`/api/users/${encodeURIComponent(username)}/limits`, { method: "POST", body: JSON.stringify(payload) });
       query("#limits-modal", root).close();

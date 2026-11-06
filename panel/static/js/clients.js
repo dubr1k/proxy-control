@@ -1,3 +1,4 @@
+import { applyManualLimits, bindLimitToggles } from "./access-limits.js";
 import { cssEscape, esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, plural, query, queryAll } from "./common.js";
 import { grantTone, grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
 import { awgAccount, placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
@@ -436,6 +437,7 @@ function resetFilters(context) {
 export async function openClientModal(context) {
   const form = query("#client-form", context.root);
   form.reset();
+  bindLimitToggles(context.root);
   query("#client-error", context.root).textContent = "";
   query("#client-username-row", context.root).hidden = true;
   query("#client-username", context.root).dataset.typed = "";
@@ -591,12 +593,12 @@ export async function loadNodeOptions(context, dialogSelector, select) {
 // services; an account on a linked panel is a client's grant there. When one of those
 // dialogs names another node, the access is issued that way: a client with the account's
 // name, one grant on the node, the bundle revealed as on «Клиенты».
-export async function issueOnNode(context, { protocol, username, nodeId, options = {} }) {
+export async function issueOnNode(context, { protocol, username, nodeId, options = {}, validUntil = null }) {
   const { api, ui } = context;
   const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username, subscription: false }) });
   const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
     method: "POST",
-    body: JSON.stringify({ grants: [{ protocol, node_id: nodeId, runtime_username: username, options }] }),
+    body: JSON.stringify({ grants: [{ protocol, node_id: nodeId, runtime_username: username, options, ...(validUntil !== null ? { valid_until: validUntil } : {}) }] }),
   });
   const node = context.state.nodes.find((item) => item.node_id === nodeId);
   const where = node?.display_name || nodeId;
@@ -667,6 +669,7 @@ export function bindClients(context) {
     let client = form.dataset.clientId ? { id: form.dataset.clientId } : null;
     let subscription = null;
     try {
+      diff.create = applyManualLimits(diff.create, root, "new-client");
       ui.setBusy(button, true, "Создаём…");
       if (!client) {
         client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: displayName }) });

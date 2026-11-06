@@ -1,9 +1,11 @@
+import { bindLimitToggles, validityLimit } from "./access-limits.js";
+import { bindProtocolFilters, measured, measuredBytes, protocolIdentity, protocolRowAttrs, protocolSettings, protocolToolbar, protocolWritable } from "./protocol-users.js";
 // The TrustTunnel screen: the endpoint this server's manager runs (domain, port, version,
 // certificate), every access with who holds it, its live sessions and traffic. A row disables,
 // re-keys or deletes its access in place (v3.0.0); the link and config are in the access window
 // (the one the client card opens), because the panel owns the password. «+ TrustTunnel доступ» issues a new one through the same
 // grant API the client card uses.
-import { bytes, esc, initials, number, query, serviceSummary } from "./common.js";
+import { bytes, esc, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { loadNodeOptions, proposeUsername } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
@@ -35,24 +37,21 @@ function totalsCard(data) {
   const totals = data.totals || {};
   return `<article>
       <small>Доступы и сессии</small>
-      <strong>${number(totals.active)} из ${number(totals.clients)}</strong>
-      <small>Сессий сейчас: ${number(totals.sessions)}</small>
-      <small>↑ ${bytes(totals.upload_bytes)} · ↓ ${bytes(totals.download_bytes)}</small>
+      <strong>${measured(totals.active) ? number(totals.active) : "—"} из ${measured(totals.clients) ? number(totals.clients) : "—"}</strong>
+      <small>Сессий сейчас: ${measured(totals.sessions) ? number(totals.sessions) : "—"}</small>
+      <small>↑ ${measuredBytes(totals.upload_bytes)} · ↓ ${measuredBytes(totals.download_bytes)}</small>
     </article>`;
 }
 
 function accessRow(context, row) {
-  const holder = row.client_name
-    ? `<small>Клиент: ${esc(row.client_name)}${row.name ? ` · профиль «${esc(row.name)}»` : ""}</small>`
-    : "<small>Нет в панели: пароль не хранится, ссылку не собрать</small>";
-  const writer = context.state.me.role !== "viewer";
+  const writer = protocolWritable(context, row);
   const open = row.grant_id
     ? `<button class="action-button${writer ? " share" : ""}" data-tt-action="open" data-client="${esc(row.client_id)}" data-grant="${esc(row.grant_id)}">${writer ? "Открыть доступ" : "Подробности"}</button>`
     : "";
-  return `<div class="data-row naive-grid">
-    <div class="identity"><span class="user-glyph">${esc(initials(row.client_name || row.username))}</span><span><b>${esc(row.username)}</b><small>TrustTunnel</small>${holder}</span></div>
-    <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>Сессий: ${number(row.sessions)}</small></div>
-    <div class="cell"><b>↑ ${bytes(row.upload_bytes)} · ↓ ${bytes(row.download_bytes)}</b><small>↑ от клиента · ↓ к клиенту</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
+  return `<div class="data-row protocol-user-row" ${protocolRowAttrs(row)}>
+    ${protocolIdentity(row, "TrustTunnel")}
+    <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>Сессий: ${measured(row.sessions) ? number(row.sessions) : "—"}</small></div>
+    <div class="cell"><b>↑ ${measuredBytes(row.upload_bytes)} · ↓ ${measuredBytes(row.download_bytes)}</b><small>↑ от клиента · ↓ к клиенту</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
     <div class="row-actions">${open || "—"}${writer ? grantRowActions(row, "trusttunnel") : ""}</div>
   </div>`;
 }
@@ -74,7 +73,9 @@ export async function renderTrusttunnel(context, generation) {
     ${totalsCard(data)}
   </div>
   <div class="awg-overview tt-overview">${endpointCards(data)}</div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${rows.length ? rows.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов TrustTunnel пока нет</h3><p>Нажмите «+ TrustTunnel доступ» вверху справа.</p></div>'}</section>`;
+  ${protocolToolbar(context, "trusttunnel", rows.length)}
+  <section class="data-panel"><div class="data-head protocol-user-row"><span>Клиент / учётная запись</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${rows.length ? rows.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов TrustTunnel пока нет</h3><p>Нажмите «+ TrustTunnel доступ» вверху справа.</p></div>'}</section>`;
+  bindProtocolFilters(context, "trusttunnel");
   startLiveRates(context, generation, "trusttunnel", "trusttunnel");
 }
 
@@ -105,6 +106,7 @@ export async function openTtModal(context) {
   const request = context.state.ttDialogRequest = (context.state.ttDialogRequest || 0) + 1;
   const current = () => request === context.state.ttDialogRequest && query("#tt-modal", root).open;
   query("#tt-form", root).reset();
+  bindLimitToggles(root);
   query("#tt-error", root).textContent = "";
   const select = query("#tt-client", root);
   select.innerHTML = '<option value="">…</option>';
@@ -158,7 +160,7 @@ export function bindTrusttunnel(context) {
       ui.setBusy(button, true);
       const result = await api(`/api/clients/${encodeURIComponent(clientId)}/grants`, {
         method: "POST",
-        body: JSON.stringify({ grants: [{ protocol: "trusttunnel", node_id: nodeId, runtime_username: accountFor(context, clientId), options: name ? { name } : {} }] }),
+        body: JSON.stringify({ grants: [{ protocol: "trusttunnel", node_id: nodeId, runtime_username: accountFor(context, clientId), options: name ? { name } : {}, ...(validityLimit(root, "new-tt") !== null ? { valid_until: validityLimit(root, "new-tt") } : {}) }] }),
       });
       root.querySelector("#tt-modal")?.close?.();
       if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);

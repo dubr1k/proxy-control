@@ -1,3 +1,4 @@
+import { bindLimitToggles } from "./access-limits.js";
 import { api } from "./api.js";
 import { createAccessDialogs } from "./access.js";
 import { handleAuditClick, handleAuditSubmit, renderAudit } from "./audit.js";
@@ -245,6 +246,7 @@ function bindPanel(context) {
   });
 
   bindAccentPicker(root);
+  bindLimitToggles(context.root);
   bindUsers(context);
   bindClients(context);
   bindMieru(context);

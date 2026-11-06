@@ -256,6 +256,7 @@ async fn users(State(app): State<AppState>, call: Call) -> Handled {
         }
     }
     let body = page::users(&health, &items, &metrics, traffic.as_ref(), &kept).map_err(page_failure)?;
+    let body = super::protocol_holders::enrich(&app, Protocol::Mieru, body).await?;
     Ok(response::json(200, &body))
 }
 

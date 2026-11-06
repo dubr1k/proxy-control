@@ -134,6 +134,26 @@ impl Model for GrantLabel {
     }
 }
 
+/// A grant's shared validity deadline. Explicit null removes the deadline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GrantValidity {
+    pub valid_until: Option<i64>,
+}
+impl Model for GrantValidity {
+    const TITLE: &'static str = "GrantValidity";
+    fn validate_at(input: &Value, loc: &[LocItem], cx: &mut Cx) -> Option<Self> {
+        let mut f = Fields::open(input, loc, cx, Self::TITLE)?;
+        let valid_until = f.required(cx, "valid_until", |v, l, cx| {
+            nullable(v, l, cx, |v, l, cx| Int::strict(Some(0), Some(253_402_300_799)).validate(v, l, cx))
+        });
+        f.finish(cx, Extra::Forbid).then_some(())?;
+        Some(Self { valid_until: valid_until? })
+    }
+    fn dump(&self) -> Value {
+        json!({"valid_until":self.valid_until})
+    }
+}
+
 /// `ClientState`: `state: Literal["active", "suspended", "archived"]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientStateBody {

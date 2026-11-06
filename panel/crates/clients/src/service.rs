@@ -259,6 +259,41 @@ impl ClientService {
         })
     }
 
+    /// Shared lifetime only; quota/options and credentials are preserved. Fleet hooks and
+    /// the existing local enforcer consume the same validity window as initial provisioning.
+    pub fn set_grant_validity(
+        &self,
+        grant_id: &str,
+        valid_until: Option<i64>,
+        context: &AuditContext,
+    ) -> Result<AccessGrant, ClientsError> {
+        if valid_until.is_some_and(|at| !(0..=253_402_300_799).contains(&at)) {
+            return Err(ClientsError::Invalid("invalid validity deadline".into()));
+        }
+        self.database.transaction(|db| {
+            let before = store::grant(db, grant_id)?;
+            if before.desired_state == GrantDesiredState::Deleted {
+                return Err(ClientsError::NotFound(grant_id.into()));
+            }
+            let client = store::client(db, &before.client_id)?;
+            if client.state == ClientState::Archived {
+                return Err(ClientsError::Conflict("client is archived".into()));
+            }
+            store::update_grant(
+                db,
+                grant_id,
+                &GrantUpdate::new().window(before.valid_from, valid_until).at(self.now()),
+            )?;
+            self.notify(db, &before.client_id)?;
+            Audit::new(context, "grant.validity", grant_id)
+                .detail(
+                    json!({"client_id":before.client_id,"protocol":before.protocol.as_str(),"valid_until":valid_until}),
+                )
+                .write(db)?;
+            store::grant(db, grant_id)
+        })
+    }
+
     /// `set_state(client_id, state, …)`.
     pub fn set_state(&self, client_id: &str, state: &str, context: &AuditContext) -> Result<Client, ClientsError> {
         let Some(wanted) = ClientState::from_wire(state) else {

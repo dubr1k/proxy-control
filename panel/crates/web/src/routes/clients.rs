@@ -16,7 +16,8 @@ use panel_clients::error::runtime_answer;
 use panel_clients::hosts::{PublicHosts, SettingsHosts};
 use panel_clients::importer::{self, ImportDecision};
 use panel_clients::models::{
-    ClientCreate, ClientImport, ClientRename, ClientStateBody, GrantAdopt, GrantAdoptBatch, GrantLabel, GrantsCreate,
+    ClientCreate, ClientImport, ClientRename, ClientStateBody, GrantAdopt, GrantAdoptBatch, GrantLabel, GrantValidity,
+    GrantsCreate,
 };
 use panel_clients::store::{self, GrantFilter, PageFilters};
 use panel_clients::subscriptions::SubscriptionIssuer;
@@ -50,6 +51,7 @@ pub fn routes() -> Routes {
         .post("/api/clients/grants/{grant_id}/adopt", adopt)
         .post("/api/clients/grants/adopt-batch", adopt_batch)
         .post("/api/clients/grants/{grant_id}/label", grant_label)
+        .post("/api/clients/grants/{grant_id}/validity", grant_validity)
         .post("/api/clients/grants/{grant_id}/{action}", grant_action)
         .post("/api/clients/{client_id}/grants", create_grants)
         .get("/api/operations/{operation_id}", operation)
@@ -525,6 +527,23 @@ async fn grant_label(State(app): State<AppState>, call: Call) -> Handled {
     let rules = Rules { not_found: Some("grant not found"), conflict: Some(422), ..Rules::default() };
     let grant = blocking(rules, move || clients.set_grant_label(&grant_id, Some(&label), &context)).await?;
     Ok(response::json(200, &grant.dump()))
+}
+
+async fn grant_validity(State(app): State<AppState>, call: Call) -> Handled {
+    let input = call.body_input()?;
+    let user = app.roles(&call, OWNER_ADMIN).await?;
+    let mut issues = Issues::new();
+    let body = issues.body::<GrantValidity>(&input);
+    issues.finish()?;
+    let until = body.expect("validated").valid_until;
+    let clients = domain(&app).clients;
+    let (worker, context, id) = (clients.clone(), audit_context(&user, &call), call.param("grant_id").to_string());
+    let rules = Rules { not_found: Some("grant not found"), conflict: Some(409), invalid: true, ..Rules::default() };
+    let grant = blocking(rules, move || worker.set_grant_validity(&id, until, &context)).await?;
+    clients.reconcile_access(Some(&grant.client_id), false).await.map_err(|error| translate(error, rules))?;
+    let id = grant.id;
+    let current = blocking(rules, move || clients.database().with_connection(|db| store::grant(db, &id))).await?;
+    Ok(response::json(200, &current.dump()))
 }
 
 async fn grant_action(State(app): State<AppState>, call: Call) -> Handled {

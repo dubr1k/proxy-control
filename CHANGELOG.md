@@ -9,6 +9,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Select the architecture-specific Telemt x86_64 musl archive and reject foreign or malformed ELF binaries before replacing a running generation.
 
 ### Interface
+- Unify all five protocol lists with client identity, traffic and visible settings/delete actions; default new access to unlimited traffic and validity, with opt-in GB quotas and day-based lifetime.
 - Persist component update stages and terminal results on the server; restore active progress after refreshing the versions page and retain failure, rollback and interrupted outcomes.
 
 ## [4.0.2] - 2026-11-05

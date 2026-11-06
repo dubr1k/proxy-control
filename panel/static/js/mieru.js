@@ -1,4 +1,6 @@
-import { actionMenu, bytes, esc, initials, number, query, serviceSummary } from "./common.js";
+import { bindLimitToggles, mieruQuota, trafficLimit, validityLimit } from "./access-limits.js";
+import { bindProtocolFilters, bytesToGb, gbToBytes, measured, measuredBytes, protocolIdentity, protocolRowAttrs, protocolSettings, protocolToolbar, protocolWritable } from "./protocol-users.js";
+import { bytes, esc, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
@@ -15,28 +17,28 @@ export async function refreshMieru(context, generation = null) {
 
 function quotaSummary(quotas) {
   if (!Array.isArray(quotas) || !quotas.length) return "Без rolling-квоты";
-  return quotas.map((quota) => `${number(quota.megabytes)} MiB / ${number(quota.days)} дн.`).join(" · ");
+  return quotas.map((quota) => `${bytesToGb(Number(quota.megabytes) * 1_048_576)} ГБ / ${number(quota.days)} дн.`).join(" · ");
 }
 
 function mieruRow(context, user) {
   const enabled = user.enabled === true;
   const traffic = user.traffic_available === true
-    ? `<b>↑ ${bytes(user.upload_bytes)} · ↓ ${bytes(user.download_bytes)}</b><small>с запуска mita · квота приблизительная</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small>`
-    : "<b>Недоступно</b><small>менеджер Mieru не отдаёт счётчики: обновите менеджер до 2.2.0</small>";
+    ? `<b>↑ ${measuredBytes(user.upload_bytes)} · ↓ ${measuredBytes(user.download_bytes)}</b><small>с запуска mita · квота приблизительная</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small>`
+    : "<b>Недоступно</b><small>Менеджер не предоставил свежие счётчики</small>";
   // The panel keeps every key it issues: showing it again changes nothing on the node.
   // A key issued before it did exists only as mita's hash — one rotation stores it.
   const access = user.credential_kept === true
     ? `<button class="action-button share" data-mieru-action="access" data-user="${esc(user.username)}">Конфигурация</button>`
     : '<span class="action-note" title="Ключ выдан до того, как панель начала их хранить">Ключ не сохранён</span>';
-  const actions = context.state.me.role === "viewer"
+  const actions = !protocolWritable(context, user)
     ? "Только просмотр"
     : `${access}
-       ${actionMenu(`<button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
+       ${protocolSettings(`<button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
        <button class="action-button" data-mieru-action="${enabled ? "disable" : "enable"}" data-user="${esc(user.username)}">${enabled ? "Отключить" : "Включить"}</button>
-       <button class="action-button" data-mieru-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>
-       <button class="action-button danger-text" data-mieru-action="delete" data-user="${esc(user.username)}">Удалить</button>`)}`;
-  return `<div class="data-row naive-grid">
-    <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>Mieru · native AEAD</small></span></div>
+       <button class="action-button" data-mieru-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>`, user)}
+       <button class="action-button danger-text" data-mieru-action="delete" data-user="${esc(user.username)}">Удалить доступ</button>`;
+  return `<div class="data-row protocol-user-row" ${protocolRowAttrs(user)}>
+    ${protocolIdentity(user, "Mieru · native AEAD")}
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${enabled ? "Активен" : "Отключён"}</span><small>${esc(quotaSummary(user.quotas))}</small></div>
     <div class="cell">${traffic}</div>
     <div class="row-actions">${actions}</div>
@@ -53,14 +55,16 @@ export async function renderMieru(context, generation) {
     <article><small>Доступы</small><strong>${number(users.filter((user) => user.enabled === true).length)}</strong><span>Всего: ${number(users.length)}</span></article>
     <article><small>Конфигурация</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article>
   </div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Пользователь</span><span>Статус и квота</span><span>Трафик</span><span class="align-right">Действия</span></div>${users.length ? users.map((user) => mieruRow(context, user)).join("") : '<div class="empty-state"><h3>Mieru-доступов нет</h3><p>Добавьте доступ, чтобы выдать конфигурацию с one-time reveal.</p></div>'}</section>`;
+  ${protocolToolbar(context, "mieru", users.length)}
+  <section class="data-panel"><div class="data-head protocol-user-row"><span>Клиент / учётная запись</span><span>Статус и квота</span><span>Трафик</span><span class="align-right">Действия</span></div>${users.length ? users.map((user) => mieruRow(context, user)).join("") : '<div class="empty-state"><h3>Mieru-доступов нет</h3><p>Добавьте доступ, чтобы выдать конфигурацию с one-time reveal.</p></div>'}</section>`;
+  bindProtocolFilters(context, "mieru");
   startLiveRates(context, generation, "mieru", "mieru");
 }
 
 function quotaRow(quota = {}) {
   return `<div class="quota-row" data-mieru-quota-row>
     <label>Окно, дней<input data-mieru-quota-days type="number" min="1" max="3650" step="1" inputmode="numeric" value="${esc(quota.days ?? "")}" aria-label="Окно квоты в днях"></label>
-    <label>Квота, MiB<input data-mieru-quota-mib type="number" min="1" max="2147483647" step="1" inputmode="numeric" value="${esc(quota.megabytes ?? "")}" aria-label="Размер квоты в MiB"></label>
+    <label>Трафик, ГБ<input data-mieru-quota-mib type="number" min="0.000000001" step="any" inputmode="decimal" value="${quota.megabytes == null ? "" : esc(bytesToGb(Number(quota.megabytes) * 1_048_576))}" aria-label="Размер квоты в ГБ"></label>
     <button class="icon-button quota-remove" type="button" data-mieru-quota-remove aria-label="Удалить квоту">×</button>
   </div>`;
 }
@@ -80,18 +84,15 @@ function collectQuotaRows(context) {
     const days = query("[data-mieru-quota-days]", row).value.trim();
     const megabytes = query("[data-mieru-quota-mib]", row).value.trim();
     if (!days && !megabytes) continue;
-    if (!days || !megabytes) throw new Error("Заполните и окно в днях, и квоту в MiB — либо удалите строку");
-    quotas.push({ days: Number(days), megabytes: Number(megabytes) });
+    if (!days || !megabytes) throw new Error("Заполните и окно в днях, и квоту в ГБ — либо удалите строку");
+    quotas.push(mieruQuota(gbToBytes(megabytes), days));
   }
   return quotas;
 }
 
 function createQuotas(context) {
-  const days = query("#mieru-days", context.root).value.trim();
-  const megabytes = query("#mieru-mib", context.root).value.trim();
-  if (!days && !megabytes) return [];
-  if (!days || !megabytes) throw new Error("Заполните и окно в днях, и квоту в MiB — либо очистите оба поля для безлимита");
-  return [{ days: Number(days), megabytes: Number(megabytes) }];
+  const bytes = trafficLimit(context.root, "new-mieru");
+  return bytes === null ? [] : [mieruQuota(bytes, query("#mieru-days", context.root).value)];
 }
 
 function syncMieruCreateButton(context) {
@@ -101,6 +102,7 @@ function syncMieruCreateButton(context) {
 
 export function openMieruModal(context) {
   query("#mieru-form", context.root).reset();
+  bindLimitToggles(context.root);
   query("#mieru-error", context.root).textContent = "";
   syncMieruCreateButton(context);
   context.ui.openModal("#mieru-modal", "#new-mieru-user");
@@ -176,9 +178,10 @@ export function bindMieru(context) {
     const nodeId = query("#mieru-node", root).value || "local";
     try {
       ui.setBusy(button, true);
-      if (nodeId !== "local") {
+      const validUntil = validityLimit(root, "new-mieru");
+      if (nodeId !== "local" || validUntil !== null) {
         // A linked panel: the access is a client's grant there, with the same rolling quota.
-        const result = await issueOnNode(context, { protocol: "mieru", username, nodeId, options: { quotas: createQuotas(context) } });
+        const result = await issueOnNode(context, { protocol: "mieru", username, nodeId, options: { quotas: createQuotas(context) }, validUntil });
         query("#mieru-modal", root).close();
         if (result.status === "succeeded") await context.navigate("clients");
         return;

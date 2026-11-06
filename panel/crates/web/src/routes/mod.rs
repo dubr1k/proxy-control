@@ -46,6 +46,7 @@ pub mod mieru;
 pub mod naive;
 pub mod nodes;
 pub mod openapi;
+mod protocol_holders;
 pub mod readiness;
 pub mod routing;
 pub mod subscriptions;

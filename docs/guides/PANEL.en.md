@@ -440,3 +440,31 @@ curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 docker compose ps
 docker compose logs panel mtproxy   # output must contain no secrets
 ```
+
+
+## Access lists and limits
+
+MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel pages show the client first, with the
+runtime account below. Unlinked accesses are explicitly marked. Search matches client and
+account names, with consistent state filters. “Configure” opens supported protocol settings;
+“Delete access” is separate and requires confirmation. Deleting an access does not delete the
+person or their other accesses. Viewers cannot change accesses or reveal credentials.
+
+New clients and accesses default to **unlimited traffic and lifetime**. Enable the relevant
+switch to add a limit: traffic uses **GB (1 GB = 1,000,000,000 bytes)**, lifetime uses days from
+saving. Turning a switch off removes the limit; simply reopening and saving settings does not
+extend the existing expiry.
+
+MTProxy and NaiveProxy support traffic limits. Mieru uses an approximate rolling quota: its
+window in days is **not access lifetime**, and volume is rounded up to MiB. AmneziaWG and
+TrustTunnel do not support traffic limits; access lifetime is configured separately. New-client
+limits apply to each selected access, not a single shared quota for the entire client.
+Open an existing access’s settings to change its lifetime.
+
+Volumes retain their real source: MTProxy separates process traffic from quota usage;
+per-user NaiveProxy shows completed CONNECTs, not the node-wide live total; Mieru shows bytes
+since mita started. Unknown volume is “—”, never an invented zero.
+
+The panel access window (`valid_until`) and MTProxy’s native expiry are independent
+limits. Removing the panel window does not remove the native protocol expiry: both are shown
+in access details; native MTProxy limits are edited under “Limits” on the MTProxy page.

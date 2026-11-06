@@ -264,6 +264,7 @@ async def test_user_api_allowlist_drops_unknown_and_nested_future_secret_fields(
     assert body == {"items": [{
         "username": "alice", "enabled": True, "runtime_total_octets": 12,
         "quota_used_bytes": 12, "quota_last_reset_epoch_secs": 1,
+        "client_id": None, "client_name": None, "grant_id": None, "client_state": None,
     }]}
     assert not any(value in str(body) for value in ("future-secret", "future-token", "backup-secret", "quota-secret"))
 

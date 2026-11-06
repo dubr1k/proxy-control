@@ -160,6 +160,7 @@ async fn users(State(app): State<AppState>, call: Call) -> Handled {
     let (health, items, traffic) =
         tokio::try_join!(gathering(health), gathering(items), gathering(traffic)).map_err(gather_failure)?;
     let body = page::users(&health, &items, &traffic, &app.settings.naive_public_host).map_err(page_failure)?;
+    let body = super::protocol_holders::enrich(&app, Protocol::Naive, body).await?;
     Ok(response::json(200, &body))
 }
 

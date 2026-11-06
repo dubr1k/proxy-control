@@ -1,8 +1,10 @@
+import { bindLimitToggles, validityLimit } from "./access-limits.js";
+import { bindProtocolFilters, measured, measuredBytes, protocolIdentity, protocolRowAttrs, protocolSettings, protocolToolbar, protocolWritable } from "./protocol-users.js";
 // The AmneziaWG screen: the versions this server serves (port, subnet, state), every access with
 // who holds it, when it last connected and how much it carried. A row disables, re-keys or deletes
 // its access in place (v3.0.0); the config with the key is in the access window (the same one the
 // client card opens), because the panel owns the client's keys.
-import { bytes, esc, initials, number, query, serviceSummary } from "./common.js";
+import { bytes, esc, number, query, serviceSummary } from "./common.js";
 import { isCurrent } from "./state.js";
 import { AWG_VERSIONS, awgAccount, awgVersions } from "./placement.js";
 import { loadNodeOptions } from "./clients.js";
@@ -57,17 +59,14 @@ function egressCard(context, egress) {
 }
 
 function accessRow(context, row) {
-  const holder = row.client_name
-    ? `<small>Клиент: ${esc(row.client_name)}</small>`
-    : "<small>Нет в панели: ключ клиента не хранится, конфиг не собрать</small>";
-  const open = row.grant_id && context.state.me.role !== "viewer"
+  const open = row.grant_id && protocolWritable(context, row)
     ? `<button class="action-button share" data-awg-action="open" data-client="${esc(row.client_id)}" data-grant="${esc(row.grant_id)}">Открыть доступ</button>`
     : (row.grant_id ? `<button class="action-button" data-awg-action="open" data-client="${esc(row.client_id)}" data-grant="${esc(row.grant_id)}">Подробности</button>` : "");
-  return `<div class="data-row naive-grid">
-    <div class="identity"><span class="user-glyph">${esc(initials(row.client_name || row.username))}</span><span><b>${esc(row.username)}</b><small>AmneziaWG ${esc(row.version)} · ${esc(row.address)}</small>${holder}</span></div>
+  return `<div class="data-row protocol-user-row" ${protocolRowAttrs(row)}>
+    ${protocolIdentity(row, `AmneziaWG ${row.version} · ${row.address || "—"}`)}
     <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>${esc(ago(row.latest_handshake))}</small></div>
-    <div class="cell"><b>↑ ${bytes(row.rx)} · ↓ ${bytes(row.tx)}</b><small>↑ от клиента · ↓ к клиенту</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
-    <div class="row-actions">${open || "—"}${context.state.me.role !== "viewer" ? grantRowActions(row, "amneziawg") : ""}</div>
+    <div class="cell"><b>↑ ${measuredBytes(row.rx)} · ↓ ${measuredBytes(row.tx)}</b><small>↑ от клиента · ↓ к клиенту</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
+    <div class="row-actions">${open || "—"}${protocolWritable(context, row) ? grantRowActions(row, "amneziawg") : ""}</div>
   </div>`;
 }
 
@@ -90,7 +89,9 @@ export async function renderAmneziawg(context, generation) {
     ${egressCard(context, data.egress)}
   </div>
   <div class="awg-overview">${(data.versions || []).map(versionCard).join("")}</div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов AmneziaWG пока нет</h3><p>Нажмите «+ AmneziaWG доступ» вверху справа.</p></div>'}</section>`;
+  ${protocolToolbar(context, "amneziawg", (data.peers || []).length)}
+  <section class="data-panel"><div class="data-head protocol-user-row"><span>Клиент / учётная запись</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов AmneziaWG пока нет</h3><p>Нажмите «+ AmneziaWG доступ» вверху справа.</p></div>'}</section>`;
+  bindProtocolFilters(context, "amneziawg");
   startLiveRates(context, generation, "amneziawg", "amneziawg");
 }
 
@@ -126,6 +127,7 @@ function syncAwgCreate(context) {
 export async function openAwgModal(context) {
   const root = context.root;
   query("#awg-form", root).reset();
+  bindLimitToggles(root);
   query("#awg-error", root).textContent = "";
   syncAwgCreate(context);
   context.ui.openModal("#awg-modal", "#new-awg-user");
@@ -166,7 +168,7 @@ export function bindAmneziawg(context) {
       const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username, subscription: false }) });
       const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
         method: "POST",
-        body: JSON.stringify({ grants: versions.map((version) => ({ protocol: "amneziawg", node_id: nodeId, runtime_username: awgAccount(username, version), options: { version } })) }),
+        body: JSON.stringify({ grants: versions.map((version) => ({ protocol: "amneziawg", node_id: nodeId, runtime_username: awgAccount(username, version), options: { version }, ...(validityLimit(root, "new-awg") !== null ? { valid_until: validityLimit(root, "new-awg") } : {}) })) }),
       });
       root.querySelector("#awg-modal")?.close?.();
       if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
