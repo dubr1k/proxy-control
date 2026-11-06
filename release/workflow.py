@@ -140,6 +140,7 @@ def publish_candidate(repository: str, run_id: str, accepted: str, evidence: str
     if not after["draft"] or after["tag_name"] != tag or asset_identity(before) != asset_identity(after) or tag_commit(repository, tag) != sha:
         raise ValueError("draft or tag changed during publication checks")
     subprocess.run(["gh", "api", "--method", "PATCH", f"repos/{repository}/releases/{release_id}",
+                    "-f", f"tag_name={tag}", "-f", f"target_commitish={sha}",
                     "-F", "draft=false"], check=True, stdout=subprocess.DEVNULL)
     published = api(repository, f"releases/{release_id}")
     if published["draft"] or published["tag_name"] != tag or asset_identity(published) != asset_identity(after):

@@ -153,6 +153,8 @@ def test_publication_uses_verified_bytes_and_refuses_changed_candidate(tmp_path,
     def command(args, **kwargs):
         if "PATCH" in args:
             assert args[-2:] == ["-F", "draft=false"]
+            assert ["-f", "tag_name=v3.2.0"] == args[-6:-4]
+            assert ["-f", f"target_commitish={sha}"] == args[-4:-2]
             published.append(True)
         else:
             assert args[:3] == ["gh", "attestation", "verify"]
