@@ -32,7 +32,7 @@ async def _node(server, tmp_path: Path, body: str) -> dict:
     js = tmp_path / "js"
     js.mkdir()
     for name in ("clients", "common", "grant", "placement", "state", "access", "trusttunnel-clients", "link-chooser",
-                 "access-limits", "protocol-users"):
+                 "access-limits", "protocol-users", "qr"):
         response = await server.client.get(f"/static/js/{name}.js")
         assert response.status_code == 200, name
         (js / f"{name}.js").write_text(response.text)
