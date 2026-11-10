@@ -19,7 +19,7 @@ hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio", "service", "server-graceful"] }
 log = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
-rmcp = { version = "3.7", default-features = false, features = ["server", "transport-streamable-http-server"] }
+rmcp = { version = "3.9", default-features = false, features = ["server", "transport-streamable-http-server"] }
 serde = "1"
 # Python dicts keep insertion order: tool schemas, panel answers and request bodies keep theirs.
 serde_json = { version = "1", features = ["preserve_order"] }

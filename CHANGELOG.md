@@ -13,6 +13,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Open client management on a separate page and restore list search and position on return; creation limits are under additional settings.
 - Enlarge primary touch targets and keep the heading and close action available while scrolling.
 
+### Dependencies
+- Update the MCP Rust SDK to 3.9.0 to satisfy the fix for RUSTSEC-2026-0462; Proxy Control uses its server transport.
+- Update Naive Manager's bundled SQLite to address RUSTSEC-2026-0459.
+
 ### Host installer
 - Installer unchanged: fresh installations and updates receive the same panel assets. The published download script pins the release archive version and SHA-256.
 

@@ -2,7 +2,7 @@
 name = "naive-manager"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.89"
 license = "MIT"
 description = "Manages the NaiveProxy credentials, lanes and egress block of the Caddyfile and accounts its CONNECT traffic."
 publish = false
@@ -21,7 +21,7 @@ log = "0.4"
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 # The accounting database: the same SQLite file, schema and pragmas as before, built in.
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 # The cover-site probe speaks TLS to the private listener without verifying the chain.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
