@@ -164,6 +164,12 @@ impl MieruAdapter {
         Ok((PACKAGE_URL, PACKAGE_DIGEST, EXECUTABLE_DIGEST))
     }
     pub fn selection(&self, action: &Action) -> Result<MieruSelection, Error> {
+        self.select(action, false)
+    }
+    fn recovery_selection(&self, action: &Action) -> Result<MieruSelection, Error> {
+        self.select(action, true)
+    }
+    fn select(&self, action: &Action, recovery: bool) -> Result<MieruSelection, Error> {
         let values = mutations(
             action,
             "mieru",
@@ -192,7 +198,6 @@ impl MieruAdapter {
             ("binary", BINARY),
             ("unit", UNIT),
             ("socket", SOCKET),
-            ("mita-version", VERSION),
             ("architecture", "amd64"),
             ("manager-uid", "10005"),
             ("manager-gid", "10005"),
@@ -207,12 +212,34 @@ impl MieruAdapter {
         {
             return Err(self.host.error("Mieru action is invalid"));
         }
-        validate_release_url(&values["package-url"], "enfein/mieru", "v3.38.1", "amd64")
+        let planned_version = &values["mita-version"];
+        let valid_version = |version: &str| {
+            version.len() <= 32
+                && version.split('.').count() == 3
+                && version.split('.').all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        };
+        if !valid_version(planned_version) {
+            return Err(self.host.error("Mieru action is invalid"));
+        }
+        if planned_version != VERSION {
+            let digest = self.host.agent_value("mita", "sha256");
+            let agent_version = self.host.agent_value("mita", "version");
+            if !recovery
+                || !agent_version.as_deref().is_some_and(valid_version)
+                || !digest.as_deref().is_some_and(|digest| {
+                    is_hex(digest, 64)
+                        && self.host.host(BINARY).is_ok_and(|path| verify_artifact(&path, digest).is_ok())
+                })
+            {
+                return Err(self.host.error("Mieru action is invalid"));
+            }
+        }
+        validate_release_url(&values["package-url"], "enfein/mieru", &format!("v{planned_version}"), "amd64")
             .map_err(|_| self.host.error("Mieru action has an invalid package URL"))?;
         let package = values
             .get("package")
             .cloned()
-            .unwrap_or_else(|| format!("/var/lib/proxy-control/mita_{VERSION}_amd64.deb"));
+            .unwrap_or_else(|| format!("/var/lib/proxy-control/mita_{planned_version}_amd64.deb"));
         self.host.host(&package)?;
         let (warp_port, warp_provider, router_provider) = providers(&values, 45102, &self.host)?;
         let count = values.get("lane-slots").map(String::as_str).unwrap_or("0");
@@ -846,7 +873,7 @@ impl Adapter for MieruAdapter {
         self.apply(action, data)
     }
     fn verify(&self, action: &Action) -> Result<Evidence, Error> {
-        let selected = self.selection(action)?;
+        let selected = self.recovery_selection(action)?;
         let (name, recover) = self.host.begin_acceptance()?;
         let result = self.acceptance(&selected, &name, recover).and_then(|value| {
             super::proxy_acceptance::require_mieru(&value)?;
@@ -878,7 +905,7 @@ impl Adapter for MieruAdapter {
         Ok(evidence)
     }
     fn repair(&self, action: &Action, mut data: CheckpointData) -> Result<CheckpointData, Error> {
-        let selected = self.selection(action)?;
+        let selected = self.recovery_selection(action)?;
         self.checkpoint(&data, action, true)?;
         self.rebase_agent_env(&selected, &mut data)?;
         self.host.assert_ownership(&data)?;

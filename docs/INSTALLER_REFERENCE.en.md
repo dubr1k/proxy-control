@@ -620,7 +620,9 @@ sudo bash install.sh uninstall --json
 
 `resume` continues from the durable journal and performs each committed
 mutation exactly once. `repair` re-verifies every owned file against its
-recorded digest and refuses to continue when one has drifted. `uninstall`
+recorded digest and refuses to continue when one has drifted. Mieru repair accepts
+a previously approved plan when version-agent has successfully updated the binary
+and its digest matches the agent's record; a new installation still rejects an old plan. `uninstall`
 removes only the owned generation and preserves credentials, manager state, and
 named volumes; `--purge-data` is the explicit opt-in that also removes them and,
 for Naive and Mieru, the identities the installer itself created.

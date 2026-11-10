@@ -1353,6 +1353,53 @@ fn agent_digest_refresh_rebases_only_the_exact_expected_manager_environment() {
     rig.put("/opt/mtproxy-shared443/.env.mieru", body.as_bytes(), 0o600);
     assert!(adapter.repair(&action, repaired).is_err());
 }
+
+#[test]
+fn historical_mieru_plan_repairs_and_verifies_agent_updated_binary() {
+    let rig = Rig::new();
+    let adapter = rig.mieru();
+    let action = rig.action("mieru");
+    let data = apply(&adapter, &action);
+    rig.put("/usr/bin/mita", b"agent-mita\n", 0o755);
+    let digest = sha256_hex(b"agent-mita\n");
+    rig.put(
+        "/var/lib/proxy-control/version-agent/state.json",
+        json!({"schema":2,"components":{"mita":{"version":"3.39.0","sha256":digest}}}).to_string().as_bytes(),
+        0o600,
+    );
+    let mut selected = adapter.selection(&action).unwrap();
+    selected.executable_digest = digest.clone();
+    rig.put("/opt/mtproxy-shared443/.env.mieru", adapter.env_text(&selected, 998).as_bytes(), 0o600);
+    let mut historical = action.clone();
+    set(&mut historical, "mita-version", "3.36.0");
+    set(
+        &mut historical,
+        "package-url",
+        "https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb",
+    );
+    assert!(adapter.selection(&historical).is_err(), "new installs must still require the release pin");
+    let state_path = "/var/lib/proxy-control/version-agent/state.json";
+    for state in [
+        json!({"components":{"mita":{"version":"3.39.0","sha256":"0".repeat(64)}}}),
+        json!({"components":{"mita":{"version":"3.39.0","sha256":digest,"status":"rollback_failed"}}}),
+        json!({"components":{"mita":{"version":"invalid","sha256":digest}}}),
+        json!({"components":{"mita":{"version":"3.39.0"}}}),
+    ] {
+        rig.put(state_path, state.to_string().as_bytes(), 0o600);
+        assert!(adapter.repair(&historical, data.clone()).is_err(), "unproven agent state must be rejected");
+    }
+    rig.put(
+        state_path,
+        json!({"components":{"mita":{"version":"3.39.0","sha256":digest}}}).to_string().as_bytes(),
+        0o600,
+    );
+    let mut bad_url = historical.clone();
+    set(&mut bad_url, "package-url", "https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb");
+    assert!(adapter.repair(&bad_url, data.clone()).is_err(), "package URL must match the historical plan");
+    let repaired = adapter.repair(&historical, data).unwrap();
+    assert_eq!(repaired["ownership"]["/usr/bin/mita"]["sha256"], sha256_hex(b"agent-mita\n"));
+    assert!(adapter.verify(&historical).is_ok());
+}
 #[test]
 fn protocol_compose_preserves_agent_version_overrides() {
     let rig = Rig::new();

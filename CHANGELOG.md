@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.6] - 2026-11-10
+
+### Host installer
+- Repair Mieru from a previously approved plan when version-agent has updated the executable and its digest matches the agent's record. New installations still reject an old plan.
+- The published script pins the 4.0.6 archive and its checksum.
+
 ## [4.0.5] - 2026-11-10
 
 ### UI
