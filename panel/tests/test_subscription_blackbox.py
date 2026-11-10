@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import re
 from urllib.parse import unquote, urlsplit
 
 import pytest
+
+from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
 
 pytestmark = [
     pytest.mark.anyio,
@@ -201,6 +204,73 @@ async def test_post_clients_hands_back_a_subscription_reveal(owner):
     assert revealed.status_code == 200 and revealed.json()["generation"] == 1
 
 
+async def test_client_page_and_qr_remain_stable_across_panel_restart(panel_server, login_user):
+    first = panel_server(name="before-restart", db_name="stable.sqlite3", key_name="stable-key",
+                         hosts=("testserver", "sub.example.com"), subscription_url="https://sub.example.com")
+    first.create_admin("owner", "correct horse battery staple", "owner")
+    await login_user(first.client)
+    created = await first.client.post("/api/clients", json={"display_name": "Stable"}, headers=csrf(first.client))
+    assert created.status_code == 201
+    client_id = created.json()["id"]
+    shown = (await first.client.get("/api/reveal/" + created.json()["subscription_reveal_token"])).json()
+    await first.aclose()
+    second = panel_server(name="after-restart", db_name="stable.sqlite3", key_name="stable-key",
+                          hosts=("testserver", "sub.example.com"), subscription_url="https://sub.example.com")
+    await login_user(second.client)
+    requested = await second.client.post(f"/api/clients/{client_id}/subscription/reveal", headers=csrf(second.client))
+    assert requested.status_code == 200
+    again = (await second.client.get("/api/reveal/" + requested.json()["reveal_token"])).json()
+    assert again["page_url"] == shown["page_url"] and again["page_qr"] == shown["page_qr"]
+    token = urlsplit(shown["page_url"]).path.rsplit("/", 1)[1]
+    async with second.http("sub.example.com") as public:
+        assert (await public.get(f"/s/{token}", params={"format": "html"})).status_code == 200
+
+
+async def test_all_protocols_and_mixed_clients_can_reissue_the_same_page(panel_server, login_user):
+    from panel.tests.harness.memories.mieru import MemoryMieru
+    from panel.tests.harness.memories.naive import MemoryNaive
+    from panel.tests.harness.memories.telemt import MemoryTelemt
+    from panel.tests.harness.memories.trusttunnel import MemoryTrusttunnel
+
+    server = panel_server(
+        hosts=("testserver", "sub.example.com"), subscription_url="https://sub.example.com",
+        telemt=MemoryTelemt(public_host="proxy.example.com"), naive=MemoryNaive(), mieru=MemoryMieru(),
+        amneziawg=MemoryAmneziawg(), trusttunnel=MemoryTrusttunnel(),
+        naive_enabled=True, naive_public_host="naive.example.com", mieru_enabled=True,
+        amneziawg_enabled=True, amneziawg_public_host="vpn.example.com",
+        trusttunnel_enabled=True, trusttunnel_public_host="gate.example.com",
+    )
+    server.create_admin("owner", "correct horse battery staple", "owner")
+    owner = server.client
+    await login_user(owner)
+    headers = csrf(owner)
+    protocols = ("mtproxy", "naive", "mieru", "amneziawg", "trusttunnel")
+    for number, chosen in enumerate([(protocol,) for protocol in protocols] + [protocols]):
+        created = await owner.post('/api/clients', json={'display_name': f'Client {number}'}, headers=headers)
+        assert created.status_code == 201
+        client_id = created.json()['id']
+        first = (await owner.get('/api/reveal/' + created.json()['subscription_reveal_token'])).json()
+        grants = [{'protocol': protocol, 'runtime_username': f'p{number}-{index}',
+                   'options': {'version': '2.0'} if protocol == 'amneziawg' else {}}
+                  for index, protocol in enumerate(chosen)]
+        result = await owner.post(f'/api/clients/{client_id}/grants', headers=headers, json={'grants': grants})
+        assert result.status_code == 200 and result.json()['status'] == 'succeeded'
+        links = await owner.post(f'/api/clients/{client_id}/links', headers=headers)
+        assert links.status_code == 200
+        data = (await owner.get('/api/reveal/' + links.json()['reveal_token'])).json()
+        assert {grant['protocol'] for grant in data['grants']} == set(chosen)
+        assert all(grant['artifacts'] for grant in data['grants'])
+        repeated = await owner.post(f'/api/clients/{client_id}/subscription/reveal', headers=headers)
+        assert repeated.status_code == 200
+        again = (await owner.get('/api/reveal/' + repeated.json()['reveal_token'])).json()
+        assert first['page_url'] == again['page_url'] and first['page_qr'] == again['page_qr']
+        token = urlsplit(first['page_url']).path.rsplit('/', 1)[1]
+        async with server.http('sub.example.com') as public:
+            page = await public.get(f'/s/{token}', params={'format': 'html'})
+            assert page.status_code == 200
+            assert all(protocol.lower() in page.text.lower() for protocol in chosen)
+
+
 async def test_compatibility_and_events_endpoints(owner, public, token, server):
     compatibility = await owner.get("/api/subscriptions/compatibility")
     assert compatibility.status_code == 200
@@ -359,3 +429,59 @@ async def test_a_pending_credential_version_is_not_rendered(pair_factory):
         active = await public.get(path, params={"format": "raw"})
         assert active.status_code == 200 and "tg://proxy" in active.text
         assert (await node.telemt.current_access("alice"))["secret"] in active.text
+
+
+async def test_page_contains_active_tunnel_config_but_feeds_and_disabled_page_do_not(panel_server, login_user):
+    server = panel_server(
+        hosts=("testserver", "sub.example.com"), subscription_url="https://sub.example.com",
+        amneziawg=MemoryAmneziawg(), amneziawg_enabled=True, amneziawg_public_host="vpn.example.com",
+    )
+    server.create_admin("owner", "correct horse battery staple", "owner")
+    owner = server.client
+    await login_user(owner)
+    headers = {"X-CSRF-Token": owner.cookies["panel_csrf"]}
+    created = await owner.post("/api/clients", json={"display_name": "Phone"}, headers=headers)
+    assert created.status_code == 201
+    client_id = created.json()["id"]
+    issued = await owner.post(f"/api/clients/{client_id}/grants", headers=headers, json={"grants": [
+        {"protocol": "amneziawg", "runtime_username": "phone-awg", "options": {"version": "2.0"}},
+    ]})
+    assert issued.status_code == 200 and issued.json()["status"] == "succeeded"
+    grant_id = (await owner.get(f"/api/clients/{client_id}")).json()["grants"][0]["id"]
+    link_response = await owner.post(f"/api/clients/{client_id}/links", headers=headers)
+    assert link_response.status_code == 200
+    links = (await owner.get("/api/reveal/" + link_response.json()["reveal_token"])).json()
+    conf = links["grants"][0]["artifacts"][0]["value"]
+    assert "PrivateKey = " in conf and "vpn.example.com:51821" in conf
+    reveal = (await owner.get("/api/reveal/" + created.json()["subscription_reveal_token"])).json()
+    token = urlsplit(reveal["url"]).path.rsplit("/", 1)[1]
+    async with server.http("sub.example.com") as public:
+        page = await public.get(f"/s/{token}", params={"format": "html"})
+        assert page.status_code == 200 and "AmneziaWG 2.0" in page.text
+        encoded = re.search(r'data:text/x-amneziawg-conf;base64,([A-Za-z0-9+/=]+)', page.text)
+        assert encoded and base64.b64decode(encoded.group(1)).decode() == conf
+        assert html.escape(conf) in page.text and "QR конфигурации AmneziaWG" in page.text
+        for fmt in ("raw", "clash", "singbox", "manifest"):
+            feed = await public.get(f"/s/{token}", params={"format": fmt})
+            assert feed.status_code == 200
+            assert "amneziawg" not in feed.text.lower() and conf not in feed.text
+        disabled = await owner.post(f"/api/clients/grants/{grant_id}/disable", headers=headers)
+        assert disabled.status_code == 200
+        after = await public.get(f"/s/{token}", params={"format": "html"},
+                                 headers={"If-None-Match": page.headers["etag"]})
+        assert after.status_code == 200 and "Отключён" in after.text
+        assert html.escape(conf) not in after.text and base64.b64encode(conf.encode()).decode() not in after.text
+        enabled = await owner.post(f"/api/clients/grants/{grant_id}/enable", headers=headers)
+        assert enabled.status_code == 200
+        with server.db(write=True) as db:
+            db.execute("UPDATE access_grants SET valid_until=? WHERE id=?", (int(server.clock.time()) + 10, grant_id))
+        active = await public.get(f"/s/{token}", params={"format": "html"})
+        assert active.status_code == 200 and html.escape(conf) in active.text
+        server.clock.advance(11)
+        expired = await public.get(f"/s/{token}", params={"format": "html"},
+                                   headers={"If-None-Match": active.headers["etag"]})
+        assert expired.status_code == 200 and "Отключён" in expired.text
+        assert html.escape(conf) not in expired.text and base64.b64encode(conf.encode()).decode() not in expired.text
+        shown = await owner.post(f"/api/clients/{client_id}/subscription/reveal", headers=headers)
+        again = (await owner.get("/api/reveal/" + shown.json()["reveal_token"])).json()
+        assert again["page_url"] == reveal["page_url"] and again["page_qr"] == reveal["page_qr"]

@@ -4,6 +4,12 @@ The panel manages distinct Telemt/MTProto, NaiveProxy/Caddy, Mieru/mita, Amnezia
 
 The panel binds to host loopback only at `http://127.0.0.1:8787`. Use an SSH tunnel (`ssh -L 8787:127.0.0.1:8787 server`) or your own HTTPS reverse proxy remotely. Never publish Telemt port `9091`; Compose intentionally exposes no host port for it.
 
+## Access delivery and QR codes
+
+Client creation and subsequent delivery use the same window. It opens on the permanent client page link and its QR. Switch to app import to choose a device and app. Click a QR to enlarge or download it.
+
+AmneziaWG offers a QR, `.conf` download and copying. Expand “View configuration” for the full config. Secrets and the enlarged QR are cleared when their respective windows close.
+
 ## First start
 
 The deployment renderer creates `secrets/telemt-api-token` with mode `0600`; it is never placed in `.env`, deployment state, or logs. Do not reuse any example or production password. Create the first owner with a new password supplied on stdin:
@@ -195,11 +201,9 @@ answers **only** on that host: on the panel's own domain `/s/` is a 404, the sam
 an unknown or revoked token, so a subscription reveals nothing about where the panel
 lives. With the variable empty the endpoint is switched off.
 
-The client window renders the subscription block only when the subscription
-has something to serve: MTProxy never takes part in it — Telegram opens a `tg://proxy`
-link and polls no subscription URL. A client holding MTProxy alone gets a line pointing at
-the links instead, while a subscription issued earlier stays on screen so it can be
-revoked. The links themselves live in the same window's «Ссылки MTProxy» block:
+The client page can be created even for a client with only MTProxy or AmneziaWG. Telegram
+opens a `tg://proxy` link, while AmneziaWG uses a `.conf` file. MTProxy links are also available
+in the window's «Ссылки MTProxy» block:
 `POST /api/clients/{id}/links` (owner/admin, optional `protocol`) rebuilds them from the
 panel's escrow, one per node, and hands them over through a one-time reveal with their QR codes.
 
@@ -229,8 +233,9 @@ or display a QR code. Each card lists compatible connections and links to the ap
 Individual accesses are also collapsed "protocol · domain/login" sections without
 a node name. The page adapts to phones and supports light and dark themes; its
 language is `?lang=en` (Russian by default). Presentation does not change the token,
-subscription formats or app compatibility. AmneziaWG is not part of the subscription
-or this page.
+subscription formats or app compatibility. The page also offers each AmneziaWG access with
+its version, a `.conf` download, copying and a QR when the configuration fits. Disabled and
+expired accesses are displayed without secrets. Machine subscription formats do not include AmneziaWG.
 
 ## The Overview screen
 
@@ -246,13 +251,12 @@ header (hidden from viewers) opens Clients and straight away the new-client wind
 ## The Clients screen
 
 A client is a person or device; a grant is its account in one protocol on one node.
-Compact cards show the name, state, access count and nodes. Issues and expired accesses
-remain visible as warnings. “Subscription” opens link delivery; “Open” opens the Accesses
-tab with accounts and the node matrix. Less frequent actions are in the “⋯” menu.
+Compact cards show the name, state, protocols and nodes. Issues and expired accesses
+remain visible as warnings. “Connect” opens link delivery; “Manage” opens a separate page
+with accounts and the node matrix. Less frequent actions are in the “⋯” menu.
 Search, filters and list position are retained.
 
-Details open in a side pane on desktop and fill the screen on phones. Back, Escape and
-browser Back close the top window. Grant details keep the protocol, node, status and
+The back button or browser Back returns from management to the list. Grant details keep the protocol, node, status and
 link delivery visible; other fields and secret operations are under “Technical details”.
 
 An archived client with no grants left can be deleted permanently: "Delete permanently"
@@ -260,11 +264,10 @@ in the card's "⋯" menu (`DELETE /api/clients/{client_id}`, owner and admin, au
 `client.delete`). The client's subscription link stops resolving; the panel refuses (409)
 a client that is not archived or still has undeleted grants.
 
-On the Subscription tab, press Show, then choose the device and app. The panel shows
-compatibility, “Add to app” and “Copy link”. QR, the full URL and instructions expand on
-request. App selection survives token rotation. The “⋯” menu contains rotation and
-revocation; rotation still requires confirmation and immediately invalidates the old URL.
-Presentation and app selection do not change the issued token, subscription formats or
+The connection window opens on the permanent page and its QR. Under “Import into an app”,
+choose a device and app; the choice is kept per client in the current browser without links
+or secrets. The “⋯” menu contains replacement and revocation; replacement requires confirmation
+and immediately invalidates the old URL. App selection does not change the issued token, subscription formats or
 profiles already imported into clients.
 
 "Import existing" lists what the managers already run. The panel only **reads** them:

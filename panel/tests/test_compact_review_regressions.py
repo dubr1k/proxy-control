@@ -13,11 +13,13 @@ def test_subscription_copy_has_a_fallback_and_does_not_claim_failed_copies(tmp_p
             'id': 'demo', 'name': 'Demo', 'variant': 'singbox', 'platforms': ['android'],
             'protocols': {'naive': 'works'}, 'deeplink': 'demo://import/{url_enc}', 'downloads': [],
         }]}
-        payload = {'url': 'https://sub.example/s/DEMO', 'qr': '', 'variants': {
+        payload = {'url': 'https://sub.example/s/DEMO', 'qr': '',
+                   'page_url': 'https://sub.example/s/DEMO?format=html', 'page_qr': '', 'variants': {
             'singbox': {'url': 'https://sub.example/s/DEMO?format=singbox', 'qr': ''},
         }}
         data = json.dumps({'catalogue': catalogue, 'payload': payload, 'protocols': ['naive'], 'name': 'Demo'})
         browser.js("(async()=>{const {renderChooser}=await import('/static/js/link-chooser.js'); const host=document.createElement('div'); host.id='review-chooser'; document.querySelector('#view').append(host); renderChooser(host," + data + "); return true;})()")
+        browser.click('#review-chooser [data-delivery-mode="import"]')
         browser.click('#review-chooser input[value="android"]')
         browser.js("Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined}); window.__copyAttempts=0; document.execCommand=cmd=>{if(cmd==='copy'){window.__copyAttempts++;return true;}return false;};true")
         browser.click('#review-chooser [data-copy]')

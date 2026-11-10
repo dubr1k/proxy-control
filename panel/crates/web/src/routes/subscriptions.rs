@@ -133,7 +133,12 @@ async fn subscription(State(app): State<AppState>, call: Call) -> Handled {
 
     let now = app.clock.now();
     let worker = (subscriptions.clone(), found.clone());
-    let manifest = blocking(move || worker.0.effective_manifest(&worker.1, now)).await?;
+    let mut manifest = blocking(move || worker.0.effective_manifest(&worker.1, now)).await?;
+    // Config-file-only AmneziaWG belongs on the human page, not in the established feeds.
+    // Filter before calculating the ETag and resolving secrets to preserve their wire contract.
+    if format != Format::Html {
+        manifest.grants.retain(|grant| grant.protocol != "amneziawg");
+    }
     // The page shows its own address, its language and when the set last moved: part of its body.
     let mut options = RenderOptions { client: client.clone(), ..RenderOptions::default() };
     let mut variant = client.clone().unwrap_or_default();

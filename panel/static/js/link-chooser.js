@@ -3,6 +3,7 @@
 // ссылки — из того же reveal'а, что и в окне клиента (`variants`). Один модуль на два окна:
 // окно клиента и окно выданных доступов.
 import { esc } from "./common.js";
+import { qrCard } from "./qr.js";
 
 const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", trusttunnel: "TrustTunnel" };
 const HTTPS = /^https:\/\/[^\s"'<>]+$/;
@@ -12,6 +13,22 @@ const DEEPLINK = /^(?!javascript:|data:|vbscript:)[a-z][a-z0-9+.-]*:\/\/[^\s"'<>
 
 const states = new WeakMap();
 let sequence = 0;
+
+function saveSelection(state) {
+  if (!state.clientId) return;
+  try {
+    localStorage.setItem(`proxy-control-delivery:${state.clientId}`, JSON.stringify({ platform: state.platform, app: state.app }));
+  } catch { /* Browser storage may be unavailable. */ }
+}
+
+function savedSelection(clientId) {
+  if (!clientId) return {};
+  try {
+    const value = JSON.parse(localStorage.getItem(`proxy-control-delivery:${clientId}`) || "{}");
+    const safe = (item) => typeof item === "string" && /^[a-z0-9_-]{1,64}$/i.test(item) ? item : "";
+    return { platform: safe(value.platform), app: safe(value.app) };
+  } catch { return {}; }
+}
 
 // The protocols of a client's accesses that a subscription link carries (not MTProxy, not AmneziaWG).
 export function subscriptionProtocols(protocols) {
@@ -86,14 +103,14 @@ function result(state, app) {
   const href = deepLink(app, variant.url, state.name);
   const gets = whatItGets(app, state.protocols).map((line) => `<span>${esc(line)}</span>`).join("");
   return `<div class="chooser-result">
-      <div class="chooser-result-head"><span class="chooser-app-mark" aria-hidden="true">${esc(app.name.slice(0, 1))}</span><div><small>Подключение</small><h4>${esc(app.name)}</h4></div></div>
+      <div class="chooser-result-head"><div><small>Подключение</small><h4>${esc(app.name)}</h4></div></div>
       <p class="chooser-gets">${gets}</p>
       <div class="chooser-main-actions">
         ${href ? `<a class="primary button" href="${esc(href)}" data-chooser-open>Добавить в приложение</a>` : ""}
         <button type="button" class="secondary copy" data-copy="${esc(variant.url)}">Копировать ссылку</button>
       </div>
       ${href ? '<p class="form-hint">Добавляйте подписку на устройстве, где установлено приложение.</p>' : ""}
-      <details class="chooser-qr"><summary>Показать QR</summary><img class="subscription-qr" src="${esc(variant.qr)}" alt="QR-код ссылки для ${esc(app.name)}"></details>
+      <div class="chooser-qr">${qrCard(variant.qr, `QR-код ссылки для ${app.name}`, "subscription-qr.svg", "subscription-qr")}</div>
       <details class="chooser-link-details"><summary>Посмотреть ссылку</summary><label><span>Ссылка для <b>${esc(app.name)}</b></span><input readonly value="${esc(variant.url)}" data-chooser-url></label></details>
       <details class="chooser-instructions"><summary>Как подключиться</summary>${steps(app, href)}${downloads(app)}</details>
     </div>`;
@@ -106,6 +123,26 @@ function choices(name, items, current, label) {
 
 function render(host) {
   const state = states.get(host);
+  const modes = `<div class="delivery-modes" role="group" aria-label="Способ подключения">
+    <button type="button" data-delivery-mode="page" aria-pressed="${state.mode === "page"}">Страница клиента</button>
+    <button type="button" data-delivery-mode="import" aria-pressed="${state.mode === "import"}">Импорт в приложение</button>
+  </div>`;
+  if (state.mode === "page") {
+    const url = state.payload.page_url;
+    const qr = state.payload.page_qr;
+    host.innerHTML = `${modes}<div class="delivery-page">
+      <div class="delivery-page-actions"><h3>Постоянная ссылка</h3>
+        <p>Откройте страницу, чтобы увидеть все доступы клиента.</p>
+        <label>Ссылка страницы<span class="copy-field"><input readonly data-client-page-url value="${esc(url)}"><button type="button" class="primary copy" data-copy="${esc(url)}">Копировать</button></span></label>
+      </div>
+      <figure class="qr-card"><button type="button" class="qr-preview" data-qr-expand data-qr-filename="client-page.svg" aria-label="Увеличить QR страницы клиента"><img data-client-page-qr src="${esc(qr)}" alt="QR страницы клиента"></button><figcaption>Откройте камерой телефона</figcaption></figure>
+    </div>`;
+    return;
+  }
+  if (!(state.catalogue.platforms || []).length) {
+    host.innerHTML = `${modes}<p class="form-hint">Каталог приложений недоступен. Откройте страницу клиента или попробуйте позже.</p>`;
+    return;
+  }
   let apps = "";
   let body = "";
   if (state.platform) {
@@ -115,12 +152,15 @@ function render(host) {
     } else {
       if (!entries.some((entry) => entry.app.id === state.app)) state.app = entries[0].app.id;
       const label = (app) => `<b>${esc(app.name)}</b>${app.id === entries[0].app.id ? " <em>рекомендуем</em>" : ""}`;
-      apps = `<fieldset class="chooser-step"><legend>Приложение</legend><div class="chooser-chips">${
-        choices(`${state.id}-app`, entries.map((entry) => entry.app), state.app, label)}</div></fieldset>`;
+      const selected = entries.find((entry) => entry.app.id === state.app).app;
+      apps = `<fieldset class="chooser-step"><legend>Приложение</legend>
+        <p>Выбрано: <b>${esc(selected.name)}</b>${selected.id === entries[0].app.id ? " · рекомендуем" : ""}</p>
+        <details class="chooser-app-select"><summary>Сменить приложение</summary><div class="chooser-chips">${
+        choices(`${state.id}-app`, entries.map((entry) => entry.app), state.app, label)}</div></details></fieldset>`;
       body = result(state, entries.find((entry) => entry.app.id === state.app).app);
     }
   }
-  host.innerHTML = `<div class="link-chooser">
+  host.innerHTML = `${modes}<div class="link-chooser">
       <fieldset class="chooser-step"><legend>На чём клиент?</legend><div class="chooser-chips">${
     choices(`${state.id}-platform`, state.catalogue.platforms || [], state.platform, (item) => esc(item.name))}</div></fieldset>
       ${apps}${body}
@@ -128,6 +168,14 @@ function render(host) {
 }
 
 function bind(host) {
+  host.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-delivery-mode]");
+    const state = states.get(host);
+    if (!button || !state?.payload) return;
+    state.mode = button.dataset.deliveryMode;
+    render(host);
+    host.querySelector(`[data-delivery-mode="${state.mode}"]`)?.focus();
+  });
   host.addEventListener("change", (event) => {
     const state = states.get(host);
     const input = event.target;
@@ -142,19 +190,23 @@ function bind(host) {
       return;
     }
     render(host);
+    saveSelection(state);
     host.querySelector(`input[name="${group}"]:checked`)?.focus();
   });
 }
 
 // Рисует выбор в `host`. Выбор оператора живёт, пока живёт `host`: перерисовка с новой ссылкой
 // (после «Выпустить новую ссылку») его не сбрасывает; `resetChooser` стирает всё.
-export function renderChooser(host, { catalogue, payload, protocols, name }) {
+export function renderChooser(host, { catalogue, payload, protocols, name, clientId = null }) {
   let state = states.get(host);
   if (!state) {
     sequence += 1;
-    state = { id: `chooser-${sequence}`, platform: "", app: "" };
+    state = { id: `chooser-${sequence}`, platform: "", app: "", mode: "page", clientId: null };
     states.set(host, state);
     bind(host);
+  }
+  if (state.clientId !== clientId) {
+    Object.assign(state, { platform: "", app: "", clientId }, savedSelection(clientId));
   }
   Object.assign(state, { catalogue, payload, protocols: [...protocols], name });
   render(host);
@@ -162,6 +214,6 @@ export function renderChooser(host, { catalogue, payload, protocols, name }) {
 
 export function resetChooser(host) {
   const state = states.get(host);
-  if (state) Object.assign(state, { platform: "", app: "", payload: null });
+  if (state) Object.assign(state, { platform: "", app: "", mode: "page", payload: null, clientId: null });
   host.innerHTML = "";
 }

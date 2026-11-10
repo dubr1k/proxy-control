@@ -1,8 +1,9 @@
+import { qrCard } from "./qr.js";
 import { actionMenu, esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { proposeUsername, reloadClientList } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
-import { AUTO_REFRESH, grantRowHtml } from "./grant.js";
+import { AUTO_REFRESH, grantRowHtml, limits, validity } from "./grant.js";
 import { renderChooser, resetChooser } from "./link-chooser.js";
 
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
@@ -89,7 +90,9 @@ function grantRow(grant, matrix, nodes) {
     : (grant.protocol === "amneziawg"
       ? '<small class="refresh-unsupported" title="AmneziaWG выдаётся файлом конфигурации и QR, а не подпиской">только конфиг</small>'
       : '<small class="refresh-unsupported" title="Telegram не читает подписку: только ссылка tg://proxy">только ссылка</small>');
-  return grantRowHtml(grant, { nodes, extra: `<span class="auto-refresh" data-auto-refresh>${marks}</span>` });
+  const period = validity(grant);
+  const restriction = `${limits(grant)}${period ? ` · ${period}` : ""}`;
+  return grantRowHtml(grant, { nodes, extra: `<span class="grant-restrictions">${esc(restriction)}</span><span class="auto-refresh" data-auto-refresh>${marks}</span>` });
 }
 
 function variantOption(variant, selected) {
@@ -116,33 +119,19 @@ export function createSubscriptionDialog(context) {
     return context.state.me?.role !== "viewer" && state.client?.state !== "archived";
   }
 
+  function placementError() {
+    return state.management?.page.querySelector('[role="alert"]') || query("#subscription-error", root);
+  }
+
   function renderSubscription(overview) {
     const current = overview.subscription;
     const status = query("#subscription-status", root);
     const actions = query("#subscription-actions", root);
     query("#subscription-status-details", root).open = !overview.configured || !current;
-    query(".subscription-warning", root).hidden = !liveGrants().some((grant) => ["mtproxy", "amneziawg"].includes(grant.protocol));
-    // Подписка показывается, только если клиенту есть что по ней отдавать. У клиента с
-    // одним MTProxy её нечем наполнить — вместо блока объяснение и ссылки ниже.
-    // Уже выданная подписка остаётся на экране в любом случае: её нужно уметь отозвать.
-    const serves = liveGrants().filter((grant) => SUBSCRIBABLE.has(grant.protocol));
+    query(".subscription-warning", root).hidden = true;
     const unavailable = query("#subscription-unavailable", root);
-    const hide = serves.length === 0 && current === null;
-    query("#subscription-box", root).hidden = hide;
-    unavailable.hidden = serves.length > 0;
-    if (!serves.length) {
-      const live = liveGrants();
-      const telegram = live.some((grant) => grant.protocol === "mtproxy");
-      const tunnel = live.some((grant) => grant.protocol === "amneziawg");
-      unavailable.textContent = !live.length
-        ? "Подписке пока нечего отдавать — у клиента нет доступов."
-        : telegram && tunnel
-          ? "Подписка этому клиенту не нужна: Telegram её не читает, а AmneziaWG выдаётся файлом и QR. Откройте нужный доступ ниже."
-          : tunnel
-            ? "Подписка этому клиенту не нужна: AmneziaWG выдаётся файлом конфигурации и QR. Откройте нужный доступ ниже."
-            : "Подписка этому клиенту не нужна: Telegram её не читает. Раздайте ссылки MTProxy ниже.";
-      if (hide) return;
-    }
+    query("#subscription-box", root).hidden = false;
+    unavailable.hidden = true;
     if (!overview.configured) {
       status.innerHTML = "<b>Домен подписки не настроен.</b> Задайте <code>domains.subscription</code> в install.toml (переменная <code>PANEL_SUBSCRIPTION_URL</code>) — без него URL выдать нечего.";
       actions.innerHTML = "";
@@ -161,14 +150,14 @@ export function createSubscriptionDialog(context) {
     }
     // The link comes back only from escrow: without a master key, or for a token issued
     // before escrow existed, the panel says so instead of offering a button that would 409.
-    let show = '<button type="button" class="primary" data-subscription-action="show">Показать</button>';
+    let show = state.reveal ? "" : '<button type="button" class="primary" data-subscription-action="show">Показать</button>';
     if (!overview.secret_store) {
       show = '<small class="form-hint">Панель без хранилища секретов показывает ссылку один раз — при создании и ротации.</small>';
     } else if (!overview.escrowed) {
-      show = '<small class="form-hint">Ссылка выдана до включения хранилища — выпустите новую, она будет доступна для показа.</small>';
+      show = '<small class="form-hint">Ссылка выдана до включения хранилища: её невозможно извлечь. Прежний адрес продолжает работать.</small>';
     }
     actions.innerHTML = `${show}${actionMenu(`
-      <button type="button" class="secondary" data-subscription-action="rotate">Выпустить новую ссылку</button>
+      <button type="button" class="secondary" data-subscription-action="rotate">Заменить ссылку</button>
       <button type="button" class="danger ghost" data-subscription-action="revoke">Отозвать</button>`)}`;
   }
 
@@ -197,10 +186,9 @@ export function createSubscriptionDialog(context) {
     return `<article class="link-card">
       <h4>${esc(entry.node)}<small>${esc(entry.username)}</small></h4>
       <span class="copy-field"><input readonly value="${esc(entry.link)}"><button type="button" class="copy" data-copy="${esc(entry.link)}">Копировать</button></span>
-      <img class="link-qr" src="${esc(entry.qr)}" alt="QR-код: ${esc(entry.username)}">
+      ${qrCard(entry.qr, `QR-код: ${entry.username}`, `mtproxy-${entry.username}.svg`)}
       <span class="link-card-actions">
         <a class="primary button" href="${esc(entry.link)}">Открыть в Telegram</a>
-        <a class="secondary button" href="${esc(entry.qr)}" download="mtproxy-${esc(entry.username)}.svg">Скачать QR</a>
       </span>
     </article>`;
   }
@@ -231,6 +219,7 @@ export function createSubscriptionDialog(context) {
 
   function showReveal() {
     const box = query("#subscription-reveal", root);
+    query("#subscription-box > .modal-copy", root).hidden = Boolean(state.reveal);
     if (!state.reveal) {
       box.hidden = true;
       query("#subscription-url", root).value = "";
@@ -246,6 +235,7 @@ export function createSubscriptionDialog(context) {
       payload: state.reveal,
       protocols: [...new Set(liveGrants().map((grant) => grant.protocol).filter((protocol) => SUBSCRIBABLE.has(protocol)))],
       name: state.name,
+      clientId: state.clientId,
     });
     box.hidden = false;
   }
@@ -257,7 +247,7 @@ export function createSubscriptionDialog(context) {
       api(`/api/clients/${id}/subscription`),
       api(`/api/clients/${id}`),
       api("/api/nodes"),
-      api("/api/subscriptions/compatibility"),
+      api("/api/subscriptions/compatibility").catch(() => ({ matrix: {}, platforms: [], apps: [] })),
     ]);
     // The window is already someone else's (or closed): its rows must not be replaced by
     // this client's, or «Применить» would act on grants that are no longer on screen.
@@ -268,6 +258,7 @@ export function createSubscriptionDialog(context) {
     context.state.nodes = nodes.items || [];
     state.matrix = compatibility.matrix || {};
     state.catalogue = { platforms: compatibility.platforms || [], apps: compatibility.apps || [] };
+    state.overview = overview;
     render(overview);
     void settle();
   }
@@ -326,6 +317,7 @@ export function createSubscriptionDialog(context) {
     query("#subscription-box", root).hidden = true;
     query("#subscription-unavailable", root).hidden = true;
     state.client = null;
+    state.overview = null;
     state.grants = [];
     state.rows = [];
     queryAll("#subscription-grants li", root).forEach((node) => node.remove());
@@ -339,14 +331,56 @@ export function createSubscriptionDialog(context) {
   // `reveal` may be a payload already in hand (the client was just created): shown at once.
   // `focus: "placement"` (the card's «Узлы и доступы», v0.11) lands the operator on the
   // node × protocol matrix instead of the subscription block at the top.
-  function selectPanel(name) {
-    const subscription = name === "subscription";
-    query("#client-subscription-panel", root).hidden = !subscription;
-    query(".placement-box", root).hidden = subscription;
-    queryAll("[data-client-panel]", root).forEach((button) => {
-      button.classList.toggle("active", button.dataset.clientPanel === name);
-      button.setAttribute("aria-selected", String(button.dataset.clientPanel === name));
-    });
+  function closeManagement({ restore = true } = {}) {
+    const management = state.management;
+    if (!management) return;
+    state.management = null;
+    state.generation += 1;
+    const placement = query(".placement-box", root);
+    const error = query("#subscription-error", root);
+    error.before(placement);
+    management.page.remove();
+    for (const [node, hidden] of management.previous) node.hidden = hidden;
+    reset();
+    if (restore) {
+      window.scrollTo(0, management.scroll);
+      management.trigger?.focus({ preventScroll: true });
+    } else if (window.history.state?.clientManagement) {
+      const history = { ...window.history.state };
+      delete history.clientManagement;
+      window.history.replaceState(history, "");
+    }
+  }
+
+  async function openManagement(clientId, name, trigger) {
+    if (state.management) closeManagement({ restore: false });
+    state.generation += 1;
+    const generation = state.generation;
+    reset();
+    state.clientId = clientId;
+    state.name = name;
+    query("#placement-username", root).dataset.typed = "";
+    const view = context.ui.view;
+    const previous = [...view.children].map((node) => [node, node.hidden]);
+    const scroll = window.scrollY;
+    for (const [node] of previous) node.hidden = true;
+    const page = root.createElement("section");
+    page.id = "client-management";
+    page.dataset.clientId = clientId;
+    page.innerHTML = '<button type="button" class="secondary" data-management-back>← К списку клиентов</button><h2></h2><p class="form-error" role="alert"></p>';
+    page.querySelector("h2").textContent = name;
+    const placement = query(".placement-box", root);
+    placement.hidden = false;
+    page.append(placement);
+    view.append(page);
+    state.management = { page, previous, scroll, trigger };
+    window.history.pushState({ ...window.history.state, clientManagement: clientId }, "");
+    window.scrollTo(0, 0);
+    try {
+      await load();
+    } catch (exception) {
+      if (generation === state.generation) page.querySelector('[role="alert"]').textContent = exception.message;
+    }
   }
 
   async function open(clientId, name, reveal = null, { focus = null } = {}) {
@@ -358,33 +392,42 @@ export function createSubscriptionDialog(context) {
     state.reveal = reveal;
     query("#subscription-error", root).textContent = "";
     query("#placement-username", root).dataset.typed = "";
-    selectPanel(focus === "placement" ? "accesses" : "subscription");
+    query("#client-subscription-panel", root).hidden = false;
+    query(".placement-box", root).hidden = true;
     ui.openModal("#subscription-modal");
     try {
       await load();
+      if (generation === state.generation && focus === "subscription" && !state.reveal
+          && state.overview?.subscription && state.overview.escrowed && state.overview.secret_store && canWrite()) {
+        const { reveal_token: token } = await api(`/api/clients/${encodeURIComponent(clientId)}/subscription/reveal`, { method: "POST" });
+        const payload = await api(`/api/reveal/${encodeURIComponent(token)}`);
+        if (generation !== state.generation) return;
+        state.reveal = payload;
+        renderSubscription(state.overview);
+        showReveal();
+      }
     } catch (exception) {
       if (generation !== state.generation) return;
       query("#subscription-error", root).textContent = exception.message;
       return;
     }
-    if (generation !== state.generation || focus !== "placement") return;
-    const box = query(".placement-box", root);
-    box?.scrollIntoView({ block: "start", behavior: "smooth" });
-    query("#placement-body input[type=checkbox]:not(:disabled)", root)?.focus({ preventScroll: true });
   }
 
   async function issue(path, button, busy) {
     const error = query("#subscription-error", root);
+    const generation = state.generation;
     error.textContent = "";
     try {
       ui.setBusy(button, true, busy);
       const { reveal_token: token } = await api(path, { method: "POST" });
       // One reveal, consumed on first read: the window keeps what it received until it closes.
-      state.reveal = await api(`/api/reveal/${encodeURIComponent(token)}`);
+      const payload = await api(`/api/reveal/${encodeURIComponent(token)}`);
+      if (generation !== state.generation) return;
+      state.reveal = payload;
       await load();
       ui.toast("Ссылка подписки на экране");
     } catch (exception) {
-      error.textContent = exception.message;
+      if (generation === state.generation) error.textContent = exception.message;
     } finally {
       ui.setBusy(button, false);
     }
@@ -428,15 +471,16 @@ export function createSubscriptionDialog(context) {
   async function act(button) {
     const action = button.dataset.subscriptionAction;
     const base = `/api/clients/${encodeURIComponent(state.clientId)}`;
+    const generation = state.generation;
     if (action === "create") return issue(`${base}/subscription`, button, "Создаём…");
     if (action === "show") return issue(`${base}/subscription/reveal`, button, "Показываем…");
     if (action === "rotate") {
       const confirmed = await ui.confirmed(
-        "Выпустить новую ссылку?",
+        "Заменить ссылку?",
         "Старая ссылка перестанет открываться сразу же, и приложения клиента по ней обновляться не смогут. Новую ссылку придётся отправить клиенту заново.",
-        "Выпустить",
+        "Заменить ссылку",
       );
-      if (!confirmed) return undefined;
+      if (!confirmed || generation !== state.generation) return undefined;
       return issue(`${base}/subscription/rotate`, button, "Выпускаем…");
     }
     if (action === "revoke") {
@@ -445,15 +489,16 @@ export function createSubscriptionDialog(context) {
         "Ссылка перестанет открываться. Доступы клиента остаются, но обновляться по подписке больше не будут.",
         "Отозвать",
       );
-      if (!confirmed) return undefined;
+      if (!confirmed || generation !== state.generation) return undefined;
       try {
         ui.setBusy(button, true, "Отзываем…");
         await api(`${base}/subscription/revoke`, { method: "POST" });
+        if (generation !== state.generation) return undefined;
         state.reveal = null;
         await load();
         ui.toast("Подписка отозвана");
       } catch (exception) {
-        query("#subscription-error", root).textContent = exception.message;
+        if (generation === state.generation) query("#subscription-error", root).textContent = exception.message;
       } finally {
         ui.setBusy(button, false);
       }
@@ -464,7 +509,8 @@ export function createSubscriptionDialog(context) {
   // The matrix diff goes to the endpoints the card already uses: one saga for every new
   // cell, one call per enable/disable. What actually happened is re-read afterwards.
   async function apply(button) {
-    const error = query("#subscription-error", root);
+    const error = placementError();
+    const generation = state.generation;
     error.textContent = "";
     const username = query("#placement-username", root);
     const diff = placementDiff(state.rows, readPlacement(query("#placement-body", root)), username.value.trim());
@@ -492,7 +538,9 @@ export function createSubscriptionDialog(context) {
       } else {
         ui.toast("Состав клиента обновлён");
       }
+      if (generation !== state.generation) return;
       await load();
+      if (generation !== state.generation) return;
       if (result?.status === "succeeded") {
         await context.access.openOperationBundle(result.operation_id, {
           subscription: state.reveal,
@@ -501,8 +549,10 @@ export function createSubscriptionDialog(context) {
         });
       }
     } catch (exception) {
-      error.textContent = explain(exception);
-      await load().catch(() => {});
+      if (generation === state.generation) {
+        error.textContent = explain(exception);
+        await load().catch(() => {});
+      }
     } finally {
       ui.setBusy(button, false);
     }
@@ -510,17 +560,19 @@ export function createSubscriptionDialog(context) {
 
   async function removeGrant(button) {
     const grant = state.grants.find((item) => item.id === button.dataset.grantId);
+    const generation = state.generation;
     if (!grant) return;
     const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
     const confirmed = await ui.confirmed("Удалить доступ?", `${label} будет удалён из протокола; на связанной панели — после доставки узлу.`, "Удалить");
-    if (!confirmed) return;
+    if (!confirmed || generation !== state.generation) return;
     try {
       ui.setBusy(button, true);
       await api(`/api/clients/grants/${encodeURIComponent(grant.id)}/delete`, { method: "POST" });
+      if (generation !== state.generation) return;
       ui.toast("Доступ удалён");
       await load();
     } catch (exception) {
-      query("#subscription-error", root).textContent = explain(exception);
+      if (generation === state.generation) placementError().textContent = explain(exception);
     } finally {
       ui.setBusy(button, false);
     }
@@ -529,9 +581,20 @@ export function createSubscriptionDialog(context) {
   function bind() {
     const dialog = query("#subscription-modal", root);
     if (!dialog) return;
+    window.addEventListener("popstate", () => {
+      if (state.management && !window.history.state?.clientManagement) closeManagement();
+    });
+    root.addEventListener("click", (event) => {
+      if (!state.management || !state.management.page.contains(event.target)) return;
+      if (event.target.closest("[data-management-back]")) return void window.history.back();
+      const placement = event.target.closest("button[data-placement-action]");
+      if (placement) return void apply(placement);
+      const remove = event.target.closest("button[data-placement-delete]");
+      if (remove) return void removeGrant(remove);
+      const grant = event.target.closest("button[data-grant-open]");
+      if (grant) context.grants.open(state.clientId, grant.dataset.grantOpen, { client: state.client, grants: state.grants });
+    });
     dialog.addEventListener("click", (event) => {
-      const panel = event.target.closest("button[data-client-panel]");
-      if (panel) return selectPanel(panel.dataset.clientPanel);
       const subscription = event.target.closest("button[data-subscription-action]");
       if (subscription) return void act(subscription);
       const links = event.target.closest("button[data-links-action]");
@@ -577,9 +640,9 @@ export function createSubscriptionDialog(context) {
 
   // The grant window changed something of this client: the open window follows.
   async function reloadIfOpen(clientId) {
-    if (!query("#subscription-modal", root)?.open || state.clientId !== clientId) return;
+    if ((!query("#subscription-modal", root)?.open && !state.management) || state.clientId !== clientId) return;
     await load().catch(() => {});
   }
 
-  return { bind, open, reloadIfOpen };
+  return { bind, open, openManagement, closeManagement, reloadIfOpen };
 }

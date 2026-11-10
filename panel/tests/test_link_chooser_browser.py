@@ -64,11 +64,9 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     client_id = client_with_trusttunnel(browser)
     open_clients(browser)
     browser.click(f'[data-client-id="{client_id}"] [data-client-action="subscription"]')
-    browser.wait("!!document.querySelector('#subscription-actions [data-subscription-action=\"show\"]')", "show button")
-    # Nothing of the link is on the screen before «Показать».
-    assert browser.js("document.querySelector('#subscription-reveal').hidden")
-    browser.click('#subscription-actions [data-subscription-action="show"]')
     browser.wait("!document.querySelector('#subscription-reveal').hidden", "link shown")
+    assert browser.js("!!document.querySelector('#subscription-chooser [data-client-page-url]')")
+    browser.click('#subscription-chooser [data-delivery-mode="import"]')
     assert chooser_text(browser, "#subscription-chooser legend") == "На чём клиент?"
     # The six raw variants are folded away.
     assert browser.js("document.querySelector('.subscription-all').open") is False
@@ -81,10 +79,10 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     assert "hiddify" in names and "flclash" in names and "karing" not in names  # Karing delivers no TrustTunnel
     pick(browser, "hiddify")
     browser.wait("document.querySelector('#subscription-chooser .chooser-result h4').textContent === 'Hiddify'", "Hiddify result")
-    link = browser.js("document.querySelector('#subscription-chooser [data-chooser-url]').value")
-    assert link.startswith(f"{BASE}/s/") and link.endswith("?format=singbox&client=hiddify"), link
-    href = browser.js("document.querySelector('#subscription-chooser [data-chooser-open]').getAttribute('href')")
-    assert href == f"hiddify://import/{link}#%D0%9C%D0%B0%D0%BC%D0%B0", href
+    assert browser.js("""(() => { const link = document.querySelector('#subscription-chooser [data-chooser-url]').value;
+      const href = document.querySelector('#subscription-chooser [data-chooser-open]').getAttribute('href');
+      return link.startsWith('https://sub.example/s/') && link.endsWith('?format=singbox&client=hiddify')
+        && href === 'hiddify://import/' + link + '#%D0%9C%D0%B0%D0%BC%D0%B0'; })()""")
     assert chooser_text(browser, "#subscription-chooser .chooser-gets") == "В выпусках приложения пока нет: TrustTunnel."
     # A client whose only protocol is TrustTunnel is not promised Hiddify first: FlClash really carries it.
     assert chooser_text(browser, "#subscription-chooser .chooser-chip:has(em)") == "FlClash рекомендуем"
@@ -92,12 +90,12 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     # The Clash family: its own variant; Clash Mi has no verified scheme, so no button.
     pick(browser, "clashmi")
     browser.wait("document.querySelector('#subscription-chooser .chooser-result h4').textContent === 'Clash Mi'", "Clash Mi result")
-    assert browser.js("document.querySelector('#subscription-chooser [data-chooser-url]').value").endswith("?format=clash")
+    assert browser.js("document.querySelector('#subscription-chooser [data-chooser-url]').value.endsWith('?format=clash')")
     assert browser.js("document.querySelector('#subscription-chooser [data-chooser-open]')") is None
     pick(browser, "flclash")
     browser.wait("document.querySelector('#subscription-chooser .chooser-result h4').textContent === 'FlClash'", "FlClash result")
-    flclash = browser.js("document.querySelector('#subscription-chooser [data-chooser-open]').getAttribute('href')")
-    assert flclash.startswith("clash://install-config?url=https%3A%2F%2Fsub.example%2Fs%2F") and flclash.endswith("%3Fformat%3Dclash"), flclash
+    assert browser.js("""(() => {const href = document.querySelector('#subscription-chooser [data-chooser-open]').getAttribute('href');
+      return href.startsWith('clash://install-config?url=https%3A%2F%2Fsub.example%2Fs%2F') && href.endsWith('%3Fformat%3Dclash'); })()""")
     # An app of another platform goes away with the platform.
     pick(browser, "ios")
     browser.wait("!!document.querySelector('#subscription-chooser input[value=\"ios\"]:checked')", "iOS chosen")
@@ -114,7 +112,7 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     browser.healthy()
 
 
-def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(chooser_browser):
+def test_creation_opens_the_same_client_page_as_repeat_connection(chooser_browser):
     browser = chooser_browser
     open_clients(browser)
     browser.click("#add")
@@ -124,61 +122,12 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     browser.js("""(() => { const box = document.querySelector('#client-placement input[data-node="local"][data-protocol="trusttunnel"]');
       box.checked = true; box.dispatchEvent(new Event('change', {bubbles: true})); return true; })()""")
     browser.click("#create-client")
-    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle")
-    # Order: the link block on top, the per-protocol data folded below it.
-    order = browser.js("""(() => { const top = (s) => document.querySelector(s).getBoundingClientRect().top;
-      return [top('#bundle-subscription') < top('#bundle-details'), document.querySelector('#bundle-details').open,
-        document.querySelector('#bundle-details').getBoundingClientRect().height < 80]; })()""")
-    assert order == [True, False, True], order
-    assert chooser_text(browser, "#bundle-details summary") == "Отдельные ссылки и данные для ручной настройки"
-    # Closing with nothing taken asks once; «Отмена» keeps the window.
-    browser.click("#bundle-modal .modal-head-actions button.primary")
-    browser.wait("document.querySelector('#confirm').open === true", "close confirm")
-    assert chooser_text(browser, "#confirm-title") == "Закрыть, ничего не скопировав?"
-    browser.js("""new Promise(resolve => {
-      const dialog = document.querySelector('#confirm');
-      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
-      dialog.querySelector('button[value="cancel"]').click();
-    })""")
-    browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed")
-    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
-    # A keydown must be consumed before Chromium's close watcher can issue a
-    # non-cancelable second cancel while the previous confirmation is settling.
-    assert browser.js("""(() => { const event = new KeyboardEvent('keydown', {
-      key: 'Escape', bubbles: true, cancelable: true});
-      document.querySelector('#bundle-modal').dispatchEvent(event);
-      return event.defaultPrevented; })()""")
-    browser.wait("document.querySelector('#confirm').open === true", "keyboard close confirm")
-    assert browser.js("document.querySelector('#bundle-modal').open") is True
-    browser.js("""new Promise(resolve => {
-      const dialog = document.querySelector('#confirm');
-      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
-      dialog.querySelector('button[value="cancel"]').click();
-    })""")
-    browser.wait("document.querySelector('#confirm').open === false", "keyboard confirm dismissed")
-    # Close handlers and their Promise continuations have settled above. One real
-    # Escape must ask; retries would mask close-watcher races.
-    press_escape(browser, "document.querySelector('#confirm').open === true", "confirm after Esc")
-    browser.js("""new Promise(resolve => {
-      const dialog = document.querySelector('#confirm');
-      dialog.addEventListener('close', () => setTimeout(() => resolve(true), 0), {once: true});
-      dialog.querySelector('button[value="cancel"]').click();
-    })""")
-    browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed again")
-    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle stays open")
-    # The folded data are all there, secrets in the open.
-    browser.js("document.querySelector('#bundle-details').open = true; true")
-    assert browser.js("document.querySelectorAll('#bundle-body .bundle-grant').length") >= 1
-    assert browser.js("!document.querySelector('#bundle-body').textContent.includes('••••') && !document.querySelector('#bundle-body [data-tt-reveal]')")
-    # Taking the link (a copy) lets the window close without a question.
-    browser.js("document.querySelector('#bundle-details').open = false; true")
-    pick_bundle = "document.querySelector('#bundle-chooser input[value=\"windows\"]').click(); true"
-    browser.js(pick_bundle)
-    browser.wait("!!document.querySelector('#bundle-chooser button[data-copy]')", "copy button")
-    browser.click("#bundle-chooser button[data-copy]")
-    browser.click("#bundle-modal .modal-head-actions button.primary")
-    browser.wait("document.querySelector('#bundle-modal').open === false", "closed without a question")
-    assert browser.js("document.querySelector('#confirm').open") is False
+    browser.wait("document.querySelector('#subscription-modal').open && !!document.querySelector('#subscription-chooser [data-client-page-url]')", "client page")
+    assert browser.js("!document.querySelector('#bundle-modal').open")
+    assert browser.js("document.querySelector('#subscription-chooser').textContent.includes('Откройте камерой телефона')")
+    browser.click('#subscription-modal [value="cancel"]')
+    browser.wait("!document.querySelector('#subscription-modal').open", "client page closed")
+    assert browser.js("!document.querySelector('#confirm').open")
     browser.healthy()
 
 
@@ -194,7 +143,9 @@ RENDER = """(async (patch, name, protocols) => {
   const host = document.createElement('div');
   host.id = 'probe';
   document.body.append(host);
-  module.renderChooser(host, {catalogue, payload: {url: variants.singbox.url, qr, variants}, protocols, name});
+  module.renderChooser(host, {catalogue, payload: {url: variants.singbox.url, qr, variants,
+    page_url: 'https://sub.example/s/tok?format=html', page_qr: qr}, protocols, name});
+  host.querySelector('[data-delivery-mode="import"]').click();
   return true;
 })"""
 
@@ -249,27 +200,3 @@ def test_a_name_with_an_apostrophe_still_gets_its_button(chooser_browser):
     open_clients(browser)
     render(browser, "karing", "ios", ["naive"], "O'Brien (мама)!")
     assert open_href(browser).endswith("&name=O%27Brien%20%28%D0%BC%D0%B0%D0%BC%D0%B0%29%21")
-
-
-def test_a_bundle_without_secrets_closes_without_a_question(chooser_browser):
-    browser = chooser_browser
-    open_clients(browser)
-    # The reveal comes back with no artifacts: there is nothing to lose by closing.
-    browser.js("""(() => { const original = window.fetch.bind(window);
-      window.fetch = async (url, options) => { const response = await original(url, options);
-        if (!String(url).includes('/api/reveal/')) return response;
-        const data = await response.json(); (data.grants || []).forEach((grant) => { grant.artifacts = []; });
-        return new Response(JSON.stringify(data), {status: 200, headers: {'content-type': 'application/json'}}); };
-      return true; })()""")
-    browser.click("#add")
-    browser.wait("document.querySelector('#client-modal')?.open === true", "client dialog")
-    browser.wait("!!document.querySelector('#client-placement input[data-node=\"local\"][data-protocol=\"trusttunnel\"]')", "placement")
-    browser.set_value("#client-name", "Мама")
-    browser.js("""(() => { const box = document.querySelector('#client-placement input[data-node="local"][data-protocol="trusttunnel"]');
-      box.checked = true; box.dispatchEvent(new Event('change', {bubbles: true})); return true; })()""")
-    browser.click("#create-client")
-    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle")
-    assert browser.js("document.querySelectorAll('#bundle-body .bundle-artifact, #bundle-body textarea').length") == 0
-    browser.click("#bundle-modal .modal-head-actions button.primary")
-    browser.wait("document.querySelector('#bundle-modal').open === false", "closed without a question")
-    assert browser.js("document.querySelector('#confirm').open") is False

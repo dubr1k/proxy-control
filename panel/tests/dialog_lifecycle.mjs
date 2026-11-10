@@ -35,10 +35,13 @@ const window = {
   history: { state: null,
     pushState(state) { this.state = state; }, replaceState(state) { this.state = state; }, back() {} },
 };
+const qrSource = readFileSync(new URL('../static/js/qr.js', import.meta.url), 'utf8')
+  .replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
 const source = readFileSync(new URL('../static/js/ui.js', import.meta.url), 'utf8')
   .replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
-const box = { window, document: root, query: (selector, scope) => scope.querySelector(selector) };
+const box = { window, document: root, query: (selector, scope) => selector === '#qr-modal' ? null : scope.querySelector(selector) };
 vm.createContext(box);
+vm.runInContext(qrSource, box);
 vm.runInContext(source, box);
 const ui = box.createUi(root);
 const flush = async () => { for (let n = 0; n < 8; n++) await Promise.resolve(); };

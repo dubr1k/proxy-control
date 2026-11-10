@@ -176,6 +176,74 @@ fn manifest_json_carries_grants_artifacts_and_compatibility() {
 }
 
 #[test]
+fn html_offers_amnezia_config_as_download_copy_and_qr_without_disclosing_disabled_grants() {
+    use base64::Engine as _;
+
+    let (mut manifest, _) = fixture();
+    let mut active = manifest.grants[0].clone();
+    active.grant_id = "awg-active".into();
+    active.protocol = "amneziawg".into();
+    active.runtime_username = "phone".into();
+    active.label = "Личный телефон".into();
+    active.enabled = true;
+    active.options.insert("version".into(), Value::String("2.0".into()));
+    let mut disabled = active.clone();
+    disabled.grant_id = "awg-disabled".into();
+    disabled.label = "Старый телефон".into();
+    disabled.enabled = false;
+    disabled.options.insert("version".into(), Value::String("1.5".into()));
+    manifest.grants = vec![active, disabled];
+    let conf = "[Interface]\nPrivateKey = active-key\n[Peer]\nPublicKey = server-key\n";
+    let artifact = |value: &str| AccessArtifact {
+        kind: "awg_conf".into(),
+        label: "AmneziaWG 2.0".into(),
+        media_type: "text/x-amneziawg-conf".into(),
+        value: value.into(),
+        auto_refresh: AutoRefresh::Supported,
+    };
+    let artifacts = Artifacts::from([
+        ("awg-active".into(), vec![artifact(conf)]),
+        ("awg-disabled".into(), vec![artifact("disabled-secret")]),
+    ]);
+    let page = text(Format::Html, &manifest, &artifacts, &RenderOptions::default());
+    let encoded = base64::engine::general_purpose::STANDARD.encode(conf);
+    assert!(page.contains("Личный телефон") && page.contains("AmneziaWG 2.0"));
+    assert!(page.contains("Старый телефон") && page.contains("Отключён"));
+    assert!(page.contains("AmneziaWG 1.5"), "disabled access must retain its version");
+    assert!(page.contains("PrivateKey = active-key") && page.contains("data-copy="));
+    assert!(page.contains("<details class=\"config-source\"><summary>Посмотреть конфигурацию</summary>"));
+    assert!(page.contains(&format!("data:text/x-amneziawg-conf;base64,{encoded}")));
+    assert!(page.contains("download=") && page.contains(".conf\""));
+    assert!(page.contains("data:image/svg+xml;base64,"));
+    assert!(!page.contains("disabled-secret"));
+}
+
+#[test]
+fn an_amnezia_config_too_large_for_qr_can_still_be_copied_and_downloaded() {
+    let (mut manifest, _) = fixture();
+    let mut grant = manifest.grants[0].clone();
+    grant.grant_id = "large-awg".into();
+    grant.protocol = "amneziawg".into();
+    grant.enabled = true;
+    manifest.grants = vec![grant];
+    let conf = format!("[Interface]\nPrivateKey = {}\n", "x".repeat(5000));
+    let artifacts = Artifacts::from([(
+        "large-awg".into(),
+        vec![AccessArtifact {
+            kind: "awg_conf".into(),
+            label: "AmneziaWG 3.1".into(),
+            media_type: "text/x-amneziawg-conf".into(),
+            value: conf.clone(),
+            auto_refresh: AutoRefresh::Supported,
+        }],
+    )]);
+    let page = text(Format::Html, &manifest, &artifacts, &RenderOptions::default());
+    assert!(page.contains(&conf));
+    assert!(page.contains("download=\"amneziawg.conf\""));
+    assert!(page.contains("Конфигурация слишком велика для QR"));
+}
+
+#[test]
 fn html_escapes_values_and_has_only_inline_assets() {
     let (manifest, artifacts) = fixture();
     let options = RenderOptions { url: "https://sub.example.com/s/TOKEN".into(), ..RenderOptions::default() };

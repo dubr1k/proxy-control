@@ -242,6 +242,7 @@ function fakeRoot(prefix, { qr = true } = {}) {
   });
   tabs.querySelectorAll = () => tabs.buttons;
   return {
+    ...fakeElement(),
     elements,
     querySelector(selector) {
       return elements[selector] || null;

@@ -199,9 +199,10 @@ def test_native_other_main_pages_navigation_and_scoped_css_smoke(tmp_path):
         # Read-only client details, then back to list, without revealing any access.
         browser.open_view("clients", "!!document.querySelector('.client-card')", 390)
         browser.click("[data-client-action=open]")
-        browser.wait("document.querySelector('#subscription-modal').open", "native client details")
-        require(browser.js("document.querySelector('#subscription-modal form').scrollWidth <= document.querySelector('#subscription-modal form').clientWidth + 1"), "native client detail overflow")
-        close_dialogs(browser)
+        browser.wait("!!document.querySelector('#client-management')", "native client details")
+        require(browser.js("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), "native client detail overflow")
+        browser.click('#client-management [data-management-back]')
+        browser.wait("!document.querySelector('#client-management')", "client list restored")
         browser.healthy()
 
 
@@ -219,6 +220,7 @@ def test_native_new_client_matrix_default_and_manual_limits(tmp_path):
                 browser.click(f'#client-placement input[data-node="local"][data-protocol="{protocol}"]')
             browser.set_value("#client-username", username)
             if manual:
+                browser.click('#client-additional > summary')
                 browser.click("#new-client-traffic-enabled")
                 browser.click("#new-client-validity-enabled")
                 browser.set_value("#new-client-traffic-gb", "1.25")

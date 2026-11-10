@@ -337,7 +337,8 @@ is set, the installer adds it to the Core certificate as a SAN, routes it to the
 panel's TLS listener with its own Nginx `server` block that serves only `/s/`
 (`access_log off`, everything else answers 404), and passes
 `PANEL_SUBSCRIPTION_HOST`/`PANEL_SUBSCRIPTION_URL` to the panel. Client
-subscription URLs are `https://<subscription>/s/<token>`; the panel's own domain
+page URLs are `https://<subscription>/s/<token>?format=html`, while the base
+`https://<subscription>/s/<token>` serves subscription formats; the panel's own domain
 never serves that path, so a subscriber cannot learn where the panel lives.
 Without the key the public endpoint stays switched off.
 

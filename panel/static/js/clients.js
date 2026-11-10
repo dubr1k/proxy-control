@@ -9,6 +9,7 @@ const CLIENT_STATE = {
   suspended: ["blocked", "Приостановлен"],
   archived: ["muted", "В архиве"],
 };
+const pendingClientReveals = new WeakMap();
 
 // One order on every card, whatever order the grants were issued in.
 const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3, trusttunnel: 4 };
@@ -44,7 +45,7 @@ function adoptNote(context, grants) {
 function actions(context, client) {
   // The client window is read-only for viewers, so it is offered to everyone; the buttons
   // that change anything appear inside it by role.
-  const open = '<button class="secondary" data-client-action="open">Открыть</button>';
+  const open = '<button class="secondary" data-client-action="open">Управление</button>';
   if (context.state.me?.role === "viewer") return `<div class="client-actions">${open}</div>`;
   if (client.state === "archived") {
     const remove = '<button type="button" role="menuitem" class="danger-text" data-client-action="delete">Удалить навсегда</button>';
@@ -53,12 +54,10 @@ function actions(context, client) {
   const toggle = client.state === "suspended"
     ? '<button type="button" role="menuitem" data-client-action="resume">Возобновить</button>'
     : '<button type="button" role="menuitem" data-client-action="suspend">Приостановить</button>';
-  // The same window, opened on its node × protocol matrix: add a node with a tick, take one
-  // away with the cross — without hunting for it below the subscription block (v0.11).
-  const placement = '<button class="secondary" data-client-action="subscription">Подписка</button>';
+  const connect = '<button class="primary" data-client-action="subscription">Подключить</button>';
   return `<div class="client-actions">
+    ${connect}
     ${open}
-    ${placement}
     ${moreMenu([
       '<button type="button" role="menuitem" data-client-action="rename">Переименовать</button>',
       toggle,
@@ -107,7 +106,13 @@ function summary(context, grants) {
   const where = nodes.size === 1
     ? nodeName(context.state.nodes, [...nodes][0])
     : `${nodes.size} ${plural(nodes.size, "узел", "узла", "узлов")}`;
-  return `${grants.length} ${plural(grants.length, "доступ", "доступа", "доступов")} · ${where}`;
+  const protocols = new Map();
+  for (const grant of [...grants].sort(byProtocol)) {
+    const name = PROTOCOL_NAMES[grant.protocol] || grant.protocol;
+    protocols.set(name, (protocols.get(name) || 0) + 1);
+  }
+  const composition = [...protocols].map(([name, count]) => count > 1 ? `${name} ×${count}` : name).join(", ");
+  return `${composition} · ${where}`;
 }
 
 function clientWarning(grants) {
@@ -436,7 +441,9 @@ function resetFilters(context) {
 // its first grants — the two-step «create, then grant» stays available from the window.
 export async function openClientModal(context) {
   const form = query("#client-form", context.root);
+  pendingClientReveals.delete(form);
   form.reset();
+  query("#client-additional", context.root).open = false;
   bindLimitToggles(context.root);
   query("#client-error", context.root).textContent = "";
   query("#client-username-row", context.root).hidden = true;
@@ -612,6 +619,9 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
 
 export function bindClients(context) {
   const { api, root, ui } = context;
+  query("#client-modal", root)?.addEventListener("close", ({ currentTarget }) => {
+    if (!currentTarget.open) pendingClientReveals.delete(query("#client-form", root));
+  });
   // «⋯» closes on a click elsewhere and on Escape, the focus going back to its button.
   document.addEventListener("click", (event) => {
     if (!event.target.closest?.(".client-menu")) closeClientMenus(document);
@@ -667,7 +677,7 @@ export function bindClients(context) {
     const nameInput = query("#client-name", root);
     const displayName = nameInput.value.trim();
     let client = form.dataset.clientId ? { id: form.dataset.clientId } : null;
-    let subscription = null;
+    let subscription = pendingClientReveals.get(form) || null;
     try {
       diff.create = applyManualLimits(diff.create, root, "new-client");
       ui.setBusy(button, true, "Создаём…");
@@ -678,6 +688,7 @@ export function bindClients(context) {
         // The subscription is issued with the client; its reveal is consumed once, here.
         if (client.subscription_reveal_token) {
           subscription = await api(`/api/reveal/${encodeURIComponent(client.subscription_reveal_token)}`);
+          pendingClientReveals.set(form, subscription);
         }
       }
       if (!diff.create.length) {
@@ -699,6 +710,11 @@ export function bindClients(context) {
       }
       // The bundle carries the subscription on top; when there is no bundle to show, the
       // client window does — the link must not be lost on the way either way.
+      if (result.status === "succeeded" && subscription) {
+        await context.navigate("clients");
+        await context.subscriptions.open(client.id, displayName, subscription);
+        return;
+      }
       if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id, { subscription, name: displayName });
       else if (subscription) await context.subscriptions.open(client.id, displayName, subscription);
       await context.navigate("clients");
@@ -918,7 +934,8 @@ export function handleClientsClick(context, button) {
     const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
     if (entry) {
       button.focus({ preventScroll: true });
-      void context.subscriptions.open(entry.client.id, entry.client.display_name, null, { focus: action === "subscription" ? "subscription" : "placement" });
+      if (action === "subscription") void context.subscriptions.open(entry.client.id, entry.client.display_name, null, { focus: "subscription" });
+      else void context.subscriptions.openManagement(entry.client.id, entry.client.display_name, button);
     }
     return true;
   }

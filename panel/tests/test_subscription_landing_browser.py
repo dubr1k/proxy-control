@@ -4,10 +4,12 @@ Optional SUBSCRIPTION_LANDING_SHOTS writes synthetic screenshots outside the che
 Only boolean comparisons leave the page: URLs, credentials and QR payloads stay private.
 """
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
 import secrets
+import time
 from urllib.parse import quote, urlsplit
 
 import pytest
@@ -199,3 +201,39 @@ def test_unavailable_disabled_and_empty_accesses_never_claim_to_be_ready(landing
                 "empty subscription must have zero usable grants")
         fits(browser)
         browser.healthy()
+
+
+def test_amnezia_page_download_and_copy_match_the_escrowed_config(landing_browser, tmp_path):
+    browser = landing_browser
+    api = browser.fixture.api
+    client = api('/api/clients', 'POST', {'display_name': 'Tunnel', 'subscription': False})
+    issued = api(f"/api/clients/{client['id']}/grants", 'POST', {'grants': [
+        {'protocol': 'amneziawg', 'node_id': 'local', 'runtime_username': 'tunnel', 'options': {'version': '2.0'}},
+    ]})
+    require(issued['status'] == 'succeeded', 'tunnel issuance failed')
+    links = api(f"/api/clients/{client['id']}/links?protocol=amneziawg", 'POST')
+    conf = api(f"/api/reveal/{links['reveal_token']}")['grants'][0]['artifacts'][0]['value']
+    created = api(f"/api/clients/{client['id']}/subscription", 'POST')
+    payload = api(f"/api/reveal/{created['reveal_token']}")
+    navigate(browser, payload, 'ru', 390, 'dark')
+    browser.click('details.card > summary')
+    require(browser.js("!!document.querySelector('details.card details.config-source:not([open])')"),
+            'full tunnel config must start collapsed')
+    browser.js("window.__copiedConfig = null; Object.defineProperty(navigator, 'clipboard', "
+               "{configurable:true,value:{writeText:async text => {window.__copiedConfig = text;}}}); true")
+    browser.click('details.card button[data-copy]')
+    browser.wait('window.__copiedConfig === ' + json.dumps(conf), 'correct config copied')
+    downloads = tmp_path / 'downloads'
+    downloads.mkdir()
+    browser.dt.call('Browser.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(downloads)})
+    browser.click('details.card a[download="amneziawg.conf"]')
+    deadline = time.monotonic() + 10
+    downloaded = downloads / 'amneziawg.conf'
+    while not downloaded.is_file() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    require(downloaded.is_file(), 'configuration download did not complete')
+    require(hashlib.sha256(downloaded.read_bytes()).digest() == hashlib.sha256(conf.encode()).digest(),
+            'downloaded configuration differs from escrow')
+    require(browser.js("!!document.querySelector('details.card details.qr img')"), 'configuration QR missing')
+    fits(browser)
+    browser.healthy()

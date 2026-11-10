@@ -372,8 +372,8 @@ impl SubscriptionService {
 
     // --- manifest -------------------------------------------------------------------------
 
-    /// `effective_manifest(subscription, now)`: every grant of the client but AmneziaWG (handed out
-    /// as a config file, never as a feed entry), effective-enabled at `now`.
+    /// All grants of the client, effective-enabled at `now`. Machine feeds exclude AmneziaWG
+    /// at the HTTP boundary; the HTML page needs it as a downloadable configuration.
     pub fn effective_manifest(&self, subscription: &Subscription, now: i64) -> Result<Manifest, ClientsError> {
         self.database.with_connection(|db| {
             let client = clients_store::client(db, &subscription.client_id)?;
@@ -392,7 +392,6 @@ impl SubscriptionService {
             }
             let items = grants
                 .iter()
-                .filter(|grant| grant.protocol.as_str() != "amneziawg")
                 .map(|grant| ManifestGrant {
                     grant_id: grant.id.clone(),
                     protocol: grant.protocol.as_str().to_string(),
@@ -457,6 +456,7 @@ impl SubscriptionService {
     /// codes — everything the dialog shows.
     pub fn reveal_payload(&self, subscription: &Subscription, token: &str) -> Result<Value, ClientsError> {
         let url = self.public_url(token);
+        let page_url = format!("{url}?format=html");
         let qr = |text: &str| panel_protocols::reveals::qr_data(text).map_err(internal);
         let mut variants = Map::new();
         for (name, query) in SHARE_VARIANTS {
@@ -468,6 +468,8 @@ impl SubscriptionService {
             "generation": subscription.generation,
             "url": url,
             "qr": qr(&url)?,
+            "page_url": page_url,
+            "page_qr": qr(&page_url)?,
             "variants": variants,
         }))
     }

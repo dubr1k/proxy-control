@@ -1,4 +1,5 @@
 import { esc, query } from "./common.js";
+import { awgConfigCard, qrCard } from "./qr.js";
 import { appsHtml, manualHtml, parseManual } from "./trusttunnel-clients.js";
 import { renderChooser, resetChooser, subscriptionProtocols } from "./link-chooser.js";
 
@@ -49,12 +50,7 @@ function bundleArtifact(grant) {
   return (artifact) => {
     if (artifact.media_type === "text/x-amneziawg-conf") {
       const qr = artifact.qr ? qrSource(artifact.qr) : "";
-      const file = `${grant.runtime_username}.conf`;
-      return `<label class="grant-link-field">${esc(artifact.label)}
-        <textarea class="awg-conf" readonly rows="10" spellcheck="false" aria-label="${esc(artifact.label)}">${esc(artifact.value)}</textarea></label>
-        ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
-        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(artifact.value)}">Копировать</button>
-          <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(artifact.value)}" download="${esc(file)}">Скачать .conf</a></span>`;
+      return awgConfigCard({ value: artifact.value, qr, label: artifact.label, username: grant.runtime_username });
     }
     if (artifact.media_type === "application/json") {
       // TrustTunnel's fields for apps that import neither the link nor the TOML (v2.1): a card, never raw JSON.
@@ -67,9 +63,11 @@ function bundleArtifact(grant) {
         <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(artifact.value)}">Копировать</button>
           <a class="primary button" href="data:application/toml;charset=utf-8,${encodeURIComponent(artifact.value)}" download="${esc(grant.runtime_username)}.toml">Скачать .toml</a></span>`;
     }
+    const qr = artifact.media_type === "text/uri-list" && artifact.qr
+      ? qrCard(qrSource(artifact.qr), `QR: ${artifact.label}`, `${grant.runtime_username}.svg`) : "";
     return `<label>${esc(artifact.label)}
         <span class="copy-field"><input readonly value="${esc(artifact.value)}"><button type="button" class="copy" data-copy="${esc(artifact.value)}">Копировать</button></span>
-      </label>`;
+      </label>${qr}`;
   };
 }
 
@@ -330,9 +328,6 @@ export function normaliseAccessPayload(data, service, username) {
 
 export function createAccessDialogs(context) {
   const { root, api, ui } = context;
-  // Whether the operator took anything out of the open bundle (copied, downloaded, opened an app).
-  let bundleTaken = false;
-  let bundleAsking = false;
   const dialogs = {
     naive: { data: null, selected: "", objectUrl: "" },
     mieru: { data: null, selected: "", objectUrl: "" },
@@ -514,46 +509,8 @@ export function createAccessDialogs(context) {
       query("#bundle-body", root).innerHTML = "";
       clearBundleSubscription();
     });
-    // Anything the operator took with him — a copied value, a downloaded file, the app opened — makes
-    // closing the window harmless; until then it asks once, because the secrets are shown only here.
-    bundle?.addEventListener("click", (event) => {
-      if (event.target.closest("button[data-copy], a[download], a[data-chooser-open]")) bundleTaken = true;
-      if (!event.target.closest('button[value="cancel"]')) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void closeBundle(bundle);
-    });
-    // Handle Escape before the native close watcher: repeated close requests can
-    // produce a non-cancelable `cancel`, which would discard one-time secrets even
-    // when the operator dismisses our confirmation. Other dialogs keep native Esc.
-    bundle?.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || bundleTaken) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void closeBundle(bundle);
-    });
-    bundle?.addEventListener("cancel", (event) => {
-      if (bundleTaken) return;
-      event.preventDefault();
-      void closeBundle(bundle);
-    });
     bindClientDialog("mieru");
     bindClientDialog("naive");
-  }
-
-  async function closeBundle(dialog) {
-    if (!bundleTaken) {
-      if (bundleAsking) return;
-      bundleAsking = true;
-      let close;
-      try {
-        close = await ui.confirmed("Закрыть, ничего не скопировав?", "Секреты по протоколам показываются только сейчас. Ссылку подписки клиента можно показать снова из окна клиента.", "Закрыть");
-      } finally {
-        bundleAsking = false;
-      }
-      if (!close) return;
-    }
-    dialog.close("cancel");
   }
 
   function clearBundleSubscription() {
@@ -565,12 +522,13 @@ export function createAccessDialogs(context) {
   // the plain link still reaches the operator, because the reveal is the only time he sees it.
   async function showBundleSubscription(subscription, protocols, name) {
     const host = query("#bundle-chooser", root);
+    let catalogue;
     try {
-      const catalogue = await api("/api/subscriptions/compatibility");
-      renderChooser(host, { catalogue, payload: subscription, protocols, name });
+      catalogue = await api("/api/subscriptions/compatibility");
     } catch {
-      host.innerHTML = `<label>URL подписки<span class="copy-field"><input readonly value="${esc(subscription.url)}"><button type="button" class="copy" data-copy="${esc(subscription.url)}">Копировать</button></span></label>`;
+      catalogue = { platforms: [], apps: [] };
     }
+    renderChooser(host, { catalogue, payload: subscription, protocols, name });
     query("#bundle-subscription", root).hidden = false;
   }
 
@@ -589,12 +547,10 @@ export function createAccessDialogs(context) {
       ${(grant.artifacts || []).map(bundleArtifact(grant)).join("")}${grant.protocol === "trusttunnel" ? appsHtml() : ""}
     </section>`).join("") || "<p class=\"form-hint\">Артефактов нет.</p>";
     const carried = subscriptionProtocols(protocols || (bundle.grants || []).map((grant) => grant.protocol));
-    if (subscription && carried.length) await showBundleSubscription(subscription, carried, name || "Proxy Control");
+    if (subscription) await showBundleSubscription(subscription, carried, name || "Proxy Control");
     else clearBundleSubscription();
     // With the chooser on top the per-protocol data stay folded; without it they are all there is.
     query("#bundle-details", root).open = query("#bundle-subscription", root).hidden;
-    // Nothing secret in the window (no artifacts): there is nothing to lose, so closing never asks.
-    bundleTaken = !(bundle.grants || []).some((grant) => (grant.artifacts || []).length);
     ui.openModal("#bundle-modal");
   }
 

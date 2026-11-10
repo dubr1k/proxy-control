@@ -294,18 +294,28 @@
       <label>Имя<input id="client-name" maxlength="128" autocomplete="off" placeholder="например, Ноутбук Сергея" required></label>
       <div id="client-placement"></div>
       <label id="client-username-row" hidden>Имя учётной записи<input id="client-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop"><small>Одно имя во всех отмеченных клетках; латиница, цифры, точка, дефис, подчёркивание</small></label>
+      <details id="client-additional" class="manual-limits"><summary>Дополнительные настройки</summary>
       <p class="form-hint unlimited-note">По умолчанию: без лимита трафика и срока. Ограничения включаются вручную.</p><label class="limit-switch"><input id="new-client-traffic-enabled" type="checkbox" data-limit-toggle="new-client-traffic"> Ограничить трафик</label>
       <label>Трафик, ГБ<input id="new-client-traffic-gb" type="number" min="0.000000001" step="any" inputmode="decimal" data-limit-group="new-client-traffic" disabled><small>1 ГБ = 1 000 000 000 байт</small></label><label class="limit-switch"><input id="new-client-validity-enabled" type="checkbox" data-limit-toggle="new-client-validity"> Ограничить срок</label>
       <label>Срок, дней<input id="new-client-validity-days" type="number" min="1" max="36500" step="1" inputmode="numeric" data-limit-group="new-client-validity" disabled><small>Отсчитывается с момента сохранения; без ограничения — бессрочно</small></label><label>Окно rolling-квоты Mieru, дней<input id="new-client-rolling-days" data-limit-optional type="number" min="1" max="3650" step="1" data-limit-group="new-client-traffic" disabled><small>Только для Mieru: это окно квоты, не срок доступа. Квота округляется вверх до MiB. AmneziaWG и TrustTunnel не поддерживают лимит трафика.</small></label>
+      </details>
       <div class="form-error" id="client-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-client" type="button">Создать</button></footer>
     </form>
   </dialog>
 
-  <dialog id="bundle-modal" class="access-dialog">
+  <dialog id="qr-modal" class="access-dialog qr-dialog" aria-labelledby="qr-title">
+    <form method="dialog">
+      <div class="modal-head"><h2 id="qr-title">QR-код подключения</h2><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <img id="qr-large" alt="">
+      <footer><a id="qr-large-download" class="secondary button">Скачать QR</a><button class="primary" value="cancel" formnovalidate>Готово</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="bundle-modal" class="access-dialog delivery-dialog">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ ВЫДАНЫ</span><h2 id="bundle-title">Ссылки доступа</h2></div><div class="modal-head-actions"><button class="primary" value="cancel" formnovalidate>Готово</button><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div></div>
-      <p class="modal-copy">Ссылки показываются один раз: скопируйте нужное сейчас, эта страница больше не откроется. Панель хранит секреты в шифрованном виде, а ссылку для клиента можно показать снова из окна клиента.</p>
+      <p class="modal-copy">Данные можно показать повторно из управления клиентом.</p>
       <section id="bundle-subscription" class="bundle-link" hidden>
         <h3>Ссылка для клиента</h3>
         <div id="bundle-chooser"></div>
@@ -318,16 +328,12 @@
     </form>
   </dialog>
 
-  <dialog id="subscription-modal" class="access-dialog matrix-wide detail-pane">
+  <dialog id="subscription-modal" class="access-dialog delivery-dialog">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2 id="subscription-title">Клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <div class="client-tabs" role="tablist" aria-label="Раздел клиента">
-        <button type="button" data-client-panel="subscription" role="tab" aria-selected="true">Подписка</button>
-        <button type="button" data-client-panel="accesses" role="tab" aria-selected="false">Доступы</button>
-      </div>
       <div id="client-subscription-panel">
       <div id="subscription-box">
-        <p class="modal-copy">Одна ссылка объединяет доступы клиента. После показа выберите устройство и приложение.</p>
+        <p class="modal-copy">Одна постоянная ссылка объединяет доступы клиента.</p>
         <details id="subscription-status-details" class="subscription-status-details"><summary>Состояние подписки</summary><p class="form-hint" id="subscription-status"></p></details>
         <div class="client-actions" id="subscription-actions"></div>
         <div id="subscription-reveal" class="subscription-reveal" hidden>
@@ -341,7 +347,7 @@
             <label>URL подписки
               <span class="copy-field"><input id="subscription-url" readonly><button type="button" id="copy-subscription-url">Копировать</button></span>
             </label>
-            <img id="subscription-qr" alt="QR-код подписки" class="subscription-qr">
+            <button type="button" class="qr-preview" data-qr-expand aria-label="Увеличить QR"><img id="subscription-qr" alt="QR-код подписки" class="subscription-qr"></button>
           </details>
         </div>
         <p class="form-hint subscription-warning">Telegram и часть native-клиентов не обновляют подписку автоматически — после изменений отправьте клиенту ссылку заново.</p>
@@ -541,7 +547,7 @@
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">ПОДКЛЮЧЕНИЕ</span><h2 id="access-title">Доступ к прокси</h2></div><button class="icon-button close" value="cancel" aria-label="Закрыть">×</button></div>
       <div class="access-layout">
-        <div class="qr-wrap"><img id="qr-image" alt="QR-код подключения"><span>Наведите камеру Telegram</span></div>
+        <div class="qr-wrap"><button type="button" class="qr-preview" data-qr-expand aria-label="Увеличить QR"><img id="qr-image" alt="QR-код подключения"></button><span>Наведите камеру Telegram</span></div>
         <div class="access-details"><span class="status-pill active"><i></i> Готово к подключению</span><p>Отсканируйте QR-код или отправьте ссылку на устройство. Ссылка содержит секретный ключ.</p><label>Ссылка Telegram<div class="copy-field"><input id="access-link" readonly aria-label="Ссылка подключения"><button id="copy-link" type="button">Копировать</button></div></label><div class="access-actions"><a class="primary button" id="open-telegram" href="#">Открыть в Telegram</a><a class="secondary button" id="download-qr" download="mtproxy-qr.svg">Скачать QR</a></div></div>
       </div>
       <div class="security-note">Не публикуйте ссылку открыто: любой, у кого она есть, сможет использовать прокси.</div>
@@ -554,7 +560,7 @@
       <div class="modal-head"><div><span class="eyebrow">MIERU · КЛИЕНТ</span><h2 id="mieru-access-title">Доступ Mieru</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="mieru-client-tabs" class="client-tabs" role="tablist" aria-label="Клиент Mieru"></div>
       <div id="mieru-access-layout" class="access-layout">
-        <div id="mieru-qr-wrap" class="qr-wrap"><img id="mieru-qr-image" alt="" hidden><span id="mieru-qr-caption">QR выбранного клиента</span></div>
+        <div id="mieru-qr-wrap" class="qr-wrap"><button type="button" class="qr-preview" data-qr-expand aria-label="Увеличить QR"><img id="mieru-qr-image" alt="" hidden></button><span id="mieru-qr-caption">QR выбранного клиента</span></div>
         <div class="access-details">
           <span class="status-pill active"><i></i> Данные готовы</span>
           <p id="mieru-client-description"></p>
@@ -574,7 +580,7 @@
       <div class="modal-head"><div><span class="eyebrow">NAIVEPROXY · КЛИЕНТ</span><h2 id="naive-access-title">Доступ NaiveProxy</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="naive-client-tabs" class="client-tabs" role="tablist" aria-label="Клиент NaiveProxy"></div>
       <div id="naive-access-layout" class="access-layout">
-        <div id="naive-qr-wrap" class="qr-wrap"><img id="naive-qr-image" alt="" hidden><span id="naive-qr-caption">QR выбранного клиента</span></div>
+        <div id="naive-qr-wrap" class="qr-wrap"><button type="button" class="qr-preview" data-qr-expand aria-label="Увеличить QR"><img id="naive-qr-image" alt="" hidden></button><span id="naive-qr-caption">QR выбранного клиента</span></div>
         <div class="access-details">
           <span class="status-pill active"><i></i> Данные готовы</span>
           <p id="naive-client-description"></p>

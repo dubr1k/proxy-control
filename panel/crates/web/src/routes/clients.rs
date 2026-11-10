@@ -632,10 +632,9 @@ async fn bundle(State(app): State<AppState>, call: Call) -> Handled {
     let rules = Rules { not_found: Some("operation not found"), conflict: Some(409), ..Rules::default() };
     let mut payload = blocking(rules, move || provisioning.bundle(&id, hosts.as_ref() as &dyn PublicHosts)).await?;
     for grant in payload["grants"].as_array_mut().into_iter().flatten() {
-        // An AmneziaWG config is scanned, not typed: the other artifacts are one-line links.
         for artifact in grant["artifacts"].as_array_mut().into_iter().flatten() {
             let media_type = artifact["media_type"].as_str().unwrap_or("").to_string();
-            if media_type == "text/x-amneziawg-conf" {
+            if matches!(media_type.as_str(), "text/x-amneziawg-conf" | "text/uri-list") {
                 let qr = artifact_qr(&media_type, artifact["value"].as_str().unwrap_or(""));
                 artifact["qr"] = qr.map_or(Value::Null, Value::String);
             }

@@ -82,6 +82,9 @@ but updates per-user quota/accounting after a tunnel closes, and Mieru shows `un
 
 ## Interface
 
+Access QR codes can be enlarged with a click and downloaded. Client creation and subsequent delivery use the same window; the AmneziaWG configuration expands separately.
+
+
 Panel captures from an isolated lab with test data — no keys, QR codes or production
 node addresses.
 
@@ -704,16 +707,16 @@ public listeners and adjacent SNI routes.
 
 ### Clients, grants and subscriptions
 
-Client and node cards show a short status summary; Open displays details. Subscription
-delivery has its own button, with QR and instructions expanded on request.
+Client cards show their state and protocols. Connect opens the permanent client page and its
+QR; Manage opens the client's accesses and nodes.
 
 The «Clients» screen keeps a person and all their grants to MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel
 together: search and filters over the whole list, a read-only import of existing service
 users, and a grant issued as one journalled operation with an honest outcome — `succeeded`,
-`compensated` or `manual_intervention_required`. Every client gets one link
-`https://<subscription domain>/s/<token>` to all their grants in the `raw`, `singbox` (Karing
-and sing-box), `clash` (mihomo), `manifest` and `html` formats. The link key is shown once,
-the database stores only its hash, revocation is immediate, and subscription requests are
+`compensated` or `manual_intervention_required`. The client page uses
+`https://<subscription domain>/s/<token>?format=html`; apps can use `raw`, `singbox` (Karing
+and sing-box), `clash` (mihomo) and `manifest` formats. The panel stores a token hash and,
+when secret storage is enabled, an encrypted copy for subsequent display. Revocation is immediate, and subscription requests are
 not logged. Details: [PANEL.en.md](docs/guides/PANEL.en.md).
 
 Subscription connection names start with the node name: `AMS · Naive`,

@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.5] - 2026-11-10
+
+### UI
+- Enlarge QR previews to 320 px, preserve square proportions, and support a larger view with download and cleanup on close.
+- Show the permanent client page and its QR after creation and on subsequent connection; device and app selection lives in a separate mode and is remembered locally without secrets.
+- Add AmneziaWG accesses to the client page with their version, copy, `.conf` download and QR; disabled and expired accesses do not reveal secrets. Machine subscription formats remain unchanged.
+- Open client management on a separate page and restore list search and position on return; creation limits are under additional settings.
+- Enlarge primary touch targets and keep the heading and close action available while scrolling.
+
+### Host installer
+- Installer unchanged: fresh installations and updates receive the same panel assets. The published download script pins the release archive version and SHA-256.
+
 ## [4.0.4] - 2026-11-06
 
 ### Fixes

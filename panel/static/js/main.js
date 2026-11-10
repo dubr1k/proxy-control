@@ -102,6 +102,7 @@ function createNavigator(context) {
     const generation = ++context.state.navigationGeneration;
     await context.ui.prepareNavigation?.(name !== context.state.view);
     if (context.state.navigationGeneration !== generation) return;
+    context.subscriptions?.closeManagement({ restore: false });
     context.state.view = name;
     syncAddress(name, address);
     context.ui.finishNavigation?.();

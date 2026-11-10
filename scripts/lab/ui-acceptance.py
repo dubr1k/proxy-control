@@ -433,23 +433,36 @@ class Acceptance:
         return self.browser.wait(f"document.querySelector('{dialog}')?.open === true")
 
     def open_client_window(self, card: str, timeout: float = 20) -> bool:
-        """The window's close handler awaits a navigate that re-renders the card list; the
-        card the caller clicks can be a detached node an instant later and the delegated
-        click is lost. The same handler bumps the window's generation a beat after
-        `close()` returns, so an open issued in the same tick has its own load discarded
-        and the window stays on its empty markup — open is not «opened». Retry until the
-        window's own rows are on screen, closing the blank one between attempts."""
+        """Open the selected client's management page and wait for its node matrix."""
         b = self.browser
         b.close_dialog("#subscription-modal")
+        same = ("document.querySelector('#client-management')?.dataset.clientId === "
+                f"document.querySelector({json.dumps(card)})?.dataset.clientId")
+        if b.js(same) and b.exists("#client-management #placement-body input[data-node]"):
+            return True
+        self.close_client_page()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             b.click(f"{card} [data-client-action=open]")
-            if (b.wait("document.querySelector('#subscription-modal')?.open === true", 2)
-                    and b.wait("!!document.querySelector('#placement-body input[data-node]')", 5)):
+            if b.wait(f"({same}) && !!document.querySelector('#client-management #placement-body input[data-node]')", 5):
                 return True
-            b.close_dialog("#subscription-modal")
+            self.close_client_page()
             time.sleep(0.5)
         return False
+
+    def close_client_page(self) -> None:
+        b = self.browser
+        if b.exists("#client-management [data-management-back]"):
+            b.click("#client-management [data-management-back]")
+            b.wait("!document.querySelector('#client-management')", 10)
+
+    def open_client_connection(self, card: str) -> bool:
+        b = self.browser
+        self.close_client_page()
+        b.close_dialog("#subscription-modal")
+        return (b.click(f"{card} [data-client-action=subscription]")
+                and b.wait("document.querySelector('#subscription-modal')?.open === true && "
+                           "!!document.querySelector('#subscription-actions button')", 20))
 
     def open_grant(self, card: str, protocol: str, timeout: float = 20) -> bool:
         """v1.0.2: a grant's row opens its own window (details, link, actions). The list behind
@@ -810,12 +823,12 @@ class Acceptance:
         b.type("#placement-username", grant_user)
         self.select_client_protocols()
         b.click("#placement-actions button[data-placement-action=apply]")
-        self.check("clients.matrix_apply_issues_grants", b.wait("document.querySelector('#bundle-modal')?.open === true && (document.querySelector('#bundle-body')?.textContent || '').length > 0", 90),
-                   f"subscription-error: {b.text('#subscription-error')!r}")
-        bundle = b.text("#bundle-body")
-        self.check("clients.bundle_names_three_protocols", all(word in bundle.casefold() for word in ("mtproxy", "naive", "mieru")), "three protocol labels are required")
+        self.check("clients.matrix_apply_issues_grants", b.wait("document.querySelector('#bundle-modal')?.open === true && document.querySelectorAll('#bundle-body .bundle-grant').length > 0", 90),
+                   f"management error: {b.text('#client-management [role=alert]')!r}")
+        names = b.js("[...document.querySelectorAll('#bundle-body .bundle-grant h3')].map(h => h.textContent)") or []
+        self.check("clients.bundle_names_three_protocols", all(any(word in name.casefold() for name in names) for word in ("mtproxy", "naive", "mieru")), "three protocol labels are required")
         b.close_dialog("#bundle-modal")
-        b.close_dialog("#subscription-modal")
+        self.close_client_page()
         self.check("clients.three_grant_rows", self.open_client_window(card) and b.wait("document.querySelectorAll('#subscription-grants .grant-item[data-grant-id] .grant-row').length === 3", 30))
         for protocol in ("mtproxy", "naive", "mieru"):
             self.created[{"mtproxy": "users", "naive": "naive", "mieru": "mieru"}[protocol]].append(grant_user)
@@ -843,8 +856,7 @@ class Acceptance:
             b.close_dialog("#grant-window")
             self.check(cleared, b.wait("!document.querySelector('#grant-link-body input')", 5))
         # The subscription: issued with the client, shown again on request, rotated, revoked.
-        self.check("clients.subscription_window_opens", self.open_client_window(card) and b.wait("!!document.querySelector('#subscription-actions button')", 20))
-        b.click('#subscription-modal [data-client-panel=subscription]')
+        self.check("clients.subscription_window_opens", self.open_client_connection(card))
         configured = "не настроен" not in b.text("#subscription-status")
         self.check("clients.subscription_domain_configured", configured, b.text("#subscription-status")[:120])
         if configured:
@@ -852,27 +864,29 @@ class Acceptance:
                 b.click("[data-subscription-action=create]")
                 b.wait("document.querySelector('#subscription-reveal')?.hidden === false", 20)
                 b.close_dialog("#subscription-modal")
-                self.open_client_window(card)
-                b.click('#subscription-modal [data-client-panel=subscription]')
+                self.open_client_connection(card)
                 b.wait("!!document.querySelector('#subscription-actions button')", 20)
             if b.exists("[data-subscription-action=show]"):
                 b.click("[data-subscription-action=show]")
-                self.check("clients.window_show_reveals_url_again", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20), b.text("#subscription-error"))
-            else:
-                self.check("clients.window_show_reveals_url_again", False, f"subscription-actions: {b.text('#subscription-actions')!r}")
+            self.check("clients.window_show_reveals_url_again", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20), b.text("#subscription-error"))
             first_url = b.value("#subscription-url")
+            first_page_url = b.value("#subscription-chooser [data-client-page-url]")
             self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
             self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
-            b.click('#subscription-modal [data-client-panel=accesses]')
+            b.close_dialog("#subscription-modal")
+            self.open_client_window(card)
             # Untick one cell: the grant is disabled and leaves the subscription. The open
             # window must show it by itself — it re-reads the client while a cell is unsettled.
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = false; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
-            self.check("clients.matrix_untick_disables", self.poll_matrix_cell(card, "local", "naive", "выключен", 30), b.text("#subscription-error"))
+            self.check("clients.matrix_untick_disables", self.poll_matrix_cell(card, "local", "naive", "выключен", 30), b.text("#client-management [role=alert]"))
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = true; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
-            self.check("clients.matrix_tick_enables", self.poll_matrix_cell(card, "local", "naive", "включён", 30), b.text("#subscription-error"))
-            b.click('#subscription-modal [data-client-panel=subscription]')
+            self.check("clients.matrix_tick_enables", self.poll_matrix_cell(card, "local", "naive", "включён", 30), b.text("#client-management [role=alert]"))
+            self.open_client_connection(card)
+            self.check("clients.page_url_survives_grant_changes",
+                       b.wait("!!document.querySelector('#subscription-chooser [data-client-page-url]')", 20)
+                       and b.value("#subscription-chooser [data-client-page-url]") == first_page_url)
             b.click("[data-subscription-action=rotate]")
             self.check("clients.subscription_rotate_moves_url", b.confirm() and b.wait(f"(document.querySelector('#subscription-url')?.value || '').startsWith('https://') && document.querySelector('#subscription-url').value !== {json.dumps(first_url)}", 20))
             second_url = b.value("#subscription-url")
@@ -882,8 +896,7 @@ class Acceptance:
             self.check("clients.subscription_revoke_offers_create_again", b.confirm() and b.wait("!!document.querySelector('[data-subscription-action=create]')", 20))
             self.check("clients.revoked_subscription_url_is_404", self.fetch(second_url) == 404)
         b.close_dialog("#subscription-modal")
-        # v0.12: клиенту с одним MTProxy подписка не предлагается — Telegram её не читает;
-        # вместо неё блок ссылок `tg://proxy` с QR, по одной на узел.
+        # Клиенту только с MTProxy тоже можно создать постоянную страницу.
         tg_user = f"{self.prefix}-tg"
         tg_client = self.api.json("/api/clients", "POST", {"display_name": tg_user, "subscription": False})
         self.created["clients"].append(tg_client["id"])
@@ -894,13 +907,11 @@ class Acceptance:
         self.created["users"].append(tg_user)
         self.goto_view("clients", "!!document.querySelector('.client-list')")
         tgcard = f"[data-client-id={json.dumps(tg_client['id'])}]"
-        self.check("clients.mtproxy_only_window_opens", self.open_client_window(tgcard))
-        b.click('#subscription-modal [data-client-panel=subscription]')
-        self.check("clients.mtproxy_only_hides_the_subscription",
-                   b.wait("document.querySelector('#subscription-box')?.hidden === true && "
-                          "document.querySelector('#subscription-unavailable')?.hidden === false && "
-                          "document.querySelector('#links-box')?.hidden === false", 20),
-                   b.text("#subscription-unavailable"))
+        self.check("clients.mtproxy_only_window_opens", self.open_client_connection(tgcard))
+        self.check("clients.mtproxy_only_offers_page",
+                   b.wait("document.querySelector('#subscription-box')?.hidden === false && "
+                          "!!document.querySelector('[data-subscription-action=create]') && "
+                          "document.querySelector('#links-box')?.hidden === false", 20))
         b.click("#links-actions button[data-links-action=show]")
         self.check("clients.mtproxy_links_show_link_and_qr",
                    b.wait("(() => { const c = document.querySelector('#links-body .link-card'); return !!c && "
@@ -928,7 +939,7 @@ class Acceptance:
         self.grant_action("adopt")
         self.check("clients.adopt_captures_the_credential", b.wait("!document.querySelector('#grant-window [data-grant-action=adopt]') && !!document.querySelector('#grant-window [data-grant-action=show]')", 30))
         b.close_dialog("#grant-window")
-        b.close_dialog("#subscription-modal")
+        self.close_client_page()
         # The default filter shows active clients only. Keep the suspended card
         # available for the following resume and cleanup actions.
         b.click('[data-client-filter-state=all]')
@@ -1458,11 +1469,11 @@ class Acceptance:
             b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); i.checked = true; return true; }})()")
             cell_state = b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); return {{disabled: i?.disabled, checked: i?.checked, username: document.querySelector('#placement-username')?.value, valid: document.querySelector('#placement-username')?.checkValidity()}}; }})()")
             clicked = b.click("#placement-actions button[data-placement-action=apply]")
-            after_click = b.js("({open: document.querySelector('#subscription-modal')?.open, actions: document.querySelector('#placement-actions')?.innerHTML, busy: document.querySelector('#placement-actions button')?.disabled})")
-            accepted = ("document.querySelector('#bundle-modal')?.open === true || (document.querySelector('#subscription-error')?.textContent || '') !== ''"
+            after_click = b.js("({open: !!document.querySelector('#client-management'), busy: document.querySelector('#placement-actions button')?.disabled})")
+            accepted = ("document.querySelector('#bundle-modal')?.open === true || (document.querySelector('#client-management [role=alert]')?.textContent || '') !== ''"
                         " || [...document.querySelectorAll('#toast-region *')].some(t => /Доступы выданы|Отправлено узлу|Операция|Состав клиента|Изменений нет|нужно имя/.test(t.textContent || ''))")
-            self.check("central.remote_grant_accepted", b.wait(accepted, 120) and not b.text("#subscription-error"),
-                       json.dumps({"error": b.text("#subscription-error"), "cell": cell_state, "clicked": clicked, "after_click": after_click, "toasts": b.js("[...document.querySelectorAll('#toast-region *')].map(t => t.textContent).slice(0, 4)"),
+            self.check("central.remote_grant_accepted", b.wait(accepted, 120) and not b.text("#client-management [role=alert]"),
+                       json.dumps({"error": b.text("#client-management [role=alert]"), "cell": cell_state, "clicked": clicked, "after_click": after_click, "toasts": b.js("[...document.querySelectorAll('#toast-region *')].map(t => t.textContent).slice(0, 4)"),
                                    "apply_busy": b.js("document.querySelector('#placement-actions button[data-placement-action=apply]')?.disabled"),
                                    "bundle_open": b.js("document.querySelector('#bundle-modal')?.open")}, ensure_ascii=False)[:400])
             # apply() ends (and the bundle window, if any, has opened) once the button is free again.
@@ -1474,7 +1485,7 @@ class Acceptance:
             self.check("central.matrix_cell_settles_in_the_open_window",
                        self.poll_matrix_cell(ccard, node_id, "naive", "включён", 120),
                        b.js("[...document.querySelectorAll('#placement-body small')].map(s => s.textContent).join(' | ')"))
-            b.close_dialog("#subscription-modal")
+            self.close_client_page()
             deadline = time.monotonic() + 90
             delivered = False
             while time.monotonic() < deadline and not delivered:

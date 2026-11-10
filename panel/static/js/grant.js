@@ -1,3 +1,4 @@
+import { awgConfigCard, qrCard } from "./qr.js";
 import { bindLimitToggles, setValidityLimit, validityLimit } from "./access-limits.js";
 // The window of one access (v1.0.2): everything the panel knows about a single grant — where it
 // lives, what the node reports, its route and limits — and, on request, its own link with a QR.
@@ -89,7 +90,7 @@ function rate(bps) {
 }
 
 // The limits a grant carries, in words; none named means none.
-function limits(grant) {
+export function limits(grant) {
   const options = grant.options || {};
   const parts = [];
   if (grant.protocol === "mtproxy") {
@@ -107,7 +108,7 @@ function limits(grant) {
   return parts.length ? parts.join(", ") : "без ограничений";
 }
 
-function validity(grant) {
+export function validity(grant) {
   if (!grant.valid_from && !grant.valid_until) return "";
   const from = grant.valid_from ? `с ${formatDate(grant.valid_from)}` : "";
   const until = grant.valid_until ? `до ${formatDate(grant.valid_until)}` : "";
@@ -264,14 +265,7 @@ export function createGrantDialog(context) {
     }
     const { value, qr, label } = state.link;
     if (grant.protocol === "amneziawg") {
-      const file = `${grant.runtime_username}.conf`;
-      body.innerHTML = `<label class="grant-link-field">${esc(label)}
-          <textarea class="awg-conf" readonly rows="12" spellcheck="false" aria-label="${esc(label)}">${esc(value)}</textarea>
-        </label>
-        ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
-        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(value)}">Копировать</button>
-          <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(value)}" download="${esc(file)}">Скачать .conf</a>
-          ${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>`;
+      body.innerHTML = awgConfigCard({ value, qr, label, username: grant.runtime_username });
       return;
     }
     const telegram = grant.protocol === "mtproxy"
@@ -288,8 +282,8 @@ export function createGrantDialog(context) {
     body.innerHTML = `<label class="grant-link-field">${esc(label)}
         <span class="copy-field"><input readonly value="${esc(value)}" aria-label="${esc(label)}"><button type="button" class="copy" data-copy="${esc(value)}">Копировать</button></span>
       </label>
-      ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код: ${esc(grant.runtime_username)}">` : ""}
-      <span class="link-card-actions">${telegram}${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.protocol)}-${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>${toml}`
+      ${qr ? qrCard(qr, `QR-код: ${grant.runtime_username}`, `${grant.protocol}-${grant.runtime_username}.svg`) : ""}
+      <span class="link-card-actions">${telegram}</span>${toml}`
       + (grant.protocol === "trusttunnel" ? `${state.link.manual ? manualHtml(state.link.manual) : ""}${appsHtml()}` : "");
   }
 

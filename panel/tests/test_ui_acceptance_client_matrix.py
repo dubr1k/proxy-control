@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+from scripts.lab import ui_protocol_dialog_check as lab
 from scripts.lab.ui_protocol_dialog_check import OverviewFixture, isolated_browser, isolated_panel
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +30,7 @@ def test_ui_tier_client_matrix_selects_only_enabled_requested_protocols(tmp_path
         assert browser.js("!document.querySelector('#placement-body input[data-node=local][data-protocol=naive]').checked")
 
 
-def test_ui_tier_client_management_opens_the_accesses_tab(tmp_path):
+def test_ui_tier_client_management_opens_the_client_page(tmp_path):
     with isolated_panel(tmp_path, OverviewFixture) as fixture, isolated_browser(tmp_path, fixture) as browser:
         client = fixture.api('/api/clients', 'POST', {'display_name': 'Details check', 'subscription': False})
         browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
@@ -38,7 +39,45 @@ def test_ui_tier_client_management_opens_the_accesses_tab(tmp_path):
         caller.browser.cdp = browser.dt
         card = f'.client-card[data-client-id="{client["id"]}"]'
         assert caller.open_client_window(card)
-        assert browser.js("document.querySelector('#subscription-modal [data-client-panel=accesses]').getAttribute('aria-selected') === 'true'")
+        assert browser.js("!!document.querySelector('#client-management #placement-body input[data-node]')")
+        assert browser.js("!document.querySelector('#subscription-modal').open")
+
+
+def test_client_management_shows_local_and_linked_nodes_with_paused_read_only(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        client = fixture.api('/api/clients', 'POST', {'display_name': 'Several nodes', 'subscription': False})
+        fixture.api(f'/api/nodes/{fixture.paused_id}/resume', 'POST')
+        issued = fixture.api(f"/api/clients/{client['id']}/grants", 'POST', {'grants': [
+            {'protocol': 'trusttunnel', 'node_id': fixture.paused_id, 'runtime_username': 'paused-holder', 'options': {}},
+        ]})
+        assert issued['status'] == 'pending_remote', issued['status']
+        fixture.api(f'/api/nodes/{fixture.paused_id}/pause', 'POST')
+        browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
+        browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
+        browser.wait("!!document.querySelector('#client-management #placement-body input[data-node=local]')", 'management')
+        remote = fixture.remote_id
+        paused = fixture.paused_id
+        assert browser.js("!!document.querySelector(" + repr(f'#client-management input[data-node="{remote}"]') + ")")
+        assert browser.js("""((node) => {
+          const cells = [...document.querySelectorAll('#client-management input[data-node]')].filter(i => i.dataset.node === node);
+          return cells.length > 0 && cells.every(i => i.disabled);
+        })(""" + repr(paused) + ")")
+
+
+def test_ui_tier_can_open_connection_after_management(tmp_path, monkeypatch):
+    monkeypatch.setattr(lab, 'SUBSCRIPTION_URL', 'https://sub.example')
+    monkeypatch.setattr(lab, 'SUBSCRIPTION_HOST', '127.0.0.1')
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        client = fixture.api('/api/clients', 'POST', {'display_name': 'Connection'})
+        fixture.api(f"/api/reveal/{client['subscription_reveal_token']}")
+        browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
+        caller = acceptance.Acceptance.__new__(acceptance.Acceptance)
+        caller.browser = acceptance.Browser.__new__(acceptance.Browser)
+        caller.browser.cdp = browser.dt
+        card = f'.client-card[data-client-id="{client["id"]}"]'
+        assert caller.open_client_window(card)
+        assert caller.open_client_connection(card)
+        browser.wait("!!document.querySelector('#subscription-chooser [data-client-page-url]')", 'client page')
 
 
 def test_import_shows_the_new_client_without_a_manual_refresh(tmp_path):

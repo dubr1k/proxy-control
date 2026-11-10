@@ -37,7 +37,7 @@ def check_awg(browser, fixture):
         "width": 1280, "height": 900, "deviceScaleFactor": 1, "mobile": False,
     })
     browser.dt.call("Page.navigate", {"url": fixture.base + "/#clients"})
-    card = f'[data-client-id="{cid}"] [data-client-action="placement"]'
+    card = f'[data-client-id="{cid}"] [data-client-action="open"]'
     wait(f"!!document.querySelector({json.dumps(card)})", "client placement action")
     click(card)
     wait("document.querySelectorAll('#placement-body input[data-node=local][data-protocol^=\"amneziawg:\"]').length === 3", "three AWG version cells")
@@ -65,11 +65,13 @@ def check_awg(browser, fixture):
     })()"""), "bundle config downloads match displayed configs")
     js("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
     browser.dt.call("Page.navigate", {"url": fixture.base + "/?grant=awg#clients"})
+    wait(f"!!document.querySelector({json.dumps(card)})", "client management action")
+    click(card)
     grant_selector = f'[data-grant-open="{awg["3.1"]["id"]}"]'
     wait(f"!!document.querySelector({json.dumps(grant_selector)})", "issued grant row")
     click(grant_selector)
     wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "grant window")
-    require(js("(() => { const facts = document.querySelector('#grant-facts').textContent; return facts.includes('AmneziaWG 3.1') && facts.includes('10.66.31.') && facts.includes('51822/udp') && !document.querySelector('[data-grant-action=label]'); })()"), "AWG grant facts and actions")
+    require(js("(() => { const facts = document.querySelector('#grant-facts').textContent; const technical = document.querySelector('#grant-technical-facts').textContent; return facts.includes('AmneziaWG 3.1') && technical.includes('10.66.31.') && technical.includes('51822/udp') && !document.querySelector('[data-grant-action=label]'); })()"), "AWG grant facts and actions")
     click("[data-grant-action=show]")
     wait("!!document.querySelector('#grant-link-body textarea.awg-conf')", "grant config reveal")
     require(js("(() => { const text = document.querySelector('#grant-link-body textarea.awg-conf').value; const link = document.querySelector('#grant-link-body a[download=\"samsung-awg31.conf\"]'); window.__awgBeforeRotation = text; return text.startsWith('[Interface]\\nPrivateKey = ') && text.includes('Endpoint = awg.central.example:51822') && text.includes('HeaderProtectionKey') && !!document.querySelector('#grant-link-body img.link-qr') && !!link && decodeURIComponent(link.href.split(',').slice(1).join(',')) === text; })()"), "AWG 3.1 config, QR and downloadable content")
@@ -103,6 +105,7 @@ def check_awg(browser, fixture):
         }};
         return true;
     }})()""")
+    click("#grant-technical > summary")
     click("[data-grant-action=rotate]")
     wait("document.querySelector('#confirm')?.open", "rotation confirmation")
     click("#confirm-ok")
@@ -112,7 +115,7 @@ def check_awg(browser, fixture):
     wait("!!document.querySelector('#grant-link-body textarea.awg-conf') && document.querySelector('#grant-link-body textarea.awg-conf').value !== window.__awgBeforeRotation", "rotated config differs")
     js("delete window.__awgBeforeRotation; [...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
     click('.nav-item[data-view=amneziawg]')
-    wait("document.querySelectorAll('.data-row.naive-grid').length === 2", "AWG screen grants")
+    wait("document.querySelectorAll('.data-row[data-protocol-row]').length === 2", "AWG screen grants")
     require(js("['51820/udp', '51821/udp', '51822/udp'].every(port => [...document.querySelectorAll('.awg-overview article strong')].some(e => e.textContent.trim() === port))"), "AWG screen version ports")
     click("[data-awg-action=open]")
     wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "grant window from AWG screen")
@@ -126,7 +129,7 @@ def check_awg(browser, fixture):
     wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "screen creation bundle")
     require(js("['screen-made-awg20.conf', 'screen-made-awg31.conf'].every(name => !!document.querySelector('#bundle-body a[download=\"' + name + '\"]'))"), "screen-selected versions downloaded")
     js("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close()); true")
-    wait("['screen-made-awg20', 'screen-made-awg31'].every(name => [...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === name))", "screen-created grant rows")
+    wait("['screen-made-awg20', 'screen-made-awg31'].every(name => [...document.querySelectorAll('.data-row[data-protocol-row] .identity small')].some(e => e.textContent.trim() === name))", "screen-created grant rows")
     browser.healthy()
 
 

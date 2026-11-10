@@ -121,6 +121,45 @@ impl World {
 }
 
 #[test]
+fn reveal_provides_a_fixed_html_page_without_changing_import_links() {
+    let world = World::new("reveal-page");
+    let client_id = world.client();
+    let (subscription, token) = world.subscriptions.create(&client_id, &ctx()).unwrap();
+    let first = world.subscriptions.reveal_payload(&subscription, &token).unwrap();
+    let (shown, again) = world.subscriptions.reveal_token(&client_id, &ctx()).unwrap();
+    let second = world.subscriptions.reveal_payload(&shown, &again).unwrap();
+    assert_eq!(first["page_url"], format!("https://sub.example.com/s/{token}?format=html"));
+    assert_eq!(first["page_url"], second["page_url"]);
+    assert_eq!(first["page_qr"], second["page_qr"]);
+    assert!(first["page_qr"].as_str().unwrap().starts_with("data:image/svg+xml;base64,"));
+    assert_ne!(first["page_qr"], first["qr"]);
+    assert_eq!(first["url"], format!("https://sub.example.com/s/{token}"));
+    assert!(first["variants"]["raw"]["url"].is_string());
+}
+
+#[test]
+fn effective_manifest_keeps_amnezia_accesses_and_applies_their_state() {
+    let world = World::new("page-amnezia-state");
+    let client_id = world.client();
+    let active = world.seed(&client_id, Protocol::Amneziawg, "active-awg", None);
+    let disabled = world.seed(&client_id, Protocol::Amneziawg, "disabled-awg", None);
+    let expired = world.seed(&client_id, Protocol::Amneziawg, "expired-awg", Some(world.env.clock.now() - 1));
+    world
+        .env
+        .database
+        .transaction(|db| {
+            store::update_grant(db, &disabled.id, &store::GrantUpdate::new().desired(GrantDesiredState::Disabled))
+        })
+        .unwrap();
+    let (subscription, _) = world.subscriptions.create(&client_id, &ctx()).unwrap();
+    let manifest = world.subscriptions.effective_manifest(&subscription, world.env.clock.now()).unwrap();
+    let enabled = |id: &str| manifest.grants.iter().find(|grant| grant.grant_id == id).unwrap().enabled;
+    assert!(enabled(&active.id));
+    assert!(!enabled(&disabled.id));
+    assert!(!enabled(&expired.id));
+}
+
+#[test]
 fn token_is_stored_only_as_hash_and_ciphertext() {
     let world = World::new("token-storage");
     let client_id = world.seeded_client();

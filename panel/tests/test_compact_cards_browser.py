@@ -11,6 +11,15 @@ def seed_client(fixture):
     return client
 
 
+def test_new_client_hides_limits_in_additional_settings(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        browser.open_view('clients', "!!document.querySelector('.client-list')", width=390)
+        browser.click('#add')
+        browser.wait("document.querySelector('#client-modal').open", 'new client')
+        assert browser.js("!!document.querySelector('#client-modal details#client-additional:not([open]) #new-client-traffic-enabled')")
+        assert browser.js("!!document.querySelector('#client-modal details#client-additional:not([open]) #new-client-validity-enabled')")
+
+
 def test_node_overview_is_short_and_details_preserve_the_list(tmp_path):
     with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
         for width in (390, 1440):
@@ -37,6 +46,13 @@ def test_client_overview_hides_accounts_but_details_keep_access_and_technical_fa
         client = seed_client(fixture)
         browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
         assert browser.js("document.querySelectorAll('.client-card .client-grants').length") == 0
+        assert browser.js('document.querySelector(' + repr(f'.client-card[data-client-id="{client["id"]}"]')
+                          + ').textContent.includes("TrustTunnel")')
+        assert browser.js('''(() => {const actions = [...document.querySelector('.client-card .client-actions').children]
+          .filter(e => e.tagName === 'BUTTON'); return actions[0]?.textContent.trim() === 'Подключить'
+          && actions[0].classList.contains('primary') && actions[1]?.textContent.trim() === 'Управление';})()''')
+        assert browser.js('''(() => [...document.querySelectorAll('.client-card .client-actions > button, .client-card .client-menu-button')]
+          .filter(e => e.getClientRects().length).every(e => {const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44;}))()''')
         assert browser.js("document.querySelector('.client-card').getBoundingClientRect().height < 210")
         assert browser.js("!!document.querySelector('.client-card [data-client-action=" + '"subscription"' + "]')")
         browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
@@ -56,7 +72,7 @@ def test_client_overview_hides_accounts_but_details_keep_access_and_technical_fa
         assert browser.js("document.querySelector('#grant-technical').open") is True
         browser.click('#grant-window [value="cancel"]')
         browser.wait("!document.querySelector('#grant-window').open", 'grant closed')
-        assert browser.js("document.querySelector('#subscription-modal').open")
+        assert browser.js("!!document.querySelector('#client-management')")
 
 
 def test_linked_node_detail_tabs_keep_actions_and_clear_the_dialog_on_close(tmp_path):
@@ -102,9 +118,9 @@ def test_browser_back_closes_nested_details_without_losing_the_client_list(tmp_p
         browser.wait("document.querySelector('#grant-window').open", 'grant ready')
         browser.js('history.back(); true')
         browser.wait("!document.querySelector('#grant-window').open", 'back closes grant')
-        assert browser.js("document.querySelector('#subscription-modal').open")
+        assert browser.js("!!document.querySelector('#client-management')")
         browser.js('history.back(); true')
-        browser.wait("!document.querySelector('#subscription-modal').open", 'back closes client')
+        browser.wait("!document.querySelector('#client-management')", 'back closes client')
         assert browser.js("location.hash") == '#clients'
         browser.wait("!!document.querySelector('.client-card')", 'list restored')
 
@@ -143,9 +159,80 @@ def test_client_details_return_to_the_same_filtered_list_position_and_focus(tmp_
         before = browser.js('window.scrollY')
         assert before > 50
         browser.click('.client-card:last-child [data-client-action="open"]')
-        browser.wait("document.querySelector('#subscription-modal').open", 'client opened')
-        browser.click('#subscription-modal [value="cancel"]')
-        browser.wait("!document.querySelector('#subscription-modal').open", 'client closed')
+        browser.wait("!!document.querySelector('#client-management')", 'client opened')
+        browser.click('#client-management [data-management-back]')
+        browser.wait("!document.querySelector('#client-management')", 'client closed')
         browser.wait("document.querySelectorAll('.client-card').length === 12 && Math.abs(window.scrollY - " + str(before) + ") <= 1", 'position restored')
         assert browser.js("document.querySelector('#client-search').value") == 'Device'
         browser.wait("document.activeElement?.matches('.client-card:last-child [data-client-action=" + '"open"' + "]')", 'focus restored')
+
+
+def test_client_management_is_a_page_and_returns_to_the_filtered_list(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        clients = [fixture.api('/api/clients', 'POST', {'display_name': f'Device {index}', 'subscription': False})
+                   for index in range(12)]
+        client = clients[-1]
+        result = fixture.api(f"/api/clients/{client['id']}/grants", 'POST', {'grants': [
+            {'protocol': 'trusttunnel', 'node_id': 'local', 'runtime_username': 'phone', 'options': {}},
+        ]})
+        assert result['status'] == 'succeeded'
+        browser.open_view('clients', "document.querySelectorAll('.client-card').length >= 12", width=390)
+        browser.set_value('#client-search', 'Device')
+        browser.wait("document.querySelectorAll('.client-card').length === 12", 'filtered list')
+        selector = f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]'
+        browser.js('document.querySelector(' + repr(selector) + ').scrollIntoView({block:"center"}); true')
+        before = browser.js('window.scrollY')
+        browser.click(selector)
+        browser.wait("!!document.querySelector('#client-management #subscription-grants [data-grant-open]')", 'management page')
+        assert browser.js("!document.querySelector('#subscription-modal').open")
+        assert browser.js("document.querySelector('#client-management').textContent.includes('Device 11')")
+        assert browser.js("document.querySelector('#client-management').textContent.includes('без ограничений')")
+        assert browser.js('''(() => [...document.querySelectorAll('#client-management button')]
+          .filter(e => e.getClientRects().length).every(e => {const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44;}))()''')
+        browser.click('#client-management [data-management-back]')
+        browser.wait("!document.querySelector('#client-management')", 'return to list')
+        assert browser.js("document.querySelector('#client-search').value") == 'Device'
+        browser.wait('Math.abs(window.scrollY - ' + str(before) + ') <= 1', 'scroll restored')
+
+
+def test_management_displays_a_failed_change_on_the_page(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        client = seed_client(fixture)
+        browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
+        browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
+        browser.wait("!!document.querySelector('#client-management #placement-body input[data-protocol=\"amneziawg:2.0\"]')", 'management')
+        browser.js("""(() => {const input = document.querySelector('#client-management input[data-node=local][data-protocol="amneziawg:2.0"]');
+          input.checked = true; input.dispatchEvent(new Event('change', {bubbles:true}));
+          const original = window.fetch.bind(window);
+          window.fetch = (url, options) => /\\/api\\/clients\\/[^/]+\\/grants$/.test(String(url)) && options?.method === 'POST'
+            ? Promise.resolve(new Response(JSON.stringify({detail:'test management refusal'}), {status:409,headers:{'content-type':'application/json'}}))
+            : original(url, options); return true; })()""")
+        browser.click('#client-management [data-placement-action=apply]')
+        browser.wait("document.querySelector('#client-management [role=alert]').textContent.includes('test management refusal')", 'visible error')
+
+
+def test_late_management_response_does_not_reopen_a_secret_dialog(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        client = seed_client(fixture)
+        browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
+        browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
+        browser.wait("!!document.querySelector('#client-management input[data-protocol=\"amneziawg:2.0\"]')", 'management')
+        browser.js("""(() => {const input = document.querySelector('#client-management input[data-node=local][data-protocol="amneziawg:2.0"]');
+          input.checked = true; input.dispatchEvent(new Event('change', {bubbles:true}));
+          window.__applyButton = document.querySelector('#client-management [data-placement-action=apply]');
+          const original = window.fetch.bind(window);
+          window.fetch = async (url, options) => {
+            if (/\\/api\\/clients\\/[^/]+\\/grants$/.test(String(url)) && options?.method === 'POST') {
+              await new Promise(resolve => {window.__resumeGrant = resolve;});
+              const response = await original(url, options); window.__grantReply = true; return response;
+            }
+            return original(url, options);
+          }; return true; })()""")
+        browser.click('#client-management [data-placement-action=apply]')
+        browser.wait("typeof window.__resumeGrant === 'function'", 'operation delayed')
+        browser.click('#client-management [data-management-back]')
+        browser.wait("!document.querySelector('#client-management')", 'returned to list')
+        browser.js('window.__resumeGrant(); true')
+        browser.wait("window.__grantReply && !window.__applyButton.disabled", 'request completed')
+        assert browser.js("!document.querySelector('#bundle-modal').open && !document.querySelector('#subscription-modal').open")
+        assert browser.js("!document.querySelector('#bundle-body').childElementCount && !document.querySelector('#subscription-chooser [data-client-page-url]')")

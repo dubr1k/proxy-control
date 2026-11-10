@@ -1,4 +1,5 @@
 import { esc, query } from "./common.js";
+import { bindQrViewer } from "./qr.js";
 
 export function createUi(root) {
   const view = query("#view", root);
@@ -155,6 +156,8 @@ export function createUi(root) {
     }
     if (focusSelector) window.setTimeout(() => query(focusSelector, root)?.focus(), 50);
   }
+
+  bindQrViewer(root, openModal);
 
   // Every «×» and «Отмена» is a `value="cancel"` submit button of a `method="dialog"` form,
   // which the browser turns into `dialog.close()`. Where that submission does not happen

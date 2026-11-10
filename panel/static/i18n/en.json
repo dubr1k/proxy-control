@@ -1,4 +1,22 @@
 {
+ "QR страницы клиента": "Client page QR code",
+ "Выбрано": "Selected",
+ "Данные можно показать повторно из управления клиентом.": "The data can be shown again from client management.",
+ "Дополнительные настройки": "Additional settings",
+ "Заменить ссылку": "Replace link",
+ "Заменить ссылку?": "Replace the link?",
+ "Импорт в приложение": "Import into an app",
+ "Каталог приложений недоступен. Откройте страницу клиента или попробуйте позже.": "The app catalogue is unavailable. Open the client page or try again later.",
+ "Одна постоянная ссылка объединяет доступы клиента.": "One permanent link brings together the client's accesses.",
+ "Откройте камерой телефона": "Open with your phone camera",
+ "Откройте страницу, чтобы увидеть все доступы клиента.": "Open the page to see all of the client's accesses.",
+ "Постоянная ссылка": "Permanent link",
+ "Сменить приложение": "Change app",
+ "Ссылка выдана до включения хранилища: её невозможно извлечь. Прежний адрес продолжает работать.": "The link was issued before the secret store was enabled and cannot be retrieved. The old address still works.",
+ "Ссылка страницы": "Page link",
+ "Страница клиента": "Client page",
+ "Управление": "Manage",
+ "← К списку клиентов": "← Back to clients",
  "+ Выход": "+ Exit",
  "Version-agent узла перезапустит сервис и при ошибке выполнит rollback.": "The node's version-agent will restart the service and roll back on error.",
  "Выдайте их из окна клиента.": "Issue them from the client window.",
@@ -2101,5 +2119,9 @@
  "Окно панели до": "Panel window until",
  "Окно панели не ограничено": "Panel access window is unlimited",
  "Окно доступа панели. Собственные ограничения протокола, показанные выше, сохраняются.": "The panel access window. Native protocol limits shown above are preserved.",
- "Трафик и квота": "Traffic and quota"
+ "Трафик и квота": "Traffic and quota",
+  "Нажмите на QR, чтобы увеличить": "Click the QR code to enlarge",
+  "Отсканируйте QR в AmneziaWG или AmneziaVPN либо импортируйте файл .conf.": "Scan the QR code in AmneziaWG or AmneziaVPN, or import the .conf file.",
+  "Посмотреть конфигурацию": "View configuration",
+  "Увеличить QR": "Enlarge QR"
 }

@@ -147,6 +147,20 @@ impl Page {
         )
     }
 
+    fn copy_config(&mut self, value: &str) -> String {
+        self.count += 1;
+        let ident = format!("v{}", self.count);
+        format!(
+            "<button type=\"button\" class=\"btn small\" data-copy=\"{ident}\" data-done=\"{}\" data-fail=\"{}\">{}</button>\
+             <details class=\"config-source\"><summary>{}</summary><code id=\"{ident}\">{}</code></details>",
+            self.t("Скопировано", "Copied"),
+            self.t("Не получилось — выделите вручную", "Failed — select it by hand"),
+            self.t("Копировать конфигурацию", "Copy configuration"),
+            self.t("Посмотреть конфигурацию", "View configuration"),
+            escape(value),
+        )
+    }
+
     fn qr(&self, value: &str) -> Result<String, RenderError> {
         let image = panel_protocols::reveals::qr_data(value).map_err(|error| RenderError(error.to_string()))?;
         Ok(format!(
@@ -284,11 +298,20 @@ fn grant_section(
     } else {
         ("unavailable", page.t("Недоступен", "Unavailable"))
     };
+    let protocol = if grant.protocol == "amneziawg" {
+        grant
+            .options
+            .get("version")
+            .and_then(Value::as_str)
+            .map_or_else(|| protocol_title(&grant.protocol).to_string(), |version| format!("AmneziaWG {version}"))
+    } else {
+        protocol_title(&grant.protocol).to_string()
+    };
     let heading = format!(
         "<span class=\"access-summary\"><span class=\"access-name\">{}</span>\
          <span class=\"access-meta\">{}<span class=\"access-state {state}\">{label}</span></span></span>",
         escape(title),
-        escape(protocol_title(&grant.protocol)),
+        escape(&protocol),
     );
     if !grant.enabled {
         return Ok(format!(
@@ -312,6 +335,38 @@ fn grant_section(
         }
         if artifact.media_type == "text/uri-list" {
             value = named_share_url(grant, &value, name)?;
+        }
+        if artifact.media_type == panel_protocols::amneziawg::CONF_MEDIA_TYPE {
+            let href = format!(
+                "data:text/x-amneziawg-conf;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(value.as_bytes())
+            );
+            let qr = panel_protocols::reveals::artifact_qr(&artifact.media_type, &value).map_or_else(
+                || {
+                    format!(
+                        "<p class=\"muted\">{}</p>",
+                        page.t(
+                            "Конфигурация слишком велика для QR. Скачайте или скопируйте её.",
+                            "The configuration is too large for a QR code. Download or copy it."
+                        )
+                    )
+                },
+                |image| {
+                    format!(
+                        "<details class=\"qr\"><summary>{}</summary><img src=\"{}\" alt=\"{}\"></details>",
+                        page.t("QR конфигурации AmneziaWG", "AmneziaWG configuration QR"),
+                        escape(&image),
+                        page.t("QR конфигурации AmneziaWG", "AmneziaWG configuration QR")
+                    )
+                },
+            );
+            let copied = page.copy_config(&value);
+            parts.push(format!(
+                "<h3>{}</h3>{copied}<a class=\"btn small\" href=\"{href}\" download=\"amneziawg.conf\">{}</a>{qr}",
+                escape(page.label(artifact)),
+                page.t("Скачать .conf", "Download .conf")
+            ));
+            continue;
         }
         if artifact.media_type == "application/toml" {
             // A config file: shown in full to copy, and offered as a download.
