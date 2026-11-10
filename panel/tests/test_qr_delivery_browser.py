@@ -141,6 +141,9 @@ def test_amnezia_issuance_and_reveal_share_qr_and_fold_the_config(tmp_path):
         browser.click('#bundle-modal .modal-head-actions button.primary')
         browser.wait("!document.querySelector('#bundle-modal').open", 'bundle closed')
         assert browser.js("document.querySelector('#confirm').open") is False
+        # Closing the modal consumes its browser-history entry asynchronously.
+        # Do not start a forced page navigation until that traversal has finished.
+        browser.wait("!history.state?.panelModal", 'modal history settled')
         browser.open_view('clients', "!!document.querySelector('.client-card')", width=390)
         # Keep the comparison inside the browser; do not return secret data.
         entries = fixture.api('/api/clients')['items']
