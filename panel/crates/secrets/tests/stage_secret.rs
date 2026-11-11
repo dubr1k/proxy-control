@@ -69,7 +69,18 @@ fn stage_secret_rejects_invalid_source_without_creating_destination() {
             "owner" | "group" | "mode" => StageError::OWNER_MODE.to_string(),
             "short" | "large" => StageError::SIZE.to_string(),
             "hardlink" => StageError::LINKS.to_string(),
-            _ => format!("[Errno 40] Too many levels of symbolic links: '{}'", source.display()),
+            "symlink" => {
+                // glibc and musl use different strerror(ELOOP) wording. The
+                // refusal, errno and failing path are the security contract.
+                let StageError::Os { error, path } = &error else {
+                    panic!("symlink must fail with an OS error");
+                };
+                assert_eq!(error.raw_os_error(), Some(libc::ELOOP));
+                assert_eq!(path.as_deref(), Some(source.as_path()));
+                assert!(stage_secret::verify(&source).is_err());
+                continue;
+            }
+            _ => unreachable!(),
         };
         assert_eq!(error.to_string(), expected, "{defect}");
         assert!(stage_secret::verify(&source).is_err(), "{defect}");
