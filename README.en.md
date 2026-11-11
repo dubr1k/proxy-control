@@ -216,6 +216,8 @@ so renewal is proved at installation time rather than three months later.
 
 ## Installation by a human
 
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
+
 ### Step 1. Download the release and verify it
 
 Work **as a regular user with `sudo` access**. Downloading and verification need no
@@ -414,6 +416,8 @@ server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](docs/g
 </details>
 
 ## Installation by an AI agent
+
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
 
 Use the verified release archive: it includes `examples/installer/`, not development
 tests or labs. `pc_common` and `pc_host` are runtime libraries; `probe/` and

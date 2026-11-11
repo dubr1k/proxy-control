@@ -13,3 +13,4 @@ lib pc_host
 lib installer_core
 bin installer proxy-control-installer
 bin version_agent proxy-control-version-agent
+bin panel panel

@@ -1,5 +1,7 @@
 # Upgrading and rollback
 
+Release archives include a prebuilt static panel binary. The panel update packages it from a fresh verified archive directory, without compiling Rust on the host. A source checkout keeps the normal Cargo build fallback. A change to `pc_common/RELEASE` alone does not rebuild unchanged managers.
+
 ## 3.3.0 → 4.0: native host transition
 
 Use only the verified release's `bash install-release.sh --update --version 4.0.0`.

@@ -306,7 +306,9 @@ pub fn update_panel(
     if Some(pc_host::fs::sha256_hex(&payload)) != entry.sha256 {
         return Err(refuse("panel artifact SHA-256 mismatch"));
     }
-    let staging = state_dir(agent).join("staging");
+    // BuildKit's local file transfer may remember equal-size/equal-mtime files by
+    // context path. Every verified archive gets a new path, including retries.
+    let staging = state_dir(agent).join(format!("staging-{}", pc_host::fs::token_hex::<8>()));
     let _ = fs::remove_dir_all(&staging);
     let result = pc_host::archive::extract_panel_archive(&payload, &staging)
         .map_err(|err| refuse(err.0))
@@ -352,6 +354,11 @@ fn sync_and_restart_panel(
 /// `_tree_hash(path)`: the content hash of a file or a directory tree (`__pycache__` and symlinks
 /// ignored; a binary is hashed like any file); `None` when absent.
 pub fn tree_hash(path: &Path) -> io::Result<Option<String>> {
+    tree_hash_filtered(path, false)
+}
+
+/// RELEASE is only the generation guard for old agents, not a Rust library input.
+fn tree_hash_filtered(path: &Path, ignore_release_marker: bool) -> io::Result<Option<String>> {
     if !path.exists() || is_symlink(path) {
         return Ok(None);
     }
@@ -359,7 +366,7 @@ pub fn tree_hash(path: &Path) -> io::Result<Option<String>> {
     if path.is_file() {
         digest.update(fs::read(path)?);
     } else {
-        hash_directory(path, path, &mut digest)?;
+        hash_directory(path, path, &mut digest, ignore_release_marker)?;
     }
     Ok(Some(hex(&digest.finalize())))
 }
@@ -369,7 +376,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /// `os.walk` top-down: a directory's files (sorted), then its subdirectories (sorted).
-fn hash_directory(root: &Path, directory: &Path, digest: &mut Sha256) -> io::Result<()> {
+fn hash_directory(root: &Path, directory: &Path, digest: &mut Sha256, ignore_release_marker: bool) -> io::Result<()> {
     let Ok(entries) = fs::read_dir(directory) else { return Ok(()) };
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     let mut directories: Vec<(String, PathBuf)> = Vec::new();
@@ -392,13 +399,16 @@ fn hash_directory(root: &Path, directory: &Path, digest: &mut Sha256) -> io::Res
             continue;
         }
         let relative = file.strip_prefix(root).unwrap_or(&file).to_string_lossy().into_owned();
+        if ignore_release_marker && relative == "RELEASE" {
+            continue;
+        }
         digest.update(relative.as_bytes());
         digest.update(b"\0");
         digest.update(fs::read(&file)?);
         digest.update(b"\0");
     }
     for (_, child) in directories {
-        hash_directory(root, &child, digest)?;
+        hash_directory(root, &child, digest, ignore_release_marker)?;
     }
     Ok(())
 }
@@ -561,7 +571,12 @@ fn sync_and_restart_panel_locked(
     }
     let mut changed: BTreeMap<String, bool> = BTreeMap::new();
     for (name, target) in &present {
-        changed.insert(name.clone(), tree_hash(target)? != tree_hash(&staging.join(name))?);
+        let ignore_release_marker = name == RUST_SHARED;
+        changed.insert(
+            name.clone(),
+            tree_hash_filtered(target, ignore_release_marker)?
+                != tree_hash_filtered(&staging.join(name), ignore_release_marker)?,
+        );
     }
     let is_changed = |name: &str| changed.get(name).copied().unwrap_or(false);
     let mut pending: Vec<String> =
@@ -658,7 +673,26 @@ fn swap(
     let tag = format!("{}:rollback-{}", agent.panel_image(), stamp(agent));
     run(agent, &argv(&["docker", "tag", running_image, &tag]), 60)?;
     progress.rollback_tag = Some(tag);
-    run_compose(agent, &compose_command(agent, &["build", "panel"], override_exists(agent), true)?, 900)?;
+    // Release binaries are already compiled and digest-verified with the archive.
+    // Always package their actual bytes, even when file size and mtime match an older release.
+    if staging.join("panel/bin/linux-amd64/panel").is_file() {
+        run(
+            agent,
+            &argv(&[
+                "docker",
+                "build",
+                "--no-cache",
+                "-f",
+                &staging.join("panel/Dockerfile").to_string_lossy(),
+                "-t",
+                &agent.panel_image(),
+                &staging.to_string_lossy(),
+            ]),
+            900,
+        )?;
+    } else {
+        run_compose(agent, &compose_command(agent, &["build", "panel"], override_exists(agent), true)?, 900)?;
+    }
     stop_panel_writers(agent)?;
     let volume_dir = panel_volume_dir(agent)?;
     progress.volume_dir = Some(volume_dir.clone());

@@ -193,6 +193,9 @@ TrustTunnel (необязательно): секция [trusttunnel] и ключ
   агент, проверяются Rust-реализация и точная версия, затем обновляется панель.
   При отказе миграции агент и его журнал откатываются; данные и настройки сохраняются.
 
+Панель включена в архив готовым статическим бинарником с проверяемой контрольной суммой.
+  Её контейнер упаковывается без компиляции Rust на сервере.
+
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
     docker-compose-v2 docker.io nginx-full openssl — и только они
@@ -306,6 +309,9 @@ Updating an installed host (since v1.1): download the new release's install-rele
   The 3.3.0 → 4.0 transition is supported only through this command: replace the Python
   agent, verify its Rust implementation and exact version, then update the panel.
   A migration failure restores the agent and journal; operator settings and data stay intact.
+
+The archive includes the prebuilt static panel binary with a verified digest.
+  Its container is packaged without compiling Rust on the server.
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl

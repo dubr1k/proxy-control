@@ -182,6 +182,8 @@ a substitute for an independent host backup.
 
 ## 3. Install
 
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
+
 The plan has a digest, and installation does not start until you approve that
 exact digest:
 

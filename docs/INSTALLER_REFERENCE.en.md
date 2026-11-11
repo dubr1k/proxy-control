@@ -17,6 +17,8 @@ examples. Development tests, CI and labs stay in Git; links to omitted developme
 material in shipped guides point to the exact source commit. The embedded 3x-ui API
 contract lives in `installer/assets/`, not in the external test suite.
 
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
+
 ## Verifying a release
 
 Shortest is the install script published beside the archive (from v1.0.3): it carries its

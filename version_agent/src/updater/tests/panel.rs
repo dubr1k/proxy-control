@@ -433,6 +433,25 @@ fn version_text(host: &PanelHost) -> String {
 // --- tests/test_version_agent_panel.py ---------------------------------------------------------
 
 #[test]
+fn a_prebuilt_panel_is_packaged_without_reusing_docker_layers() {
+    let dir = TempDir::new("panel-prebuilt");
+    let host = PanelHost::new(dir.path());
+    let version = format!("{NEW_PANEL}\n");
+    let archive = release_tar(&[
+        ("proxy-control/VERSION", version.as_bytes(), 0o644),
+        ("proxy-control/panel/bin/linux-amd64/panel", b"prebuilt-panel", 0o755),
+        ("proxy-control/compose.yaml", b"new compose\n", 0o644),
+    ]);
+    let (agent, _) = host.agent(archive, |_| {});
+    update_panel(&agent).unwrap();
+    assert!(host.commands().iter().any(|c| {
+        c.starts_with(&["docker".into(), "build".into()])
+            && has(c, "--no-cache")
+            && c.last().is_some_and(|p| Path::new(p).file_name().unwrap().to_string_lossy().starts_with("staging-"))
+    }));
+}
+
+#[test]
 fn panel_current_is_the_running_container_and_the_state_carries_the_status() {
     let dir = TempDir::new("panel-current");
     let host = PanelHost::new(dir.path());
@@ -893,6 +912,32 @@ fn a_changed_agent_binary_restarts_the_agent() {
         b"\x7fELF old agent"
     );
     assert!(is(host.commands().last().unwrap(), &RESTART));
+}
+
+#[test]
+fn a_release_marker_change_alone_does_not_rebuild_rust_managers() {
+    let dir = TempDir::new("panel-release-marker");
+    let host = PanelHost::new(dir.path());
+    write(&host.compose.join("pc_common/RELEASE"), b"4.0.5\n");
+    write(&host.compose.join("pc_common/src/lib.rs"), b"unchanged library\n");
+    for manager in ["trusttunnel_manager", "awg_manager", "mieru_manager"] {
+        write(&host.compose.join(manager).join("src/main.rs"), b"unchanged manager\n");
+    }
+    let version = format!("{NEW_PANEL}\n");
+    let payload = release_tar(&[
+        ("proxy-control/VERSION", version.as_bytes(), 0o644),
+        ("proxy-control/pc_common/RELEASE", b"4.0.6\n", 0o644),
+        ("proxy-control/pc_common/src/lib.rs", b"unchanged library\n", 0o644),
+        ("proxy-control/trusttunnel_manager/src/main.rs", b"unchanged manager\n", 0o644),
+        ("proxy-control/awg_manager/src/main.rs", b"unchanged manager\n", 0o644),
+        ("proxy-control/mieru_manager/src/main.rs", b"unchanged manager\n", 0o644),
+        ("proxy-control/mieru_manager/app.py", b"same mieru\n", 0o644),
+        ("proxy-control/version_agent/service.py", b"old agent\n", 0o644),
+    ]);
+    let (agent, _) = host.agent(payload, |config| config.auto_rebuild_managers = false);
+    update_panel(&agent).unwrap();
+    assert_eq!(panel_state(dir.path())["pending_rebuild"], json!([]));
+    assert_eq!(text(&host.compose.join("pc_common/RELEASE")), "4.0.6\n");
 }
 
 #[test]

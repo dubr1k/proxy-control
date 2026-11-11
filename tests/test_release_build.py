@@ -747,6 +747,11 @@ LIBRARY_FILE = "pc_common/src/lib.rs"
 THREE_XUI_CONTRACT = "installer/assets/three-xui-api-contract-3.11.0.json"
 
 
+def test_release_prebuilds_the_panel_workspace_binary():
+    crates = host_crates(ROOT, [HOST_BINARIES_LIST, "panel/Cargo.toml", "panel/Cargo.lock"])
+    assert ("panel", "panel") in crates.binaries
+
+
 def test_managed_xui_pin_layout_and_embedded_api_are_the_same_release():
     external = json.loads((ROOT / "release/external-artifacts.json").read_text())
     pin = next(item for item in external["artifacts"] if item["name"] == "three_xui")
@@ -1039,7 +1044,7 @@ def test_verify_refuses_an_archive_whose_binary_differs_from_its_identity(tmp_pa
 
 def test_the_repository_ignores_prebuilt_host_binaries():
     for crate, binary in (("installer", "proxy-control-installer"),
-                          ("version_agent", "proxy-control-version-agent")):
+                          ("version_agent", "proxy-control-version-agent"), ("panel", "panel")):
         completed = subprocess.run(
             ("git", "-C", str(ROOT), "check-ignore", "-q", f"{crate}/bin/linux-amd64/{binary}"),
             capture_output=True,

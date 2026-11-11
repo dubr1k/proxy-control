@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.7] - 2026-11-11
+
+### Updates
+- Include the reproducibly built static panel binary in release archives; fresh installs and updates package it without compiling Rust on each server.
+- Package release panels from a fresh verified archive context to avoid stale Docker file synchronization. Remove the experimental persistent Cargo target cache.
+- A change to the pc_common generation marker alone no longer schedules unchanged manager rebuilds.
+- Publish the installer script pinned to the 4.0.7 archive and checksum.
+
 ## [4.0.6] - 2026-11-11
 
 ### UI
