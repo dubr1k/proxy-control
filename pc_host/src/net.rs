@@ -326,7 +326,10 @@ impl HttpsClient {
         let result = match method {
             "GET" => with_headers!(self.agent.get(target)).call(),
             "HEAD" => with_headers!(self.agent.head(target)).call(),
-            "DELETE" => with_headers!(self.agent.delete(target)).call(),
+            "DELETE" => match body {
+                Some(body) => with_headers!(self.agent.delete(target)).force_send_body().send(body),
+                None => with_headers!(self.agent.delete(target)).call(),
+            },
             "POST" => with_headers!(self.agent.post(target)).send(body.unwrap_or_default()),
             "PUT" => with_headers!(self.agent.put(target)).send(body.unwrap_or_default()),
             "PATCH" => with_headers!(self.agent.patch(target)).send(body.unwrap_or_default()),

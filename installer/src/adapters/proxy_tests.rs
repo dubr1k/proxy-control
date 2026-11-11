@@ -1355,6 +1355,32 @@ fn agent_digest_refresh_rebases_only_the_exact_expected_manager_environment() {
 }
 
 #[test]
+fn repair_rebuilds_missing_mieru_acceptance_image_only_when_needed() {
+    let rig = Rig::new();
+    let adapter = rig.mieru();
+    let action = rig.action("mieru");
+    let data = apply(&adapter, &action);
+    rig.runner.clear();
+    *rig.fail.lock().unwrap() = Some(format!("docker image inspect {}", super::mieru::CLIENT_IMAGE));
+    let repaired = adapter.repair(&action, data).unwrap();
+    assert!(rig.runner.argvs().iter().any(|argv| argv.starts_with(&strings(&[
+        "docker",
+        "build",
+        "--tag",
+        super::mieru::CLIENT_IMAGE
+    ]))));
+    rig.runner.clear();
+    *rig.fail.lock().unwrap() = None;
+    adapter.repair(&action, repaired).unwrap();
+    assert!(!rig.runner.argvs().iter().any(|argv| argv.starts_with(&strings(&[
+        "docker",
+        "build",
+        "--tag",
+        super::mieru::CLIENT_IMAGE
+    ]))));
+}
+
+#[test]
 fn historical_mieru_plan_repairs_and_verifies_agent_updated_binary() {
     let rig = Rig::new();
     let adapter = rig.mieru();

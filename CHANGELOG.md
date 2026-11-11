@@ -4,10 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-## [4.0.6] - 2026-11-10
+## [4.0.6] - 2026-11-11
+
+### UI
+- Keep access rows compact and their labels inside the client management page on desktop and mobile.
 
 ### Host installer
 - Repair Mieru from a previously approved plan when version-agent has updated the executable and its digest matches the agent's record. New installations still reject an old plan.
+- Rebuild the official Mieru acceptance client from its verified pin when its image is missing during repair.
+- Preserve the request body on HTTPS DELETE so Mieru acceptance can remove its temporary account using the current revision.
 - The published script pins the 4.0.6 archive and its checksum.
 
 ## [4.0.5] - 2026-11-10

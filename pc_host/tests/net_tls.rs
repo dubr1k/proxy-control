@@ -211,6 +211,29 @@ fn client(ca: &[u8], timeout: Duration) -> HttpsClient {
 const ALLOWED: &[&str] = &["localhost"];
 
 #[test]
+fn delete_preserves_the_optional_request_body() {
+    let Some((_dir, server, ca)) = setup() else { return };
+    let client = client(&ca, Duration::from_secs(10));
+    let url = format!("https://localhost:{}/ok", server.port);
+    let body = br#"{"expected_revision":"0123456789abcdef"}"#;
+    let request = Request {
+        method: "DELETE",
+        url: &url,
+        headers: &[("Content-Type", "application/json")],
+        body: Some(body),
+        redirects: Redirects::Return,
+    };
+    assert_eq!(client.request(&request, ALLOWED, 100).unwrap().status(), 200);
+    let last = server.seen.lock().unwrap().last().cloned().unwrap();
+    assert_eq!((last.method.as_str(), last.body.as_slice()), ("DELETE", &body[..]));
+
+    let no_body = Request { body: None, ..request };
+    assert_eq!(client.request(&no_body, ALLOWED, 100).unwrap().status(), 200);
+    let last = server.seen.lock().unwrap().last().cloned().unwrap();
+    assert_eq!((last.method.as_str(), last.body.as_slice()), ("DELETE", &b""[..]));
+}
+
+#[test]
 fn https_client_contract() {
     let Some((_dir, server, ca)) = setup() else { return };
     let client = client(&ca, Duration::from_secs(10));

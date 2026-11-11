@@ -72,6 +72,7 @@ def test_delivery_qr_is_large_square_and_can_expand_without_losing_parent(tmp_pa
                 browser.wait("!document.querySelector('#qr-modal img').hasAttribute('src')", 'QR cleared')
                 assert browser.js(f'document.querySelector({json.dumps(selector)}).open')
                 browser.js(f'document.querySelector({json.dumps(selector)}).close(); true')
+                browser.wait("!history.state?.panelModal", 'modal history settled')
             assert abs(widths['bundle'] - widths['subscription']) <= 1, (width, widths)
         browser.healthy()
 

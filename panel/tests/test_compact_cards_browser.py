@@ -1,4 +1,8 @@
 """Compact overview lists retain status, detail actions and keyboard/mobile access."""
+import base64
+import os
+from pathlib import Path
+
 from scripts.lab.ui_protocol_dialog_check import OverviewFixture, isolated_browser, isolated_panel
 
 
@@ -193,6 +197,68 @@ def test_client_management_is_a_page_and_returns_to_the_filtered_list(tmp_path):
         browser.wait("!document.querySelector('#client-management')", 'return to list')
         assert browser.js("document.querySelector('#client-search').value") == 'Device'
         browser.wait('Math.abs(window.scrollY - ' + str(before) + ') <= 1', 'scroll restored')
+
+
+def test_management_grant_rows_fit_with_multiple_nodes_and_app_labels(tmp_path):
+    with isolated_panel(tmp_path) as fixture, isolated_browser(tmp_path, fixture) as browser:
+        client = seed_client(fixture)
+        browser.open_view('clients', "!!document.querySelector('.client-card')", width=1440)
+        browser.click(f'.client-card[data-client-id="{client["id"]}"] [data-client-action="open"]')
+        browser.wait("!!document.querySelector('#client-management #subscription-grants [data-grant-open]')", 'management')
+        browser.js("""(async () => {
+          const {grantRowHtml} = await import('/static/js/grant.js');
+          const nodes = Array.from({length: 4}, (_, i) => ({node_id: `node-${i}`, display_name: `Узел ${i + 1}`}));
+          const protocols = ['mtproxy', 'naive', 'mieru', 'trusttunnel'];
+          const rows = nodes.flatMap((node, n) => protocols.map((protocol, p) => ({
+            id: `sample-${n}-${p}`, node_id: node.node_id, protocol,
+            runtime_username: n === 3 ? 'very-long-synthetic-client-name-for-layout' : 'sample-client',
+            desired_state: 'enabled', observed_state: 'enabled', secret_ref: 'synthetic', options: {}
+          })));
+          const extra = '<span class="grant-restrictions">без ограничений</span>' +
+            '<span class="auto-refresh"><small>karing</small><small>singbox</small><small>mihomo</small><small>throne</small></span>';
+          document.querySelector('#subscription-grants').innerHTML = rows.map(grant => grantRowHtml(grant, {nodes, extra})).join('');
+          const matrix = document.querySelector('#placement-body tbody');
+          while (matrix.children.length < 4) {
+            const row = matrix.firstElementChild.cloneNode(true);
+            row.querySelector('th').textContent = `Узел ${matrix.children.length + 1}`;
+            matrix.append(row);
+          }
+          return true;
+        })()""")
+        for width in (320, 390, 768, 1440):
+            browser.dt.call('Emulation.setDeviceMetricsOverride', {
+                'width': width, 'height': 900, 'deviceScaleFactor': 1, 'mobile': width < 600,
+            })
+            result = browser.js("""(() => {
+              const page = document.querySelector('#client-management');
+              const title = page.querySelector('h2').getBoundingClientRect();
+              const placement = page.querySelector('.placement-box').getBoundingClientRect();
+              const rows = [...page.querySelectorAll('.grant-row')];
+              return {
+                count: rows.length,
+                nodes: page.querySelectorAll('#placement-body tbody tr').length,
+                horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+                headingGap: placement.top - title.bottom,
+                maxRowHeight: Math.max(...rows.map(row => row.getBoundingClientRect().height)),
+                escaped: rows.some(row => {
+                  const outer = row.getBoundingClientRect();
+                  return [...row.children].some(child => {
+                    const r = child.getBoundingClientRect();
+                    return r.width && (r.left < outer.left - 1 || r.right > outer.right + 1 || r.bottom > outer.bottom + 1);
+                  });
+                }),
+              };
+            })()""")
+            assert result['count'] == 16 and result['nodes'] == 4 and not result['horizontalOverflow'] and not result['escaped'], (width, result)
+            assert result['headingGap'] <= 64, (width, result)
+            if width == 1440:
+                assert result['maxRowHeight'] <= 100, (width, result)
+            if os.environ.get('UI_MANAGEMENT_SHOTS'):
+                folder = Path(os.environ['UI_MANAGEMENT_SHOTS'])
+                folder.mkdir(parents=True, exist_ok=True)
+                shot = browser.dt.call('Page.captureScreenshot', {'format': 'png'})
+                (folder / f'management-{width}.png').write_bytes(base64.b64decode(shot['data']))
+        browser.healthy()
 
 
 def test_management_displays_a_failed_change_on_the_page(tmp_path):

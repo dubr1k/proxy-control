@@ -296,7 +296,7 @@
 .grant-item{min-width:0}
 .grant-row{display:grid;grid-template-columns:minmax(0,104px) minmax(0,320px) minmax(0,1fr) minmax(0,150px) 12px;align-items:center;column-gap:14px;row-gap:4px;width:100%;min-width:0;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text-2);font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:border-color .15s ease,background .15s ease}
 .grant-row:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}
-.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,104px) minmax(0,280px) minmax(0,1fr) minmax(0,130px) minmax(0,auto) 12px}
+.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,104px) minmax(0,1.3fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.5fr) 12px}
 .grant-row>*{min-width:0;overflow-wrap:anywhere}
 .grant-proto{color:var(--text);font-weight:600}
 .grant-account{display:grid;gap:1px}
@@ -319,17 +319,18 @@
 /* The row follows the width of its own list — a wide card, the client window, a phone —
    not the width of the screen: the same row sits in all three. */
 @container grants (max-width:900px){
-  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,96px) minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto account state chevron" "proto route route chevron" "proto extra extra chevron"}
+  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,96px) minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto account state chevron" "proto route route chevron" "proto limits limits chevron" "proto extra extra chevron"}
   .grant-proto{grid-area:proto;align-self:start}
   .grant-account{grid-area:account}
   .grant-state{grid-area:state;justify-content:flex-end;text-align:right}
   .grant-route-label{grid-area:route}
+  .grant-restrictions{grid-area:limits}
   .grant-row>.auto-refresh{grid-area:extra}
   .grant-chevron{grid-area:chevron}
   .grant-route-label:empty{display:none}
 }
 @container grants (max-width:460px){
-  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto state chevron" "account account chevron" "route route chevron" "extra extra chevron";padding:10px 12px}
+  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto state chevron" "account account chevron" "route route chevron" "limits limits chevron" "extra extra chevron";padding:10px 12px}
   .grant-proto{align-self:center}
 }
 /* The client window: one type scale for its hints, labels and warnings (they fell back to
@@ -893,6 +894,7 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 .delivery-page-actions{display:grid;gap:12px;min-width:0;font-size:14px}
 .delivery-page-actions label{display:grid;gap:8px;min-width:0}.delivery-page-actions input{min-width:0;width:100%}
 #client-management{display:grid;gap:16px;min-width:0}#client-management>[data-management-back]{justify-self:start;min-height:44px}#client-management h2{margin:0}#client-management .placement-box{min-width:0}
+#client-management>[role=alert]:empty{display:none}
 .client-card .client-actions button,#client-management button{min-width:44px;min-height:44px}
 .subscription-reveal{padding:0;border:0;background:transparent}
 .delivery-dialog .modal-head{position:sticky;top:-20px;z-index:2;background:var(--dialog-bg);padding-block:8px}

@@ -909,6 +909,9 @@ impl Adapter for MieruAdapter {
         self.checkpoint(&data, action, true)?;
         self.rebase_agent_env(&selected, &mut data)?;
         self.host.assert_ownership(&data)?;
+        if self.host.checked(&["docker", "image", "inspect", CLIENT_IMAGE]).is_err() {
+            self.build_client_image()?;
+        }
         self.live_identities()?;
         self.host.install_helpers(&[("prepare-mieru-token", TOKEN_PREPARER, 0o755)])?;
         self.host.run(&[TOKEN_PREPARER, "verify", TOKEN])?;
