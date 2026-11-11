@@ -20,6 +20,7 @@ import pytest
 ROOT = Path(__file__).parents[1]
 INSTALLER = "installer/bin/linux-amd64/proxy-control-installer"
 AGENT = "version_agent/bin/linux-amd64/proxy-control-version-agent"
+PANEL = "panel/bin/linux-amd64/panel"
 
 
 def _sha(data):
@@ -49,7 +50,9 @@ def _malformed_object(data, change):
 
 
 def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None, duplicate_manifest=False,
-            manifest_syntax=None, binary_syntax=None):
+            manifest_syntax=None, binary_syntax=None, panel=True, panel_bad_digest=False,
+            panel_mode=0o755, agent_mode=0o755, missing_binary=None, unknown_binary=False, omitted_binary=None,
+            renamed_binary=None, duplicate_binary=None, directories=False):
     source = root / "dist"
     source.mkdir()
     native = Path("/bin/true").read_bytes()
@@ -57,6 +60,18 @@ def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None,
                 "binaries": {INSTALLER: "0" * 64 if bad_digest else _sha(native), AGENT: _sha(native)}}
     files = {"install.sh": (ROOT / "install.sh").read_bytes(), "VERSION": (version + "\n").encode(),
              "release/release.json": _json(identity), INSTALLER: native, AGENT: native}
+    if panel:
+        identity["binaries"][PANEL] = "0" * 64 if panel_bad_digest else _sha(native)
+        files[PANEL] = native
+        files["release/release.json"] = _json(identity)
+    if unknown_binary:
+        identity["binaries"]["unknown/bin/linux-amd64/unknown"] = _sha(native)
+        files["unknown/bin/linux-amd64/unknown"] = native
+    if omitted_binary:
+        del identity["binaries"][omitted_binary]
+    if missing_binary:
+        del files[missing_binary]
+    files["release/release.json"] = _json(identity)
     if binary_syntax:
         identity_data = files["release/release.json"]
         if binary_syntax == "missing-comma":
@@ -67,11 +82,20 @@ def _bundle(root, *, version="4.0.0", mode=0o755, bad_digest=False, member=None,
         files["release/release.json"] = identity_data
     archive = source / f"proxy-control-v{version}.tar.gz"
     with tarfile.open(archive, "w:gz") as output:
+        if directories:
+            for name in ("proxy-control/", "proxy-control/installer/", "proxy-control/panel/"):
+                info = tarfile.TarInfo(name)
+                info.type, info.mode = tarfile.DIRTYPE, 0o755
+                output.addfile(info)
         for name, content in files.items():
-            info = tarfile.TarInfo("proxy-control/" + name)
-            info.mode = mode if name == INSTALLER else 0o755 if name in (AGENT, "install.sh") else 0o644
+            archived_name = renamed_binary[1] if renamed_binary and name == renamed_binary[0] else name
+            info = tarfile.TarInfo("proxy-control/" + archived_name)
+            info.mode = (mode if name == INSTALLER else panel_mode if name == PANEL else agent_mode if name == AGENT
+                         else 0o755 if name == "install.sh" else 0o644)
             info.size = len(content)
             output.addfile(info, io.BytesIO(content))
+            if name == duplicate_binary:
+                output.addfile(info, io.BytesIO(content))
         if member:
             name, kind = member
             info = tarfile.TarInfo(name)
@@ -113,6 +137,7 @@ def _run(root, source, archive, *, bootstrap=False, version="4.0.0"):
             if not path.is_symlink():
                 os.chown(path, 65534, 65534)
     def unprivileged():
+        os.umask(0o022)  # Exercise tar's masking of a noncanonical archive mode 0775.
         if os.geteuid() == 0:
             os.setgroups([])
             os.setgid(65534)
@@ -129,6 +154,35 @@ def _run(root, source, archive, *, bootstrap=False, version="4.0.0"):
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])
+@pytest.mark.parametrize("binary", [INSTALLER, AGENT, PANEL])
+@pytest.mark.parametrize("alias", ["dot", "double-slash", "trailing-dot", "trailing-slash", "duplicate"])
+def test_checksum_valid_archive_rejects_binary_aliases_and_duplicates(private_bundle, bootstrap, binary, alias):
+    renamed = {"dot": binary.replace("/bin/", "/./bin/"),
+               "double-slash": binary.replace("/bin/", "//bin/"),
+               "trailing-dot": binary + "/.", "trailing-slash": binary + "/"}
+    bad_mode = alias != "duplicate"
+    source, archive = _bundle(
+        private_bundle,
+        renamed_binary=None if alias == "duplicate" else (binary, renamed[alias]),
+        duplicate_binary=binary if alias == "duplicate" else None,
+        mode=0o775 if binary == INSTALLER and bad_mode else 0o755,
+        agent_mode=0o775 if binary == AGENT and bad_mode else 0o755,
+        panel_mode=0o775 if binary == PANEL and bad_mode else 0o755,
+    )
+    result, log = _run(private_bundle, source, archive, bootstrap=bootstrap)
+    assert result.returncode != 0, result.stdout
+    assert not log.exists()
+    assert not (private_bundle / "output/proxy-control").exists(), "reject before extraction"
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
+def test_canonical_release_directories_are_accepted(private_bundle, bootstrap):
+    source, archive = _bundle(private_bundle, directories=True)
+    result, _ = _run(private_bundle, source, archive, bootstrap=bootstrap)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
 def test_verification_has_no_host_python_or_cargo_prerequisite(private_bundle, bootstrap):
     source, archive = _bundle(private_bundle)
     result, log = _run(private_bundle, source, archive, bootstrap=bootstrap)
@@ -141,8 +195,20 @@ def test_verification_has_no_host_python_or_cargo_prerequisite(private_bundle, b
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])
+def test_verifiers_keep_supporting_releases_before_the_prebuilt_panel(private_bundle, bootstrap):
+    source, archive = _bundle(private_bundle, panel=False)
+    result, log = _run(private_bundle, source, archive, bootstrap=bootstrap)
+    assert result.returncode == 0, result.stderr
+    assert log.exists() == bootstrap
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
 @pytest.mark.parametrize("change", [{"mode": 0o644}, {"bad_digest": True}, {"member": ("proxy-control/link", "symlink")},
-                                  {"member": ("proxy-control/../escape", "file")}, {"duplicate_manifest": True}])
+                                  {"member": ("proxy-control/../escape", "file")}, {"duplicate_manifest": True},
+                                  {"panel_bad_digest": True}, {"panel_mode": 0o644},
+                                  {"panel_mode": 0o775}, {"missing_binary": PANEL},
+                                  {"unknown_binary": True}, {"omitted_binary": INSTALLER},
+                                  {"omitted_binary": AGENT}])
 def test_untrusted_or_unverified_binary_never_reaches_sudo(private_bundle, bootstrap, change):
     source, archive = _bundle(private_bundle, **change)
     result, log = _run(private_bundle, source, archive, bootstrap=bootstrap)

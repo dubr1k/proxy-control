@@ -591,6 +591,96 @@ fn a_failed_move_restores_the_journal_and_the_files() {
     owned.engine.assert_all_owned(&owned.engine.store().read_state().unwrap()).unwrap();
 }
 
+fn check_update_selection_refusal(removed_planned: bool) {
+    use crate::adapter::Adapter;
+    use crate::adapters::{version_agent::VersionAgentAdapter, AdapterContext};
+    use crate::journal::{Checkpoint, Phase, Status, TransactionState};
+    use crate::planner::AuditFacts;
+    use crate::store::TransactionStore;
+    use std::sync::Arc;
+
+    let dir = TempDir::new("update-selection");
+    let root = dir.path().join("root");
+    fs::create_dir_all(&root).unwrap();
+    let tree = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let context = AdapterContext { root: root.clone(), tree: tree.into(), runner: Arc::new(RecordingRunner::new()) };
+    let adapter = VersionAgentAdapter::new(&context);
+    let mut config = installer_core::config::load_config(&tree.join("examples/installer/core.toml")).unwrap();
+    if removed_planned {
+        config.domains.mcp = Some("mcp.example.com".into());
+    }
+    let action = adapter.plan(&config, &AuditFacts::default()).unwrap().remove(0);
+    let data = adapter.prepare(&action).unwrap();
+    fakes::write(
+        &root.join("etc/proxy-control/version-agent-owned"),
+        data["marker_value"].as_str().unwrap().as_bytes(),
+    );
+    old_host(&root);
+    let env = if removed_planned {
+        "PROXY_CONTROL_COMPOSE_FILES=compose.yaml\n"
+    } else {
+        "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.naive.yaml\n"
+    };
+    fakes::write(&root.join("etc/proxy-control/version-agent.env"), env.as_bytes());
+    let core = fakes::action("core.runtime", "core");
+    let plan = crate::testkit::plan_with(vec![core.clone(), action.clone()], Default::default());
+    let store = TransactionStore::new(&root).unwrap();
+    let mut state = TransactionState::new(&"a".repeat(32), Status::Active, &plan.digest());
+    state.with_checkpoint(Checkpoint::new(
+        &core.id,
+        &core.adapter,
+        Phase::Verified,
+        json!({"ownership":{}}).as_object().unwrap().clone(),
+    ));
+    state.with_checkpoint(Checkpoint::new(&action.id, &action.adapter, Phase::Verified, data));
+    store.write_plan(&plan).unwrap();
+    store.write_state(&state).unwrap();
+    store.write_ownership(&state.ownership(true).unwrap()).unwrap();
+    let before = fs::read(store.state_path()).unwrap();
+    let unit = fs::read(root.join("etc/systemd/system/version-agent.service")).unwrap();
+    for name in fleet::OVERLAYS {
+        fakes::write(&root.join(PROJECT).join(name), b"leftover\n");
+    }
+    fakes::write(&root.join(PROJECT).join("compose.yaml"), b"services: {}\n");
+    fakes::write(&root.join(PROJECT).join("compose.naive.yaml"), b"services: {}\n");
+    let socket = root.join("run/proxy-control/version-agent.sock");
+    fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let _listener = std::os::unix::net::UnixListener::bind(socket).unwrap();
+    let runner = RecordingRunner::with_responder(|call| {
+        let line = call.argv.join(" ");
+        if line.contains("/v1/versions") {
+            Some(Reply::ok("{\"components\":{\"panel\":{\"current\":\"3.3.0\"}}}"))
+        } else if line.contains("docker inspect --format") {
+            Some(Reply::ok("proxy_panel_by_dubr1k\n"))
+        } else {
+            None
+        }
+    });
+    let error = update::update(&host(&root, tree, &runner), "4.0.0", &"a".repeat(64)).unwrap_err();
+    for name in fleet::OVERLAYS {
+        assert!(root.join(PROJECT).join(name).is_file(), "retired {name} before selection agreement: {error}");
+    }
+    assert!(error.contains("explicit reconciliation"), "{error}");
+    assert!(runner.calls().iter().all(|call| call.kind != CallKind::Run));
+    assert!(runner
+        .argvs()
+        .iter()
+        .all(|args| !args.iter().any(|arg| arg.contains("/v1/update") || arg.contains("/v1/upstream"))));
+    assert_eq!(fs::read(store.state_path()).unwrap(), before);
+    assert_eq!(fs::read(root.join("etc/systemd/system/version-agent.service")).unwrap(), unit);
+    assert_eq!(fs::read_to_string(root.join("etc/proxy-control/version-agent.env")).unwrap(), env);
+    assert!(root.join("opt/proxy-control/version_agent/server.py").exists());
+}
+
+#[test]
+fn update_refuses_selection_extra_naive_before_any_mutation() {
+    check_update_selection_refusal(false);
+}
+#[test]
+fn update_refuses_selection_removed_planned_overlay_before_any_mutation() {
+    check_update_selection_refusal(true);
+}
+
 #[test]
 fn update_retires_unused_overlays_before_it_migrates_the_agent() {
     let dir = TempDir::new("update-retires-fleet");

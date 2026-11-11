@@ -197,17 +197,42 @@ impl TransactionEngine {
         Ok(state)
     }
 
+    /// Check recovery agreement without repairing files, invoking commands or writing journals.
+    /// The operation lock protects the state/plan/checkpoint snapshot used by every adapter.
+    pub fn preflight_repair(&self) -> Result<(), Error> {
+        let _lock = self.store.locked()?;
+        let state = self.store.read_state()?;
+        let plan = read_matching_plan(&self.store, &state)?;
+        self.check_repair_agreement(&plan, &state)
+    }
+
+    fn check_repair_agreement(&self, plan: &InstallPlan, state: &TransactionState) -> Result<(), Error> {
+        self.validate_adapters(plan)?;
+        if state.status != Status::Active {
+            if state.status.is_interrupted() {
+                return Err(crate::error::transaction("resume the interrupted transaction before repair").into());
+            }
+            return Ok(());
+        }
+        // The agent is last in the plan: validate every selection before any mutation.
+        for action in &plan.actions {
+            let checkpoint = match state.checkpoint(&action.id) {
+                Some(checkpoint) if checkpoint.phase == Phase::Verified => checkpoint,
+                _ => return Err(crate::error::transaction("active transaction has incomplete checkpoints").into()),
+            };
+            self.adapter(action)?.preflight_repair(action, &checkpoint.data)?;
+        }
+        Ok(())
+    }
+
     /// Restore an active installation: each adapter repairs its action, ownership is
     /// re-captured and verified.
     pub fn repair(&self) -> Result<TransactionState, Error> {
         let _lock = self.store.locked()?;
         let mut state = self.store.read_state()?;
         let plan = read_matching_plan(&self.store, &state)?;
-        self.validate_adapters(&plan)?;
+        self.check_repair_agreement(&plan, &state)?;
         if state.status != Status::Active {
-            if state.status.is_interrupted() {
-                return Err(crate::error::transaction("resume the interrupted transaction before repair").into());
-            }
             return Ok(state);
         }
         let mut by_id: BTreeMap<String, Checkpoint> =

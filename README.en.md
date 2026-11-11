@@ -19,7 +19,7 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v4.0.7](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.7).**
+> **Current release: [v4.0.8](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.8).**
 > What changed is in the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -215,7 +215,7 @@ so renewal is proved at installation time rather than three months later.
 
 ## Installation by a human
 
-The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity. Both release verifiers accept this binary and check its digest and exact 0755 mode before invoking the installer; older installer-and-agent-only releases remain supported.
 
 ### Step 1. Download the release and verify it
 
@@ -416,7 +416,7 @@ server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](docs/g
 
 ## Installation by an AI agent
 
-The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity.
+The release archive includes the prebuilt static panel binary. Installation and updates package the panel container from it without compiling Rust; the binary digest is part of the verified release identity. Both release verifiers accept this binary and check its digest and exact 0755 mode before invoking the installer; older installer-and-agent-only releases remain supported.
 
 Use the verified release archive: it includes `examples/installer/`, not development
 tests or labs. `pc_common` and `pc_host` are runtime libraries; `probe/` and
@@ -601,7 +601,11 @@ panel/manager change, the verified native installer replaces the Python agent, p
 operator env/unit directives/drop-ins, and requires health `status=ok`,
 `implementation=rust`, `version=<target>`. Failed replacement restores and verifies the old
 agent and ownership journal. Move Fleet v1 nodes to v2 before the 4.0 update. Neither
-Python nor Cargo is a host prerequisite; Bash/awk verifies both prebuilt binaries before use.
+Python nor Cargo is a host prerequisite; Bash/awk verifies the required installer and
+agent binaries and the prebuilt panel when listed in the manifest.
+The final repair preserves explicitly active additional AmneziaWG, TrustTunnel and
+MCP layers. Ambiguous selections are refused before repair actions; see the
+[installer reference](docs/INSTALLER_REFERENCE.en.md#recovery-repair-rollback-and-uninstall).
 
 <details>
 <summary>What gets updated and how component updates work</summary>

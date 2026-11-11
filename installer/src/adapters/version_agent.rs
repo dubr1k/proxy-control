@@ -61,6 +61,71 @@ impl VersionAgentAdapter {
         }
         Ok(values)
     }
+    /// Recovery may retain operator-enabled optional services, but never infer an enable
+    /// from files left on disk or remove a planned service. This is not a new accepted plan
+    /// and grants no ownership of the sibling's configuration or runtime.
+    fn recovery_selection(&self, action: &Action) -> Result<BTreeMap<String, String>, Error> {
+        let mut selected = self.selection(action)?;
+        let env_path = self.host.path(ENV)?;
+        // An absent managed file can be restored. An existing file with an omitted key
+        // already has an effective runtime default; do not silently re-enable the plan.
+        let env_exists = match fs::symlink_metadata(&env_path) {
+            Ok(_) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        let env = pc_host::envfile::read(&env_path)?;
+        let invalid = || {
+            self.host
+                .error("the version-agent Compose selection is not as planned; explicit reconciliation is required")
+        };
+        let router = env.get("PROXY_CONTROL_XRAY_ROUTER").map(String::as_str).unwrap_or(if env_exists {
+            "off"
+        } else {
+            &selected["router"]
+        });
+        if router != selected["router"] {
+            return Err(invalid());
+        }
+        let value = env
+            .get("PROXY_CONTROL_COMPOSE_FILES")
+            .map(String::as_str)
+            .unwrap_or(if env_exists { "compose.yaml" } else { &selected["compose-files"] })
+            .to_owned();
+        let active = compose_files(&value).ok_or_else(invalid)?;
+        let planned = compose_files(&selected["compose-files"]).ok_or_else(invalid)?;
+        if planned.iter().any(|file| !active.contains(file)) {
+            return Err(invalid());
+        }
+        for file in active.iter().filter(|file| !planned.contains(file)) {
+            let sibling = match *file {
+                "compose.amneziawg.yaml" => "amneziawg",
+                "compose.trusttunnel.yaml" => "trusttunnel",
+                "compose.mcp.yaml" => "mcp",
+                // Naive/Mieru/router change component verification and host resources;
+                // their activation needs an explicit accepted plan, not recovery.
+                _ => return Err(invalid()),
+            };
+            for path in [format!("{PROJECT}/{file}"), format!("{PROJECT}/.env.{sibling}")] {
+                if !fs::symlink_metadata(self.host.path(&path)?).is_ok_and(|m| m.is_file()) {
+                    return Err(invalid());
+                }
+            }
+        }
+        // Core's Compose repair discovers installed siblings by their paired files.
+        // A removed list entry with leftover files is ambiguous, not consent to restart it.
+        for sibling in ["naive", "mieru", "xray-router", "amneziawg", "trusttunnel", "mcp"] {
+            let file = format!("compose.{sibling}.yaml");
+            if !active.contains(&file.as_str())
+                && self.host.path(&format!("{PROJECT}/.env.{sibling}"))?.is_file()
+                && self.host.path(&format!("{PROJECT}/{file}"))?.is_file()
+            {
+                return Err(invalid());
+            }
+        }
+        selected.insert("compose-files".into(), value);
+        Ok(selected)
+    }
     pub fn env_text(&self, selected: &BTreeMap<String, String>, existing: &str) -> Result<String, Error> {
         let example = self.source_text("deploy/version-agent.env.example")?;
         let defaults = env_values(&example);
@@ -272,6 +337,56 @@ impl VersionAgentAdapter {
             std::thread::sleep(Duration::from_secs(1));
         }
     }
+    fn apply_runtime(
+        &self,
+        action: &Action,
+        mut data: CheckpointData,
+        recovery: bool,
+    ) -> Result<CheckpointData, Error> {
+        let selected = if recovery { self.recovery_selection(action)? } else { self.selection(action)? };
+        self.host.checkpoint(action, &data)?;
+        self.host.claim(MARKER, &data)?;
+        let active = self.host.capture(&["systemctl", "is-active", "version-agent"], 64, Capture::VERSION_AGENT).trim()
+            == "active";
+        self.install_code(&data)?;
+        let unit = self.source_text("deploy/version-agent.service")?;
+        let unit =
+            unit.replace("ExecStart=/usr/bin/python3 -m version_agent.server", &format!("ExecStart={CODE}/{BINARY}"));
+        if !unit.lines().any(|l| l == format!("ExecStart={CODE}/{BINARY}")) {
+            return Err(self.host.error("version-agent unit does not execute the release binary"));
+        }
+        self.host.write(UNIT, unit.as_bytes(), 0o644)?;
+        self.host.write(
+            TMPFILES,
+            self.source_text("deploy/proxy-control-version-agent.tmpfiles.conf")?.as_bytes(),
+            0o644,
+        )?;
+        let existing = if self.host.path(ENV)?.exists() { self.host.text(ENV)? } else { String::new() };
+        self.host.write(ENV, self.env_text(&selected, &existing)?.as_bytes(), 0o600)?;
+        if !self.host.path(CATALOG)?.exists() {
+            self.host.write(CATALOG, b"{\n  \"schema\": 1,\n  \"components\": {}\n}\n", 0o600)?;
+        }
+        if !self.host.path(STATE)?.exists() {
+            let dir = self.host.path(STATE_DIR)?;
+            pc_host::fs::durable_mkdir(&dir, 0o700)?;
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+            self.host.write(
+                STATE,
+                pc_host::json::pretty2(&json!({"schema":2,"components":self.installed_components(&selected)?}))
+                    .as_bytes(),
+                0o600,
+            )?;
+        }
+        self.host.run(&["systemctl", "daemon-reload"])?;
+        self.host.run(&["systemd-tmpfiles", "--create", TMPFILES])?;
+        self.host.run(&["systemctl", "enable", "--now", "version-agent"])?;
+        if active {
+            self.host.run(&["systemctl", "restart", "version-agent"])?;
+        }
+        self.wait_healthy()?;
+        data.insert("ownership".into(), self.ownership()?);
+        Ok(data)
+    }
     fn teardown(&self, action: &Action, data: CheckpointData, purge: bool, reconcile: bool) -> Result<Evidence, Error> {
         self.selection(action)?;
         self.host.checkpoint(action, &data)?;
@@ -352,61 +467,24 @@ impl Adapter for VersionAgentAdapter {
         self.selection(action)?;
         self.host.prepare(action, MARKER, &[UNIT, CODE])
     }
-    fn apply(&self, action: &Action, mut data: CheckpointData) -> Result<CheckpointData, Error> {
-        let selected = self.selection(action)?;
-        self.host.checkpoint(action, &data)?;
-        self.host.claim(MARKER, &data)?;
-        let active = self.host.capture(&["systemctl", "is-active", "version-agent"], 64, Capture::VERSION_AGENT).trim()
-            == "active";
-        self.install_code(&data)?;
-        let unit = self.source_text("deploy/version-agent.service")?;
-        let unit =
-            unit.replace("ExecStart=/usr/bin/python3 -m version_agent.server", &format!("ExecStart={CODE}/{BINARY}"));
-        if !unit.lines().any(|l| l == format!("ExecStart={CODE}/{BINARY}")) {
-            return Err(self.host.error("version-agent unit does not execute the release binary"));
-        }
-        self.host.write(UNIT, unit.as_bytes(), 0o644)?;
-        self.host.write(
-            TMPFILES,
-            self.source_text("deploy/proxy-control-version-agent.tmpfiles.conf")?.as_bytes(),
-            0o644,
-        )?;
-        let existing = if self.host.path(ENV)?.exists() { self.host.text(ENV)? } else { String::new() };
-        self.host.write(ENV, self.env_text(&selected, &existing)?.as_bytes(), 0o600)?;
-        if !self.host.path(CATALOG)?.exists() {
-            self.host.write(CATALOG, b"{\n  \"schema\": 1,\n  \"components\": {}\n}\n", 0o600)?;
-        }
-        if !self.host.path(STATE)?.exists() {
-            let dir = self.host.path(STATE_DIR)?;
-            pc_host::fs::durable_mkdir(&dir, 0o700)?;
-            fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
-            self.host.write(
-                STATE,
-                pc_host::json::pretty2(&json!({"schema":2,"components":self.installed_components(&selected)?}))
-                    .as_bytes(),
-                0o600,
-            )?;
-        }
-        self.host.run(&["systemctl", "daemon-reload"])?;
-        self.host.run(&["systemd-tmpfiles", "--create", TMPFILES])?;
-        self.host.run(&["systemctl", "enable", "--now", "version-agent"])?;
-        if active {
-            self.host.run(&["systemctl", "restart", "version-agent"])?;
-        }
-        self.wait_healthy()?;
-        data.insert("ownership".into(), self.ownership()?);
-        Ok(data)
+    fn apply(&self, action: &Action, data: CheckpointData) -> Result<CheckpointData, Error> {
+        self.apply_runtime(action, data, false)
     }
     fn reconcile_apply(&self, action: &Action, data: CheckpointData) -> Result<CheckpointData, Error> {
         self.apply(action, data)
     }
+    fn preflight_repair(&self, action: &Action, data: &CheckpointData) -> Result<(), Error> {
+        self.host.checkpoint(action, data)?;
+        self.host.marker(MARKER, data, false)?;
+        self.recovery_selection(action)?;
+        Ok(())
+    }
     fn repair(&self, action: &Action, data: CheckpointData) -> Result<CheckpointData, Error> {
-        self.host.checkpoint(action, &data)?;
-        self.host.marker(MARKER, &data, false)?;
-        self.apply(action, data)
+        self.preflight_repair(action, &data)?;
+        self.apply_runtime(action, data, true)
     }
     fn verify(&self, action: &Action) -> Result<Evidence, Error> {
-        let selected = self.selection(action)?;
+        let selected = self.recovery_selection(action)?;
         for (check, expected) in [("is-active", "active"), ("is-enabled", "enabled")] {
             if self.host.capture(&["systemctl", check, "version-agent"], 64, Capture::VERSION_AGENT).trim() != expected
             {

@@ -163,6 +163,25 @@ fn rebuild(host: &Host<'_>, model: &Model, project: &str, pending: &[String]) ->
     Ok(())
 }
 
+fn recovery_services(host: &Host<'_>) -> Result<Option<crate::cli::Services>> {
+    let store = crate::store::TransactionStore::new(&host.root).map_err(|e| e.to_string())?;
+    if !store.state_exists() {
+        return Ok(None);
+    }
+    let context = crate::adapters::AdapterContext {
+        root: host.root.clone(),
+        tree: host.source.clone(),
+        runner: std::sync::Arc::new(pc_host::runner::SystemRunner),
+    };
+    crate::cli::Services::with_context(
+        context,
+        Box::new(|_| Ok(Default::default())),
+        Box::new(crate::adapters::mcp_handoff),
+    )
+    .map(Some)
+    .map_err(|e| e.message())
+}
+
 pub(super) fn update(host: &Host<'_>, version: &str, expected: &str) -> Result<String> {
     use std::os::unix::fs::FileTypeExt;
     if !std::fs::symlink_metadata(&host.socket).is_ok_and(|m| m.file_type().is_socket()) {
@@ -190,6 +209,11 @@ pub(super) fn update(host: &Host<'_>, version: &str, expected: &str) -> Result<S
         _ => return Err("panel is not in the expected Compose project".into()),
     };
     scope(host, &model, project_name)?;
+    // Use the same read-only adapter agreement as final repair, before retirement,
+    // migration, panel update or rebuild. Its lock is released before nested operations.
+    if let Some(services) = recovery_services(host)? {
+        services.engine.preflight_repair().map_err(|e| e.message())?;
+    }
     // Unused Fleet v1 overlays are inert leftovers the native agent refuses; the journal owns them.
     let retired = super::fleet::retire_unused_overlays(host, &project, &model)?;
     // Mandatory boundary: a Python agent never receives a 4.0 update request.
@@ -269,19 +293,7 @@ pub(super) fn update(host: &Host<'_>, version: &str, expected: &str) -> Result<S
     crate::ingress_upgrade::upgrade(&project, &host.root, true, host.runner).map_err(|e| e.to_string())?;
     let moved = super::compose::migrate(host, &project, false)?;
     // The Rust agent's handoff owns new sync entries; repair transitions host helper checkpoints.
-    let store = crate::store::TransactionStore::new(&host.root).map_err(|e| e.to_string())?;
-    if store.state_exists() {
-        let context = crate::adapters::AdapterContext {
-            root: host.root.clone(),
-            tree: host.source.clone(),
-            runner: std::sync::Arc::new(pc_host::runner::SystemRunner),
-        };
-        let services = crate::cli::Services::with_context(
-            context,
-            Box::new(|_| Ok(Default::default())),
-            Box::new(crate::adapters::mcp_handoff),
-        )
-        .map_err(|e| e.message())?;
+    if let Some(services) = recovery_services(host)? {
         services.engine.repair().map_err(|e| e.message())?;
     }
     let names = host.query(&strings(&[

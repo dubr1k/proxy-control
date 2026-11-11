@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [4.0.8] - 2026-11-11
+
+### Host installer
+- Preserve explicitly active additional AmneziaWG, TrustTunnel and MCP Compose overlays during repair and the repair phase of host updates without rewriting the accepted plan or claiming ownership of neighbouring services.
+- Validate the active Compose selection before any repair action. Refuse unknown layers, incomplete additional configurations and ambiguous enable/disable transitions without replacing the active selection with an old plan.
+- Accept the verified prebuilt panel in both release entrypoints while retaining support for older installer-and-agent-only archives. Require both mandatory binaries and validate every listed binary's digest and exact 0755 mode, including archive permissions before extraction.
+- Reject noncanonical archive paths and duplicate members before extraction so path aliases and umask cannot bypass binary permission checks.
+- Publish the installer script pinned to the 4.0.8 archive and checksum. Fresh installations and updates use the same release binaries; host requirements are unchanged.
+
 ## [4.0.7] - 2026-11-11
 
 ### Updates

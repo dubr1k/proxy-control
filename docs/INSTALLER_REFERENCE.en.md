@@ -603,6 +603,20 @@ is mutated:
 
 ## Recovery, repair, rollback, and uninstall
 
+Before the first repair action, the installer validates the version-agent's active
+Compose selection. Explicitly active additional AmneziaWG, TrustTunnel and MCP
+layers are retained when their Compose and environment files are regular files.
+This does not rewrite the accepted plan or claim ownership of those services.
+Unknown layers, a missing planned layer, incomplete additional files or a layer
+removed from the active list while its paired files remain cause refusal before
+repair mutates the host. Additional Naive, Mieru and Xray-router layers require
+explicit reconciliation rather than recovery. Do not edit the accepted plan or
+its digest to bypass this check. An omitted key in an existing environment file
+uses the agent's runtime default (`compose.yaml` / router `off`), not the old plan;
+only a missing managed environment file is restored from accepted intent.
+`update-host` checks the same agreement before its first mutation and again in
+the final repair. Fresh install and reconcile-apply still follow the accepted plan.
+
 Core host commands run in a dedicated process group. A timeout
 kills that group, reaps the command and waits until no live group members remain before
 returning control to rollback. Standard output stays suppressed; standard error remains

@@ -267,6 +267,197 @@ fn agent_engine_fresh_repair_and_uninstall_own_the_complete_tree() {
     assert!(!dir.path().join("opt/proxy-control/version_agent").exists());
 }
 #[test]
+fn agent_repair_preserves_active_optional_overlays_without_retargeting_plan() {
+    let dir = TempDir::new("s");
+    let runner = agent_runner(dir.path());
+    let agent = VersionAgentAdapter::new(&context(dir.path(), runner));
+    let action = agent.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+    let accepted = action.to_value();
+    let mut data = agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
+    let _socket = socket(dir.path());
+    let files = "compose.yaml:compose.amneziawg.yaml:compose.trusttunnel.yaml:compose.mcp.yaml";
+    for name in ["amneziawg", "trusttunnel", "mcp"] {
+        put(dir.path(), &format!("/opt/mtproxy-shared443/.env.{name}"), "ENABLED=1\n");
+        put(dir.path(), &format!("/opt/mtproxy-shared443/compose.{name}.yaml"), "services: {}\n");
+    }
+    put(
+        dir.path(),
+        "/etc/proxy-control/version-agent.env",
+        &format!("PROXY_CONTROL_COMPOSE_FILES={files}\nPROXY_CONTROL_XRAY_ROUTER=off\n"),
+    );
+    for _ in 0..2 {
+        data = agent.repair(&action, data).unwrap();
+        let env = pc_host::envfile::read(&dir.path().join("etc/proxy-control/version-agent.env")).unwrap();
+        assert_eq!(env["PROXY_CONTROL_COMPOSE_FILES"], files);
+        assert!(agent.verify(&action).unwrap().success);
+        assert_eq!(action.to_value(), accepted);
+    }
+    // A new accepted apply remains authoritative: preservation is recovery-only.
+    agent.apply(&action, data).unwrap();
+    let env = pc_host::envfile::read(&dir.path().join("etc/proxy-control/version-agent.env")).unwrap();
+    assert_eq!(env["PROXY_CONTROL_COMPOSE_FILES"], "compose.yaml");
+    // Leftover sibling files are not an implicit enable after the explicit selection changed.
+    let data = agent.prepare(&action).unwrap();
+    assert!(agent.repair(&action, data).is_err());
+    for name in ["amneziawg", "trusttunnel", "mcp"] {
+        fs::remove_file(dir.path().join(format!("opt/mtproxy-shared443/.env.{name}"))).unwrap();
+    }
+    assert!(agent.verify(&action).unwrap().success);
+}
+#[test]
+fn agent_engine_preflights_overlay_changes_before_earlier_repairs() {
+    let dir = TempDir::new("s");
+    let runner = agent_runner(dir.path());
+    let agent: Arc<dyn Adapter> = Arc::new(VersionAgentAdapter::new(&context(dir.path(), runner.clone())));
+    let earlier = Arc::new(crate::testkit::RecordingAdapter::new("earlier", dir.path()));
+    let earlier_action = crate::testkit::action_for("earlier");
+    let agent_action = agent.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+    let plan = plan_with(vec![earlier_action, agent_action], Map::new());
+    let digest = plan.digest();
+    let _socket = socket(dir.path());
+    let engine = engine_for(dir.path(), vec![earlier.clone(), agent]);
+    engine.apply(&plan, &digest).unwrap();
+    fs::remove_file(earlier.target()).unwrap();
+    put(
+        dir.path(),
+        "/etc/proxy-control/version-agent.env",
+        "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.amneziawg.yaml\n",
+    );
+    let calls = runner.calls().len();
+    assert!(engine.repair().is_err());
+    assert!(!earlier.target().exists(), "no earlier adapter may repair before overlay validation");
+    assert_eq!(runner.calls().len(), calls);
+    put(dir.path(), "/opt/mtproxy-shared443/.env.amneziawg", "ENABLED=1\n");
+    put(dir.path(), "/opt/mtproxy-shared443/compose.amneziawg.yaml", "services: {}\n");
+    assert_eq!(engine.repair().unwrap().status, Status::Active);
+    assert!(earlier.target().exists());
+    let env = pc_host::envfile::read(&dir.path().join("etc/proxy-control/version-agent.env")).unwrap();
+    assert_eq!(env["PROXY_CONTROL_COMPOSE_FILES"], "compose.yaml:compose.amneziawg.yaml");
+    assert_eq!(plan.digest(), digest);
+    // A retained sibling does not become installer-owned through repair.
+    let state = engine.repair().unwrap();
+    assert!(state.checkpoints.iter().all(|cp| cp.ownership.keys().all(|path| !path.contains("amneziawg"))));
+}
+#[test]
+fn agent_repair_refuses_ambiguous_overlay_changes_before_mutation() {
+    for (files, router, fixture) in [
+        ("compose.yaml:compose.unknown.yaml", "off", "regular"),
+        ("compose.yaml:compose.fleet-agent.yaml", "off", "regular"),
+        ("compose.yaml:../compose.amneziawg.yaml", "off", "regular"),
+        ("compose.yaml:compose.amneziawg.yaml:compose.amneziawg.yaml", "off", "regular"),
+        ("compose.yaml:", "off", "regular"),
+        ("compose.amneziawg.yaml", "off", "regular"),
+        ("compose.yaml:compose.naive.yaml", "off", "regular"),
+        ("compose.yaml:compose.mieru.yaml", "off", "regular"),
+        ("compose.yaml:compose.xray-router.yaml", "on", "regular"),
+        ("compose.yaml", "on", "regular"),
+        ("compose.yaml", "off", "regular"),
+        ("compose.yaml:compose.amneziawg.yaml", "off", "missing-env"),
+        ("compose.yaml:compose.amneziawg.yaml", "off", "missing-compose"),
+        ("compose.yaml:compose.amneziawg.yaml", "off", "symlink"),
+    ] {
+        let dir = TempDir::new("s");
+        let runner = agent_runner(dir.path());
+        let agent = VersionAgentAdapter::new(&context(dir.path(), runner.clone()));
+        let action = agent.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+        let data = agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
+        let env = format!("PROXY_CONTROL_COMPOSE_FILES={files}\nPROXY_CONTROL_XRAY_ROUTER={router}\n");
+        put(dir.path(), "/etc/proxy-control/version-agent.env", &env);
+        if fixture != "missing-env" {
+            put(dir.path(), "/opt/mtproxy-shared443/.env.amneziawg", "ENABLED=1\n");
+        }
+        if fixture != "missing-compose" {
+            put(dir.path(), "/opt/mtproxy-shared443/compose.amneziawg.yaml", "services: {}\n");
+        }
+        if fixture == "symlink" {
+            let path = dir.path().join("opt/mtproxy-shared443/.env.amneziawg");
+            fs::remove_file(&path).unwrap();
+            symlink("compose.amneziawg.yaml", path).unwrap();
+        }
+        let before = runner.calls().len();
+        assert!(agent.repair(&action, data).is_err(), "{files}, {fixture}");
+        assert_eq!(runner.calls().len(), before);
+        assert_eq!(fs::read_to_string(dir.path().join("etc/proxy-control/version-agent.env")).unwrap(), env);
+        assert!(agent.verify(&action).is_err());
+    }
+}
+#[test]
+fn agent_repair_does_not_reenable_an_explicitly_disabled_planned_overlay() {
+    let dir = TempDir::new("s");
+    let agent = VersionAgentAdapter::new(&context(dir.path(), agent_runner(dir.path())));
+    let mut cfg = config();
+    cfg.domains.mcp = Some("mcp.example.com".into());
+    let action = agent.plan(&cfg, &AuditFacts::default()).unwrap().remove(0);
+    let data = agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
+    put(dir.path(), "/etc/proxy-control/version-agent.env", "PROXY_CONTROL_COMPOSE_FILES=compose.yaml\n");
+    assert!(agent.repair(&action, data).is_err());
+    assert_eq!(
+        fs::read_to_string(dir.path().join("etc/proxy-control/version-agent.env")).unwrap(),
+        "PROXY_CONTROL_COMPOSE_FILES=compose.yaml\n"
+    );
+}
+fn check_omitted_agent_env(variant: &str, env: &str, refused: bool) {
+    let dir = TempDir::new("s");
+    let runner = agent_runner(dir.path());
+    let agent = VersionAgentAdapter::new(&context(dir.path(), runner.clone()));
+    let mut cfg = config();
+    if variant == "mcp" {
+        cfg.domains.mcp = Some("mcp.example.com".into());
+    }
+    let mut action = agent.plan(&cfg, &AuditFacts::default()).unwrap().remove(0);
+    if variant == "router" {
+        action.mutations.iter_mut().for_each(|value| {
+            if value == "router=off" {
+                *value = "router=on".into();
+            }
+            if value == "compose-files=compose.yaml" {
+                *value = "compose-files=compose.yaml:compose.xray-router.yaml".into();
+            }
+        });
+    }
+    let data = agent.prepare(&action).unwrap();
+    put(dir.path(), "/etc/proxy-control/version-agent-owned", data["marker_value"].as_str().unwrap());
+    put(dir.path(), "/etc/proxy-control/version-agent.env", env);
+    let before = runner.calls().len();
+    let result = agent.preflight_repair(&action, &data);
+    assert_eq!(result.is_err(), refused, "{variant}: {result:?}");
+    if refused {
+        assert_eq!(runner.calls().len(), before);
+        assert_eq!(fs::read_to_string(dir.path().join("etc/proxy-control/version-agent.env")).unwrap(), env);
+    }
+    // Losing the whole managed env is damage, not an operator's effective selection.
+    fs::remove_file(dir.path().join("etc/proxy-control/version-agent.env")).unwrap();
+    agent.preflight_repair(&action, &data).unwrap();
+}
+#[test]
+fn agent_repair_omitted_compose_key_cannot_reenable_planned_mcp() {
+    check_omitted_agent_env("mcp", "PROXY_CONTROL_XRAY_ROUTER=off\n", true);
+}
+#[test]
+fn agent_repair_omitted_router_key_cannot_reenable_planned_router() {
+    check_omitted_agent_env("router", "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.xray-router.yaml\n", true);
+}
+#[test]
+fn agent_repair_omitted_keys_accept_core_runtime_defaults() {
+    check_omitted_agent_env("core", "OPERATOR_OVERRIDE=keep\n", false);
+}
+#[test]
+fn agent_repair_restores_missing_managed_env_from_the_accepted_plan() {
+    let dir = TempDir::new("s");
+    let runner = agent_runner(dir.path());
+    let agent = VersionAgentAdapter::new(&context(dir.path(), runner));
+    let mut cfg = config();
+    cfg.domains.mcp = Some("mcp.example.com".into());
+    let action = agent.plan(&cfg, &AuditFacts::default()).unwrap().remove(0);
+    let data = agent.apply(&action, agent.prepare(&action).unwrap()).unwrap();
+    let path = dir.path().join("etc/proxy-control/version-agent.env");
+    fs::remove_file(&path).unwrap();
+    agent.repair(&action, data).unwrap();
+    let env = pc_host::envfile::read(&path).unwrap();
+    assert_eq!(env["PROXY_CONTROL_COMPOSE_FILES"], "compose.yaml:compose.mcp.yaml");
+    assert_eq!(env["PROXY_CONTROL_XRAY_ROUTER"], "off");
+}
+#[test]
 fn agent_verify_reads_selected_state_and_still_rejects_version_drift() {
     let dir = TempDir::new("s");
     let agent = VersionAgentAdapter::new(&context(dir.path(), agent_runner(dir.path())));
@@ -1114,6 +1305,18 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
         assert_eq!(value["components"]["telemt"]["available"][0]["version"], "operator-approved");
     };
     assert_operator_files(versions());
+    // A runtime enabled after this historical plan must survive update-host's repair.
+    put(root, "opt/mtproxy-shared443/.env.amneziawg", "AWG_PUBLIC_HOST=awg.example.com\n");
+    put(root, "opt/mtproxy-shared443/compose.amneziawg.yaml", "services: {}\n");
+    let agent_env = root.join("etc/proxy-control/version-agent.env");
+    fs::write(
+        &agent_env,
+        fs::read_to_string(&agent_env).unwrap().replace(
+            "PROXY_CONTROL_COMPOSE_FILES=compose.yaml\n",
+            "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.amneziawg.yaml\n",
+        ),
+    )
+    .unwrap();
     // Exercise update-host's actual final whole-engine repair, not only env rendering.
     // The panel already has this release; Docker is the external boundary, while
     // migrate-agent, health, persisted journal and the installed daemon are real.
@@ -1131,6 +1334,15 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
         .output()
         .unwrap();
     assert!(output.status.success(), "update-host: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        pc_host::envfile::read(&agent_env).unwrap()["PROXY_CONTROL_COMPOSE_FILES"],
+        "compose.yaml:compose.amneziawg.yaml"
+    );
+    assert_eq!(engine.repair().unwrap().status, Status::Active);
+    assert_eq!(
+        pc_host::envfile::read(&agent_env).unwrap()["PROXY_CONTROL_COMPOSE_FILES"],
+        "compose.yaml:compose.amneziawg.yaml"
+    );
     daemon.0.kill().unwrap();
     daemon.0.wait().unwrap();
     daemon = start(&installed);
@@ -1148,6 +1360,10 @@ fn isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke() {
             "PROXY_CONTROL_VERSION_STATE='/var/lib/proxy-control/version-agent/operator/state.json'",
         );
     fs::write(env_path, quoted).unwrap();
+    // The following is an independent interrupted initial-apply scenario. Explicitly
+    // retire the synthetic post-install sibling before replaying that older intent.
+    fs::remove_file(root.join("opt/mtproxy-shared443/.env.amneziawg")).unwrap();
+    fs::remove_file(root.join("opt/mtproxy-shared443/compose.amneziawg.yaml")).unwrap();
     let mut interrupted = engine.store().read_state().unwrap();
     interrupted.status = Status::Applying;
     interrupted.checkpoints[0].phase = Phase::Applying;

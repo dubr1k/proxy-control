@@ -53,9 +53,20 @@ manifest_fields() {
 }
 archive_preflight() {
     # Reject links, devices and special entries before extraction, not after following them.
-    tar -tvzf "$1" | LC_ALL=C awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' || return 1
+    tar -tvzf "$1" | LC_ALL=C awk '
+        substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 }
+        # Only directories may use the canonical trailing slash.
+        substr($0,1,1)=="-" && $NF ~ /\/$/ { bad=1 }
+        # GNU tar also interprets a regular header ending in / as a directory.
+        { name=$NF; sub(/\/$/, "", name) }
+        (name=="proxy-control/installer/bin/linux-amd64/proxy-control-installer" ||
+         name=="proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent" ||
+         name=="proxy-control/panel/bin/linux-amd64/panel") && substr($0,1,10)!="-rwxr-xr-x" { bad=1 }
+        END { exit bad }
+    ' || return 1
     tar -tzf "$1" | LC_ALL=C awk '
-        { if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /[[:cntrl:]]/) bad=1; count++ }
+        { name=$0; sub(/\/$/, "", name)
+          if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.?(\/|$)/ || $0 ~ /\/\// || $0 ~ /[[:cntrl:]]/ || seen[name]++) bad=1; count++ }
         END { exit bad || !count }
     '
 }
@@ -70,9 +81,9 @@ verify_host_binaries() {
                  line=$0; sub(/^    "/,"",line); path=line; sub(/".*/,"",path)
                  sub(/^[^"]*": "/,"",line); sub(/",?$/,"",line)
                  if (length(line)!=64 || paths[path]++) exit 1
-                 if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent") exit 1
+                 if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent" && path!="panel/bin/linux-amd64/panel") exit 1
                  print path " " line; count++ }
-        END { if (!done || inside || count!=2) exit 1 }
+        END { if (!done || inside || !paths["installer/bin/linux-amd64/proxy-control-installer"] || !paths["version_agent/bin/linux-amd64/proxy-control-version-agent"] || (count!=2 && count!=3)) exit 1 }
     ' "$root/release/release.json") || return 1
     while read -r path expected; do
         [[ -f $root/$path && ! -L $root/$path ]] || return 1
@@ -80,7 +91,7 @@ verify_host_binaries() {
         [[ $mode == 755 && $(sha256_of "$root/$path") == "$expected" ]] || return 1
         count=$((count + 1))
     done <<< "$rows"
-    ((count == 2))
+    ((count == 2 || count == 3))
 }
 check_file "$ARCHIVE"; check_file "$CHECKSUM"; check_file "$MANIFEST"
 [[ -z $PROVENANCE ]] || check_file "$PROVENANCE"

@@ -116,6 +116,12 @@ pub trait Adapter {
     /// Prove the action's result on the host.
     fn verify(&self, action: &Action) -> Result<Evidence, Error>;
 
+    /// Read-only recovery validation, run for every action before the first repair mutation.
+    /// Defaults preserve the historical adapter and plan/journal contracts.
+    fn preflight_repair(&self, _action: &Action, _checkpoint: &CheckpointData) -> Result<(), Error> {
+        Ok(())
+    }
+
     /// Restore an active installation's owned state.
     fn repair(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData, Error>;
 

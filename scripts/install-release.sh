@@ -481,10 +481,22 @@ elif ((REQUIRE_ATTESTATION)); then
 fi
 
 # Do not let tar create a link, device or special file, even from a checksum-valid archive.
-tar -tvzf "$archive_name" | LC_ALL=C awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' \
-    || fail "архив содержит не обычный файл/каталог" "the archive contains a link or special member"
+tar -tvzf "$archive_name" | LC_ALL=C awk '
+        substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 }
+        # Only directories may use the canonical trailing slash.
+        substr($0,1,1)=="-" && $NF ~ /\/$/ { bad=1 }
+        # GNU tar also interprets a regular header ending in / as a directory.
+        { name=$NF; sub(/\/$/, "", name) }
+        (name=="proxy-control/installer/bin/linux-amd64/proxy-control-installer" ||
+         name=="proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent" ||
+         name=="proxy-control/panel/bin/linux-amd64/panel") && substr($0,1,10)!="-rwxr-xr-x" { bad=1 }
+        END { exit bad }
+    ' \
+    || fail "архив содержит ссылку, специальный файл или бинарник с правами не 0755" \
+        "the archive contains a link, special member or binary whose mode is not 0755"
 tar -tzf "$archive_name" | LC_ALL=C awk '
-    { if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /[[:cntrl:]]/) bad=1; count++ }
+    { name=$0; sub(/\/$/, "", name)
+      if ($0 !~ /^proxy-control\// || $0 ~ /(^|\/)\.\.?(\/|$)/ || $0 ~ /\/\// || $0 ~ /[[:cntrl:]]/ || seen[name]++) bad=1; count++ }
     END { exit bad || !count }
 ' || fail "архив не прошёл проверку перед распаковкой" "the archive failed its extraction preflight"
 
@@ -501,7 +513,8 @@ root=$DESTINATION/proxy-control
 [[ -f $root/install.sh && -f $root/release/release.json ]] \
     || fail "распакованный релиз неполон" "the extracted release is incomplete"
 
-# Canonical release.json records both host binaries. Verify them without running archive code.
+# Canonical release.json requires installer + agent and permits the prebuilt panel.
+# Verify every listed binary without running archive code; older two-binary releases remain valid.
 rows=$(LC_ALL=C awk '
     /^  "binaries": \{$/ { if (seen++) exit 1; inside=1; next }
     inside && /^  },?$/ { if (comma) exit 1; inside=0; done=1; next }
@@ -511,9 +524,9 @@ rows=$(LC_ALL=C awk '
              line=$0; sub(/^    "/,"",line); path=line; sub(/".*/,"",path)
              sub(/^[^"]*": "/,"",line); sub(/",?$/,"",line)
              if (length(line)!=64 || paths[path]++) exit 1
-             if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent") exit 1
+             if (path!="installer/bin/linux-amd64/proxy-control-installer" && path!="version_agent/bin/linux-amd64/proxy-control-version-agent" && path!="panel/bin/linux-amd64/panel") exit 1
              print path " " line; count++ }
-    END { if (!done || inside || count!=2) exit 1 }
+    END { if (!done || inside || !paths["installer/bin/linux-amd64/proxy-control-installer"] || !paths["version_agent/bin/linux-amd64/proxy-control-version-agent"] || (count!=2 && count!=3)) exit 1 }
 ' "$root/release/release.json") \
     || fail "неверная запись binaries в release.json" "invalid release.json binaries"
 count=0
@@ -526,7 +539,7 @@ while read -r path expected; do
         || fail "неверные права или digest $path" "binary mode or digest mismatch: $path"
     count=$((count + 1))
 done <<< "$rows"
-((count == 2)) || fail "неполный набор бинарников" "incomplete host binaries"
+((count == 2 || count == 3)) || fail "неполный набор бинарников" "incomplete host binaries"
 say "распаковано в $root" "extracted to $root"
 
 if [[ $MODE == unpack ]]; then
