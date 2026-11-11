@@ -19,9 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v4.0.4](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4)
-> and the [changelog](CHANGELOG.md).
+> **Current release: [v4.0.7](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.7).**
+> What changed is in the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx and Docker are. The installer

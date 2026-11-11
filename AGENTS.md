@@ -172,8 +172,10 @@
 - **Истории до 1.0.0 нет.** Документы описывают текущее поведение: без «с v0.x», «since v0.x»,
   ссылок на бета-выпуски и их заметки. Журнал изменений начинается с 1.0.0; новые записи —
   в `CHANGELOG.md` и `CHANGELOG.ru.md`.
-- **`docs/releases/vX.Y.Z.md`** — заметки о выпуске для пользователей: что изменилось и как
-  обновиться. Таблицы гейта, имена стендов, счётчики живых проверок туда не пишутся.
+- **GitHub Releases:** название выпуска — строго `v` и номер версии, например `v4.0.7`.
+  Описание выпуска пустое: без подзаголовков, списков изменений и автоматически созданных
+  заметок. Все сведения об изменениях записывайте только в `CHANGELOG.md` и `CHANGELOG.ru.md`;
+  новые заметки в `docs/releases/` не создавайте.
 - **Рабочие материалы агентов не коммитятся**: планы и спецификации, передачи
   (`CONTINUE-HERE`), протоколы приёмки на стендах держите в `.superpowers/` (игнорируется
   Git) или вне дерева. Ссылки из репозитория на них запрещены.
@@ -883,8 +885,10 @@ A change that touches it without updating it is unfinished work, not «we'll cat
 - **There is no history before 1.0.0.** Documents describe the current behaviour: no «since
   v0.x», no links to beta releases or their notes. The changelog starts at 1.0.0; new entries go
   to `CHANGELOG.md` and `CHANGELOG.ru.md`.
-- **`docs/releases/vX.Y.Z.md`** are release notes for users: what changed and how to upgrade.
-  Gate tables, lab host names and live-check counts do not belong there.
+- **GitHub Releases:** the release title is strictly `v` followed by the version, for example
+  `v4.0.7`. Leave the release description empty: no subtitles, change lists or generated release
+  notes. Record all changes only in `CHANGELOG.md` and `CHANGELOG.ru.md`; do not create new
+  notes under `docs/releases/`.
 - **Agent working material is not committed**: plans and specs, handoffs (`CONTINUE-HERE`) and
   lab acceptance logs stay in `.superpowers/` (ignored by Git) or outside the tree, and nothing in
   the repository links to them.

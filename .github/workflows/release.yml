@@ -149,6 +149,9 @@ jobs:
           # 4.0 pre-releases remain disabled by the version check.
           prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
           tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
+          name: v${{ needs.build-twice-and-compare.outputs.version }}
+          body: ""
+          generate_release_notes: false
           files: |
             dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
             dist/release-manifest.json

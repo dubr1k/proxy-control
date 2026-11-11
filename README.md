@@ -19,9 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v4.0.4](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.4)
-> и [журнале изменений](CHANGELOG.ru.md).
+> **Текущий выпуск — [v4.0.7](https://github.com/dubr1k/proxy-control/releases/tag/v4.0.7).**
+> Что изменилось — в [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и Docker.
