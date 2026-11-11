@@ -5,6 +5,7 @@ secrets/
 *.log
 .venv/
 .pytest_cache/
-panel/tests/
+# Native workspace clippy/tests embed fixtures from panel/tests. The release
+# runtime policy still excludes this directory from installed archives.
 # Cargo build output of the Rust crates
 **/target/
