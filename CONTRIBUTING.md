@@ -30,6 +30,14 @@ python3 scripts/check-doc-links.py
 
 Render every affected Compose combination and build affected images. The exact CI model and environment placeholders are in `.github/workflows/test.yml`.
 
+The complete CI workflow also supports **Actions → CI → Run workflow** for an
+explicitly selected branch. This runs the same jobs, permissions and checks as
+push/PR events; it is useful for diagnosing or recovering a stuck run without
+changing application code. A manual diagnostic run does not replace the release
+requirement: the exact candidate still needs a successful latest `main` push CI
+before tagging. If GitHub refuses to cancel or rerun an older admission record,
+keep its URL as evidence; do not disable checks or treat a queued run as passed.
+
 ## Architecture rules
 
 - Preserve active runtime paths, Compose names/volumes and commands documented in [COMPATIBILITY.md](docs/COMPATIBILITY.md); discover and protect historical Fleet v1 units/URI identifiers during explicit migration, but do not reinstall them in the native release.
